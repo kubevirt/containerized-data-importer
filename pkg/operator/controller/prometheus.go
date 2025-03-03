@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -213,7 +214,7 @@ func newPrometheusServiceMonitor(namespace string) *promv1.ServiceMonitor {
 					Scheme: "http",
 					TLSConfig: &promv1.TLSConfig{
 						SafeTLSConfig: promv1.SafeTLSConfig{
-							InsecureSkipVerify: true,
+							InsecureSkipVerify: ptr.To(true),
 						},
 					},
 				},

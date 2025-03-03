@@ -155,7 +155,7 @@ var _ = Describe("CDI Delete Webhook", func() {
 
 			resp := validateCDIs(ar, newDataVolumeWithName("foo"))
 			Expect(resp.Allowed).To(BeFalse())
-			Expect(resp.Result.Message).To(ContainSubstring("Rejecting the uninstall request, since there are still DataVolumes present."))
+			Expect(resp.Result.Message).To(ContainSubstring("rejecting the uninstall request, since there are still 1 DataVolumes present."))
 		})
 
 		It("should reject with DataVolumes present and oldobject not populated", func() {
@@ -187,7 +187,7 @@ var _ = Describe("CDI Delete Webhook", func() {
 
 			resp := validateCDIs(ar, cdi, newDataVolumeWithName("foo"))
 			Expect(resp.Allowed).To(BeFalse())
-			Expect(resp.Result.Message).To(ContainSubstring("Rejecting the uninstall request, since there are still DataVolumes present."))
+			Expect(resp.Result.Message).To(ContainSubstring("rejecting the uninstall request, since there are still 1 DataVolumes present."))
 		})
 
 		It("should allow error CDI to be deleted with DataVolumes present", func() {

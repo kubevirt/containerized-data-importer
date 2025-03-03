@@ -41,22 +41,24 @@ var ovirtvolumepopulatorsKind = v1beta1.SchemeGroupVersion.WithKind("OvirtVolume
 
 // Get takes name of the ovirtVolumePopulator, and returns the corresponding ovirtVolumePopulator object, and an error if there is any.
 func (c *FakeOvirtVolumePopulators) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.OvirtVolumePopulator, err error) {
+	emptyResult := &v1beta1.OvirtVolumePopulator{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(ovirtvolumepopulatorsResource, c.ns, name), &v1beta1.OvirtVolumePopulator{})
+		Invokes(testing.NewGetActionWithOptions(ovirtvolumepopulatorsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.OvirtVolumePopulator), err
 }
 
 // List takes label and field selectors, and returns the list of OvirtVolumePopulators that match those selectors.
 func (c *FakeOvirtVolumePopulators) List(ctx context.Context, opts v1.ListOptions) (result *v1beta1.OvirtVolumePopulatorList, err error) {
+	emptyResult := &v1beta1.OvirtVolumePopulatorList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(ovirtvolumepopulatorsResource, ovirtvolumepopulatorsKind, c.ns, opts), &v1beta1.OvirtVolumePopulatorList{})
+		Invokes(testing.NewListActionWithOptions(ovirtvolumepopulatorsResource, ovirtvolumepopulatorsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -75,40 +77,43 @@ func (c *FakeOvirtVolumePopulators) List(ctx context.Context, opts v1.ListOption
 // Watch returns a watch.Interface that watches the requested ovirtVolumePopulators.
 func (c *FakeOvirtVolumePopulators) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(ovirtvolumepopulatorsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(ovirtvolumepopulatorsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a ovirtVolumePopulator and creates it.  Returns the server's representation of the ovirtVolumePopulator, and an error, if there is any.
 func (c *FakeOvirtVolumePopulators) Create(ctx context.Context, ovirtVolumePopulator *v1beta1.OvirtVolumePopulator, opts v1.CreateOptions) (result *v1beta1.OvirtVolumePopulator, err error) {
+	emptyResult := &v1beta1.OvirtVolumePopulator{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(ovirtvolumepopulatorsResource, c.ns, ovirtVolumePopulator), &v1beta1.OvirtVolumePopulator{})
+		Invokes(testing.NewCreateActionWithOptions(ovirtvolumepopulatorsResource, c.ns, ovirtVolumePopulator, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.OvirtVolumePopulator), err
 }
 
 // Update takes the representation of a ovirtVolumePopulator and updates it. Returns the server's representation of the ovirtVolumePopulator, and an error, if there is any.
 func (c *FakeOvirtVolumePopulators) Update(ctx context.Context, ovirtVolumePopulator *v1beta1.OvirtVolumePopulator, opts v1.UpdateOptions) (result *v1beta1.OvirtVolumePopulator, err error) {
+	emptyResult := &v1beta1.OvirtVolumePopulator{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(ovirtvolumepopulatorsResource, c.ns, ovirtVolumePopulator), &v1beta1.OvirtVolumePopulator{})
+		Invokes(testing.NewUpdateActionWithOptions(ovirtvolumepopulatorsResource, c.ns, ovirtVolumePopulator, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.OvirtVolumePopulator), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeOvirtVolumePopulators) UpdateStatus(ctx context.Context, ovirtVolumePopulator *v1beta1.OvirtVolumePopulator, opts v1.UpdateOptions) (*v1beta1.OvirtVolumePopulator, error) {
+func (c *FakeOvirtVolumePopulators) UpdateStatus(ctx context.Context, ovirtVolumePopulator *v1beta1.OvirtVolumePopulator, opts v1.UpdateOptions) (result *v1beta1.OvirtVolumePopulator, err error) {
+	emptyResult := &v1beta1.OvirtVolumePopulator{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(ovirtvolumepopulatorsResource, "status", c.ns, ovirtVolumePopulator), &v1beta1.OvirtVolumePopulator{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(ovirtvolumepopulatorsResource, "status", c.ns, ovirtVolumePopulator, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.OvirtVolumePopulator), err
 }
@@ -123,7 +128,7 @@ func (c *FakeOvirtVolumePopulators) Delete(ctx context.Context, name string, opt
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeOvirtVolumePopulators) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(ovirtvolumepopulatorsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(ovirtvolumepopulatorsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1beta1.OvirtVolumePopulatorList{})
 	return err
@@ -131,11 +136,12 @@ func (c *FakeOvirtVolumePopulators) DeleteCollection(ctx context.Context, opts v
 
 // Patch applies the patch and returns the patched ovirtVolumePopulator.
 func (c *FakeOvirtVolumePopulators) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.OvirtVolumePopulator, err error) {
+	emptyResult := &v1beta1.OvirtVolumePopulator{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(ovirtvolumepopulatorsResource, c.ns, name, pt, data, subresources...), &v1beta1.OvirtVolumePopulator{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(ovirtvolumepopulatorsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1beta1.OvirtVolumePopulator), err
 }

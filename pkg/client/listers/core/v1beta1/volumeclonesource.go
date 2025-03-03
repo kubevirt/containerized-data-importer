@@ -19,8 +19,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 	v1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
@@ -38,25 +38,17 @@ type VolumeCloneSourceLister interface {
 
 // volumeCloneSourceLister implements the VolumeCloneSourceLister interface.
 type volumeCloneSourceLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*v1beta1.VolumeCloneSource]
 }
 
 // NewVolumeCloneSourceLister returns a new VolumeCloneSourceLister.
 func NewVolumeCloneSourceLister(indexer cache.Indexer) VolumeCloneSourceLister {
-	return &volumeCloneSourceLister{indexer: indexer}
-}
-
-// List lists all VolumeCloneSources in the indexer.
-func (s *volumeCloneSourceLister) List(selector labels.Selector) (ret []*v1beta1.VolumeCloneSource, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.VolumeCloneSource))
-	})
-	return ret, err
+	return &volumeCloneSourceLister{listers.New[*v1beta1.VolumeCloneSource](indexer, v1beta1.Resource("volumeclonesource"))}
 }
 
 // VolumeCloneSources returns an object that can list and get VolumeCloneSources.
 func (s *volumeCloneSourceLister) VolumeCloneSources(namespace string) VolumeCloneSourceNamespaceLister {
-	return volumeCloneSourceNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return volumeCloneSourceNamespaceLister{listers.NewNamespaced[*v1beta1.VolumeCloneSource](s.ResourceIndexer, namespace)}
 }
 
 // VolumeCloneSourceNamespaceLister helps list and get VolumeCloneSources.
@@ -74,26 +66,5 @@ type VolumeCloneSourceNamespaceLister interface {
 // volumeCloneSourceNamespaceLister implements the VolumeCloneSourceNamespaceLister
 // interface.
 type volumeCloneSourceNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all VolumeCloneSources in the indexer for a given namespace.
-func (s volumeCloneSourceNamespaceLister) List(selector labels.Selector) (ret []*v1beta1.VolumeCloneSource, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.VolumeCloneSource))
-	})
-	return ret, err
-}
-
-// Get retrieves the VolumeCloneSource from the indexer for a given namespace and name.
-func (s volumeCloneSourceNamespaceLister) Get(name string) (*v1beta1.VolumeCloneSource, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta1.Resource("volumeclonesource"), name)
-	}
-	return obj.(*v1beta1.VolumeCloneSource), nil
+	listers.ResourceIndexer[*v1beta1.VolumeCloneSource]
 }

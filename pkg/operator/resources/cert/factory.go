@@ -156,13 +156,13 @@ func createCertificateDefinitions() []CertificateDefinition {
 	return []CertificateDefinition{
 		{
 			Configurable: true,
-			SignerSecret: createSecret("cdi-apiserver-signer"),
+			SignerSecret: createTLSSecret("cdi-apiserver-signer"),
 			SignerConfig: CertificateConfig{
 				Lifetime: SignerLifetime,
 				Refresh:  SignerRefresh,
 			},
 			CertBundleConfigmap: createConfigMap("cdi-apiserver-signer-bundle"),
-			TargetSecret:        createSecret("cdi-apiserver-server-cert"),
+			TargetSecret:        createTLSSecret("cdi-apiserver-server-cert"),
 			TargetConfig: CertificateConfig{
 				Lifetime: ServerLifetime,
 				Refresh:  ServerRefresh,
@@ -171,13 +171,13 @@ func createCertificateDefinitions() []CertificateDefinition {
 		},
 		{
 			Configurable: true,
-			SignerSecret: createSecret("cdi-uploadproxy-signer"),
+			SignerSecret: createTLSSecret("cdi-uploadproxy-signer"),
 			SignerConfig: CertificateConfig{
 				Lifetime: SignerLifetime,
 				Refresh:  SignerRefresh,
 			},
 			CertBundleConfigmap: createConfigMap("cdi-uploadproxy-signer-bundle"),
-			TargetSecret:        createSecret("cdi-uploadproxy-server-cert"),
+			TargetSecret:        createTLSSecret("cdi-uploadproxy-server-cert"),
 			TargetConfig: CertificateConfig{
 				Lifetime: ServerLifetime,
 				Refresh:  ServerRefresh,
@@ -186,7 +186,7 @@ func createCertificateDefinitions() []CertificateDefinition {
 		},
 		{
 			Configurable: true,
-			SignerSecret: createSecret("cdi-uploadserver-signer"),
+			SignerSecret: createTLSSecret("cdi-uploadserver-signer"),
 			SignerConfig: CertificateConfig{
 				Lifetime: SignerLifetime,
 				Refresh:  SignerRefresh,
@@ -195,13 +195,13 @@ func createCertificateDefinitions() []CertificateDefinition {
 		},
 		{
 			Configurable: true,
-			SignerSecret: createSecret("cdi-uploadserver-client-signer"),
+			SignerSecret: createTLSSecret("cdi-uploadserver-client-signer"),
 			SignerConfig: CertificateConfig{
 				Lifetime: SignerLifetime,
 				Refresh:  SignerRefresh,
 			},
 			CertBundleConfigmap: createConfigMap("cdi-uploadserver-client-signer-bundle"),
-			TargetSecret:        createSecret("cdi-uploadserver-client-cert"),
+			TargetSecret:        createTLSSecret("cdi-uploadserver-client-cert"),
 			TargetConfig: CertificateConfig{
 				Lifetime: ClientLifetime,
 				Refresh:  ClientRefresh,
@@ -211,11 +211,16 @@ func createCertificateDefinitions() []CertificateDefinition {
 	}
 }
 
-func createSecret(name string) *corev1.Secret {
+func createTLSSecret(name string) *corev1.Secret {
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
 			Labels: utils.ResourceBuilder.WithCommonLabels(nil),
+		},
+		Type: corev1.SecretTypeTLS,
+		Data: map[string][]byte{
+			"tls.key": []byte(""),
+			"tls.crt": []byte(""),
 		},
 	}
 }

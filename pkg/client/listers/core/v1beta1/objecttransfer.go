@@ -19,8 +19,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 	v1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
@@ -39,30 +39,10 @@ type ObjectTransferLister interface {
 
 // objectTransferLister implements the ObjectTransferLister interface.
 type objectTransferLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*v1beta1.ObjectTransfer]
 }
 
 // NewObjectTransferLister returns a new ObjectTransferLister.
 func NewObjectTransferLister(indexer cache.Indexer) ObjectTransferLister {
-	return &objectTransferLister{indexer: indexer}
-}
-
-// List lists all ObjectTransfers in the indexer.
-func (s *objectTransferLister) List(selector labels.Selector) (ret []*v1beta1.ObjectTransfer, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.ObjectTransfer))
-	})
-	return ret, err
-}
-
-// Get retrieves the ObjectTransfer from the index for a given name.
-func (s *objectTransferLister) Get(name string) (*v1beta1.ObjectTransfer, error) {
-	obj, exists, err := s.indexer.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta1.Resource("objecttransfer"), name)
-	}
-	return obj.(*v1beta1.ObjectTransfer), nil
+	return &objectTransferLister{listers.New[*v1beta1.ObjectTransfer](indexer, v1beta1.Resource("objecttransfer"))}
 }
