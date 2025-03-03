@@ -118,7 +118,7 @@ var _ = Describe("DataImportCron", Serial, func() {
 				condUpToDate := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
 				return condProgressing != nil && condProgressing.Status == corev1.ConditionFalse &&
 					condUpToDate != nil && condUpToDate.Status == corev1.ConditionTrue
-			}, dataImportCronConvergeTimeout, pollingInterval).Should(BeTrue(), fmt.Sprintf("Timeout waiting for DataImportCron conditions %q", cronItem.Namespace+"/"+cronItem.Name))
+			}, dataImportCronConvergeTimeout, pollingInterval).Should(BeTrue(), "Timeout waiting for DataImportCron conditions %q", cronItem.Namespace+"/"+cronItem.Name)
 		}
 	})
 
