@@ -477,7 +477,7 @@ var _ = Describe("ALL Operator tests", func() {
 				By("Cannot delete CDI")
 				err = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{DryRun: []string{"All"}})
 				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("there are still DataVolumes present"))
+				Expect(err.Error()).To(ContainSubstring("there are still 1 DataVolumes present"))
 
 				By("Delete the unlabeled datavolume")
 				err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Delete(context.TODO(), "delete-me", metav1.DeleteOptions{})

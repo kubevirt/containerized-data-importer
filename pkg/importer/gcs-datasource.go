@@ -2,7 +2,6 @@ package importer
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/url"
 	"path/filepath"
@@ -56,7 +55,7 @@ func NewGCSDataSource(endpoint, keyFile string) (*GCSDataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 
 	if err != nil {
-		return nil, errors.Wrapf(err, fmt.Sprintf("GCS Importer: unable to parse endpoint %q", endpoint))
+		return nil, errors.Wrapf(err, "GCS Importer: unable to parse endpoint %q", endpoint)
 	}
 
 	// Getting Context
