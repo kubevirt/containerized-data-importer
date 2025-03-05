@@ -30,13 +30,14 @@ import (
 )
 
 const (
-	dataImportCronTimeout = 4 * time.Minute
-	scheduleEveryMinute   = "* * * * *"
-	scheduleOnceAYear     = "0 0 1 1 *"
-	importsToKeep         = 1
-	emptySchedule         = ""
-	testKubevirtIoKey     = "test.kubevirt.io/test"
-	testKubevirtIoValue   = "testvalue"
+	dataImportCronTimeout         = 4 * time.Minute
+	dataImportCronConvergeTimeout = 10 * time.Minute
+	scheduleEveryMinute           = "* * * * *"
+	scheduleOnceAYear             = "0 0 1 1 *"
+	importsToKeep                 = 1
+	emptySchedule                 = ""
+	testKubevirtIoKey             = "test.kubevirt.io/test"
+	testKubevirtIoValue           = "testvalue"
 	// Digest must be 64 characters long
 	errorDigest = "sha256:1234567890123456789012345678901234567890123456789012345678901234"
 )
@@ -94,6 +95,30 @@ var _ = Describe("DataImportCron", Serial, func() {
 				Not(HaveOccurred()),
 				Satisfy(meta.IsNoMatchError),
 			))
+		}
+
+		By("[AfterEach] Delete the DataImportCron under test")
+		// Delete the DataImportCron under test
+		_ = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Delete(context.TODO(), cronName, metav1.DeleteOptions{})
+		Eventually(func() bool {
+			_, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
+			return errors.IsNotFound(err)
+		}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "DataImportCron was not deleted")
+
+		By("[AfterEach] Wait for all DataImportCrons UpToDate")
+		// Wait for all DataImportCrons to converge
+		dataImportCrons := &cdiv1.DataImportCronList{}
+		err = f.CrClient.List(context.TODO(), dataImportCrons, &client.ListOptions{Namespace: metav1.NamespaceAll})
+		Expect(err).ToNot(HaveOccurred())
+		for _, cronItem := range dataImportCrons.Items {
+			Eventually(func() bool {
+				cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(cronItem.Namespace).Get(context.TODO(), cronItem.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				condProgressing := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronProgressing)
+				condUpToDate := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
+				return condProgressing != nil && condProgressing.Status == corev1.ConditionFalse &&
+					condUpToDate != nil && condUpToDate.Status == corev1.ConditionTrue
+			}, dataImportCronConvergeTimeout, pollingInterval).Should(BeTrue(), "Timeout waiting for DataImportCron conditions %q", cronItem.Namespace+"/"+cronItem.Name)
 		}
 	})
 
