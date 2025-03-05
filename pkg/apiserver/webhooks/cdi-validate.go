@@ -34,7 +34,7 @@ import (
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
-const uninstallErrorMsg = "Rejecting the uninstall request, since there are still DataVolumes present. Either delete all DataVolumes or change the uninstall strategy before uninstalling CDI."
+const uninstallErrorMsg = "rejecting the uninstall request, since there are still %d DataVolumes present. Either delete all DataVolumes or change the uninstall strategy before uninstalling CDI"
 
 type cdiValidatingWebhook struct {
 	client cdiclient.Interface
@@ -69,8 +69,8 @@ func (wh *cdiValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admission
 			return toAdmissionResponseError(err)
 		}
 
-		if len(dvs.Items) > 0 {
-			return toAdmissionResponseError(fmt.Errorf(uninstallErrorMsg))
+		if numDvs := len(dvs.Items); numDvs > 0 {
+			return toAdmissionResponseError(fmt.Errorf(uninstallErrorMsg, numDvs))
 		}
 	}
 

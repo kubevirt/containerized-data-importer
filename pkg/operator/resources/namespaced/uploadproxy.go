@@ -17,6 +17,8 @@ limitations under the License.
 package namespaced
 
 import (
+	secv1 "github.com/openshift/api/security/v1"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -184,5 +186,10 @@ func createUploadProxyDeployment(image, verbosity, pullPolicy string, imagePullS
 			},
 		},
 	}
+	if deployment.Spec.Template.Annotations == nil {
+		deployment.Spec.Template.Annotations = make(map[string]string)
+	}
+	deployment.Spec.Template.Annotations[secv1.RequiredSCCAnnotation] = common.RestrictedSCCName
+
 	return deployment
 }

@@ -19,8 +19,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 	v1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
 )
@@ -38,25 +38,17 @@ type OpenstackVolumePopulatorLister interface {
 
 // openstackVolumePopulatorLister implements the OpenstackVolumePopulatorLister interface.
 type openstackVolumePopulatorLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*v1beta1.OpenstackVolumePopulator]
 }
 
 // NewOpenstackVolumePopulatorLister returns a new OpenstackVolumePopulatorLister.
 func NewOpenstackVolumePopulatorLister(indexer cache.Indexer) OpenstackVolumePopulatorLister {
-	return &openstackVolumePopulatorLister{indexer: indexer}
-}
-
-// List lists all OpenstackVolumePopulators in the indexer.
-func (s *openstackVolumePopulatorLister) List(selector labels.Selector) (ret []*v1beta1.OpenstackVolumePopulator, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.OpenstackVolumePopulator))
-	})
-	return ret, err
+	return &openstackVolumePopulatorLister{listers.New[*v1beta1.OpenstackVolumePopulator](indexer, v1beta1.Resource("openstackvolumepopulator"))}
 }
 
 // OpenstackVolumePopulators returns an object that can list and get OpenstackVolumePopulators.
 func (s *openstackVolumePopulatorLister) OpenstackVolumePopulators(namespace string) OpenstackVolumePopulatorNamespaceLister {
-	return openstackVolumePopulatorNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return openstackVolumePopulatorNamespaceLister{listers.NewNamespaced[*v1beta1.OpenstackVolumePopulator](s.ResourceIndexer, namespace)}
 }
 
 // OpenstackVolumePopulatorNamespaceLister helps list and get OpenstackVolumePopulators.
@@ -74,26 +66,5 @@ type OpenstackVolumePopulatorNamespaceLister interface {
 // openstackVolumePopulatorNamespaceLister implements the OpenstackVolumePopulatorNamespaceLister
 // interface.
 type openstackVolumePopulatorNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all OpenstackVolumePopulators in the indexer for a given namespace.
-func (s openstackVolumePopulatorNamespaceLister) List(selector labels.Selector) (ret []*v1beta1.OpenstackVolumePopulator, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.OpenstackVolumePopulator))
-	})
-	return ret, err
-}
-
-// Get retrieves the OpenstackVolumePopulator from the indexer for a given namespace and name.
-func (s openstackVolumePopulatorNamespaceLister) Get(name string) (*v1beta1.OpenstackVolumePopulator, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta1.Resource("openstackvolumepopulator"), name)
-	}
-	return obj.(*v1beta1.OpenstackVolumePopulator), nil
+	listers.ResourceIndexer[*v1beta1.OpenstackVolumePopulator]
 }

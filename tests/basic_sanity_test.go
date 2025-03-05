@@ -56,7 +56,7 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 
 	Context("cdi-sa RBAC rules are correct", func() {
 		It("[test_id:1353]rules should match expectation", func() {
-			sa := fmt.Sprintf("system:serviceaccount:" + f.CdiInstallNs + ":cdi-sa")
+			sa := fmt.Sprintf("system:serviceaccount:%s:cdi-sa", f.CdiInstallNs)
 
 			eventExpectedResult := make(map[string]string)
 			eventExpectedResult["get"] = "no"

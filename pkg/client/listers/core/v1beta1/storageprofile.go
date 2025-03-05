@@ -19,8 +19,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 	v1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
@@ -39,30 +39,10 @@ type StorageProfileLister interface {
 
 // storageProfileLister implements the StorageProfileLister interface.
 type storageProfileLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*v1beta1.StorageProfile]
 }
 
 // NewStorageProfileLister returns a new StorageProfileLister.
 func NewStorageProfileLister(indexer cache.Indexer) StorageProfileLister {
-	return &storageProfileLister{indexer: indexer}
-}
-
-// List lists all StorageProfiles in the indexer.
-func (s *storageProfileLister) List(selector labels.Selector) (ret []*v1beta1.StorageProfile, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.StorageProfile))
-	})
-	return ret, err
-}
-
-// Get retrieves the StorageProfile from the index for a given name.
-func (s *storageProfileLister) Get(name string) (*v1beta1.StorageProfile, error) {
-	obj, exists, err := s.indexer.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta1.Resource("storageprofile"), name)
-	}
-	return obj.(*v1beta1.StorageProfile), nil
+	return &storageProfileLister{listers.New[*v1beta1.StorageProfile](indexer, v1beta1.Resource("storageprofile"))}
 }

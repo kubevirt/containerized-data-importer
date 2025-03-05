@@ -111,10 +111,10 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				Entry("[test_id:1325]fail with empty PVC source namespace", "pvc", "", "test-pvc"),
 				Entry("[test_id:1326]fail with empty PVC source name", "pvc", "test", ""),
 				Entry("[test_id:3917]fail with source PVC doesn't exist", "pvc", "test", "test-pvc"),
-				Entry("[test_id:3918]fail with empty Imageio source diskId", "imageio", validURL, "secret", "tls-cert", ""),
-				Entry("[test_id:3926]fail with empty VDDK source UUID", "vddk", validURL, "secret", "", "backingfile", "thumbprint"),
-				Entry("[test_id:3927]fail with empty VDDK source backing file", "vddk", validURL, "secret", "uuid", "", "thumbprint"),
-				Entry("[test_id:3928]fail with empty VDDK source thumbprint", "vddk", validURL, "secret", "uuid", "backingfile", ""),
+				Entry("[test_id:3918]fail with empty Imageio source diskId", Label("ImageIO"), "imageio", validURL, "secret", "tls-cert", ""),
+				Entry("[test_id:3926]fail with empty VDDK source UUID", "vddk", Label("VDDK"), validURL, "secret", "", "backingfile", "thumbprint"),
+				Entry("[test_id:3927]fail with empty VDDK source backing file", Label("VDDK"), "vddk", validURL, "secret", "uuid", "", "thumbprint"),
+				Entry("[test_id:3928]fail with empty VDDK source thumbprint", Label("VDDK"), "vddk", validURL, "secret", "uuid", "backingfile", ""),
 			)
 
 			DescribeTable("with DataVolume sourceRef validation should", func(kind, namespace, name string) {
@@ -215,7 +215,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 		})
 	})
 
-	Context("DataVolume destination imageio", func() {
+	Context("DataVolume destination imageio", Label("ImageIO"), func() {
 		BeforeEach(func() {
 			dataVolume := utils.NewDataVolumeWithImageioImport(dataVolumeName, "500Mi", validURL, "secret", "tls-cert", "1")
 
@@ -238,7 +238,7 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 		})
 	})
 
-	Context("DataVolume destination VDDK", func() {
+	Context("DataVolume destination VDDK", Label("VDDK"), func() {
 		BeforeEach(func() {
 			dataVolume := utils.NewDataVolumeWithVddkImport(dataVolumeName, "500Mi", "testfile", "secret", "thumbprint", validURL, "uuid")
 
@@ -420,10 +420,10 @@ var _ = Describe("[rfe_id:1130][crit:medium][posneg:negative][vendor:cnv-qe@redh
 				Entry("fail with http source with empty url", "http", "", ""),
 				Entry("fail with s3 source with invalid url format", "", "s3", invalidURLFormat),
 				Entry("fail with s3 source with empty url", "", "s3", ""),
-				Entry("fail with empty Imageio source diskId", "", "imageio", validURL, "secret", "tls-cert", ""),
-				Entry("fail with empty VDDK source UUID", "", "vddk", validURL, "secret", "", "backingfile", "thumbprint"),
-				Entry("fail with empty VDDK source backing file", "", "vddk", validURL, "secret", "uuid", "", "thumbprint"),
-				Entry("fail with empty VDDK source thumbprint", "", "vddk", validURL, "secret", "uuid", "backingfile", ""),
+				Entry("fail with empty Imageio source diskId", Label("ImageIO"), "", "imageio", validURL, "secret", "tls-cert", ""),
+				Entry("fail with empty VDDK source UUID", Label("VDDK"), "", "vddk", validURL, "secret", "", "backingfile", "thumbprint"),
+				Entry("fail with empty VDDK source backing file", Label("VDDK"), "", "vddk", validURL, "secret", "uuid", "", "thumbprint"),
+				Entry("fail with empty VDDK source thumbprint", Label("VDDK"), "", "vddk", validURL, "secret", "uuid", "backingfile", ""),
 				Entry("fail with invalid content type", "invalid", "http", validURL),
 				Entry("succeed with valid http source", "", "http", validURL),
 			)

@@ -41,7 +41,7 @@ var operatorAlerts = []promv1.Rule{
 		},
 		Labels: map[string]string{
 			severityAlertLabelKey:        "warning",
-			operatorHealthImpactLabelKey: "warning",
+			operatorHealthImpactLabelKey: "none",
 		},
 	},
 	{

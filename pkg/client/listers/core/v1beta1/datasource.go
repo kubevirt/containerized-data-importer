@@ -19,8 +19,8 @@ limitations under the License.
 package v1beta1
 
 import (
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/listers"
 	"k8s.io/client-go/tools/cache"
 	v1beta1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
@@ -38,25 +38,17 @@ type DataSourceLister interface {
 
 // dataSourceLister implements the DataSourceLister interface.
 type dataSourceLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*v1beta1.DataSource]
 }
 
 // NewDataSourceLister returns a new DataSourceLister.
 func NewDataSourceLister(indexer cache.Indexer) DataSourceLister {
-	return &dataSourceLister{indexer: indexer}
-}
-
-// List lists all DataSources in the indexer.
-func (s *dataSourceLister) List(selector labels.Selector) (ret []*v1beta1.DataSource, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.DataSource))
-	})
-	return ret, err
+	return &dataSourceLister{listers.New[*v1beta1.DataSource](indexer, v1beta1.Resource("datasource"))}
 }
 
 // DataSources returns an object that can list and get DataSources.
 func (s *dataSourceLister) DataSources(namespace string) DataSourceNamespaceLister {
-	return dataSourceNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return dataSourceNamespaceLister{listers.NewNamespaced[*v1beta1.DataSource](s.ResourceIndexer, namespace)}
 }
 
 // DataSourceNamespaceLister helps list and get DataSources.
@@ -74,26 +66,5 @@ type DataSourceNamespaceLister interface {
 // dataSourceNamespaceLister implements the DataSourceNamespaceLister
 // interface.
 type dataSourceNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all DataSources in the indexer for a given namespace.
-func (s dataSourceNamespaceLister) List(selector labels.Selector) (ret []*v1beta1.DataSource, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta1.DataSource))
-	})
-	return ret, err
-}
-
-// Get retrieves the DataSource from the indexer for a given namespace and name.
-func (s dataSourceNamespaceLister) Get(name string) (*v1beta1.DataSource, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta1.Resource("datasource"), name)
-	}
-	return obj.(*v1beta1.DataSource), nil
+	listers.ResourceIndexer[*v1beta1.DataSource]
 }
