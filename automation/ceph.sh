@@ -22,5 +22,4 @@ export TARGET=k8s-1.30
 #ensure no hard coded cdi cr in tests.
 export RANDOM_CR=true
 export KUBEVIRT_STORAGE=rook-ceph-default
-export CDI_E2E_SKIP=Destructive
 automation/test.sh

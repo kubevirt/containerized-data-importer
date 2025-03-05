@@ -21,5 +21,4 @@ set -ex
 export TARGET=k8s-1.31
 export KUBEVIRT_DEPLOY_NFS_CSI=true
 export KUBEVIRT_STORAGE=nfs
-export CDI_E2E_SKIP=Destructive
 automation/test.sh

@@ -23,7 +23,6 @@ export TARGET=k8s-1.30
 export RANDOM_CR=true
 export KUBEVIRT_STORAGE=rook-ceph-default
 export CEPH_WFFC=true
-export CDI_E2E_SKIP=Destructive
 export SNAPSHOT_SC=rook-ceph-block-wffc
 export BLOCK_SC=rook-ceph-block-wffc
 export CSICLONE_SC=rook-ceph-block-wffc
