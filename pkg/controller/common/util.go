@@ -1806,19 +1806,12 @@ func ValidateSnapshotCloneSize(snapshot *snapshotv1.VolumeSnapshot, pvcSpec *cor
 }
 
 // ValidateSnapshotCloneProvisioners validates the target PVC storage class against the snapshot class provisioner
-func ValidateSnapshotCloneProvisioners(ctx context.Context, c client.Client, snapshot *snapshotv1.VolumeSnapshot, storageClass *storagev1.StorageClass) (bool, error) {
+func ValidateSnapshotCloneProvisioners(vsc *snapshotv1.VolumeSnapshotContent, storageClass *storagev1.StorageClass) (bool, error) {
 	// Do snapshot and storage class validation
 	if storageClass == nil {
 		return false, fmt.Errorf("target storage class not found")
 	}
-	if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
-		return false, fmt.Errorf("volumeSnapshotContent name not found")
-	}
-	volumeSnapshotContent := &snapshotv1.VolumeSnapshotContent{}
-	if err := c.Get(ctx, types.NamespacedName{Name: *snapshot.Status.BoundVolumeSnapshotContentName}, volumeSnapshotContent); err != nil {
-		return false, err
-	}
-	if storageClass.Provisioner != volumeSnapshotContent.Spec.Driver {
+	if storageClass.Provisioner != vsc.Spec.Driver {
 		return false, nil
 	}
 	// TODO: get sourceVolumeMode from volumesnapshotcontent and validate against target spec
