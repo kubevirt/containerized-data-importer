@@ -405,7 +405,7 @@ func (p *Planner) computeStrategyForSourceSnapshot(ctx context.Context, args *Ch
 		return res, nil
 	}
 
-	// Lastly, do size validation to determine whether to use dumb or smart cloning
+	// do size validation
 	valid, err = cc.ValidateSnapshotCloneSize(sourceSnapshot, &args.TargetClaim.Spec, targetStorageClass, args.Log)
 	if err != nil {
 		return nil, err
@@ -414,6 +414,18 @@ func (p *Planner) computeStrategyForSourceSnapshot(ctx context.Context, args *Ch
 		p.fallbackToHostAssisted(args.TargetClaim, res, NoVolumeExpansion, MessageNoVolumeExpansion)
 		return res, nil
 	}
+
+	// Lastly, do volume mode validation  to determine whether to use dumb or smart cloning
+	vsc, err := GetSnapshotContentFromSnapshot(ctx, p.Client, sourceSnapshot)
+	if err != nil {
+		return nil, err
+	}
+	if !SameVolumeModeSnapshot(ctx, p.Client, vsc, args.TargetClaim) {
+		p.fallbackToHostAssisted(args.TargetClaim, res, IncompatibleVolumeModes, MessageIncompatibleVolumeModes)
+		args.Log.V(3).Info("Volume modes not compatible for advanced clone - Snapshot")
+		return res, nil
+	}
+
 	res.Strategy = cdiv1.CloneStrategySnapshot
 	return res, nil
 }
@@ -471,7 +483,7 @@ func (p *Planner) validateAdvancedClonePVC(ctx context.Context, args *ChooseStra
 
 	if !SameVolumeMode(sourceClaim, args.TargetClaim) {
 		p.fallbackToHostAssisted(args.TargetClaim, res, IncompatibleVolumeModes, MessageIncompatibleVolumeModes)
-		args.Log.V(3).Info("volume modes not compatible for advanced clone")
+		args.Log.V(3).Info("volume modes not compatible for advanced clone - PVC")
 		return nil
 	}
 
@@ -779,11 +791,8 @@ func createDesiredClaim(namespace string, targetClaim *corev1.PersistentVolumeCl
 }
 
 func createTempSourceClaim(ctx context.Context, log logr.Logger, namespace string, targetClaim *corev1.PersistentVolumeClaim, snapshot *snapshotv1.VolumeSnapshot, client client.Client) (*corev1.PersistentVolumeClaim, error) {
-	if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
-		return nil, fmt.Errorf("volumeSnapshotContent name not found")
-	}
-	vsc := &snapshotv1.VolumeSnapshotContent{}
-	if err := client.Get(ctx, types.NamespacedName{Name: *snapshot.Status.BoundVolumeSnapshotContentName}, vsc); err != nil {
+	vsc, err := GetSnapshotContentFromSnapshot(ctx, client, snapshot)
+	if err != nil {
 		return nil, err
 	}
 	scName, err := getStorageClassNameForTempSourceClaim(ctx, vsc, client)
