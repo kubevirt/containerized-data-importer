@@ -168,6 +168,47 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		It("Should use the storage class used in annotation AnnSnapshotRestoreStorageClass if present", func() {
+			dv := newCloneFromSnapshotDataVolume("test-dv")
+			scName := "testsc"
+			expectedSnapshotClass := "snap-class"
+			sc := CreateStorageClassWithProvisioner(scName, map[string]string{
+				AnnDefaultStorageClass: "true",
+			}, map[string]string{}, "csi-plugin")
+			targetScName := "targetsc"
+			scSameProvisioner := sc.DeepCopy()
+			scSameProvisioner.Name = "same-provisioner-as-source-sc"
+			scUsedInAnnotation := sc.DeepCopy()
+			scUsedInAnnotation.Name = "sc-used-in-annotation"
+			dv.Annotations[AnnSnapshotRestoreStorageClass] = scUsedInAnnotation.Name
+
+			tsc := CreateStorageClassWithProvisioner(targetScName, map[string]string{}, map[string]string{}, "another-csi-plugin")
+			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, BlockMode)
+			sp2 := createStorageProfile(targetScName, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, BlockMode)
+			sp3 := createStorageProfile(scSameProvisioner.Name, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, BlockMode)
+			sp4 := createStorageProfile(scUsedInAnnotation.Name, []corev1.PersistentVolumeAccessMode{corev1.ReadOnlyMany}, BlockMode)
+			dv.Spec.PVC.StorageClassName = &targetScName
+			snapshot := createSnapshotInVolumeSnapshotClass("test-snap", metav1.NamespaceDefault, &expectedSnapshotClass, nil, nil, true)
+			snapClass := createSnapshotClass(expectedSnapshotClass, nil, "csi-plugin")
+			reconciler = createSnapshotCloneReconciler(sc, scSameProvisioner, tsc, sp, sp2, sp3, sp4, dv, snapshot, snapClass, createDefaultVolumeSnapshotContent(), createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			By("Verifying that temp host assisted source PVC is being created")
+			pvc := &corev1.PersistentVolumeClaim{}
+			tempPvcName := getTempHostAssistedSourcePvcName(dv)
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: snapshot.Namespace, Name: tempPvcName}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Labels[common.CDIComponentLabel]).To(Equal("cdi-clone-from-snapshot-source-host-assisted-fallback-pvc"))
+			Expect(pvc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+			Expect(*pvc.Spec.StorageClassName).To(Equal(scUsedInAnnotation.Name))
+			By("Verifying that target host assisted PVC is being created")
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: dv.Namespace, Name: dv.Name}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
+			Expect(pvc.Annotations[AnnCloneRequest]).To(Equal(fmt.Sprintf("%s/%s", snapshot.Namespace, tempPvcName)))
+			Expect(*pvc.Spec.StorageClassName).To(Equal(targetScName))
+		})
+
 		It("Should clean up host assisted source temp PVC when done", func() {
 			dv := newCloneFromSnapshotDataVolume("test-dv")
 			dv.Status.Phase = cdiv1.Succeeded
