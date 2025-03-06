@@ -18405,6 +18405,13 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceVDDK(ref common.ReferenceCallb
 							Format:      "",
 						},
 					},
+					"extraArgs": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ExtraArgs is a reference to a ConfigMap containing extra arguments to pass directly to the VDDK library",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},

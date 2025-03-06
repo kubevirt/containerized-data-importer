@@ -1703,6 +1703,9 @@ func UpdateVDDKAnnotations(annotations map[string]string, vddk *cdiv1.DataVolume
 	if vddk.InitImageURL != "" {
 		annotations[AnnVddkInitImageURL] = vddk.InitImageURL
 	}
+	if vddk.ExtraArgs != "" {
+		annotations[AnnVddkExtraArgs] = vddk.ExtraArgs
+	}
 }
 
 // UpdateImageIOAnnotations updates the passed annotations for proper imageIO import
