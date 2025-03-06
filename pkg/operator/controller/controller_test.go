@@ -218,10 +218,19 @@ var _ = Describe("Controller", func() {
 				doReconcileRequeue(args)
 			})
 
-			It("should be in securitycontextconstraint", func() {
+			It("should apply securitycontextconstraints and related changes", func() {
 				args := createArgs()
 				doReconcile(args)
 				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				deploymentList := &appsv1.DeploymentList{}
+				err := args.client.List(context.TODO(), deploymentList)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(deploymentList.Items).To(HaveLen(3))
+
+				for _, d := range deploymentList.Items {
+					Expect(d.Spec.Template.GetAnnotations()[secv1.RequiredSCCAnnotation]).To(Equal(common.RestrictedSCCName))
+				}
 
 				scc := &secv1.SecurityContextConstraints{
 					ObjectMeta: metav1.ObjectMeta{
@@ -229,7 +238,7 @@ var _ = Describe("Controller", func() {
 					},
 				}
 
-				scc, err := getSCC(args.client, scc)
+				scc, err = getSCC(args.client, scc)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(scc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 				Expect(scc.Priority).To(BeNil())
