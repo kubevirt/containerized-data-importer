@@ -992,7 +992,8 @@ var _ = Describe("Import test env", func() {
 			currentCheckpoint:  "",
 			previousCheckpoint: "",
 			finalCheckpoint:    "",
-			preallocation:      false}
+			preallocation:      false,
+			serviceAccountName: ""}
 		Expect(reflect.DeepEqual(makeImportEnv(testEnvVar, mockUID), createImportTestEnv(testEnvVar, mockUID))).To(BeTrue())
 	})
 })
@@ -1274,6 +1275,10 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		{
 			Name:  common.CacheMode,
 			Value: podEnvVar.cacheMode,
+		},
+		{
+			Name:  common.ImporterServiceAccountName,
+			Value: podEnvVar.serviceAccountName,
 		},
 	}
 
