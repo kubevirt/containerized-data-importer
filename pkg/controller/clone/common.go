@@ -10,11 +10,13 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -126,6 +128,18 @@ func GetGlobalCloneStrategyOverride(ctx context.Context, c client.Client) (*cdiv
 	}
 
 	return cr.Spec.CloneStrategyOverride, nil
+}
+
+// GetSnapshotContentFromSnapshot returns the VolumeSnapshotContent of a given VolumeSnapshot
+func GetSnapshotContentFromSnapshot(ctx context.Context, c client.Client, snapshot *snapshotv1.VolumeSnapshot) (*snapshotv1.VolumeSnapshotContent, error) {
+	if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
+		return nil, fmt.Errorf("volumeSnapshotContent name not found")
+	}
+	vsc := &snapshotv1.VolumeSnapshotContent{}
+	if err := c.Get(ctx, types.NamespacedName{Name: *snapshot.Status.BoundVolumeSnapshotContentName}, vsc); err != nil {
+		return nil, err
+	}
+	return vsc, nil
 }
 
 // GetStorageClassForClaim returns the storageclass for a PVC
@@ -274,6 +288,20 @@ func SameVolumeMode(pvc1 *corev1.PersistentVolumeClaim, others ...*corev1.Persis
 	vm := util.ResolveVolumeMode(pvc1.Spec.VolumeMode)
 	for _, pvc := range others {
 		if util.ResolveVolumeMode(pvc.Spec.VolumeMode) != vm {
+			return false
+		}
+	}
+	return true
+}
+
+// SameVolumeModeSnapshot returns true if all pvcs have the same volume mode as the source snapshot
+func SameVolumeModeSnapshot(ctx context.Context, client client.Client, vsc *snapshotv1.VolumeSnapshotContent, others ...*corev1.PersistentVolumeClaim) bool {
+	if vsc.Spec.SourceVolumeMode == nil {
+		return false
+	}
+
+	for _, pvc := range others {
+		if *pvc.Spec.VolumeMode != *vsc.Spec.SourceVolumeMode {
 			return false
 		}
 	}
