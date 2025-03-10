@@ -19234,6 +19234,13 @@ func schema_pkg_apis_core_v1beta1_StorageProfileStatus(ref common.ReferenceCallb
 							Format:      "",
 						},
 					},
+					"supportLevel": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SupportLevel indicates CDI support level for the storage class",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},

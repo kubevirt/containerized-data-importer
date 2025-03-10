@@ -119,12 +119,26 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 
 	storageProfile.Status.ClaimPropertySets = claimPropertySets
 
+	supportLevel := r.getSupportLevel(sc)
+	storageProfile.Status.SupportLevel = &supportLevel
+
 	util.SetRecommendedLabels(storageProfile, r.installerLabels, "cdi-controller")
 	if err := r.updateStorageProfile(prevStorageProfile, storageProfile, log); err != nil {
 		return reconcile.Result{}, err
 	}
 
 	return reconcile.Result{}, r.computeMetrics(storageProfile, sc)
+}
+
+func (r *StorageProfileReconciler) getSupportLevel(sc *storagev1.StorageClass) cdiv1.CDISupportLevel {
+	if _, found := storagecapabilities.GetCapabilities(r.client, sc); found {
+		return cdiv1.SupportLevelSupported
+	}
+	if _, found := storagecapabilities.UnsupportedProvisioners[sc.Provisioner]; found {
+		return cdiv1.SupportLevelUnsupported
+	}
+
+	return cdiv1.SupportLevelUnknown
 }
 
 func (r *StorageProfileReconciler) updateStorageProfile(prevStorageProfile runtime.Object, storageProfile *cdiv1.StorageProfile, log logr.Logger) error {

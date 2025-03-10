@@ -443,6 +443,8 @@ type StorageProfileStatus struct {
 	DataImportCronSourceFormat *DataImportCronSourceFormat `json:"dataImportCronSourceFormat,omitempty"`
 	// SnapshotClass is optional specific VolumeSnapshotClass for CloneStrategySnapshot. If not set, a VolumeSnapshotClass is chosen according to the provisioner.
 	SnapshotClass *string `json:"snapshotClass,omitempty"`
+	// SupportLevel indicates CDI support level for the storage class
+	SupportLevel *CDISupportLevel `json:"supportLevel,omitempty"`
 }
 
 // ClaimPropertySet is a set of properties applicable to PVC
@@ -457,6 +459,20 @@ type ClaimPropertySet struct {
 	// +kubebuilder:validation:Enum="Block";"Filesystem"
 	VolumeMode *corev1.PersistentVolumeMode `json:"volumeMode"`
 }
+
+// CDISupportLevel defines CDI support level for the storage class
+type CDISupportLevel string
+
+const (
+	// SupportLevelSupported indicates the storage is supported by CDI
+	SupportLevelSupported CDISupportLevel = "supported"
+
+	// SupportLevelUnsupported indicates the storage is unsupported by CDI
+	SupportLevelUnsupported CDISupportLevel = "unsupported"
+
+	// SupportLevelUnknown indicates the storage is unknown to CDI, but may be used for testing purposes
+	SupportLevelUnknown CDISupportLevel = "unknown"
+)
 
 // StorageProfileList provides the needed parameters to request a list of StorageProfile from the system
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

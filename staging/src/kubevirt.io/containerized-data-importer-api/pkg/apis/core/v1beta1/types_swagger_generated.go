@@ -197,6 +197,7 @@ func (StorageProfileStatus) SwaggerDoc() map[string]string {
 		"claimPropertySets":          "ClaimPropertySets computed from the spec and detected in the system\n+kubebuilder:validation:MaxItems=8",
 		"dataImportCronSourceFormat": "DataImportCronSourceFormat defines the format of the DataImportCron-created disk image sources",
 		"snapshotClass":              "SnapshotClass is optional specific VolumeSnapshotClass for CloneStrategySnapshot. If not set, a VolumeSnapshotClass is chosen according to the provisioner.",
+		"supportLevel":               "SupportLevel indicates CDI support level for the storage class",
 	}
 }
 
