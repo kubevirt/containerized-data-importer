@@ -7788,6 +7788,10 @@ spec:
               storageClass:
                 description: The StorageClass name for which capabilities are defined
                 type: string
+              supportLevel:
+                description: SupportLevel indicates CDI support level for the storage
+                  class
+                type: string
             type: object
         required:
         - spec

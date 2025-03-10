@@ -1748,6 +1748,11 @@ func (in *StorageProfileStatus) DeepCopyInto(out *StorageProfileStatus) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.SupportLevel != nil {
+		in, out := &in.SupportLevel, &out.SupportLevel
+		*out = new(CDISupportLevel)
+		**out = **in
+	}
 	return
 }
 
