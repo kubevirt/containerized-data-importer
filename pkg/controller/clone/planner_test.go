@@ -635,15 +635,43 @@ var _ = Describe("Planner test", func() {
 				expectEvent(planner, NoVolumeExpansion)
 			})
 
-			It("should do smart clone when meeting all prerequisites", func() {
+			It("should return host assisted with non matching volume modes", func() {
 				source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+				vsc := createDefaultVolumeSnapshotContent("driver")
+				bm := corev1.PersistentVolumeBlock
+				vsc.Spec.SourceVolumeMode = &bm
+				source.Status.BoundVolumeSnapshotContentName = ptr.To(vsc.Name)
 				target := createTargetClaim()
+				fm := corev1.PersistentVolumeFilesystem
+				target.Spec.VolumeMode = &fm
 				args := &ChooseStrategyArgs{
 					TargetClaim: target,
 					DataSource:  createSnapshotDataSource(),
 					Log:         log,
 				}
-				planner = createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("driver"))
+				planner = createPlanner(createStorageClass(), source, vsc)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				Expect(csr.FallbackReason).ToNot(BeNil())
+				Expect(*csr.FallbackReason).To(Equal(MessageIncompatibleVolumeModes))
+				expectEvent(planner, IncompatibleVolumeModes)
+			})
+
+			It("should do smart clone when meeting all prerequisites", func() {
+				source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+				fm := corev1.PersistentVolumeFilesystem
+				target := createTargetClaim()
+				target.Spec.VolumeMode = &fm
+				args := &ChooseStrategyArgs{
+					TargetClaim: target,
+					DataSource:  createSnapshotDataSource(),
+					Log:         log,
+				}
+				vsc := createDefaultVolumeSnapshotContent("driver")
+				vsc.Spec.SourceVolumeMode = &fm
+				planner = createPlanner(createStorageClass(), source, vsc)
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
