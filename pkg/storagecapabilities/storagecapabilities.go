@@ -80,8 +80,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"kubernetes.io/azure-file": {{rwx, file}},
 	"file.csi.azure.com":       {{rwx, file}},
 	// GCE Persistent Disk
-	"kubernetes.io/gce-pd":  {{rwo, block}},
-	"pd.csi.storage.gke.io": {{rwo, block}},
+	"kubernetes.io/gce-pd":            {{rwo, block}},
+	"pd.csi.storage.gke.io":           {{rwo, block}},
+	"pd.csi.storage.gke.io/hyperdisk": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// Hitachi
 	"hspc.csi.hitachi.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// HPE
@@ -131,6 +132,8 @@ var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"openshift-storage.rbd.csi.ceph.com": cdiv1.DataImportCronSourceFormatSnapshot,
 	"csi.trident.netapp.io/ontap-nas":    cdiv1.DataImportCronSourceFormatSnapshot,
 	"csi.trident.netapp.io/ontap-san":    cdiv1.DataImportCronSourceFormatSnapshot,
+	"pd.csi.storage.gke.io":              cdiv1.DataImportCronSourceFormatSnapshot,
+	"pd.csi.storage.gke.io/hyperdisk":    cdiv1.DataImportCronSourceFormatSnapshot,
 }
 
 // CloneStrategyByProvisionerKey defines the advised clone strategy for a provisioner
@@ -156,6 +159,8 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"infinibox-csi-driver/nfs":                 cdiv1.CloneStrategyCsiClone,
 	"csi.trident.netapp.io/ontap-nas":          cdiv1.CloneStrategySnapshot,
 	"csi.trident.netapp.io/ontap-san":          cdiv1.CloneStrategySnapshot,
+	"pd.csi.storage.gke.io":                    cdiv1.CloneStrategySnapshot,
+	"pd.csi.storage.gke.io/hyperdisk":          cdiv1.CloneStrategySnapshot,
 }
 
 const (
@@ -357,6 +362,14 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 			return "ebs.csi.aws.com/io2"
 		}
 		return "ebs.csi.aws.com"
+	},
+	"pd.csi.storage.gke.io": func(sc *storagev1.StorageClass) string {
+		switch sc.Parameters["type"] {
+		case "hyperdisk-balanced", "hyperdisk-balanced-high-availability":
+			return "pd.csi.storage.gke.io/hyperdisk"
+		default:
+			return "pd.csi.storage.gke.io"
+		}
 	},
 }
 
