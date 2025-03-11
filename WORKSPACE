@@ -676,28 +676,19 @@ rpm(
 rpm(
     name = "containers-common-2__1-91.el9.aarch64",
     sha256 = "e9802e5400e614c0ac41b3d6d9b7e4ecc8ea02aef0e7b2be064e93ed68b4da02",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/aarch64/os/Packages/containers-common-1-91.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/e9802e5400e614c0ac41b3d6d9b7e4ecc8ea02aef0e7b2be064e93ed68b4da02",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/e9802e5400e614c0ac41b3d6d9b7e4ecc8ea02aef0e7b2be064e93ed68b4da02"],
 )
 
 rpm(
     name = "containers-common-2__1-91.el9.s390x",
     sha256 = "01c219b60f01e3c1eb9e35ccd9d8cc189d9433b0a84a9b35b1b2041ee75a8cbf",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/s390x/os/Packages/containers-common-1-91.el9.s390x.rpm",
-        "https://storage.googleapis.com/builddeps/01c219b60f01e3c1eb9e35ccd9d8cc189d9433b0a84a9b35b1b2041ee75a8cbf",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/01c219b60f01e3c1eb9e35ccd9d8cc189d9433b0a84a9b35b1b2041ee75a8cbf"],
 )
 
 rpm(
     name = "containers-common-2__1-91.el9.x86_64",
     sha256 = "d8ea0cdba33f4cdb7b9e0fa34cb5c61323146ffaa1e3ea311bbde06d93c9d265",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/containers-common-1-91.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/d8ea0cdba33f4cdb7b9e0fa34cb5c61323146ffaa1e3ea311bbde06d93c9d265",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/d8ea0cdba33f4cdb7b9e0fa34cb5c61323146ffaa1e3ea311bbde06d93c9d265"],
 )
 
 rpm(
