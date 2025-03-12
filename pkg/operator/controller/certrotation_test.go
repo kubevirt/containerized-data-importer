@@ -32,6 +32,25 @@ var secretNames = []string{
 	"cdi-uploadserver-signer", "cdi-uploadserver-client-signer", "cdi-uploadserver-client-cert",
 }
 
+type noInformerStartCertManager struct {
+	*certManager
+}
+
+func (cm *noInformerStartCertManager) Start(ctx context.Context) error {
+	for _, ns := range cm.namespaces {
+		if cm.listerMap == nil {
+			cm.listerMap = make(map[string]*certListers)
+		}
+
+		cm.listerMap[ns] = &certListers{
+			secretLister:    cm.informers.InformersFor(ns).Core().V1().Secrets().Lister(),
+			configMapLister: cm.informers.InformersFor(ns).Core().V1().ConfigMaps().Lister(),
+		}
+	}
+
+	return nil
+}
+
 type fakeCertManager struct {
 	client    client.Client
 	namespace string
@@ -57,7 +76,10 @@ func newFakeCertManager(crClient client.Client, namespace string) CertManager {
 }
 
 func newCertManagerForTest(client kubernetes.Interface, namespace string) CertManager {
-	return newCertManager(client, namespace, clocktesting.NewFakePassiveClock(time.Now()))
+	cm := newCertManager(client, namespace, clocktesting.NewFakePassiveClock(time.Now()))
+	return &noInformerStartCertManager{
+		certManager: cm,
+	}
 }
 
 func toSerializedCertConfig(l, r time.Duration) string {
@@ -81,7 +103,10 @@ func getCertConfigAnno(client kubernetes.Interface, namespace, name string) stri
 	s, err := client.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	val, ok := s.Annotations["operator.cdi.kubevirt.io/certConfig"]
-	Expect(ok).To(BeTrue())
+	Expect(ok).To(BeTrue(), func() string {
+		secretJSON, _ := json.MarshalIndent(s, "", "    ")
+		return string(secretJSON)
+	})
 	return val
 }
 
@@ -100,7 +125,7 @@ func checkCerts(client kubernetes.Interface, namespace string, exists bool) {
 	}
 }
 
-func populateClientAndStoreWithSecrets(client kubernetes.Interface, cm *certManager, ns string) {
+func populateClientAndStoreWithSecrets(client kubernetes.Interface, cm *noInformerStartCertManager, ns string) {
 	for _, name := range secretNames {
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
@@ -116,8 +141,10 @@ func populateClientAndStoreWithSecrets(client kubernetes.Interface, cm *certMana
 	}
 }
 
-func syncStoreWithLocalUpdateCalls(client *fake.Clientset, cm *certManager, ns string) {
-	// This is not needed in production since the informer is going to react to the updates
+func syncStoreWithClientCalls(client *fake.Clientset, cm *noInformerStartCertManager, ns string) {
+	// These reactors make sure that all client calls by the controller are
+	// reflected in its informers so Lister.Get() finds them
+	// Unit tests do not start the informers, this does not enqueue events!
 	client.Fake.PrependReactor("update", "secrets", func(action testing.Action) (handled bool, obj runtime.Object, err error) {
 		update, ok := action.(testing.UpdateAction)
 		Expect(ok).To(BeTrue())
@@ -127,6 +154,17 @@ func syncStoreWithLocalUpdateCalls(client *fake.Clientset, cm *certManager, ns s
 			cm.informers.InformersFor(ns).Core().V1().Secrets().Informer().GetStore().Update(secret),
 		).To(Succeed())
 		return false, secret, nil
+	})
+
+	client.Fake.PrependReactor("create", "configmaps", func(action testing.Action) (handled bool, obj runtime.Object, err error) {
+		create, ok := action.(testing.CreateAction)
+		Expect(ok).To(BeTrue())
+		c, ok := create.GetObject().(*corev1.ConfigMap)
+		Expect(ok).To(BeTrue())
+		Expect(
+			cm.informers.InformersFor(ns).Core().V1().ConfigMaps().Informer().GetStore().Add(c),
+		).To(Succeed())
+		return false, c, nil
 	})
 }
 
@@ -143,12 +181,12 @@ var _ = Describe("Cert rotation tests", func() {
 			cm := newCertManagerForTest(client, namespace)
 
 			ctx, cancel := context.WithCancel(context.Background())
-			Expect(cm.(*certManager).Start(ctx)).To(Succeed())
+			Expect(cm.(*noInformerStartCertManager).Start(ctx)).To(Succeed())
 
 			checkCerts(client, namespace, false)
 
-			populateClientAndStoreWithSecrets(client, cm.(*certManager), namespace)
-			syncStoreWithLocalUpdateCalls(client, cm.(*certManager), namespace)
+			populateClientAndStoreWithSecrets(client, cm.(*noInformerStartCertManager), namespace)
+			syncStoreWithClientCalls(client, cm.(*noInformerStartCertManager), namespace)
 			certs := cert.CreateCertificateDefinitions(&cert.FactoryArgs{Namespace: namespace})
 			err := cm.Sync(certs)
 			Expect(err).ToNot(HaveOccurred())
@@ -170,11 +208,11 @@ var _ = Describe("Cert rotation tests", func() {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
-			Expect(cm.(*certManager).Start(ctx)).To(Succeed())
+			Expect(cm.(*noInformerStartCertManager).Start(ctx)).To(Succeed())
 
 			certs := cert.CreateCertificateDefinitions(&cert.FactoryArgs{Namespace: namespace})
-			populateClientAndStoreWithSecrets(client, cm.(*certManager), namespace)
-			syncStoreWithLocalUpdateCalls(client, cm.(*certManager), namespace)
+			populateClientAndStoreWithSecrets(client, cm.(*noInformerStartCertManager), namespace)
+			syncStoreWithClientCalls(client, cm.(*noInformerStartCertManager), namespace)
 			err := cm.Sync(certs)
 			Expect(err).ToNot(HaveOccurred())
 
