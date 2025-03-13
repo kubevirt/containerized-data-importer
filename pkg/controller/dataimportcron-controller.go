@@ -29,6 +29,7 @@ import (
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	imagev1 "github.com/openshift/api/image/v1"
+	secv1 "github.com/openshift/api/security/v1"
 	"github.com/pkg/errors"
 	cronexpr "github.com/robfig/cron/v3"
 
@@ -1382,6 +1383,13 @@ func InitPollerPodSpec(c client.Client, cron *cdiv1.DataImportCron, podSpec *cor
 	podSpec.Affinity = workloadNodePlacement.Affinity
 
 	cc.SetRestrictedSecurityContext(podSpec)
+	// No need for specifid uid/fsgroup here since this doesn't write or use qemu
+	if podSpec.SecurityContext != nil {
+		podSpec.SecurityContext.FSGroup = nil
+	}
+	if podSpec.Containers[0].SecurityContext != nil {
+		podSpec.Containers[0].SecurityContext.RunAsUser = nil
+	}
 
 	return nil
 }
@@ -1396,6 +1404,7 @@ func (r *DataImportCronReconciler) initCronJob(cron *cdiv1.DataImportCron, cronJ
 	jobSpec := &cronJobSpec.JobTemplate.Spec
 	jobSpec.BackoffLimit = ptr.To[int32](2)
 	jobSpec.TTLSecondsAfterFinished = ptr.To[int32](10)
+	cc.AddAnnotation(&jobSpec.Template, secv1.RequiredSCCAnnotation, common.RestrictedSCCName)
 
 	podSpec := &jobSpec.Template.Spec
 	if err := InitPollerPodSpec(r.client, cron, podSpec, r.image, corev1.PullPolicy(r.pullPolicy), r.log); err != nil {
