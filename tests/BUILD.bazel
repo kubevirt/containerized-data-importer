@@ -141,6 +141,11 @@ pkg_tar(
 
 container_image(
     name = "cdi-func-test-tinycore",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
     env = {
         "TEST_KUBEVIRT_IO_TEST": "testvalue",
         "TEST_KUBEVIRT_IO_EXISTING": "somethingelse",
