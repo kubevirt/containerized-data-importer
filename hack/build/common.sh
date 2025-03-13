@@ -28,6 +28,50 @@ determine_cri_bin() {
     fi
 }
 
+# We are formatting the architecture name here to ensure that
+# it is consistent with the platform name specified in ../.bazelrc
+# if the second argument is set, the function formats arch name for
+# image tag.
+function format_archname() {
+    local local_platform=$(uname -m)
+    local platform=$1
+    local tag=$2
+
+    if [ $# -lt 1 ]; then
+        echo ${local_platform}
+    else
+        case ${platform} in
+        x86_64 | amd64)
+            [[ $tag ]] && echo "amd64" && return
+            arch="x86_64"
+            echo ${arch}
+            ;;
+        crossbuild-aarch64 | aarch64 | arm64)
+            [[ $tag ]] && echo "arm64" && return
+            if [ ${local_platform} != "aarch64" ]; then
+                arch="crossbuild-aarch64"
+            else
+                arch="aarch64"
+            fi
+            echo ${arch}
+            ;;
+        crossbuild-s390x | s390x)
+            [[ $tag ]] && echo "s390x" && return
+            if [ ${local_platform} != "s390x" ]; then
+                arch="crossbuild-s390x"
+            else
+                arch="s390x"
+            fi
+            echo ${arch}
+            ;;
+        *)
+            echo "ERROR: invalid Arch, ${platform}, only support x86_64, aarch64 and s390x"
+            exit 1
+            ;;
+        esac
+    fi
+}
+
 CDI_DIR="$(cd $(dirname $0)/../../ && pwd -P)"
 CDI_GO_PACKAGE=kubevirt.io/containerized-data-importer
 BIN_DIR=${CDI_DIR}/bin
@@ -41,7 +85,8 @@ SOURCE_DIRS="pkg tests tools"
 APIDOCS_OUT_DIR=${OUT_DIR}/apidocs
 CACHE_DIR=${OUT_DIR}/gocache
 VENDOR_DIR=${CDI_DIR}/vendor
-ARCHITECTURE="${BUILD_ARCH:-$(uname -m)}"
+DIGESTS_DIR=${OUT_DIR}/digests
+ARCHITECTURE="${ARCHITECTURE:-$(uname -m)}"
 HOST_ARCHITECTURE="$(uname -m)"
 CDI_CRI="$(determine_cri_bin)"
 if [ "${CDI_CRI}" = "docker" ]; then

@@ -165,19 +165,20 @@ cluster-sync: cluster-sync-cdi cluster-sync-test-infra ## Build the controller/i
 
 ##@ Bazel
 bazel-generate: ## Generate BUILD files for Bazel.
-	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-generate.sh -- staging/src pkg/ tools/ tests/ cmd/ vendor/"
+	${DO_BAZ} "./hack/build/bazel-generate.sh -- staging/src pkg/ tools/ tests/ cmd/ vendor/"
 
 bazel-cdi-generate:
-	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-generate.sh -- staging/src pkg/ tools/ tests/ cmd/"
+	${DO_BAZ} "./hack/build/bazel-generate.sh -- staging/src pkg/ tools/ tests/ cmd/"
 
 bazel-build: ## Build all Go binaries.
-	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/bazel-build.sh"
+	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} ./hack/build/multi-arch.sh build"
 
 bazel-build-images:	bazel-cdi-generate bazel-build ## Build all the container images used (for both CDI and functional tests)
-	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} ./hack/build/bazel-build-images.sh"
+	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} ./hack/build/multi-arch.sh build-images"
 
 bazel-push-images: bazel-cdi-generate bazel-build ## Push the built container images to the registry defined in DOCKER_PREFIX
-	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} DOCKER_CA_CERT_FILE=${DOCKER_CA_CERT_FILE} ./hack/build/bazel-push-images.sh"
+	${DO_BAZ} "BUILD_ARCH=${BUILD_ARCH} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} DOCKER_CA_CERT_FILE=${DOCKER_CA_CERT_FILE} ./hack/build/multi-arch.sh push-images"
+	BUILD_ARCH=${BUILD_ARCH} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} hack/build/push-container-manifest.sh
 
 push: bazel-push-images ## Same as bazel-push-images
 
