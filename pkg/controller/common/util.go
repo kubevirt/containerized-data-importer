@@ -1601,9 +1601,17 @@ func GetMetricsURL(pod *corev1.Pod) (string, error) {
 }
 
 // GetProgressReportFromURL fetches the progress report from the passed URL according to an specific metric expression and ownerUID
-func GetProgressReportFromURL(url string, httpClient *http.Client, metricExp, ownerUID string) (string, error) {
+func GetProgressReportFromURL(ctx context.Context, url string, httpClient *http.Client, metricExp, ownerUID string) (string, error) {
 	regExp := regexp.MustCompile(fmt.Sprintf("(%s)\\{ownerUID\\=%q\\} (\\d{1,3}\\.?\\d*)", metricExp, ownerUID))
-	resp, err := httpClient.Get(url)
+	// pod could be gone, don't block an entire thread for 30 seconds
+	// just to get back an i/o timeout
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		if ErrConnectionRefused(err) {
 			return "", nil
