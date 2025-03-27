@@ -27,6 +27,8 @@ Cleanup: cdi-uploadserver: healthcheck and application use same port
 v1.61.1
 https://github.com/kubevirt/containerized-data-importer/pulls?q=is%3Apr+merged%3A2024-11-28..2025-01-28+base%3Arelease-v1.61+sort%3Aupdated-desc+is%3Aclosed+
 
-v1.62.2
+v1.61.2
 https://github.com/kubevirt/containerized-data-importer/pulls?q=is%3Apr+merged%3A2025-01-29..2025-03-13+base%3Arelease-v1.61+sort%3Aupdated-desc+is%3Aclosed+
 
+v1.61.3
+https://github.com/kubevirt/containerized-data-importer/pulls?q=is%3Apr+merged%3A2025-03-13..2025-03-28+base%3Arelease-v1.61+sort%3Aupdated-desc+is%3Aclosed+
