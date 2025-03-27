@@ -286,7 +286,7 @@ func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, p
 
 	// We fetch the import progress from the import pod metrics
 	httpClient = cc.BuildHTTPClient(httpClient)
-	progressReport, err := cc.GetProgressReportFromURL(url, httpClient, importMetrics.ImportProgressMetricName, string(pvc.UID))
+	progressReport, err := cc.GetProgressReportFromURL(context.TODO(), url, httpClient, importMetrics.ImportProgressMetricName, string(pvc.UID))
 	if err != nil {
 		return err
 	}
