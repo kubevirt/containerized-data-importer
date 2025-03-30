@@ -141,4 +141,14 @@ var _ = Describe("Registry data source", func() {
 		Expect(err).To(HaveOccurred())
 		Expect("image directory contains more than one file").To(Equal(err.Error()))
 	})
+
+	It("should return certDir containing proxy certs regardless of final endpoint certs", func() {
+		proxyCertDir, err := os.MkdirTemp("", "proxycerts")
+		Expect(err).ToNot(HaveOccurred())
+		// proxy dir exists but certDir is empty
+		proxyCertificateDir = proxyCertDir
+
+		ds = NewRegistryDataSource("", "", "", "", false)
+		Expect(ds.certDir).To(Equal("/tmp/all_certs"))
+	})
 })
