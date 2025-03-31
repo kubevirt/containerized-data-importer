@@ -93,12 +93,21 @@ var supportedCloneSources = map[string]client.Object{
 	"PersistentVolumeClaim": &corev1.PersistentVolumeClaim{},
 }
 
-func isSourceReady(obj client.Object) bool {
-	switch obj := obj.(type) {
+func isSourceReady(e event.UpdateEvent) bool {
+	switch objNew := e.ObjectNew.(type) {
 	case *snapshotv1.VolumeSnapshot:
-		return cc.IsSnapshotReady(obj)
+		objOld, ok := e.ObjectOld.(*snapshotv1.VolumeSnapshot)
+		if !ok {
+			return false
+		}
+		return !cc.IsSnapshotReady(objOld) && cc.IsSnapshotReady(objNew)
+
 	case *corev1.PersistentVolumeClaim:
-		return cc.IsBound(obj)
+		objOld, ok := e.ObjectOld.(*corev1.PersistentVolumeClaim)
+		if !ok {
+			return false
+		}
+		return !cc.IsBound(objOld) && cc.IsBound(objNew)
 	}
 	return false
 }
@@ -108,12 +117,16 @@ func addCloneSourceWatches(mgr manager.Manager, c controller.Controller, log log
 		return kind + "/" + namespace + "/" + name
 	}
 
+	cloneSourceList := make(map[string]client.Object, len(supportedCloneSources))
+	for k, v := range supportedCloneSources {
+		cloneSourceList[k] = v
+	}
+
 	if err := mgr.GetClient().List(context.TODO(), &snapshotv1.VolumeSnapshotList{}); err != nil {
 		if meta.IsNoMatchError(err) {
-			// Back out if there's no point to attempt watch
-			return nil
-		}
-		if !cc.IsErrCacheNotStarted(err) {
+			// Remove VolumeSnapshot from supported sources if it's not present in the cluster
+			delete(cloneSourceList, "VolumeSnapshot")
+		} else if !cc.IsErrCacheNotStarted(err) {
 			return err
 		}
 	}
@@ -127,7 +140,7 @@ func addCloneSourceWatches(mgr manager.Manager, c controller.Controller, log log
 		sourceNamespace := cloneSource.Namespace
 		sourceKind := cloneSource.Spec.Source.Kind
 
-		if _, supported := supportedCloneSources[sourceKind]; !supported || sourceName == "" {
+		if _, supported := cloneSourceList[sourceKind]; !supported || sourceName == "" {
 			return nil
 		}
 
@@ -140,15 +153,15 @@ func addCloneSourceWatches(mgr manager.Manager, c controller.Controller, log log
 	// Generic mapper function for supported clone sources
 	genericSourceMapper := func(sourceKind string) handler.MapFunc {
 		return func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
-			var cloneSources cdiv1.VolumeCloneSourceList
+			var volumeCloneSources cdiv1.VolumeCloneSourceList
 			matchingFields := client.MatchingFields{indexingKey: getKey(sourceKind, obj.GetNamespace(), obj.GetName())}
 
-			if err := mgr.GetClient().List(ctx, &cloneSources, matchingFields); err != nil {
+			if err := mgr.GetClient().List(ctx, &volumeCloneSources, matchingFields); err != nil {
 				log.Error(err, "Failed to list VolumeCloneSources")
 				return nil
 			}
 
-			for _, cs := range cloneSources.Items {
+			for _, cs := range volumeCloneSources.Items {
 				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: cs.Namespace, Name: cs.Name}})
 			}
 			return reqs
@@ -156,13 +169,13 @@ func addCloneSourceWatches(mgr manager.Manager, c controller.Controller, log log
 	}
 
 	// Register watches for all supported clone source types
-	for kind, obj := range supportedCloneSources {
+	for kind, obj := range cloneSourceList {
 		if err := c.Watch(source.Kind(mgr.GetCache(), obj,
 			handler.EnqueueRequestsFromMapFunc(genericSourceMapper(kind)),
 			predicate.Funcs{
 				CreateFunc: func(e event.CreateEvent) bool { return true },
 				DeleteFunc: func(e event.DeleteEvent) bool { return false },
-				UpdateFunc: func(e event.UpdateEvent) bool { return isSourceReady(obj) },
+				UpdateFunc: func(e event.UpdateEvent) bool { return isSourceReady(e) },
 			},
 		)); err != nil {
 			return err
