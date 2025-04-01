@@ -105,7 +105,12 @@ func convertToRaw(src, dest string, preallocate bool, cacheMode string) error {
 	if err != nil {
 		return err
 	}
-	args := []string{"convert", "-t", cacheMode, "-p", "-O", "raw", src, dest}
+
+	args := []string{"convert", "-t", cacheMode, "-p"}
+	// We assume that the destination block is already zeroed (empty),
+	// so we include the '-n' flag with '--target-is-zero' to skip unnecessary writes.
+	args = append(args, "-n", "--target-is-zero")
+	args = append(args, "-O", "raw", src, dest)
 
 	if preallocate {
 		err = addPreallocation(args, convertPreallocationMethods, func(args []string) ([]byte, error) {
