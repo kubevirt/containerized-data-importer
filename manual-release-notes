@@ -1,0 +1,22 @@
+v1.62.0
+Enhancement: IBM Block Storage CSI driver now supports RWX access mode
+Cleanup: Deprecate DataVolume garbage collection
+BugFix: Watch for StorageProfile updates to reconcile DataVolumes
+BugFix: Fix PVC webhook rendering segfault when there is no default default storage class and no virtualization default storage class
+BugFix: size-detection pod is not always cleaned after it completes
+Cleanup: Bump CI to test 1.31/1.30
+BugFix: Set DataVolume Bound condition to False instead of Unknown
+Enhancement: Allow extra VDDK configuration parameters to be passed to VDDK importer pods.
+Enhancement: Add PVC source support for DataImportCron
+BugFix: Dell PowerStore uses `cloneStrategy: copy` over `csi-clone` to avoid array snapshot limits
+Enhancement: Add volume capabilities for Oracle Cloud
+Enhancement: Added support for Infinibox nvme protocol
+Cleanup: k8s 1.31 dependencies
+Cleanup: Using golang 1.23.6 in builder
+Enhancement: Add RWX block to Portworx capabilities
+BugFix: Add openshift.io/required-scc to required workloads
+Enhancement: Create prow multi arch release script
+BugFix: Fix ImagePullFailed handling in DataImportCron controller
+Cleanup: DataImportCron tests - add waitForConditions to ensure all images got imported
+Enhancement: Add GCP hyperdisk capabilities
+BugFix: Fallback to host-assisted cloning when source snapshot volume mode differs from target volume mode
