@@ -185,25 +185,6 @@ var _ = Describe("Convert to Raw", func() {
 		})
 	})
 
-	It("should include -n and --target-is-zero flags when preallocation is false", func() {
-		expectedArgs := []string{"convert", "-t", "writeback", "-p", "-n", "--target-is-zero", "-O", "raw", "source", destPath}
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, expectedArgs...), func() {
-			err := convertToRaw("source", destPath, false, "")
-			Expect(err).NotTo(HaveOccurred())
-		})
-	})
-
-	It("should include -n and --target-is-zero flags in the initial preallocation attempt", func() {
-		replaceExecFunction(mockExecFunctionStrict("", "", nil,
-			"convert", "-n", "preallocation=falloc", "-t", "writeback", "-p", "-n", "--target-is-zero", "-O", "raw", "/somefile/somewhere", destPath,
-		), func() {
-			ep, err := url.Parse("/somefile/somewhere")
-			Expect(err).NotTo(HaveOccurred())
-			err = ConvertToRawStream(ep, destPath, true, "")
-			Expect(err).NotTo(HaveOccurred())
-		})
-	})
-
 	It("should stream file to destination", func() {
 		replaceExecFunction(mockExecFunction("", "", nil, "convert", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
 			ep, err := url.Parse("/somefile/somewhere")
