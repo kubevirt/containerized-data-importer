@@ -19,4 +19,4 @@ Enhancement: Create prow multi arch release script
 BugFix: Fix ImagePullFailed handling in DataImportCron controller
 Cleanup: DataImportCron tests - add waitForConditions to ensure all images got imported
 Enhancement: Add GCP hyperdisk capabilities
-BugFix: Fallback to host-assisted cloning when source snapshot volume mode differs from target volume mode
+BugFix: Fallback to host assisted cloning when source snapshot volume mode differs from target volume mode
