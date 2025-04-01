@@ -4,7 +4,7 @@ Cleanup: Deprecate DataVolume garbage collection
 BugFix: Watch for StorageProfile updates to reconcile DataVolumes
 BugFix: Fix PVC webhook rendering segfault when there is no default default storage class and no virtualization default storage class
 BugFix: size-detection pod is not always cleaned after it completes
-Cleanup: Bump CI to test 1.31/1.30
+Cleanup: Bump CI to test 1.31
 BugFix: Set DataVolume Bound condition to False instead of Unknown
 Enhancement: Allow extra VDDK configuration parameters to be passed to VDDK importer pods.
 Enhancement: Add PVC source support for DataImportCron
