@@ -213,7 +213,7 @@ var _ = Describe("Convert to Raw", func() {
 		})
 	})
 
-	It("should add preallocation if requested", func() {
+	It("should use preallocation flags and omit -n/--target-is-zero when preallocation is requested", func() {
 		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-o", "preallocation=falloc", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
 			ep, err := url.Parse("/somefile/somewhere")
 			Expect(err).NotTo(HaveOccurred())
@@ -223,7 +223,7 @@ var _ = Describe("Convert to Raw", func() {
 	})
 
 	It("should not add preallocation if not requested", func() {
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
+		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "writeback", "-p", "-n", "--target-is-zero", "-O", "raw", "/somefile/somewhere", destPath), func() {
 			ep, err := url.Parse("/somefile/somewhere")
 			Expect(err).NotTo(HaveOccurred())
 			err = ConvertToRawStream(ep, destPath, false, "")
@@ -250,7 +250,7 @@ var _ = Describe("Convert to Raw", func() {
 		})
 
 		It("should use cache=none when destination supports O_DIRECT", func() {
-			replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "none", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
+			replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "none", "-p", "-n", "--target-is-zero", "-O", "raw", "/somefile/somewhere", destPath), func() {
 				ep, err := url.Parse("/somefile/somewhere")
 				Expect(err).NotTo(HaveOccurred())
 				err = ConvertToRawStream(ep, destPath, false, common.CacheModeTryNone)
@@ -265,7 +265,7 @@ var _ = Describe("Convert to Raw", func() {
 			_, err := os.Create(tmpFsDestPath)
 			Expect(err).NotTo(HaveOccurred())
 
-			replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", tmpFsDestPath), func() {
+			replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "writeback", "-p", "-n", "--target-is-zero", "-O", "raw", "/somefile/somewhere", tmpFsDestPath), func() {
 				ep, err := url.Parse("/somefile/somewhere")
 				Expect(err).NotTo(HaveOccurred())
 				err = ConvertToRawStream(ep, tmpFsDestPath, false, common.CacheModeTryNone)
