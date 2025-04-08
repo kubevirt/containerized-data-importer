@@ -756,6 +756,34 @@ var _ = Describe("Controller", func() {
 				Expect(errors.IsNotFound(err)).To(BeTrue())
 				validateEvents(args.reconciler, createDeleteCDIEventValidationMap())
 			})
+
+			It("should recreate existing controller deployment with wrong .spec.selector labels", func() {
+				args := createArgs()
+				doReconcile(args)
+				setDeploymentsReady(args)
+
+				deploy := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: "cdi-deployment"}}
+				deploy, err := getDeployment(args.client, deploy)
+				Expect(err).ToNot(HaveOccurred())
+
+				deploy.Spec.Selector.MatchLabels = map[string]string{"test": "test"}
+				Expect(args.client.Update(context.TODO(), deploy)).To(Succeed())
+
+				// immutable field and mismatch detected, resource should be deleted
+				doReconcileError(args)
+
+				_, err = getDeployment(args.client, deploy)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("deployments.apps \"cdi-deployment\" not found"))
+
+				// requeue (recreate cdi-deployment)
+				doReconcileRequeue(args)
+
+				deploy, err = getDeployment(args.client, deploy)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(deploy.Spec.Selector.MatchLabels).To(Equal(map[string]string{common.CDIComponentLabel: common.CDIControllerResourceName}))
+			})
 		})
 	})
 
