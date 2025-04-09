@@ -1154,10 +1154,14 @@ func SetRestrictedSecurityContext(podSpec *corev1.PodSpec) {
 		}
 	}
 
+	if podSpec.SecurityContext == nil {
+		podSpec.SecurityContext = &corev1.PodSecurityContext{}
+	}
+	// Some tools like istio inject containers and thus rely on a pod level seccomp profile being specified
+	podSpec.SecurityContext.SeccompProfile = &corev1.SeccompProfile{
+		Type: corev1.SeccompProfileTypeRuntimeDefault,
+	}
 	if hasVolumeMounts {
-		if podSpec.SecurityContext == nil {
-			podSpec.SecurityContext = &corev1.PodSecurityContext{}
-		}
 		podSpec.SecurityContext.FSGroup = ptr.To[int64](common.QemuSubGid)
 	}
 }
