@@ -218,22 +218,6 @@ var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {
 	})
 
 	It("[test_id:6498] Should fail to import with namespace sidecar injection enabled, and sidecar.istio.io/inject set to true", func() {
-		// TODO - as of today (9/12/22), no istio release supports the restrected PSA
-		// but should be supported soon, per this PR https://github.com/istio/istio/pull/40115
-		// so use baseline PSA just for this test
-		Eventually(func() error {
-			ns, err := f.K8sClient.CoreV1().Namespaces().Get(context.TODO(), f.Namespace.Name, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
-			if ns.Labels["pod-security.kubernetes.io/enforce"] != "restricted" {
-				return nil
-			}
-			ns.Labels["pod-security.kubernetes.io/enforce"] = "baseline"
-			_, err = f.K8sClient.CoreV1().Namespaces().Update(context.TODO(), ns, metav1.UpdateOptions{})
-			return err
-		}, time.Minute, pollingInterval).Should(BeNil())
-
 		dataVolume := utils.NewDataVolumeWithHTTPImport("istio-sidecar-injection-test", "100Mi", tinyCoreIsoExternalURL)
 		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
 		// We set the Immediate Binding annotation to true, to eliminate creation of the consumer pod, which will also fail due to the Istio sidecar.
