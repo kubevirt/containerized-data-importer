@@ -531,7 +531,7 @@ func addVolumeMounts(pvc *k8sv1.PersistentVolumeClaim, volumeName string, readOn
 
 // GetImageInfo returns qemu-img information about given image
 func (f *Framework) GetImageInfo(namespace *k8sv1.Namespace, pvc *k8sv1.PersistentVolumeClaim, imagePath string, info *image.ImgInfo) error {
-	cmd := fmt.Sprintf("qemu-img info %s --output=json", imagePath)
+	cmd := fmt.Sprintf("stat %s -fc %%s; qemu-img info %s --output=json", imagePath, imagePath)
 
 	_, err := f.verifyInPod(namespace, pvc, cmd, func(output, stderr string) (bool, error) {
 		fmt.Fprintf(ginkgo.GinkgoWriter, "INFO: qemu-img info output %s\n", output)
