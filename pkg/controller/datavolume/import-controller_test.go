@@ -1088,6 +1088,19 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(pvc).ToNot(BeNil())
 			Expect(pvc.GetAnnotations()[AnnVddkInitImageURL]).To(Equal("test://image"))
 		})
+
+		It("Should copy extra VDDK args to PVC", func() {
+			dv := newVDDKDataVolume("test-dv")
+			dv.Spec.Source.VDDK.ExtraArgs = "vddk-extra-args"
+			reconciler = createImportReconciler(dv)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc).ToNot(BeNil())
+			Expect(pvc.GetAnnotations()[AnnVddkExtraArgs]).To(Equal("vddk-extra-args"))
+		})
 	})
 
 	var _ = Describe("Reconcile Datavolume status", func() {

@@ -262,6 +262,8 @@ type DataVolumeSourceVDDK struct {
 	SecretRef string `json:"secretRef,omitempty"`
 	// InitImageURL is an optional URL to an image containing an extracted VDDK library, overrides v2v-vmware config map
 	InitImageURL string `json:"initImageURL,omitempty"`
+	// ExtraArgs is a reference to a ConfigMap containing extra arguments to pass directly to the VDDK library
+	ExtraArgs string `json:"extraArgs,omitempty"`
 }
 
 // DataVolumeSourceRef defines an indirect reference to the source of data for the DataVolume

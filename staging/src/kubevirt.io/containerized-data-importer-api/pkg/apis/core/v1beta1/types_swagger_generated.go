@@ -138,6 +138,7 @@ func (DataVolumeSourceVDDK) SwaggerDoc() map[string]string {
 		"thumbprint":   "Thumbprint is the certificate thumbprint of the vCenter or ESXi host",
 		"secretRef":    "SecretRef provides a reference to a secret containing the username and password needed to access the vCenter or ESXi host",
 		"initImageURL": "InitImageURL is an optional URL to an image containing an extracted VDDK library, overrides v2v-vmware config map",
+		"extraArgs":    "ExtraArgs is a reference to a ConfigMap containing extra arguments to pass directly to the VDDK library",
 	}
 }
 
