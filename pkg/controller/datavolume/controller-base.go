@@ -1108,7 +1108,7 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 	}
 
 	// Used for both import and clone, so it should match both metric names
-	progressReport, err := cc.GetProgressReportFromURL(url, httpClient,
+	progressReport, err := cc.GetProgressReportFromURL(context.TODO(), url, httpClient,
 		fmt.Sprintf("%s|%s", importMetrics.ImportProgressMetricName, cloneMetrics.CloneProgressMetricName),
 		string(dataVolumeCopy.UID))
 	if err != nil {
