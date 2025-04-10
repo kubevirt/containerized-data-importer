@@ -82,11 +82,10 @@ gazelle_dependencies()
 
 http_archive(
     name = "bazeldnf",
-    sha256 = "6a2af09c6a598a3c4e4fec9af78334fbec2b3c16473f4e2c692fe2e567dc6f56",
-    strip_prefix = "bazeldnf-0.5.1",
+    sha256 = "fb24d80ad9edad0f7bd3000e8cffcfbba89cc07e495c47a7d3b1f803bd527a40",
     urls = [
-        "https://github.com/rmohr/bazeldnf/archive/v0.5.1.tar.gz",
-        "https://storage.googleapis.com/builddeps/6a2af09c6a598a3c4e4fec9af78334fbec2b3c16473f4e2c692fe2e567dc6f56",
+        "https://github.com/rmohr/bazeldnf/releases/download/v0.5.9/bazeldnf-v0.5.9.tar.gz",
+        "https://storage.googleapis.com/builddeps/fb24d80ad9edad0f7bd3000e8cffcfbba89cc07e495c47a7d3b1f803bd527a40",
     ],
 )
 
