@@ -37,6 +37,8 @@ const (
 	containerDiskImageDir = "disk"
 )
 
+var proxyCertificateDir = common.ImporterProxyCertDir
+
 // RegistryDataSource is the struct containing the information needed to import from a registry data source.
 // Sequence of phases:
 // 1. Info -> Transfer
@@ -188,7 +190,7 @@ func CreateCertificateDir(registryCertDir string) (string, error) {
 	}
 
 	klog.Info("Copying proxy certs")
-	if err := collectCerts(common.ImporterProxyCertDir, allCerts, "proxy-"); err != nil {
+	if err := collectCerts(proxyCertificateDir, allCerts, "proxy-"); err != nil {
 		return allCerts, err
 	}
 
