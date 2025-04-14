@@ -423,7 +423,7 @@ func (r *ForkliftPopulatorReconciler) updateImportProgress(podPhase string, pvc,
 
 	// We fetch the import progress from the import pod metrics
 	httpClient = cc.BuildHTTPClient(httpClient)
-	progressReport, err := cc.GetProgressReportFromURL(url, httpClient,
+	progressReport, err := cc.GetProgressReportFromURL(context.TODO(), url, httpClient,
 		fmt.Sprintf("%s|%s", openstackMetric.OpenStackPopulatorProgressMetricName, ovirtMetric.OvirtPopulatorProgressMetricName),
 		string(pvc.UID))
 	if err != nil {
