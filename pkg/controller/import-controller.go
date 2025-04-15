@@ -970,6 +970,7 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 					Protocol:      corev1.ProtocolTCP,
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		},
 	}
 	if cc.GetVolumeMode(args.pvc) == corev1.PersistentVolumeBlock {
