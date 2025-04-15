@@ -1347,7 +1347,7 @@ func InitPollerPodSpec(c client.Client, cron *cdiv1.DataImportCron, podSpec *cor
 		},
 		ImagePullPolicy:          pullPolicy,
 		TerminationMessagePath:   corev1.TerminationMessagePathDefault,
-		TerminationMessagePolicy: corev1.TerminationMessageReadFile,
+		TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 	}
 
 	var volumes []corev1.Volume
