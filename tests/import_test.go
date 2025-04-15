@@ -2187,13 +2187,14 @@ var _ = Describe("Containerdisk envs to PVC labels", func() {
 		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
 
-		pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-		Expect(err).ToNot(HaveOccurred())
-
-		Eventually(func(g Gomega) {
-			g.Expect(pvc.GetLabels()).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
-			g.Expect(pvc.GetLabels()).To(HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoValueExisting))
-		}, timeout, pollingInterval).Should(Succeed())
+		Eventually(func(g Gomega) map[string]string {
+			pvc, err = utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			g.Expect(err).ToNot(HaveOccurred())
+			return pvc.GetLabels()
+		}, timeout, pollingInterval).Should(And(
+			HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue),
+			HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoValueExisting),
+		))
 	},
 		Entry("with pullMethod pod", cdiv1.RegistryPullPod, tinyCoreRegistryURL, false),
 		Entry("with pullMethod node", cdiv1.RegistryPullNode, trustedRegistryURL, false),
