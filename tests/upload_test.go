@@ -286,7 +286,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(string(body)).To(ContainSubstring(pvc.Name))
 		})
 
-		DescribeTable("Verify validation error message on async upload if virtual size > pvc size", Serial, func(filename string) {
+		DescribeTable("Verify failure on upload if effective size > pvc size", Label("no-kubernetes-in-docker"), Serial, func(filename, uploadPath string) {
 			By("Verify PVC annotation says ready")
 			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 			Expect(err).ToNot(HaveOccurred())
@@ -299,31 +299,10 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(token).ToNot(BeEmpty())
 
 			By("Do upload")
+			tokenExpiration := 5 * time.Minute
 			Eventually(func() error {
-				return uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, asyncUploadPath, token, http.StatusBadRequest)
-			}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
-		},
-			Entry("[test_id:4989]fail given a large virtual size QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
-			Entry("fail given a large physical size QCOW2 file", utils.UploadFileLargePhysicalDiskQcow),
-		)
-
-		DescribeTable("[posneg:negative][test_id:2330]Verify failure on sync upload if virtual size > pvc size", Label("no-kubernetes-in-docker"), Serial, func(filename string) {
-			By("Verify PVC annotation says ready")
-			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(found).To(BeTrue())
-
-			var token string
-			By("Get an upload token")
-			token, err = utils.RequestUploadToken(f.CdiClient, pvc)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(token).ToNot(BeEmpty())
-
-			By("Do upload")
-			Eventually(func() bool {
-				err = uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, syncUploadPath, token, http.StatusOK)
-				return err != nil && strings.Contains(err.Error(), "Unexpected return value 500")
-			}, timeout, pollingInterval).Should(BeTrue())
+				return uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, uploadPath, token, http.StatusBadRequest)
+			}, tokenExpiration, pollingInterval).Should(BeNil(), "Upload should fail with HTTP 400")
 
 			uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
@@ -335,17 +314,14 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 					GetLogs(uploadPod.Name, &v1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
 					DoRaw(context.Background())
 				return string(out), err
-			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(Or(
-				ContainSubstring("is larger than the reported available"),
-				ContainSubstring("no space left on device"),
-				ContainSubstring("qemu-img execution failed"),
-				ContainSubstring("calculated new size is < than current size, not resizing"),
-			))
+			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring("effective image size is larger than the reported available"))
 		},
-			Entry("fail given a large virtual size RAW XZ file", utils.UploadFileLargeVirtualDiskXz),
-			Entry("fail given a large virtual size QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
-			Entry("fail given a large physical size RAW XZ file", utils.UploadFileLargePhysicalDiskXz),
-			Entry("fail given a large physical size QCOW2 file", utils.UploadFileLargePhysicalDiskQcow),
+			Entry("with a large virtual size RAW XZ file sync", utils.UploadFileLargeVirtualDiskXz, syncUploadPath),
+			Entry("with a large physical size RAW XZ file sync", utils.UploadFileLargePhysicalDiskXz, syncUploadPath),
+			Entry("with a large physical size QCOW2 file sync", utils.UploadFileLargePhysicalDiskQcow, syncUploadPath),
+			Entry("with a large physical size QCOW2 file, async", utils.UploadFileLargePhysicalDiskQcow, asyncUploadPath),
+			Entry("with a large virtual size QCOW2 file sync", utils.UploadFileLargeVirtualDiskQcow, syncUploadPath),
+			Entry("[test_id:4989]with a large virtual size QCOW2 file async", utils.UploadFileLargeVirtualDiskQcow, asyncUploadPath),
 		)
 	})
 
