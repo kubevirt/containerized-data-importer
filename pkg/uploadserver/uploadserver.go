@@ -371,23 +371,11 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 		defer app.mutex.Unlock()
 
 		if err != nil {
-			klog.Errorf("Saving stream failed: %s", err)
-			if errors.As(err, &importer.ValidationSizeError{}) {
-				w.WriteHeader(http.StatusBadRequest)
-			} else {
-				w.WriteHeader(http.StatusInternalServerError)
-			}
-
-			_, writeErr := fmt.Fprintf(w, "Saving stream failed: %s", err.Error())
-			if writeErr != nil {
-				klog.Errorf("failed to send response; %v", err)
-			}
-
+			handleStreamError(w, err)
 			app.uploading = false
 			return
 		}
 
-		app.uploading = false
 		app.processing = true
 
 		// Start processing.
@@ -433,8 +421,7 @@ func (app *uploadServerApp) processUpload(irc imageReadCloser, w http.ResponseWr
 	app.uploading = false
 
 	if err != nil {
-		klog.Errorf("Saving stream failed: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
+		handleStreamError(w, err)
 		return
 	}
 
@@ -584,5 +571,20 @@ func newSnappyReadCloser(stream io.ReadCloser) io.ReadCloser {
 	return &closeWrapper{
 		Reader:  snappy.NewReader(stream),
 		closers: []io.Closer{stream},
+	}
+}
+
+func handleStreamError(w http.ResponseWriter, err error) {
+	if errors.As(err, &importer.ValidationSizeError{}) || strings.Contains(err.Error(), "no space left on device") {
+		w.WriteHeader(http.StatusBadRequest)
+		err = errors.New("effective image size is larger than the reported available storage. A larger PVC is required")
+	} else {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+	klog.Errorf("Saving stream failed: %s", err)
+
+	_, writeErr := fmt.Fprintf(w, "Saving stream failed: %s", err.Error())
+	if writeErr != nil {
+		klog.Errorf("failed to send response; %v", err)
 	}
 }
