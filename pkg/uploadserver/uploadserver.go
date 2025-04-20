@@ -574,7 +574,7 @@ func newSnappyReadCloser(stream io.ReadCloser) io.ReadCloser {
 }
 
 func handleStreamError(w http.ResponseWriter, err error) {
-	if errors.As(err, &importer.ValidationSizeError{}) || strings.Contains(err.Error(), "no space left on device") {
+	if importer.IsNoCapacityError(err) {
 		w.WriteHeader(http.StatusBadRequest)
 		err = errors.New("effective image size is larger than the reported available storage. A larger PVC is required")
 	} else {
