@@ -191,15 +191,18 @@ func StreamDataToFile(r io.Reader, fileName string, preallocate bool) (int64, in
 		bytesWritten = bytesRead
 	}
 
+	defer func() {
+		klog.Infof("Read %d bytes, wrote %d bytes to %s", bytesRead, bytesWritten, outFile.Name())
+	}()
+
 	if err != nil {
+		klog.Errorf("Unable to write file from dataReader: %v\n", err)
 		os.Remove(outFile.Name())
 		if strings.Contains(err.Error(), "no space left on device") {
 			err = errors.Wrapf(err, "unable to write to file")
 		}
 		return bytesRead, bytesWritten, err
 	}
-
-	klog.Infof("Read %d bytes, wrote %d bytes to %s", bytesRead, bytesWritten, outFile.Name())
 
 	err = outFile.Sync()
 

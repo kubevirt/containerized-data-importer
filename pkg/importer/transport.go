@@ -164,7 +164,7 @@ func processLayer(ctx context.Context,
 				return false, errors.Wrap(err, "Error creating output file's directory")
 			}
 
-			if err := streamDataToFile(tarReader, destFile); err != nil {
+			if _, _, err := StreamDataToFile(tarReader, destFile, true); err != nil {
 				klog.Errorf("Error copying file: %v", err)
 				return false, errors.Wrap(err, "Error copying file")
 			}

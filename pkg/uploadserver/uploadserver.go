@@ -487,12 +487,11 @@ func cloneProcessor(stream io.ReadCloser, contentType, dest string, preallocate 
 	}
 
 	defer stream.Close()
-	bytesRead, bytesWrittenn, err := importer.StreamDataToFile(stream, dest, preallocate)
+
+	_, _, err := importer.StreamDataToFile(stream, dest, preallocate)
 	if err != nil {
 		return false, err
 	}
-
-	klog.Infof("Read %d bytes, wrote %d bytes to %s", bytesRead, bytesWrittenn, dest)
 
 	return false, nil
 }

@@ -159,7 +159,7 @@ func (hs *HTTPDataSource) Transfer(path string) (ProcessingPhase, error) {
 			return ProcessingPhaseError, ErrInvalidPath
 		}
 		hs.readers.StartProgressUpdate()
-		err = streamDataToFile(hs.readers.TopReader(), file)
+		_, _, err = StreamDataToFile(hs.readers.TopReader(), file, true)
 		if err != nil {
 			return ProcessingPhaseError, err
 		}
@@ -182,7 +182,7 @@ func (hs *HTTPDataSource) TransferFile(fileName string) (ProcessingPhase, error)
 		return ProcessingPhaseError, err
 	}
 	hs.readers.StartProgressUpdate()
-	err := streamDataToFile(hs.readers.TopReader(), fileName)
+	_, _, err := StreamDataToFile(hs.readers.TopReader(), fileName, true)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}

@@ -97,7 +97,7 @@ func (sd *S3DataSource) Transfer(path string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, ErrInvalidPath
 	}
 
-	err := streamDataToFile(sd.readers.TopReader(), file)
+	_, _, err := StreamDataToFile(sd.readers.TopReader(), file, true)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -112,7 +112,7 @@ func (sd *S3DataSource) TransferFile(fileName string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, err
 	}
 
-	err := streamDataToFile(sd.readers.TopReader(), fileName)
+	_, _, err := StreamDataToFile(sd.readers.TopReader(), fileName, true)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
