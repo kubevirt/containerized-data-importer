@@ -10,6 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -36,7 +37,7 @@ func ParseEndpoint(endpt string) (*url.URL, error) {
 // CleanAll deletes all files at specified paths (recursively)
 func CleanAll(paths ...string) error {
 	for _, p := range paths {
-		isDevice, err := util.IsDevice(p)
+		isDevice, err := IsDevice(p)
 		if err != nil {
 			return err
 		}
@@ -56,6 +57,15 @@ func GetTerminationChannel() <-chan os.Signal {
 	terminationChannel := make(chan os.Signal, 1)
 	signal.Notify(terminationChannel, os.Interrupt, syscall.SIGTERM)
 	return terminationChannel
+}
+
+// GetAvailableSpaceByVolumeMode calls another method based on the volumeMode parameter to get the amount of
+// available space at the path specified.
+func GetAvailableSpaceByVolumeMode(volumeMode v1.PersistentVolumeMode) (int64, error) {
+	if volumeMode == v1.PersistentVolumeBlock {
+		return GetAvailableSpaceBlock(common.WriteBlockPath)
+	}
+	return GetAvailableSpace(common.ImporterVolumePath)
 }
 
 // newTerminationChannel should be overridden for unit tests
@@ -88,7 +98,7 @@ func envToLabel(env string) string {
 
 // streamDataToFile provides a function to stream the specified io.Reader to the specified local file
 func streamDataToFile(r io.Reader, fileName string) error {
-	outFile, err := util.OpenFileOrBlockDevice(fileName)
+	outFile, err := OpenFileOrBlockDevice(fileName)
 	if err != nil {
 		return err
 	}

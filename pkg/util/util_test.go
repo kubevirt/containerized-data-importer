@@ -12,6 +12,51 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
+const (
+	TestImagesDir = "../../tests/images"
+	pattern       = "^[a-zA-Z0-9]+$"
+)
+
+var (
+	fileDir, _ = filepath.Abs(TestImagesDir)
+)
+
+var _ = Describe("Copy files", func() {
+	var destTmp string
+	var err error
+
+	BeforeEach(func() {
+		destTmp, err = os.MkdirTemp("", "dest")
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		err = os.RemoveAll(destTmp)
+		Expect(err).NotTo(HaveOccurred())
+		os.Remove("test.txt")
+	})
+
+	It("Should copy file from source to dest, with valid source and dest", func() {
+		err = CopyFile(filepath.Join(TestImagesDir, "content.tar"), filepath.Join(destTmp, "target.tar"))
+		Expect(err).ToNot(HaveOccurred())
+		sourceMd5, err := Md5sum(filepath.Join(TestImagesDir, "content.tar"))
+		Expect(err).ToNot(HaveOccurred())
+		targetMd5, err := Md5sum(filepath.Join(destTmp, "target.tar"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sourceMd5).Should(Equal(targetMd5))
+	})
+
+	It("Should not copy file from source to dest, with invalid source", func() {
+		err = CopyFile(filepath.Join(TestImagesDir, "content.tar22"), filepath.Join(destTmp, "target.tar"))
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Should not copy file from source to dest, with invalid target", func() {
+		err = CopyFile(filepath.Join(TestImagesDir, "content.tar"), filepath.Join("/invalidpath", "target.tar"))
+		Expect(err).To(HaveOccurred())
+	})
+})
+
 var _ = Describe("Util", func() {
 	It("Should match RandAlphaNum", func() {
 		got := RandAlphaNum(8)

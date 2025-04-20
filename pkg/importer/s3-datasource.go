@@ -16,7 +16,6 @@ import (
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -92,7 +91,7 @@ func (sd *S3DataSource) Transfer(path string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, err
 	}
 
-	size, _ := util.GetAvailableSpace(path)
+	size, _ := GetAvailableSpace(path)
 	if size <= int64(0) {
 		//Path provided is invalid.
 		return ProcessingPhaseError, ErrInvalidPath

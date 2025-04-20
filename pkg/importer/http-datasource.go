@@ -154,7 +154,7 @@ func (hs *HTTPDataSource) Transfer(path string) (ProcessingPhase, error) {
 		if err := CleanAll(file); err != nil {
 			return ProcessingPhaseError, err
 		}
-		size, err := util.GetAvailableSpace(path)
+		size, err := GetAvailableSpace(path)
 		if err != nil || size <= 0 {
 			return ProcessingPhaseError, ErrInvalidPath
 		}

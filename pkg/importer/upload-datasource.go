@@ -65,7 +65,7 @@ func (ud *UploadDataSource) Transfer(path string) (ProcessingPhase, error) {
 		if err := CleanAll(file); err != nil {
 			return ProcessingPhaseError, err
 		}
-		size, err := util.GetAvailableSpace(path)
+		size, err := GetAvailableSpace(path)
 		if err != nil {
 			return ProcessingPhaseError, err
 		}
@@ -151,7 +151,7 @@ func (aud *AsyncUploadDataSource) Transfer(path string) (ProcessingPhase, error)
 	if err := CleanAll(file); err != nil {
 		return ProcessingPhaseError, err
 	}
-	size, err := util.GetAvailableSpace(path)
+	size, err := GetAvailableSpace(path)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}

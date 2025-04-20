@@ -62,8 +62,8 @@ const (
 )
 
 // may be overridden in tests
-var getAvailableSpaceBlockFunc = util.GetAvailableSpaceBlock
-var getAvailableSpaceFunc = util.GetAvailableSpace
+var getAvailableSpaceBlockFunc = GetAvailableSpaceBlock
+var getAvailableSpaceFunc = GetAvailableSpace
 
 // DataSourceInterface is the interface all data sources should implement.
 type DataSourceInterface interface {

@@ -487,7 +487,7 @@ func cloneProcessor(stream io.ReadCloser, contentType, dest string, preallocate 
 	}
 
 	defer stream.Close()
-	bytesRead, bytesWrittenn, err := util.StreamDataToFile(stream, dest, preallocate)
+	bytesRead, bytesWrittenn, err := importer.StreamDataToFile(stream, dest, preallocate)
 	if err != nil {
 		return false, err
 	}

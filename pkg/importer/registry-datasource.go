@@ -28,7 +28,6 @@ import (
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -88,7 +87,7 @@ func (rd *RegistryDataSource) Transfer(path string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, err
 	}
 
-	size, err := util.GetAvailableSpace(path)
+	size, err := GetAvailableSpace(path)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -217,7 +216,7 @@ func collectCerts(certDir, targetDir, targetPrefix string) error {
 		if !strings.HasSuffix(obj.Name(), ".crt") {
 			continue
 		}
-		if err := util.LinkFile(filepath.Join(certDir, obj.Name()), filepath.Join(targetDir, targetPrefix+obj.Name())); err != nil {
+		if err := LinkFile(filepath.Join(certDir, obj.Name()), filepath.Join(targetDir, targetPrefix+obj.Name())); err != nil {
 			return err
 		}
 	}
