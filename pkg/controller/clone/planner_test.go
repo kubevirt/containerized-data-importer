@@ -923,6 +923,32 @@ var _ = Describe("Planner test", func() {
 				Entry("when volumesnapshotcontent has no source volume mode but annotated with AnnSourceVolumeMode", []runtime.Object{createDefaultVolumeSnapshotContent(), createStorageClass()}, corev1.PersistentVolumeMode("dummyfromann"), snapWithSourceVolumeModeAnnotation()),
 				Entry("when neither source volume mode on volumesnapshotcontent nor AnnSourceVolumeMode annotation", []runtime.Object{createDefaultVolumeSnapshotContent(), createStorageClass()}, corev1.PersistentVolumeMode("dummytargetvolmode"), createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")),
 			)
+
+			It("should delete selected-node annotation for temp host assisted source", func() {
+				objs := []runtime.Object{volumeSnapshotContentWithSourceVolumeMode(), createStorageClass()}
+				source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+				target := createTargetClaim()
+				cc.AddAnnotation(target, cc.AnnSelectedNode, "worker-1")
+				target.Spec.VolumeMode = ptr.To[corev1.PersistentVolumeMode]("dummytargetvolmode")
+				args := &PlanArgs{
+					Strategy:    cdiv1.CloneStrategyHostAssisted,
+					TargetClaim: target,
+					DataSource:  createSnapshotDataSource(),
+					Log:         log,
+				}
+				runtimeObjs := []runtime.Object{cdiConfig, source, createVolumeSnapshotClass()}
+				runtimeObjs = append(runtimeObjs, objs...)
+				planner = createPlanner(runtimeObjs...)
+				plan, err := planner.Plan(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(plan).ToNot(BeNil())
+				Expect(plan).To(HaveLen(4))
+				validateSnapshotClonePhase(planner, args, plan[0])
+				validatePrepClaimPhase(planner, args, plan[1])
+				validateHostClonePhase(planner, args, plan[2])
+				validateRebindPhase(planner, args, plan[3])
+				Expect(plan[0].(*SnapshotClonePhase).DesiredClaim.Annotations).ToNot(HaveKey(cc.AnnSelectedNode))
+			})
 		})
 
 		It("should fail planning host-assisted clone from snapshot when no valid storage class for source PVC is found", func() {
