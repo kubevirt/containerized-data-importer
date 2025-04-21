@@ -814,6 +814,7 @@ func createTempSourceClaim(ctx context.Context, log logr.Logger, namespace strin
 		reqSize := targetCpy.Spec.Resources.Requests[corev1.ResourceStorage]
 		restoreSize = &reqSize
 	}
+	delete(targetCpy.Annotations, cc.AnnSelectedNode)
 
 	desiredClaim := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
