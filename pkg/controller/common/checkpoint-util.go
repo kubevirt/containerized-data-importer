@@ -148,7 +148,14 @@ func setPvcMultistageImportAnnotations(pvc *corev1.PersistentVolumeClaim, args *
 
 		phase := pvcCopy.ObjectMeta.Annotations[AnnPodPhase]
 		pod, _ := GetPodFromPvc(args.Client, podNamespace, pvcCopy)
-		if pod == nil && phase == string(corev1.PodSucceeded) {
+		if phase == string(corev1.PodSucceeded) {
+			if pod != nil {
+				// Once pod succeeds we can safely assume it's either being deleted or
+				// intentionally retained for debugging purposes.
+				// TODO: This pod should always have a deletion timestamp (GetPodFromPvc ignores multi-stage pods with AnnPodRetainAfterCompletion).
+				//       Consider handling the scenario where it lacks one.
+				args.Log.V(3).Info(fmt.Sprintf("Pod %s still exists but it's being deleted, continuing with multi-stage import", pod.Name))
+			}
 			// Reset PVC phase so importer will create a new pod
 			pvcCopy.ObjectMeta.Annotations[AnnPodPhase] = string(corev1.PodUnknown)
 			delete(pvcCopy.ObjectMeta.Annotations, AnnImportPod)
@@ -159,6 +166,7 @@ func setPvcMultistageImportAnnotations(pvc *corev1.PersistentVolumeClaim, args *
 
 	// only update if something has changed
 	if !reflect.DeepEqual(pvc, pvcCopy) {
+		args.Log.V(1).Info("Updating PVC with new checkpoint info.", "current checkpoint:", pvcCopy.Annotations[AnnCurrentCheckpoint], "is final:", pvcCopy.Annotations[AnnFinalCheckpoint])
 		return args.Client.Update(context.TODO(), pvcCopy)
 	}
 	return nil
