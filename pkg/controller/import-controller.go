@@ -76,32 +76,33 @@ type ImportReconciler struct {
 }
 
 type importPodEnvVar struct {
-	ep                 string
-	secretName         string
-	source             string
-	contentType        string
-	imageSize          string
-	certConfigMap      string
-	diskID             string
-	uuid               string
-	pullMethod         string
-	readyFile          string
-	doneFile           string
-	backingFile        string
-	thumbprint         string
-	filesystemOverhead string
-	insecureTLS        bool
-	currentCheckpoint  string
-	previousCheckpoint string
-	finalCheckpoint    string
-	preallocation      bool
-	httpProxy          string
-	httpsProxy         string
-	noProxy            string
-	certConfigMapProxy string
-	extraHeaders       []string
-	secretExtraHeaders []string
-	cacheMode          string
+	ep                        string
+	secretName                string
+	source                    string
+	contentType               string
+	imageSize                 string
+	certConfigMap             string
+	diskID                    string
+	uuid                      string
+	pullMethod                string
+	readyFile                 string
+	doneFile                  string
+	backingFile               string
+	thumbprint                string
+	filesystemOverhead        string
+	insecureTLS               bool
+	currentCheckpoint         string
+	previousCheckpoint        string
+	finalCheckpoint           string
+	preallocation             bool
+	httpProxy                 string
+	httpsProxy                string
+	noProxy                   string
+	certConfigMapProxy        string
+	extraHeaders              []string
+	secretExtraHeaders        []string
+	cacheMode                 string
+	registryImageArchitecture string
 }
 
 type importerPodArgs struct {
@@ -599,6 +600,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.previousCheckpoint = getValueFromAnnotation(pvc, cc.AnnPreviousCheckpoint)
 		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, cc.AnnCurrentCheckpoint)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, cc.AnnFinalCheckpoint)
+		podEnvVar.registryImageArchitecture = getValueFromAnnotation(pvc, cc.AnnRegistryImageArchitecture)
 
 		for annotation, value := range pvc.Annotations {
 			if strings.HasPrefix(annotation, cc.AnnExtraHeaders) {
@@ -1295,6 +1297,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.CacheMode,
 			Value: podEnvVar.cacheMode,
+		},
+		{
+			Name:  common.ImporterRegistryImageArchitecture,
+			Value: podEnvVar.registryImageArchitecture,
 		},
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source != cc.SourceGCS {

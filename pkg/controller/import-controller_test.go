@@ -997,27 +997,29 @@ var _ = Describe("Import test env", func() {
 
 	It("Should create import env", func() {
 		testEnvVar := &importPodEnvVar{
-			ep:                 "myendpoint",
-			httpProxy:          "httpproxy",
-			httpsProxy:         "httpsproxy",
-			noProxy:            "httpproxy",
-			secretName:         "",
-			source:             cc.SourceHTTP,
-			contentType:        string(cdiv1.DataVolumeKubeVirt),
-			imageSize:          "1G",
-			certConfigMap:      "",
-			diskID:             "",
-			uuid:               "",
-			readyFile:          "",
-			doneFile:           "",
-			backingFile:        "",
-			thumbprint:         "",
-			filesystemOverhead: "0.055",
-			insecureTLS:        false,
-			currentCheckpoint:  "",
-			previousCheckpoint: "",
-			finalCheckpoint:    "",
-			preallocation:      false}
+			ep:                        "myendpoint",
+			httpProxy:                 "httpproxy",
+			httpsProxy:                "httpsproxy",
+			noProxy:                   "httpproxy",
+			secretName:                "",
+			source:                    cc.SourceHTTP,
+			contentType:               string(cdiv1.DataVolumeKubeVirt),
+			imageSize:                 "1G",
+			certConfigMap:             "",
+			diskID:                    "",
+			uuid:                      "",
+			readyFile:                 "",
+			doneFile:                  "",
+			backingFile:               "",
+			thumbprint:                "",
+			filesystemOverhead:        "0.055",
+			insecureTLS:               false,
+			currentCheckpoint:         "",
+			previousCheckpoint:        "",
+			finalCheckpoint:           "",
+			preallocation:             false,
+			registryImageArchitecture: "",
+		}
 		Expect(reflect.DeepEqual(makeImportEnv(testEnvVar, mockUID), createImportTestEnv(testEnvVar, mockUID))).To(BeTrue())
 	})
 })
@@ -1299,6 +1301,10 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		{
 			Name:  common.CacheMode,
 			Value: podEnvVar.cacheMode,
+		},
+		{
+			Name:  common.ImporterRegistryImageArchitecture,
+			Value: podEnvVar.registryImageArchitecture,
 		},
 	}
 
