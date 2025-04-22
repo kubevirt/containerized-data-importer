@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -2153,10 +2154,101 @@ var _ = Describe("pull image failure", func() {
 			Reason:  "ImagePullFailed",
 		}
 		utils.WaitForConditions(f, dv.Name, f.Namespace.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
-
 	},
 		Entry("pull method = pod", "myregistry/myorg/myimage:wrongtag", cdiv1.RegistryPullPod),
 		Entry("pull method = node", "myregistry/myorg/myimage:wrongtag", cdiv1.RegistryPullNode),
+	)
+})
+
+var _ = Describe("Multi-arch image pull", func() {
+	const (
+		tinyCoreSingleArchRegistryURL  = "docker://cdi-docker-registry-host.%s/tinycoreiso"
+		errMessageArchitectureNotFound = "Unable to process data: Unable to transfer source data to scratch space: " +
+			"Failed to read registry image: Error retrieving image: choosing image instance: " +
+			`no image found in image index for architecture "%s", variant "", OS "linux"`
+		errMessageArchitectureMismatch = "Unable to process data: Unable to transfer source data to scratch space: " +
+			"Failed to read registry image: Error validating architecture: " +
+			`manifest image architecture: "%s" doesn't match requested architecture: "%s"`
+	)
+	var (
+		f                         = framework.NewFramework(namespacePrefix)
+		tinyCoreRegistry          = func() string { return fmt.Sprintf(tinyCoreSingleArchRegistryURL, f.CdiInstallNs) }
+		tinyCoreMultiarchRegistry = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
+	)
+
+	DescribeTable("Should succeed to pull image with platform options", func(platform cdiv1.PlatformOptions, urlFn func() string, pullMethod cdiv1.RegistryPullMethod) {
+		dv := utils.NewDataVolumeWithRegistryImport("multi-arch-pull", "10Gi", urlFn())
+		if dv.Annotations == nil {
+			dv.Annotations = make(map[string]string)
+		}
+		dv.Annotations[controller.AnnImmediateBinding] = "true"
+		dv.Spec.Source.Registry.PullMethod = &pullMethod
+		dv.Spec.Source.Registry.Platform = &platform
+
+		cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+		Expect(err).ToNot(HaveOccurred())
+		dv.Spec.Source.Registry.CertConfigMap = &cm
+
+		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		phase := cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+	},
+		Entry("multi-arch image matching architecture with pull method pod",
+			cdiv1.PlatformOptions{Architecture: "amd64"},
+			tinyCoreMultiarchRegistry,
+			cdiv1.RegistryPullPod,
+		),
+		Entry("single-arch image matching architecture with pull method pod",
+			cdiv1.PlatformOptions{Architecture: runtime.GOARCH},
+			tinyCoreRegistry,
+			cdiv1.RegistryPullPod,
+		),
+	)
+
+	DescribeTable(("Should fail to pull image with platform options"), func(platform cdiv1.PlatformOptions, urlFn func() string, pullMethod cdiv1.RegistryPullMethod, errMessage string) {
+		dv := utils.NewDataVolumeWithRegistryImport("multi-arch-pull", "10Gi", urlFn())
+		if dv.Annotations == nil {
+			dv.Annotations = make(map[string]string)
+		}
+		dv.Annotations[controller.AnnImmediateBinding] = "true"
+		dv.Spec.Source.Registry.PullMethod = &pullMethod
+		dv.Spec.Source.Registry.Platform = &platform
+
+		cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+		Expect(err).ToNot(HaveOccurred())
+		dv.Spec.Source.Registry.CertConfigMap = &cm
+
+		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify datavolume condition")
+		runningCondition := &cdiv1.DataVolumeCondition{
+			Type:    cdiv1.DataVolumeRunning,
+			Status:  v1.ConditionFalse,
+			Message: errMessage,
+			Reason:  "Error",
+		}
+		utils.WaitForConditions(f, dv.Name, f.Namespace.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
+	},
+		Entry("multi-arch image with absent architecture with pull method pod",
+			cdiv1.PlatformOptions{Architecture: "absent"},
+			tinyCoreMultiarchRegistry,
+			cdiv1.RegistryPullPod,
+			fmt.Sprintf(errMessageArchitectureNotFound, "absent"),
+		),
+		Entry("single-arch image with mismatching architecture with pull method pod",
+			cdiv1.PlatformOptions{Architecture: "absent"},
+			tinyCoreRegistry,
+			cdiv1.RegistryPullPod,
+			fmt.Sprintf(errMessageArchitectureMismatch, runtime.GOARCH, "absent"),
+		),
 	)
 })
 
