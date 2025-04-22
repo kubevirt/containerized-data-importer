@@ -97,8 +97,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// Portworx CSI
 	"pxd.openstorage.org/shared": createOpenStorageSharedVolumeCapabilities(),
 	"pxd.openstorage.org":        createOpenStorageSharedVolumeCapabilities(),
-	"pxd.portworx.com/shared":    {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
-	"pxd.portworx.com":           {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
+	"pxd.portworx.com/shared":    createOpenStorageSharedVolumeCapabilities(),
+	"pxd.portworx.com":           createOpenStorageSharedVolumeCapabilities(),
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{rwx, file}, {rwo, file}},
 	"csi.trident.netapp.io/ontap-san": {{rwx, block}},
