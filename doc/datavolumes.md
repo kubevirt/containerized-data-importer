@@ -240,7 +240,7 @@ metadata:
   name: "example-clone-dv"
 spec:
   source:
-      storage:
+      pvc:
         name: source-pvc
         namespace: example-ns
   storage:
