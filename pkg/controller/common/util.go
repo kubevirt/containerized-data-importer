@@ -220,6 +220,9 @@ const (
 	// AnnUsePopulator annotation indicates if the datavolume population will use populators
 	AnnUsePopulator = AnnAPIGroup + "/storage.usePopulator"
 
+	// AnnMinimumSupportedPVCSize annotation on a StorageProfile specifies its minimum supported PVC size
+	AnnMinimumSupportedPVCSize = AnnAPIGroup + "/minimumSupportedPvcSize"
+
 	// AnnDefaultStorageClass is the annotation indicating that a storage class is the default one
 	AnnDefaultStorageClass = "storageclass.kubernetes.io/is-default-class"
 	// AnnDefaultVirtStorageClass is the annotation indicating that a storage class is the default one for virtualization purposes
