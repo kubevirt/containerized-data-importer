@@ -123,6 +123,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// Longhorn
 	"driver.longhorn.io":            {{rwo, block}},
 	"driver.longhorn.io/migratable": {{rwx, block}, {rwo, block}},
+	"driver.longhorn.io/nfs":        {{rwx, file}, {rwo, file}},
+	"driver.longhorn.io/fs":         {{rwo, file}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
@@ -350,10 +352,16 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		}
 	},
 	"driver.longhorn.io": func(sc *storagev1.StorageClass) string {
-		migratable := sc.Parameters["migratable"]
-		if migratable == "true" {
+		if sc.Parameters["migratable"] == "true" {
 			return "driver.longhorn.io/migratable"
 		}
+		if sc.Parameters["nfsOptions"] != "" {
+			return "driver.longhorn.io/nfs"
+		}
+		if sc.Parameters["fsType"] != "" {
+			return "driver.longhorn.io/fs"
+		}
+
 		return "driver.longhorn.io"
 	},
 	"ebs.csi.aws.com": func(sc *storagev1.StorageClass) string {
