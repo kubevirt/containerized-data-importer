@@ -71,6 +71,8 @@ type QEMUOperations interface {
 type qemuOperations struct{}
 
 var (
+	ErrLargerPVCRequired = errors.New("A larger PVC is required")
+
 	qemuExecFunction = system.ExecWithLimits
 	qemuInfoLimits   = &system.ProcessLimitValues{AddressSpaceLimit: maxMemory, CPUTimeLimit: maxCPUSecs}
 	qemuIterface     = NewQEMUOperations()
@@ -218,8 +220,10 @@ func (o *qemuOperations) Info(url *url.URL) (*ImgInfo, error) {
 	output, err := qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", url.String())
 	if err != nil {
 		errorMsg := fmt.Sprintf("%s, %s", output, err.Error())
-		if nbdkitLog, err := os.ReadFile(common.NbdkitLogPath); err == nil {
-			errorMsg += " " + string(nbdkitLog)
+		if url.Scheme == "nbd+unix" {
+			if nbdkitLog, err := os.ReadFile(common.NbdkitLogPath); err == nil {
+				errorMsg += " " + string(nbdkitLog)
+			}
 		}
 		return nil, errors.New(errorMsg)
 	}
@@ -247,7 +251,7 @@ func checkIfURLIsValid(info *ImgInfo, availableSize int64, image string) error {
 	}
 
 	if availableSize < info.VirtualSize {
-		return errors.Errorf("virtual image size %d is larger than the reported available storage %d. A larger PVC is required", info.VirtualSize, availableSize)
+		return fmt.Errorf("virtual image size %d is larger than the reported available storage %d. %w", info.VirtualSize, availableSize, ErrLargerPVCRequired)
 	}
 	return nil
 }

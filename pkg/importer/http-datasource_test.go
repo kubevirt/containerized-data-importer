@@ -83,12 +83,13 @@ var _ = Describe("Http data source", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
-	DescribeTable("calling info should", func(image string, contentType cdiv1.DataVolumeContentType, expectedPhase ProcessingPhase, want []byte, wantErr bool) {
+	DescribeTable("calling info should", func(image string, contentType cdiv1.DataVolumeContentType, expectedPhase ProcessingPhase, want []byte, wantErr bool, brokenForQemuImg bool) {
 		flushRead = want
 		if image != "" {
 			image = ts.URL + "/" + image
 		}
 		dp, err = NewHTTPDataSource(image, "", "", "", contentType)
+		dp.brokenForQemuImg = brokenForQemuImg
 		Expect(err).NotTo(HaveOccurred())
 		newPhase, err := dp.Info()
 		if !wantErr {
@@ -98,20 +99,13 @@ var _ = Describe("Http data source", func() {
 			Expect(err).To(HaveOccurred())
 		}
 	},
-		Entry("return TransferScratch phase ", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseTransferScratch, cirrosData, false),
-		Entry("return TransferTarget with archive content type but not archive endpoint ", cirrosFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, cirrosData, false),
-		Entry("return TransferTarget with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, diskimageArchiveData, false),
+		Entry("return ValidatePreScratch phase when image size can be validated", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseValidatePreScratch, cirrosData, false, false),
+		Entry("return TransferScratch phase when target server is broken for nbdkit+qemu-img", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseTransferScratch, cirrosData, false, true),
+		Entry("return TransferTarget with archive content type but not archive endpoint ", cirrosFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, cirrosData, false, false),
+		Entry("return TransferTarget with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, diskimageArchiveData, false, false),
 	)
 
-	It("calling info with raw gz image should return TransferScratch", func() {
-		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
-		Expect(err).NotTo(HaveOccurred())
-		newPhase, err := dp.Info()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferScratch).To(Equal(newPhase))
-	})
-
-	DescribeTable("calling transfer should", func(image string, contentType cdiv1.DataVolumeContentType, expectedPhase ProcessingPhase, scratchPath string, want []byte, wantErr bool) {
+	DescribeTable("calling transfer should", func(image string, contentType cdiv1.DataVolumeContentType, expectedPhase ProcessingPhase, scratchPath string, want []byte, wantErr bool, validationErr error) {
 		flushRead = want
 		if scratchPath == "" {
 			scratchPath = tmpDir
@@ -123,47 +117,49 @@ var _ = Describe("Http data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		_, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
-		newPhase, err := dp.Transfer(scratchPath, false)
-		if !wantErr {
-			Expect(err).NotTo(HaveOccurred())
-			Expect(expectedPhase).To(Equal(newPhase))
-			if newPhase == ProcessingPhaseConvert {
-				file, err := os.Open(filepath.Join(scratchPath, tempFile))
+		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, nil}, validationErr, nil, nil)
+		replaceQEMUOperations(qemuOperations, func() {
+			newPhase, err := dp.Transfer(scratchPath, false)
+			if !wantErr {
 				Expect(err).NotTo(HaveOccurred())
-				defer file.Close()
-				fileStat, err := file.Stat()
-				Expect(err).NotTo(HaveOccurred())
-				Expect(int64(len(want))).To(Equal(fileStat.Size()))
-				resultBuffer, err := io.ReadAll(file)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(reflect.DeepEqual(resultBuffer, want)).To(BeTrue())
+				Expect(expectedPhase).To(Equal(newPhase))
+				if newPhase == ProcessingPhaseConvert {
+					file, err := os.Open(filepath.Join(scratchPath, tempFile))
+					Expect(err).NotTo(HaveOccurred())
+					defer file.Close()
+					fileStat, err := file.Stat()
+					Expect(err).NotTo(HaveOccurred())
+					Expect(int64(len(want))).To(Equal(fileStat.Size()))
+					resultBuffer, err := io.ReadAll(file)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(reflect.DeepEqual(resultBuffer, want)).To(BeTrue())
+				}
+			} else {
+				Expect(err).To(HaveOccurred())
 			}
-		} else {
-			Expect(err).To(HaveOccurred())
-		}
+		})
 	},
-		Entry("return Error with missing scratch space", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseError, "/imaninvalidpath", cirrosData, true),
-		Entry("return Error with invalid content type ", cirrosFileName, cdiv1.DataVolumeContentType("invalid"), ProcessingPhaseError, "", cirrosData, true),
-		Entry("return Complete with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseComplete, "", diskimageArchiveData, false),
-		Entry("return Error with invalid target path and archive", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseError, "/imaninvalidpath", cirrosData, true),
-		Entry("return Convert with scratch space and valid qcow file", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, "", cirrosData, false),
+		Entry("return Error with missing scratch space", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseError, "/imaninvalidpath", cirrosData, true, nil),
+		Entry("return Error with invalid content type ", cirrosFileName, cdiv1.DataVolumeContentType("invalid"), ProcessingPhaseError, "", cirrosData, true, nil),
+		Entry("return Complete with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseComplete, "", diskimageArchiveData, false, nil),
+		Entry("return Error with invalid target path and archive", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseError, "/imaninvalidpath", cirrosData, true, nil),
+		Entry("return Convert with scratch space and valid qcow file", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseConvert, "", cirrosData, false, nil),
+		Entry("return Error with insufficient scratch space capacity", cirrosFileName, cdiv1.DataVolumeKubeVirt, ProcessingPhaseError, "", cirrosData, true, image.ErrLargerPVCRequired),
 	)
 
-	It("TransferScratch should succeed when writing to valid file, and reading raw gz", func() {
-		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
+	DescribeTable("should succeed when writing to a valid file with phase", func(expectedPhase ProcessingPhase, brokenForQemuImg bool, imageType string) {
+		dp, err = NewHTTPDataSource(ts.URL+"/"+imageType, "", "", "", cdiv1.DataVolumeKubeVirt)
+		dp.brokenForQemuImg = brokenForQemuImg
 		Expect(err).NotTo(HaveOccurred())
 		result, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
-	})
-
-	It("TransferScratch should succeed when writing to valid file and reading raw xz", func() {
-		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreXz, "", "", "", cdiv1.DataVolumeKubeVirt)
-		Expect(err).NotTo(HaveOccurred())
-		result, err := dp.Info()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
-	})
+		Expect(result).To(Equal(expectedPhase))
+	},
+		Entry("ValidatePreScratch when reading raw gz", ProcessingPhaseTransferScratch, true, tinyCoreGz),
+		Entry("TransferScratch when reading raw gz and target server is broken for nbdkit+qemu-img", ProcessingPhaseTransferScratch, true, tinyCoreGz),
+		Entry("ValidatePreScratch when reading raw xz", ProcessingPhaseTransferScratch, true, tinyCoreXz),
+		Entry("TransferScratch when reading raw xz target server is broken for nbdkit+qemu-img", ProcessingPhaseTransferScratch, true, tinyCoreXz),
+	)
 
 	It("should get extra headers on creation of new HTTP data source", func() {
 		os.Setenv(common.ImporterExtraHeader+"0", "Extra-Header: 321")
