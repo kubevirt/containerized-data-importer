@@ -231,6 +231,16 @@ stringData:
 ### PVC source
 You can also use a PVC as an input source for a DV which will cause a clone to happen of the original PVC. You set the 'source' to be PVC, and specify the name and namespace of the PVC you want to have cloned.
 
+The source PVC must not be mounted by any Pod, and CDI will wait as long as it is mounted before proceeding. This check is needed to ensure the snapshot is not corrupted.
+
+Clones can be executed in 2 different ways:
+- Host-assisted clones, where Pods exchange the data from one PVC to the other byte by byte. This is the slowest method.
+- Smart clones, using the cloning API of the CSI if it is available, see [the documentation](smart-clone.md) for more information.
+
+Smart clones are automatically preferred by CDI, falling back to host-assisted if it cannot use them.
+
+You can also make a clone manually by creating a VolumeSnapshot of a source PVC and creating a DV with a snapshot as a source. This can be done with the source PVC mounted to a Pod, bypassing the check done by CDI, but at the risk of potential corruptions.
+
 Regarding the DV size, CDI can apply some logic to detect the required quantity based on the source PVC, so said amount can be left empty when using the [storage](#storage) API, as shown above:
 
 ```yaml

@@ -3,14 +3,14 @@
 ## Introduction
 Data Volumes (DV) can also be created by specifying a PVC as an input source. It will trigger a clone of the original PVC. See more details [here](datavolumes.md#pvc-source).
 
-The CDI implementation of cloning a PVC is done with host assisted cloning by streaming the data from the source PVC and write to the new PVC.
+The initial CDI implementation of cloning a PVC was done with host assisted cloning by streaming the data from the source PVC and writing to the new PVC.
 
 In order to improve the performance of the cloning process, we introduced Smart-Cloning where snapshots are used.
 
 ## Smart-Cloning
 CDI uses the feature of creating a PVC from snapshot in order to clone PVCs more efficiently when a CSI plugin with snapshot capabilities is available.
 
-The yaml structure and annotations of the DV are not changed.
+The YAML structure and annotations of the DV are not changed.
 
 ### Create PVC from snapshot
 Kubernetes v1.12 introduced a feature enabling the creation of a PVC from a volume snapshot. See more details [here](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#volume-snapshot-and-restore-volume-from-snapshot-support)
@@ -26,6 +26,7 @@ Here is a description of the flow of the Smart-Cloning:
   * The source and target PVCs must be in the same Storage Class
   * There must be a Snapshot Class associated with the Storage Class
 - If Smart-Cloning is possible:
+  * Ensure source PVC is not mounted by a Pod
   * Create a snapshot of the source PVC
   * Create a PVC from the created snapshot
   * Delete the snapshot
