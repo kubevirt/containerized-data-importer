@@ -277,6 +277,30 @@ spec:
 ```
 [Get example](../manifests/example/clone-datavolume.yaml)
 
+### VolumeSnapshot source
+You can use a volume snapshot as an input source to create a new DV. Set the source to be a snapshot, and specify the name and namespace of the snapshot.
+
+The DV size can be omitted, we apply the same logic as when the source [is a pvc](#pvc-source).
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "example-snapshot-dv"
+spec:
+  source:
+    snapshot:
+      namespace: default
+      name: snapshot
+  storage:
+  # Can be omitted to auto-detect the correct storage size
+  # resources:
+  #   requests:
+  #     storage: 9Gi
+```
+
+More details about using snapshots as a source are available [in this document](clone-from-volumesnapshot-source.md).
+
 ### Upload Data Volumes
 You can upload a virtual disk image directly into a data volume as well, just like with PVCs. The steps to follow are identical as [upload for PVC](upload.md) except that the yaml for a Data Volume is slightly different.
 ```yaml
