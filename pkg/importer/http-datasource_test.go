@@ -123,7 +123,7 @@ var _ = Describe("Http data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		_, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
-		newPhase, err := dp.Transfer(scratchPath)
+		newPhase, err := dp.Transfer(scratchPath, false)
 		if !wantErr {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(expectedPhase).To(Equal(newPhase))

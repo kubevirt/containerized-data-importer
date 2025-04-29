@@ -148,7 +148,7 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 }
 
 // Transfer is called to transfer the data from the source to a scratch location.
-func (hs *HTTPDataSource) Transfer(path string) (ProcessingPhase, error) {
+func (hs *HTTPDataSource) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
 	if hs.contentType == cdiv1.DataVolumeKubeVirt {
 		file := filepath.Join(path, tempFile)
 		if err := CleanAll(file); err != nil {
@@ -159,7 +159,7 @@ func (hs *HTTPDataSource) Transfer(path string) (ProcessingPhase, error) {
 			return ProcessingPhaseError, ErrInvalidPath
 		}
 		hs.readers.StartProgressUpdate()
-		_, _, err = StreamDataToFile(hs.readers.TopReader(), file, true)
+		_, _, err = StreamDataToFile(hs.readers.TopReader(), file, preallocation)
 		if err != nil {
 			return ProcessingPhaseError, err
 		}
@@ -177,12 +177,12 @@ func (hs *HTTPDataSource) Transfer(path string) (ProcessingPhase, error) {
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
-func (hs *HTTPDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+func (hs *HTTPDataSource) TransferFile(fileName string, preallocation bool) (ProcessingPhase, error) {
 	if err := CleanAll(fileName); err != nil {
 		return ProcessingPhaseError, err
 	}
 	hs.readers.StartProgressUpdate()
-	_, _, err := StreamDataToFile(hs.readers.TopReader(), fileName, true)
+	_, _, err := StreamDataToFile(hs.readers.TopReader(), fileName, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}

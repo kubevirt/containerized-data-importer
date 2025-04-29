@@ -125,7 +125,8 @@ func processLayer(ctx context.Context,
 	destDir string,
 	pathPrefix string,
 	cache types.BlobInfoCache,
-	stopAtFirst bool) (bool, error) {
+	stopAtFirst bool,
+	preallocation bool) (bool, error) {
 	var reader io.ReadCloser
 	reader, _, err := src.GetBlob(ctx, layer, cache)
 	if err != nil {
@@ -164,7 +165,7 @@ func processLayer(ctx context.Context,
 				return false, errors.Wrap(err, "Error creating output file's directory")
 			}
 
-			if _, _, err := StreamDataToFile(tarReader, destFile, true); err != nil {
+			if _, _, err := StreamDataToFile(tarReader, destFile, preallocation); err != nil {
 				klog.Errorf("Error copying file: %v", err)
 				return false, errors.Wrap(err, "Error copying file")
 			}
@@ -192,7 +193,7 @@ func safeJoinPaths(dir, path string) (v string, err error) {
 	return "", fmt.Errorf("%s: %s", "content filepath is tainted", path)
 }
 
-func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry, stopAtFirst bool) (*types.ImageInspectInfo, error) {
+func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry, stopAtFirst bool, preallocation bool) (*types.ImageInspectInfo, error) {
 	klog.Infof("Downloading image from '%v', copying file from '%v' to '%v'", url, pathPrefix, destDir)
 
 	ctx, cancel := commandTimeoutContext()
@@ -219,7 +220,7 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir stri
 	for _, layer := range layers {
 		klog.Infof("Processing layer %+v", layer)
 
-		found, err = processLayer(ctx, srcCtx, src, layer, destDir, pathPrefix, cache, stopAtFirst)
+		found, err = processLayer(ctx, srcCtx, src, layer, destDir, pathPrefix, cache, stopAtFirst, preallocation)
 		if found {
 			break
 		}
@@ -286,8 +287,8 @@ func GetImageDigest(url, accessKey, secKey, certDir string, insecureRegistry boo
 // secKey: secretKey for the registry described in url.
 // certDir: directory public CA keys are stored for registry identity verification
 // insecureRegistry: boolean if true will allow insecure registries.
-func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool) (*types.ImageInspectInfo, error) {
-	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir, insecureRegistry, true)
+func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool, preallocation bool) (*types.ImageInspectInfo, error) {
+	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir, insecureRegistry, true, preallocation)
 }
 
 // CopyRegistryImageAll download image from registry with docker image API. It will extract all files under the pathPrefix
@@ -298,6 +299,6 @@ func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir stri
 // secKey: secretKey for the registry described in url.
 // certDir: directory public CA keys are stored for registry identity verification
 // insecureRegistry: boolean if true will allow insecure registries.
-func CopyRegistryImageAll(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool) (*types.ImageInspectInfo, error) {
-	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir, insecureRegistry, false)
+func CopyRegistryImageAll(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry bool, preallocation bool) (*types.ImageInspectInfo, error) {
+	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir, insecureRegistry, false, preallocation)
 }

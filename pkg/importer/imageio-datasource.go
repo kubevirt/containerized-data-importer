@@ -123,7 +123,7 @@ func (is *ImageioDataSource) Info() (ProcessingPhase, error) {
 }
 
 // Transfer is called to transfer the data from the source to a scratch location.
-func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
+func (is *ImageioDataSource) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
 	defer is.cleanupTransfer()
 	file := filepath.Join(path, tempFile)
 	err := CleanAll(file)
@@ -137,7 +137,7 @@ func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, ErrInvalidPath
 	}
 	is.readers.StartProgressUpdate()
-	_, _, err = StreamDataToFile(is.readers.TopReader(), file, true)
+	_, _, err = StreamDataToFile(is.readers.TopReader(), file, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -166,7 +166,7 @@ func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
-func (is *ImageioDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+func (is *ImageioDataSource) TransferFile(fileName string, preallocation bool) (ProcessingPhase, error) {
 	if !is.IsDeltaCopy() {
 		if err := CleanAll(fileName); err != nil {
 			return ProcessingPhaseError, err
@@ -182,7 +182,7 @@ func (is *ImageioDataSource) TransferFile(fileName string) (ProcessingPhase, err
 			return ProcessingPhaseError, err
 		}
 	} else {
-		_, _, err := StreamDataToFile(is.readers.TopReader(), fileName, true)
+		_, _, err := StreamDataToFile(is.readers.TopReader(), fileName, preallocation)
 		if err != nil {
 			return ProcessingPhaseError, err
 		}

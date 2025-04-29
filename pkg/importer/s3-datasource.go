@@ -85,7 +85,7 @@ func (sd *S3DataSource) Info() (ProcessingPhase, error) {
 }
 
 // Transfer is called to transfer the data from the source to a temporary location.
-func (sd *S3DataSource) Transfer(path string) (ProcessingPhase, error) {
+func (sd *S3DataSource) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
 	file := filepath.Join(path, tempFile)
 	if err := CleanAll(file); err != nil {
 		return ProcessingPhaseError, err
@@ -97,7 +97,7 @@ func (sd *S3DataSource) Transfer(path string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, ErrInvalidPath
 	}
 
-	_, _, err := StreamDataToFile(sd.readers.TopReader(), file, true)
+	_, _, err := StreamDataToFile(sd.readers.TopReader(), file, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -107,12 +107,12 @@ func (sd *S3DataSource) Transfer(path string) (ProcessingPhase, error) {
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
-func (sd *S3DataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+func (sd *S3DataSource) TransferFile(fileName string, preallocation bool) (ProcessingPhase, error) {
 	if err := CleanAll(fileName); err != nil {
 		return ProcessingPhaseError, err
 	}
 
-	_, _, err := StreamDataToFile(sd.readers.TopReader(), fileName, true)
+	_, _, err := StreamDataToFile(sd.readers.TopReader(), fileName, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}

@@ -81,7 +81,7 @@ func (rd *RegistryDataSource) Info() (ProcessingPhase, error) {
 }
 
 // Transfer is called to transfer the data from the source registry to a temporary location.
-func (rd *RegistryDataSource) Transfer(path string) (ProcessingPhase, error) {
+func (rd *RegistryDataSource) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
 	rd.imageDir = filepath.Join(path, containerDiskImageDir)
 	if err := CleanAll(rd.imageDir); err != nil {
 		return ProcessingPhaseError, err
@@ -97,7 +97,7 @@ func (rd *RegistryDataSource) Transfer(path string) (ProcessingPhase, error) {
 	}
 
 	klog.V(1).Infof("Copying registry image to scratch space.")
-	rd.info, err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.certDir, rd.insecureTLS)
+	rd.info, err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.certDir, rd.insecureTLS, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, errors.Wrapf(err, "Failed to read registry image")
 	}
@@ -114,7 +114,7 @@ func (rd *RegistryDataSource) Transfer(path string) (ProcessingPhase, error) {
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
-func (rd *RegistryDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+func (rd *RegistryDataSource) TransferFile(fileName string, preallocation bool) (ProcessingPhase, error) {
 	return ProcessingPhaseError, errors.New("Transferfile should not be called")
 }
 
