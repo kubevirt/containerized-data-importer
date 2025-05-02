@@ -23,6 +23,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
 var _ = Describe("renderPvcSpecVolumeSize", func() {
@@ -32,7 +33,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 
 	It("Should return empty volume size on clone PVC with empty storage size", func() {
 		pvcSpec := &corev1.PersistentVolumeClaimSpec{}
-		err := renderPvcSpecVolumeSize(client, pvcSpec, true)
+		err := renderPvcSpecVolumeSize(client, pvcSpec, true, nil)
 		Expect(err).ToNot(HaveOccurred())
 		requestedVolumeSize, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 		Expect(found).To(BeTrue())
@@ -41,7 +42,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 
 	It("Should return error on non-clone PVC with empty storage size", func() {
 		pvcSpec := &corev1.PersistentVolumeClaimSpec{}
-		err := renderPvcSpecVolumeSize(client, pvcSpec, false)
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("PVC Spec is not valid - missing storage size"))
 		_, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
@@ -59,7 +60,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 				},
 			},
 		}
-		err := renderPvcSpecVolumeSize(client, pvcSpec, false)
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("PVC Spec is not valid - storage size should be at least 1MiB"))
 	})
@@ -75,7 +76,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 				},
 			},
 		}
-		err := renderPvcSpecVolumeSize(client, pvcSpec, false)
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false, nil)
 		Expect(err).ToNot(HaveOccurred())
 
 		requestedVolumeSize, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
@@ -94,7 +95,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 				},
 			},
 		}
-		err := renderPvcSpecVolumeSize(client, pvcSpec, false)
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false, nil)
 		Expect(err).ToNot(HaveOccurred())
 		requestedVolumeSize, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 		Expect(found).To(BeTrue())
@@ -110,6 +111,38 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 		Expect(requestedVolumeSize.Value()).To(BeNumerically(">", volumeSize.Value()))
 		Expect(requestedVolumeSize.Value()).To(Equal(expectedResult.Value()))
 	})
+
+	DescribeTable("Should return", func(storageSize, minSupportedSize, expectedSize string) {
+		sp := &cdiv1.StorageProfile{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: scName,
+				Annotations: map[string]string{
+					cc.AnnMinimumSupportedPVCSize: minSupportedSize,
+				},
+			},
+		}
+		client = createClient(sp)
+
+		pvcSpec := &corev1.PersistentVolumeClaimSpec{
+			StorageClassName: &scName,
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse(storageSize),
+				},
+			},
+		}
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false, nil)
+		Expect(err).ToNot(HaveOccurred())
+		requestedSize, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
+		Expect(found).To(BeTrue())
+		expected := resource.MustParse(expectedSize)
+		Expect(requestedSize.Value()).To(Equal(expected.Value()))
+	},
+		Entry("increased volume size if smaller than minimal", "1Gi", "4Gi", "4Gi"),
+		Entry("original volume size if larger than minimal", "5Gi", "4Gi", "5Gi"),
+		Entry("original volume size if no minimal size defined", "1Gi", "", "1Gi"),
+		Entry("original volume size if wrong minimal size defined", "1Gi", "bla", "1Gi"),
+	)
 })
 
 var _ = Describe("renderPvcSpec", func() {

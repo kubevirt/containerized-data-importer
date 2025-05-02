@@ -78,7 +78,7 @@ func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolu
 	}
 
 	isClone := pvc.Annotations[cc.AnnCloneType] != ""
-	return renderPvcSpecVolumeSize(client, &pvc.Spec, isClone)
+	return renderPvcSpecVolumeSize(client, &pvc.Spec, isClone, nil)
 }
 
 // renderPvcSpec creates a new PVC Spec based on either the dv.spec.pvc or dv.spec.storage section
@@ -115,7 +115,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 
 	if shouldRender {
 		isClone := dv.Spec.Source.PVC != nil || dv.Spec.Source.Snapshot != nil
-		if err := renderPvcSpecVolumeSize(client, pvcSpec, isClone); err != nil {
+		if err := renderPvcSpecVolumeSize(client, pvcSpec, isClone, &log); err != nil {
 			return nil, err
 		}
 	}
@@ -276,7 +276,7 @@ func hasCloneSourceRef(pvc *v1.PersistentVolumeClaim) bool {
 	return dsRef != nil && dsRef.APIGroup != nil && *dsRef.APIGroup == cc.AnnAPIGroup && dsRef.Kind == cdiv1.VolumeCloneSourceRef && dsRef.Name != ""
 }
 
-func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeClaimSpec, isClone bool) error {
+func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeClaimSpec, isClone bool, log *logr.Logger) error {
 	requestedSize, found := pvcSpec.Resources.Requests[v1.ResourceStorage]
 
 	// Storage size can be empty when cloning
@@ -297,6 +297,24 @@ func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeC
 	if err != nil {
 		return err
 	}
+
+	if scName := pvcSpec.StorageClassName; scName != nil {
+		storageProfile := &cdiv1.StorageProfile{}
+		if err := client.Get(context.TODO(), types.NamespacedName{Name: *scName}, storageProfile); err == nil {
+			if val, exists := storageProfile.Annotations[cc.AnnMinimumSupportedPVCSize]; exists {
+				if minSize, err := resource.ParseQuantity(val); err == nil {
+					if requestedSize.Cmp(minSize) == -1 {
+						requestedSize = minSize
+					}
+				} else if log != nil {
+					log.V(1).Info("Invalid minimum PVC size in annotation", "value", val, "error", err)
+				}
+			}
+		} else if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	}
+
 	setRequestedVolumeSize(pvcSpec, requestedSize)
 
 	return nil
