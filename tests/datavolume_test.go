@@ -2138,7 +2138,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				v1.PersistentVolumeFilesystem)
 			requestedSize := resource.MustParse("100Mi")
 
-			expectedVolumeMode := v1.PersistentVolumeBlock
+			expectedVolumeMode := v1.PersistentVolumeFilesystem
 			spec := cdiv1.StorageSpec{
 				AccessModes: nil,
 				VolumeMode:  &expectedVolumeMode,
