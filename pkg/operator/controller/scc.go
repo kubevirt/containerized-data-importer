@@ -66,7 +66,11 @@ func setSCC(scc *secv1.SecurityContextConstraints) {
 		secv1.FSTypePersistentVolumeClaim,
 		secv1.FSProjected,
 		secv1.FSTypeSecret,
+		secv1.FSTypeCSI,
+		secv1.FSTypeEphemeral,
 	}
+	allowPrivilegeEscalation := false
+	scc.AllowPrivilegeEscalation = &allowPrivilegeEscalation
 }
 
 func ensureSCCExists(ctx context.Context, logger logr.Logger, c client.Client, saNamespace, saName, cronSaName string) (bool, error) {
