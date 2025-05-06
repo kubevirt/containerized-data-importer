@@ -179,7 +179,7 @@ func renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client client.Client, 
 		pvcSpec.AccessModes = append(pvcSpec.AccessModes, accessModes...)
 		pvcSpec.VolumeMode = volumeMode
 	} else if len(pvcSpec.AccessModes) == 0 {
-		accessModes, err := getDefaultAccessModes(client, storageClass, pvcSpec.VolumeMode)
+		accessModes, err := getDefaultAccessModes(client, storageClass, *pvcSpec.VolumeMode)
 		if err != nil {
 			logInfo("Cannot set accessMode for new pvc", "Error", err)
 			recordEventf(v1.EventTypeWarning, cc.ErrClaimNotValid,
@@ -376,6 +376,7 @@ func renderPvcSpecFromAvailablePv(c client.Client, pvcSpec *v1.PersistentVolumeC
 	return nil
 }
 
+// Get the StorageProfile preferred VolumeMode and AccessModes based on the StorageClass
 func getDefaultVolumeAndAccessMode(c client.Client, storageClass *storagev1.StorageClass) ([]v1.PersistentVolumeAccessMode, *v1.PersistentVolumeMode, error) {
 	if storageClass == nil {
 		return nil, nil, errors.Errorf("no accessMode specified and StorageClass not found")
@@ -398,6 +399,7 @@ func getDefaultVolumeAndAccessMode(c client.Client, storageClass *storagev1.Stor
 	return nil, nil, errors.Errorf("no accessMode specified in StorageProfile %s", storageProfile.Name)
 }
 
+// Get the StorageProfile preferred VolumeMode based on the StorageClass and AccessModes
 func getDefaultVolumeMode(c client.Client, storageClass *storagev1.StorageClass, pvcAccessModes []v1.PersistentVolumeAccessMode) (*v1.PersistentVolumeMode, error) {
 	if storageClass == nil {
 		// fallback to k8s defaults
@@ -410,10 +412,6 @@ func getDefaultVolumeMode(c client.Client, storageClass *storagev1.StorageClass,
 		return nil, errors.Wrap(err, "cannot get StorageProfile")
 	}
 	if len(storageProfile.Status.ClaimPropertySets) > 0 {
-		volumeMode := storageProfile.Status.ClaimPropertySets[0].VolumeMode
-		if len(pvcAccessModes) == 0 {
-			return volumeMode, nil
-		}
 		// check for volume mode matching with given pvc access modes
 		for _, cps := range storageProfile.Status.ClaimPropertySets {
 			for _, accessMode := range cps.AccessModes {
@@ -424,15 +422,14 @@ func getDefaultVolumeMode(c client.Client, storageClass *storagev1.StorageClass,
 				}
 			}
 		}
-		// if not found return default volume mode for the storage class
-		return volumeMode, nil
 	}
 
-	// since volumeMode is optional - > gracefully fallback to k8s defaults,
+	// since volumeMode is optional, gracefully fallback to k8s default when no matching volumeMode
 	return nil, nil
 }
 
-func getDefaultAccessModes(c client.Client, storageClass *storagev1.StorageClass, pvcVolumeMode *v1.PersistentVolumeMode) ([]v1.PersistentVolumeAccessMode, error) {
+// Get the StorageProfile preferred AccessModes based on the StorageClass and VolumeMode
+func getDefaultAccessModes(c client.Client, storageClass *storagev1.StorageClass, pvcVolumeMode v1.PersistentVolumeMode) ([]v1.PersistentVolumeAccessMode, error) {
 	if storageClass == nil {
 		return nil, errors.Errorf("no accessMode specified and no StorageProfile")
 	}
@@ -445,24 +442,17 @@ func getDefaultAccessModes(c client.Client, storageClass *storagev1.StorageClass
 
 	if len(storageProfile.Status.ClaimPropertySets) > 0 {
 		// check for access modes matching with given pvc volume mode
-		defaultAccessModes := []v1.PersistentVolumeAccessMode{}
 		for _, cps := range storageProfile.Status.ClaimPropertySets {
-			if cps.VolumeMode != nil && pvcVolumeMode != nil && *cps.VolumeMode == *pvcVolumeMode {
+			if cps.VolumeMode != nil && *cps.VolumeMode == pvcVolumeMode {
 				if len(cps.AccessModes) > 0 {
 					return cps.AccessModes, nil
 				}
-			} else if len(cps.AccessModes) > 0 && len(defaultAccessModes) == 0 {
-				defaultAccessModes = cps.AccessModes
 			}
-		}
-		// if not found return default access modes for the storage profile
-		if len(defaultAccessModes) > 0 {
-			return defaultAccessModes, nil
 		}
 	}
 
-	// no accessMode configured on storageProfile
-	return nil, errors.Errorf("no accessMode specified in StorageProfile %s", storageProfile.Name)
+	// no matching accessMode configured on storageProfile
+	return nil, errors.Errorf("no matching accessMode specified in StorageProfile %s", storageProfile.Name)
 }
 
 // storageClassCSIDriverExists returns true if the passed storage class has CSI drivers available
