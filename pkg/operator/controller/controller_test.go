@@ -243,15 +243,19 @@ var _ = Describe("Controller", func() {
 				Expect(scc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 				Expect(scc.Priority).To(BeNil())
 
-				for _, eu := range []string{"system:serviceaccount:cdi:cdi-sa"} {
-					found := false
-					for _, au := range scc.Users {
-						if eu == au {
-							found = true
-						}
-					}
-					Expect(found).To(BeTrue())
-				}
+				Expect(scc.Users).To(ContainElement("system:serviceaccount:cdi:cdi-sa"))
+
+				Expect(scc.Volumes).To(ConsistOf(
+					secv1.FSTypeConfigMap,
+					secv1.FSTypeDownwardAPI,
+					secv1.FSTypeEmptyDir,
+					secv1.FSTypePersistentVolumeClaim,
+					secv1.FSProjected,
+					secv1.FSTypeSecret,
+					secv1.FSTypeCSI,
+					secv1.FSTypeEphemeral,
+				))
+				Expect(scc.AllowPrivilegeEscalation).To(HaveValue(BeFalse()))
 				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
 
