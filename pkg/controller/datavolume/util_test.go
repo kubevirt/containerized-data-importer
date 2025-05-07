@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 
@@ -109,6 +110,69 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 		Expect(requestedVolumeSize.Value()).To(BeNumerically(">", volumeSize.Value()))
 		Expect(requestedVolumeSize.Value()).To(Equal(expectedResult.Value()))
 	})
+})
+
+var _ = Describe("renderPvcSpec", func() {
+	block := corev1.PersistentVolumeBlock
+	filesystem := corev1.PersistentVolumeFilesystem
+	rwo := corev1.ReadWriteOnce
+	rwx := corev1.ReadWriteMany
+
+	DescribeTable("Rendering pvcSpec based on storageProfile should", func(
+		storageVolumeMode *corev1.PersistentVolumeMode, storageAccessMode *corev1.PersistentVolumeAccessMode,
+		expectedVolumeMode *corev1.PersistentVolumeMode, expectedAccessMode *corev1.PersistentVolumeAccessMode,
+		expectedError *string) {
+		scName := "testSC"
+		sc := CreateStorageClassWithProvisioner(scName, nil, nil, "")
+		sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{rwo}, block)
+		cdiconfig := &cdiv1.CDIConfig{ObjectMeta: metav1.ObjectMeta{Name: "config"}}
+		client := createClient(sc, sp, cdiconfig)
+
+		storageSpec := &cdiv1.StorageSpec{
+			StorageClassName: &scName,
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("1Gi"),
+				},
+			},
+		}
+		if storageVolumeMode != nil {
+			storageSpec.VolumeMode = storageVolumeMode
+		}
+		if storageAccessMode != nil {
+			storageSpec.AccessModes = []corev1.PersistentVolumeAccessMode{*storageAccessMode}
+		}
+		dv := createDataVolumeWithStorageAPI("testDV", metav1.NamespaceDefault, &cdiv1.DataVolumeSource{}, storageSpec)
+
+		pvcSpec, err := renderPvcSpec(client, nil, logr.Logger{}, dv, nil)
+		if expectedError != nil {
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(*expectedError))
+			Expect(pvcSpec).To(BeNil())
+			return
+		}
+
+		Expect(err).ToNot(HaveOccurred())
+		if expectedVolumeMode != nil {
+			Expect(pvcSpec.VolumeMode).ToNot(BeNil())
+			Expect(*pvcSpec.VolumeMode).To(Equal(*expectedVolumeMode))
+		} else {
+			Expect(pvcSpec.VolumeMode).To(BeNil())
+		}
+		if expectedAccessMode != nil {
+			Expect(pvcSpec.AccessModes).ToNot(BeNil())
+			Expect(pvcSpec.AccessModes[0]).To(Equal(*expectedAccessMode))
+		} else {
+			Expect(pvcSpec.AccessModes).To(BeNil())
+		}
+	},
+		Entry("set default volumeMode and accessMode if not passed", nil, nil, &block, &rwo, nil),
+		Entry("set a matching accessMode for the volumeMode", &block, nil, &block, &rwo, nil),
+		Entry("set a matching volumeMode for the accessMode", nil, &rwo, &block, &rwo, nil),
+		Entry("fail when volumeMode has no matching accessMode", &filesystem, nil, nil, nil, ptr.To("no matching accessMode specified in StorageProfile testSC")),
+		Entry("fallback to k8s default when accessMode has no matching volumeMode", nil, &rwx, nil, &rwx, nil),
+		Entry("use the passed volumeMode and accessMode even if not in storageProfile", &filesystem, &rwx, &filesystem, &rwx, nil),
+	)
 })
 
 var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
