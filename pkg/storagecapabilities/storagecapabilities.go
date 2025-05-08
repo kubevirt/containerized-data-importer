@@ -87,7 +87,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// IBM HCI/GPFS2 (Spectrum Scale / Spectrum Fusion)
 	"spectrumscale.csi.ibm.com": {{rwx, file}, {rwo, file}},
 	// IBM block arrays (FlashSystem)
-	"block.csi.ibm.com": {{rwx, block}, {rwo, block}, {rwo, file}, {rwx, file}},
+	"block.csi.ibm.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// Portworx in-tree CSI
 	"kubernetes.io/portworx-volume/shared": {{rwx, file}},
 	"kubernetes.io/portworx-volume":        {{rwo, file}},
