@@ -694,7 +694,11 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 				By("Do upload")
 				Eventually(func() error {
-					return uploader(archiveFilePath, uploadProxyURL, token, expectedStatus)
+					err := uploader(archiveFilePath, uploadProxyURL, token, expectedStatus)
+					if err != nil {
+						fmt.Fprintf(GinkgoWriter, "ERR, MIGHT WRITE OVER: %s\n", err.Error())
+					}
+					return err
 				}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
 
 				if validToken {
