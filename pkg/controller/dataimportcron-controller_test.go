@@ -349,6 +349,21 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(jobPodTemplateSpec.Volumes).To(BeEmpty())
 		})
 
+		It("Should verify CronJob container terminationMessagePolicy is correctly set", func() {
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconciler(cron)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronjob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+
+			containers := cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers
+			Expect(containers).To(HaveLen(1))
+			Expect(containers[0].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
+		})
+
 		It("Should update CronJob on reconcile", func() {
 			cron = newDataImportCron(cronName)
 			reconciler = createDataImportCronReconciler(cron)

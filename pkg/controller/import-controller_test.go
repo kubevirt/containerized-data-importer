@@ -894,6 +894,7 @@ var _ = Describe("Create Importer Pod", func() {
 		Expect(pod.Spec.Containers[0].Image).To(Equal(testImage))
 		Expect(pod.Spec.Containers[0].ImagePullPolicy).To(BeEquivalentTo(testPullPolicy))
 		Expect(pod.Spec.Containers[0].Args[0]).To(Equal("-v=5"))
+		Expect(pod.Spec.Containers[0].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
 		Expect(pod.Spec.PriorityClassName).To(Equal(pvc.Annotations[cc.AnnPriorityClassName]))
 	},
 		Entry("should create pod with file system volume mode", cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnImportPod: "podName", cc.AnnPriorityClassName: "p0"}, nil), nil),
@@ -956,6 +957,7 @@ var _ = Describe("Create Importer Pod", func() {
 		pod := &corev1.Pod{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: "default"}, pod)
 		Expect(err).ToNot(HaveOccurred())
+		Expect(pod.Spec.InitContainers[0].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
 
 		found := false // Look for vddk-args mount
 		for _, volume := range pod.Spec.Volumes {
@@ -964,6 +966,29 @@ var _ = Describe("Create Importer Pod", func() {
 			}
 		}
 		Expect(found).To(BeTrue())
+	})
+
+	It("Should create relevant containers and init containers when source is registry and pull method is node", func() {
+		pvcName := "testPvc1"
+		podName := "testpod"
+		annotations := map[string]string{
+			cc.AnnEndpoint:             testEndPoint,
+			cc.AnnImportPod:            podName,
+			cc.AnnSource:               cc.SourceRegistry,
+			cc.AnnRegistryImportMethod: string(cdiv1.RegistryPullNode),
+		}
+		pvc := cc.CreatePvcInStorageClass(pvcName, "default", &testStorageClass, annotations, nil, corev1.ClaimBound)
+		reconciler := createImportReconciler(pvc)
+
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: pvcName, Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pod.Spec.Containers).To(HaveLen(2))
+		Expect(pod.Spec.Containers[1].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
+		Expect(pod.Spec.InitContainers[0].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
 	})
 })
 

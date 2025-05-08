@@ -54,7 +54,7 @@ var ResourceBuilder = utils.NewResourceBuilder(commonLabels, operatorLabels)
 // CreateContainer creates container
 func CreateContainer(name, image, verbosity, pullPolicy string) corev1.Container {
 	container := ResourceBuilder.CreateContainer(name, image, pullPolicy)
-	container.TerminationMessagePolicy = corev1.TerminationMessageReadFile
+	container.TerminationMessagePolicy = corev1.TerminationMessageFallbackToLogsOnError
 	container.TerminationMessagePath = corev1.TerminationMessagePathDefault
 	container.Args = []string{"-v=" + verbosity}
 	container.SecurityContext = &corev1.SecurityContext{
@@ -75,7 +75,7 @@ func CreateContainer(name, image, verbosity, pullPolicy string) corev1.Container
 // CreatePortsContainer creates container with ports
 func CreatePortsContainer(name, image, pullPolicy string, ports []corev1.ContainerPort) corev1.Container {
 	container := ResourceBuilder.CreatePortsContainer(name, image, pullPolicy, ports)
-	container.TerminationMessagePolicy = corev1.TerminationMessageReadFile
+	container.TerminationMessagePolicy = corev1.TerminationMessageFallbackToLogsOnError
 	container.TerminationMessagePath = corev1.TerminationMessagePathDefault
 	container.SecurityContext = &corev1.SecurityContext{
 		Capabilities: &corev1.Capabilities{
