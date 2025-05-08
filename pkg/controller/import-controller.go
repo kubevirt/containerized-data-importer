@@ -102,6 +102,7 @@ type importPodEnvVar struct {
 	extraHeaders       []string
 	secretExtraHeaders []string
 	cacheMode          string
+	s3ChainAuth        bool
 }
 
 type importerPodArgs struct {
@@ -118,6 +119,7 @@ type importerPodArgs struct {
 	vddkImageName           *string
 	vddkExtraArgs           *string
 	priorityClassName       string
+	serviceAccountName      string
 }
 
 // NewImportController creates a new instance of the import controller.
@@ -920,15 +922,16 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			},
 		},
 		Spec: corev1.PodSpec{
-			Containers:        makeImporterContainerSpec(args),
-			InitContainers:    makeImporterInitContainersSpec(args),
-			Volumes:           makeImporterVolumeSpec(args),
-			RestartPolicy:     corev1.RestartPolicyOnFailure,
-			NodeSelector:      args.workloadNodePlacement.NodeSelector,
-			Tolerations:       args.workloadNodePlacement.Tolerations,
-			Affinity:          args.workloadNodePlacement.Affinity,
-			PriorityClassName: args.priorityClassName,
-			ImagePullSecrets:  args.imagePullSecrets,
+			Containers:         makeImporterContainerSpec(args),
+			InitContainers:     makeImporterInitContainersSpec(args),
+			Volumes:            makeImporterVolumeSpec(args),
+			RestartPolicy:      corev1.RestartPolicyOnFailure,
+			NodeSelector:       args.workloadNodePlacement.NodeSelector,
+			Tolerations:        args.workloadNodePlacement.Tolerations,
+			Affinity:           args.workloadNodePlacement.Affinity,
+			PriorityClassName:  args.priorityClassName,
+			ImagePullSecrets:   args.imagePullSecrets,
+			ServiceAccountName: args.serviceAccountName,
 		},
 	}
 
@@ -956,6 +959,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 }
 
 func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
+	args.podEnvVar.s3ChainAuth = args.serviceAccountName != "" // prep podEnvVar for Import method below
 	containers := []corev1.Container{
 		{
 			Name:            common.ImporterPodName,
@@ -1288,6 +1292,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.CacheMode,
 			Value: podEnvVar.cacheMode,
+		},
+		{
+			Name:  common.UseS3CredentialsChainAuth,
+			Value: strconv.FormatBool(podEnvVar.s3ChainAuth),
 		},
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source != cc.SourceGCS {

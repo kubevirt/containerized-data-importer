@@ -6097,6 +6097,11 @@ spec:
                                 description: SecretRef provides the secret reference
                                   needed to access the S3 source
                                 type: string
+                              serviceAccountName:
+                                description: ServiceAccountName provides the SAN needed
+                                  if we want to use chain creds for S3 access (optional,
+                                  if SecretRef supplied)
+                                type: string
                               url:
                                 description: URL is the url of the S3 source
                                 type: string
@@ -7056,6 +7061,11 @@ spec:
                       secretRef:
                         description: SecretRef provides the secret reference needed
                           to access the S3 source
+                        type: string
+                      serviceAccountName:
+                        description: ServiceAccountName provides the SAN needed if
+                          we want to use chain creds for S3 access (optional, if SecretRef
+                          supplied)
                         type: string
                       url:
                         description: URL is the url of the S3 source
@@ -8084,6 +8094,11 @@ spec:
                       secretRef:
                         description: SecretRef provides the secret reference needed
                           to access the S3 source
+                        type: string
+                      serviceAccountName:
+                        description: ServiceAccountName provides the SAN needed if
+                          we want to use chain creds for S3 access (optional, if SecretRef
+                          supplied)
                         type: string
                       url:
                         description: URL is the url of the S3 source
