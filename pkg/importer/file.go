@@ -1,4 +1,4 @@
-package util
+package importer
 
 import (
 	"bytes"
@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -15,6 +14,10 @@ import (
 	"golang.org/x/sys/unix"
 
 	"k8s.io/klog/v2"
+)
+
+var (
+	blockdevFileName = "/usr/sbin/blockdev"
 )
 
 // OpenFileOrBlockDevice opens the destination data file, whether it is a block device or regular file
@@ -37,27 +40,6 @@ func OpenFileOrBlockDevice(fileName string) (*os.File, error) {
 	return outFile, nil
 }
 
-// CopyFile copies a file from one location to another.
-func CopyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, in)
-	if err != nil {
-		return err
-	}
-	return out.Close()
-}
-
 // LinkFile symlinks the source to the target
 func LinkFile(source, target string) error {
 	out, err := exec.Command("/usr/bin/ln", "-s", source, target).CombinedOutput()
@@ -66,44 +48,6 @@ func LinkFile(source, target string) error {
 		return err
 	}
 	return nil
-}
-
-// CopyDir copies a dir from one location to another.
-func CopyDir(source string, dest string) error {
-	// get properties of source dir
-	sourceinfo, err := os.Stat(source)
-	if err != nil {
-		return err
-	}
-
-	// create dest dir
-	err = os.MkdirAll(dest, sourceinfo.Mode())
-	if err != nil {
-		return err
-	}
-
-	directory, _ := os.Open(source)
-	objects, err := directory.Readdir(-1)
-
-	for _, obj := range objects {
-		src := filepath.Join(source, obj.Name())
-		dst := filepath.Join(dest, obj.Name())
-
-		if obj.IsDir() {
-			// create sub-directories - recursively
-			err = CopyDir(src, dst)
-			if err != nil {
-				fmt.Println(err)
-			}
-		} else {
-			// perform copy
-			err = CopyFile(src, dst)
-			if err != nil {
-				fmt.Println(err)
-			}
-		}
-	}
-	return err
 }
 
 // GetAvailableSpace gets the amount of available space at the path specified.
@@ -247,15 +191,18 @@ func StreamDataToFile(r io.Reader, fileName string, preallocate bool) (int64, in
 		bytesWritten = bytesRead
 	}
 
-	if err != nil {
-		os.Remove(outFile.Name())
-		if strings.Contains(err.Error(), "no space left on device") {
-			err = errors.Wrapf(err, "unable to write to file")
-		}
-		return bytesRead, bytesWritten, err
-	}
+	defer func() {
+		klog.Infof("Read %d bytes, wrote %d bytes to %s", bytesRead, bytesWritten, outFile.Name())
+	}()
 
-	klog.Infof("Read %d bytes, wrote %d bytes to %s", bytesRead, bytesWritten, outFile.Name())
+	if err != nil {
+		klog.Errorf("Unable to write file from dataReader: %v\n", err)
+		os.Remove(outFile.Name())
+		if IsNoCapacityError(err) {
+			return bytesRead, bytesWritten, fmt.Errorf("unable to write to file: %w", err)
+		}
+		return bytesRead, bytesWritten, NewImagePullFailedError(err)
+	}
 
 	err = outFile.Sync()
 

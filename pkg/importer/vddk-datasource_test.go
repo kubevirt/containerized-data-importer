@@ -119,7 +119,7 @@ var _ = Describe("VDDK data source", func() {
 		phase, err := dp.Info()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
-		phase, err = dp.TransferFile("")
+		phase, err = dp.TransferFile("", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseResize))
 	})
@@ -131,7 +131,7 @@ var _ = Describe("VDDK data source", func() {
 		phase, err := dp.Info()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
-		phase, err = dp.TransferFile("")
+		phase, err = dp.TransferFile("", false)
 		Expect(err).To(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseError))
 	})
@@ -187,7 +187,7 @@ var _ = Describe("VDDK data source", func() {
 		currentMockNbdFunctions.BlockStatus = func(uint64, uint64, libnbd.ExtentCallback, *libnbd.BlockStatusOptargs) error {
 			return fmt.Errorf("this should not be called on zero-change test")
 		}
-		phase, err := dp.TransferFile("")
+		phase, err := dp.TransferFile("", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseComplete))
 	})
@@ -211,7 +211,7 @@ var _ = Describe("VDDK data source", func() {
 		}
 		mockSinkBuffer = bytes.Repeat([]byte{0x00}, int(dp.Size))
 
-		phase, err := dp.TransferFile("target")
+		phase, err := dp.TransferFile("target", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseResize))
 
@@ -241,7 +241,7 @@ var _ = Describe("VDDK data source", func() {
 		MockableStat = func(string) (fs.FileInfo, error) {
 			return nil, nil
 		}
-		phase, err := snap1.TransferFile("target")
+		phase, err := snap1.TransferFile("target", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseResize))
 
@@ -301,7 +301,7 @@ var _ = Describe("VDDK data source", func() {
 		}
 		changedSourceSum := md5.Sum(sourceBytes) //nolint:gosec // This is test code
 
-		phase, err = snap2.TransferFile(".")
+		phase, err = snap2.TransferFile(".", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseComplete))
 
@@ -595,7 +595,7 @@ var _ = Describe("VDDK data source", func() {
 
 		ds, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
-		_, err = ds.TransferFile("")
+		_, err = ds.TransferFile("", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(queries[0]).To(BeTrue())
 		Expect(queries[1]).To(BeTrue())

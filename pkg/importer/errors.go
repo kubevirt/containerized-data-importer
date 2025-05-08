@@ -1,7 +1,9 @@
 package importer
 
 import (
+	"errors"
 	"fmt"
+	"syscall"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
@@ -39,4 +41,10 @@ func (err *ImagePullFailedError) Error() string {
 
 func (err *ImagePullFailedError) Unwrap() error {
 	return err.err
+}
+
+func IsNoCapacityError(err error) bool {
+	return errors.Is(err, syscall.ENOSPC) ||
+		errors.Is(err, syscall.EDQUOT) ||
+		errors.As(err, &ValidationSizeError{})
 }

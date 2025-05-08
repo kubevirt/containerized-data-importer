@@ -5,6 +5,7 @@ go_library(
     srcs = [
         "data-processor.go",
         "errors.go",
+        "file.go",
         "format-readers.go",
         "gcs-datasource.go",
         "http-datasource.go",
@@ -44,7 +45,9 @@ go_library(
         "//vendor/github.com/ovirt/go-ovirt-client-log-klog:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
         "//vendor/github.com/ulikunitz/xz:go_default_library",
+        "//vendor/golang.org/x/sys/unix:go_default_library",
         "//vendor/google.golang.org/api/option:go_default_library",
+        "//vendor/k8s.io/api/core/v1:go_default_library",
         "//vendor/k8s.io/apimachinery/pkg/api/resource:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
     ] + select({
@@ -56,15 +59,7 @@ go_library(
             "//vendor/github.com/vmware/govmomi/vim25/methods:go_default_library",
             "//vendor/github.com/vmware/govmomi/vim25/mo:go_default_library",
             "//vendor/github.com/vmware/govmomi/vim25/types:go_default_library",
-            "//vendor/golang.org/x/sys/unix:go_default_library",
-            "//vendor/k8s.io/api/core/v1:go_default_library",
             "//vendor/libguestfs.org/libnbd:go_default_library",
-        ],
-        "@io_bazel_rules_go//go/platform:arm64": [
-            "//vendor/k8s.io/api/core/v1:go_default_library",
-        ],
-        "@io_bazel_rules_go//go/platform:s390x": [
-            "//vendor/k8s.io/api/core/v1:go_default_library",
         ],
         "//conditions:default": [],
     }),
@@ -74,6 +69,7 @@ go_test(
     name = "go_default_test",
     srcs = [
         "data-processor_test.go",
+        "file_test.go",
         "format-readers_test.go",
         "gcs-datasource_test.go",
         "http-datasource_test.go",

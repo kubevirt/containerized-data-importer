@@ -63,7 +63,7 @@ func (m *MockDataProvider) Info() (ProcessingPhase, error) {
 }
 
 // Transfer is called to transfer the data from the source to the passed in path.
-func (m *MockDataProvider) Transfer(path string) (ProcessingPhase, error) {
+func (m *MockDataProvider) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
 	m.calledPhases = append(m.calledPhases, m.infoResponse)
 	m.transferPath = path
 	if m.transferResponse == ProcessingPhaseError {
@@ -76,7 +76,7 @@ func (m *MockDataProvider) Transfer(path string) (ProcessingPhase, error) {
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
-func (m *MockDataProvider) TransferFile(fileName string) (ProcessingPhase, error) {
+func (m *MockDataProvider) TransferFile(fileName string, preallocation bool) (ProcessingPhase, error) {
 	m.calledPhases = append(m.calledPhases, ProcessingPhaseTransferDataFile)
 	m.transferFile = fileName
 	if m.transferResponse == ProcessingPhaseError {
@@ -111,13 +111,13 @@ func (madp *MockAsyncDataProvider) Info() (ProcessingPhase, error) {
 }
 
 // Transfer is called to transfer the data from the source to the passed in path.
-func (madp *MockAsyncDataProvider) Transfer(path string) (ProcessingPhase, error) {
-	return madp.MockDataProvider.Transfer(path)
+func (madp *MockAsyncDataProvider) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
+	return madp.MockDataProvider.Transfer(path, preallocation)
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
-func (madp *MockAsyncDataProvider) TransferFile(fileName string) (ProcessingPhase, error) {
-	return madp.MockDataProvider.TransferFile(fileName)
+func (madp *MockAsyncDataProvider) TransferFile(fileName string, preallocation bool) (ProcessingPhase, error) {
+	return madp.MockDataProvider.TransferFile(fileName, preallocation)
 }
 
 // Close closes any readers or other open resources.

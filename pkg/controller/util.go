@@ -391,7 +391,8 @@ func addLabelsFromTerminationMessage(labels map[string]string, termMsg *common.T
 func simplifyKnownMessage(msg string) string {
 	if strings.Contains(msg, "is larger than the reported available") ||
 		strings.Contains(msg, "no space left on device") ||
-		strings.Contains(msg, "file largest block is bigger than maxblock") {
+		strings.Contains(msg, "file largest block is bigger than maxblock") ||
+		strings.Contains(msg, "disk quota exceeded") {
 		return "DataVolume too small to contain image"
 	}
 

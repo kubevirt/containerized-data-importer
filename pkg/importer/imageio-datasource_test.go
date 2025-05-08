@@ -127,7 +127,7 @@ var _ = Describe("Imageio data source", func() {
 	It("NewImageioDataSource tranfer should fail if invalid path", func() {
 		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
 		Expect(err).ToNot(HaveOccurred())
-		_, err = dp.Transfer("")
+		_, err = dp.Transfer("", false)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -136,7 +136,7 @@ var _ = Describe("Imageio data source", func() {
 		Expect(err).ToNot(HaveOccurred())
 		_, err = dp.Info()
 		Expect(err).NotTo(HaveOccurred())
-		phase, err := dp.TransferFile("")
+		phase, err := dp.TransferFile("", false)
 		Expect(err).To(HaveOccurred())
 		Expect(phase).To(Equal(ProcessingPhaseError))
 	})

@@ -487,12 +487,11 @@ func cloneProcessor(stream io.ReadCloser, contentType, dest string, preallocate 
 	}
 
 	defer stream.Close()
-	bytesRead, bytesWrittenn, err := util.StreamDataToFile(stream, dest, preallocate)
+
+	_, _, err := importer.StreamDataToFile(stream, dest, preallocate)
 	if err != nil {
 		return false, err
 	}
-
-	klog.Infof("Read %d bytes, wrote %d bytes to %s", bytesRead, bytesWrittenn, dest)
 
 	return false, nil
 }
@@ -575,7 +574,7 @@ func newSnappyReadCloser(stream io.ReadCloser) io.ReadCloser {
 }
 
 func handleStreamError(w http.ResponseWriter, err error) {
-	if errors.As(err, &importer.ValidationSizeError{}) || strings.Contains(err.Error(), "no space left on device") {
+	if importer.IsNoCapacityError(err) {
 		w.WriteHeader(http.StatusBadRequest)
 		err = errors.New("effective image size is larger than the reported available storage. A larger PVC is required")
 	} else {

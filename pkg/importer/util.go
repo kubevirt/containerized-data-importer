@@ -1,7 +1,6 @@
 package importer
 
 import (
-	"io"
 	"net/url"
 	"os"
 	"os/signal"
@@ -10,7 +9,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"k8s.io/klog/v2"
+	v1 "k8s.io/api/core/v1"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -36,7 +35,7 @@ func ParseEndpoint(endpt string) (*url.URL, error) {
 // CleanAll deletes all files at specified paths (recursively)
 func CleanAll(paths ...string) error {
 	for _, p := range paths {
-		isDevice, err := util.IsDevice(p)
+		isDevice, err := IsDevice(p)
 		if err != nil {
 			return err
 		}
@@ -56,6 +55,15 @@ func GetTerminationChannel() <-chan os.Signal {
 	terminationChannel := make(chan os.Signal, 1)
 	signal.Notify(terminationChannel, os.Interrupt, syscall.SIGTERM)
 	return terminationChannel
+}
+
+// GetAvailableSpaceByVolumeMode calls another method based on the volumeMode parameter to get the amount of
+// available space at the path specified.
+func GetAvailableSpaceByVolumeMode(volumeMode v1.PersistentVolumeMode) (int64, error) {
+	if volumeMode == v1.PersistentVolumeBlock {
+		return GetAvailableSpaceBlock(common.WriteBlockPath)
+	}
+	return GetAvailableSpace(common.ImporterVolumePath)
 }
 
 // newTerminationChannel should be overridden for unit tests
@@ -84,24 +92,4 @@ func envToLabel(env string) string {
 	label += strings.Join(strings.Split(after, "_"), "-")
 
 	return strings.ToLower(label)
-}
-
-// streamDataToFile provides a function to stream the specified io.Reader to the specified local file
-func streamDataToFile(r io.Reader, fileName string) error {
-	outFile, err := util.OpenFileOrBlockDevice(fileName)
-	if err != nil {
-		return err
-	}
-	defer outFile.Close()
-	klog.V(1).Infof("Writing data...\n")
-	if _, err = io.Copy(outFile, r); err != nil {
-		klog.Errorf("Unable to write file from dataReader: %v\n", err)
-		os.Remove(outFile.Name())
-		if strings.Contains(err.Error(), "no space left on device") {
-			return errors.Wrapf(err, "unable to write to file")
-		}
-		return NewImagePullFailedError(err)
-	}
-	err = outFile.Sync()
-	return err
 }

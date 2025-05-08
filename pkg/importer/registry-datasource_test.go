@@ -49,7 +49,7 @@ var _ = Describe("Registry data source", func() {
 		ds = NewRegistryDataSource(ep, accKey, secKey, certDir, insecureRegistry)
 
 		// Need to pass in a real path if we don't want scratch space needed error.
-		result, err := ds.Transfer(scratchPath)
+		result, err := ds.Transfer(scratchPath, false)
 		if !wantErr {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(ProcessingPhaseConvert).To(Equal(result))
@@ -67,7 +67,7 @@ var _ = Describe("Registry data source", func() {
 
 	It("TransferFile should not be called", func() {
 		ds = NewRegistryDataSource("", "", "", "", true)
-		result, err := ds.TransferFile("file")
+		result, err := ds.TransferFile("file", false)
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
 	})

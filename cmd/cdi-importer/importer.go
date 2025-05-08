@@ -132,7 +132,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	availableDestSpace, err := util.GetAvailableSpaceByVolumeMode(volumeMode)
+	availableDestSpace, err := importer.GetAvailableSpaceByVolumeMode(volumeMode)
 	if err != nil {
 		klog.Errorf("%+v", err)
 		os.Exit(1)

@@ -6,11 +6,13 @@ import (
 	"crypto/md5" //nolint:gosec // This is not a security-sensitive use case
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"math"
 	"math/rand"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -26,7 +28,6 @@ import (
 )
 
 const (
-	blockdevFileName = "/usr/sbin/blockdev"
 	// DefaultAlignBlockSize is the alignment size we use to align disk images, its a multiple of all known hardware block sizes 512/4k/8k/32k/64k.
 	DefaultAlignBlockSize = 1024 * 1024
 )
@@ -90,15 +91,6 @@ func (r *CountingReader) Read(p []byte) (n int, err error) {
 // Close closes the stream
 func (r *CountingReader) Close() error {
 	return r.Reader.Close()
-}
-
-// GetAvailableSpaceByVolumeMode calls another method based on the volumeMode parameter to get the amount of
-// available space at the path specified.
-func GetAvailableSpaceByVolumeMode(volumeMode v1.PersistentVolumeMode) (int64, error) {
-	if volumeMode == v1.PersistentVolumeBlock {
-		return GetAvailableSpaceBlock(common.WriteBlockPath)
-	}
-	return GetAvailableSpace(common.ImporterVolumePath)
 }
 
 // MinQuantity calculates the minimum of two quantities.
@@ -261,4 +253,63 @@ func ResolveVolumeMode(volumeMode *v1.PersistentVolumeMode) v1.PersistentVolumeM
 		retVolumeMode = v1.PersistentVolumeBlock
 	}
 	return retVolumeMode
+}
+
+// CopyFile copies a file from one location to another.
+func CopyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+	return out.Close()
+}
+
+// CopyDir copies a dir from one location to another.
+func CopyDir(source string, dest string) error {
+	// get properties of source dir
+	sourceinfo, err := os.Stat(source)
+	if err != nil {
+		return err
+	}
+
+	// create dest dir
+	err = os.MkdirAll(dest, sourceinfo.Mode())
+	if err != nil {
+		return err
+	}
+
+	directory, _ := os.Open(source)
+	objects, err := directory.Readdir(-1)
+
+	for _, obj := range objects {
+		src := filepath.Join(source, obj.Name())
+		dst := filepath.Join(dest, obj.Name())
+
+		if obj.IsDir() {
+			// create sub-directories - recursively
+			err = CopyDir(src, dst)
+			if err != nil {
+				fmt.Println(err)
+			}
+		} else {
+			// perform copy
+			err = CopyFile(src, dst)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	}
+	return err
 }

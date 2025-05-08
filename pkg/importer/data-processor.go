@@ -62,17 +62,17 @@ const (
 )
 
 // may be overridden in tests
-var getAvailableSpaceBlockFunc = util.GetAvailableSpaceBlock
-var getAvailableSpaceFunc = util.GetAvailableSpace
+var getAvailableSpaceBlockFunc = GetAvailableSpaceBlock
+var getAvailableSpaceFunc = GetAvailableSpace
 
 // DataSourceInterface is the interface all data sources should implement.
 type DataSourceInterface interface {
 	// Info is called to get initial information about the data.
 	Info() (ProcessingPhase, error)
 	// Transfer is called to transfer the data from the source to the path passed in.
-	Transfer(path string) (ProcessingPhase, error)
+	Transfer(path string, preallocation bool) (ProcessingPhase, error)
 	// TransferFile is called to transfer the data from the source to the file passed in.
-	TransferFile(fileName string) (ProcessingPhase, error)
+	TransferFile(fileName string, preallocation bool) (ProcessingPhase, error)
 	// Geturl returns the url that the data processor can use when converting the data.
 	GetURL() *url.URL
 	// GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
@@ -170,7 +170,7 @@ func (dp *DataProcessor) initDefaultPhases() {
 		return pp, err
 	})
 	dp.RegisterPhaseExecutor(ProcessingPhaseTransferScratch, func() (ProcessingPhase, error) {
-		pp, err := dp.source.Transfer(dp.scratchDataDir)
+		pp, err := dp.source.Transfer(dp.scratchDataDir, dp.preallocation)
 		if errors.Is(err, ErrInvalidPath) {
 			// Passed in invalid scratch space path, return scratch space needed error.
 			err = ErrRequiresScratchSpace
@@ -180,14 +180,14 @@ func (dp *DataProcessor) initDefaultPhases() {
 		return pp, err
 	})
 	dp.RegisterPhaseExecutor(ProcessingPhaseTransferDataDir, func() (ProcessingPhase, error) {
-		pp, err := dp.source.Transfer(dp.dataDir)
+		pp, err := dp.source.Transfer(dp.dataDir, dp.preallocation)
 		if err != nil {
 			err = errors.Wrap(err, "Unable to transfer source data to target directory")
 		}
 		return pp, err
 	})
 	dp.RegisterPhaseExecutor(ProcessingPhaseTransferDataFile, func() (ProcessingPhase, error) {
-		pp, err := dp.source.TransferFile(dp.dataFile)
+		pp, err := dp.source.TransferFile(dp.dataFile, dp.preallocation)
 		if err != nil {
 			err = errors.Wrap(err, "Unable to transfer source data to target file")
 		}

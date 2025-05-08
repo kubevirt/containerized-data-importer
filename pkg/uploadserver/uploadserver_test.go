@@ -153,12 +153,12 @@ func (amd *AsyncMockDataSource) Info() (importer.ProcessingPhase, error) {
 }
 
 // Transfer is called to transfer the data from the source to the passed in path.
-func (amd *AsyncMockDataSource) Transfer(path string) (importer.ProcessingPhase, error) {
+func (amd *AsyncMockDataSource) Transfer(path string, preallocation bool) (importer.ProcessingPhase, error) {
 	return importer.ProcessingPhasePause, nil
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
-func (amd *AsyncMockDataSource) TransferFile(fileName string) (importer.ProcessingPhase, error) {
+func (amd *AsyncMockDataSource) TransferFile(fileName string, preallocation bool) (importer.ProcessingPhase, error) {
 	return importer.ProcessingPhasePause, nil
 }
 

@@ -27,6 +27,7 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/pkg/errors"
+	"golang.org/x/sys/unix"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
@@ -133,16 +134,19 @@ func getCacheMode(path string, cacheMode string) (string, error) {
 	}
 
 	var supportDirectIO bool
-	isDevice, err := util.IsDevice(path)
-	if err != nil {
+	var stat unix.Stat_t
+	var err error
+
+	if err = unix.Stat(path, &stat); err != nil {
 		return "", err
 	}
 
-	if isDevice {
+	if (stat.Mode & unix.S_IFMT) == unix.S_IFBLK {
 		supportDirectIO, err = odirectChecker.CheckBlockDevice(path)
 	} else {
 		supportDirectIO, err = odirectChecker.CheckFile(path)
 	}
+
 	if err != nil {
 		return "", err
 	}
