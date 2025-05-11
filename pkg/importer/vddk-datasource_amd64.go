@@ -945,7 +945,7 @@ func (vs *VDDKDataSource) GetTerminationMessage() *common.TerminationMessage {
 }
 
 // Transfer is called to transfer the data from the source to the path passed in.
-func (vs *VDDKDataSource) Transfer(path string) (ProcessingPhase, error) {
+func (vs *VDDKDataSource) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
 	return ProcessingPhaseTransferDataFile, nil
 }
 
@@ -966,7 +966,7 @@ func (vs *VDDKDataSource) IsDeltaCopy() bool {
 var MockableStat = os.Stat
 
 // TransferFile is called to transfer the data from the source to the file passed in.
-func (vs *VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (ProcessingPhase, error) {
 	defer func() { _ = vs.VMware.Close() }()
 
 	if !vs.IsWarm() {

@@ -20,11 +20,11 @@ func (V VDDKDataSource) Info() (ProcessingPhase, error) {
 	panic("not support")
 }
 
-func (V VDDKDataSource) Transfer(path string) (ProcessingPhase, error) {
+func (V VDDKDataSource) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
 	panic("not support")
 }
 
-func (V VDDKDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+func (V VDDKDataSource) TransferFile(fileName string, preallocation bool) (ProcessingPhase, error) {
 	panic("not support")
 }
 

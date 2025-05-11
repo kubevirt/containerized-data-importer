@@ -1,7 +1,6 @@
 package importer
 
 import (
-	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -46,39 +45,6 @@ var _ = Describe("Parse endpoints", func() {
 		Expect(strings.Contains(err.Error(), "is missing or blank")).To(BeTrue())
 	})
 
-})
-
-var _ = Describe("Stream Data To File", func() {
-	var (
-		err    error
-		tmpDir string
-	)
-
-	BeforeEach(func() {
-		tmpDir, err = os.MkdirTemp("", "stream")
-		Expect(err).NotTo(HaveOccurred())
-		By("tmpDir: " + tmpDir)
-	})
-
-	AfterEach(func() {
-		os.RemoveAll(tmpDir)
-	})
-
-	DescribeTable("should", func(fileName string, useTmpDir bool, r io.Reader, errMsg string, wantErr bool) {
-		if useTmpDir {
-			fileName = filepath.Join(tmpDir, fileName)
-		}
-		err = streamDataToFile(r, fileName)
-		if !wantErr {
-			Expect(err).NotTo(HaveOccurred())
-		} else {
-			Expect(err).To(HaveOccurred())
-			Expect(strings.Contains(err.Error(), errMsg)).To(BeTrue())
-		}
-	},
-		Entry("succeed with valid reader and filename", "valid", true, strings.NewReader("test reader"), "", false),
-		Entry("fail with valid reader and invalid filename", "/invalidpath/invalidfile", false, strings.NewReader("test reader"), "no such file or directory", true),
-	)
 })
 
 var _ = Describe("Clean dir", func() {

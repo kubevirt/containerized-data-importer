@@ -123,7 +123,7 @@ func (is *ImageioDataSource) Info() (ProcessingPhase, error) {
 }
 
 // Transfer is called to transfer the data from the source to a scratch location.
-func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
+func (is *ImageioDataSource) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
 	defer is.cleanupTransfer()
 	file := filepath.Join(path, tempFile)
 	err := CleanAll(file)
@@ -131,13 +131,13 @@ func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 		return ProcessingPhaseError, err
 	}
 	// we know that there won't be archives
-	size, _ := util.GetAvailableSpace(path)
+	size, _ := GetAvailableSpace(path)
 	if size <= int64(0) {
 		//Path provided is invalid.
 		return ProcessingPhaseError, ErrInvalidPath
 	}
 	is.readers.StartProgressUpdate()
-	err = streamDataToFile(is.readers.TopReader(), file)
+	_, _, err = StreamDataToFile(is.readers.TopReader(), file, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -166,7 +166,7 @@ func (is *ImageioDataSource) Transfer(path string) (ProcessingPhase, error) {
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
-func (is *ImageioDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+func (is *ImageioDataSource) TransferFile(fileName string, preallocation bool) (ProcessingPhase, error) {
 	if !is.IsDeltaCopy() {
 		if err := CleanAll(fileName); err != nil {
 			return ProcessingPhaseError, err
@@ -182,7 +182,7 @@ func (is *ImageioDataSource) TransferFile(fileName string) (ProcessingPhase, err
 			return ProcessingPhaseError, err
 		}
 	} else {
-		err := streamDataToFile(is.readers.TopReader(), fileName)
+		_, _, err := StreamDataToFile(is.readers.TopReader(), fileName, preallocation)
 		if err != nil {
 			return ProcessingPhaseError, err
 		}
@@ -269,7 +269,7 @@ func (is *ImageioDataSource) getExtentsReader() (*extentReader, error) {
 // StreamExtents requests individual extents from the ImageIO API and copies them to the destination.
 // It skips downloading ranges of all zero bytes.
 func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName string) error {
-	outFile, err := util.OpenFileOrBlockDevice(fileName)
+	outFile, err := OpenFileOrBlockDevice(fileName)
 	if err != nil {
 		return err
 	}
@@ -297,9 +297,9 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 	preallocated := info.Size() >= int64(is.contentLength)
 
 	// Choose seek for regular files, and hole punching for block devices and pre-allocated files
-	zeroRange := util.AppendZeroWithTruncate
+	zeroRange := AppendZeroWithTruncate
 	if isBlock || preallocated {
-		zeroRange = util.PunchHole
+		zeroRange = PunchHole
 	}
 
 	// Transfer all the non-zero extents, and try to quickly write out blocks of all zero bytes for extents that only contain zero
@@ -308,7 +308,7 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 			err = zeroRange(outFile, extent.Start, extent.Length)
 			if err != nil {
 				klog.Infof("Initial zero method failed, trying AppendZeroWithWrite instead. Error was: %v", err)
-				zeroRange = util.AppendZeroWithWrite // If the initial choice fails, fall back to regular file writing
+				zeroRange = AppendZeroWithWrite // If the initial choice fails, fall back to regular file writing
 				err = zeroRange(outFile, extent.Start, extent.Length)
 				if err != nil {
 					return errors.Wrap(err, "failed to zero range on destination")
