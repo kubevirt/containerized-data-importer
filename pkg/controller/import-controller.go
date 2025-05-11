@@ -970,6 +970,7 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 					Protocol:      corev1.ProtocolTCP,
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		},
 	}
 	if cc.GetVolumeMode(args.pvc) == corev1.PersistentVolumeBlock {
@@ -989,6 +990,7 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 					Name:      "shared-volume",
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		})
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
 			MountPath: "/shared",
@@ -1132,6 +1134,7 @@ func makeImporterInitContainersSpec(args *importerPodArgs) []corev1.Container {
 					Name:      "shared-volume",
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		})
 	}
 	if args.vddkImageName != nil {
@@ -1144,6 +1147,7 @@ func makeImporterInitContainersSpec(args *importerPodArgs) []corev1.Container {
 					MountPath: "/opt",
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		})
 	}
 	if args.podResourceRequirements != nil {

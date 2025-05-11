@@ -788,6 +788,26 @@ var _ = Describe("Controller", func() {
 
 				Expect(deploy.Spec.Selector.MatchLabels).To(Equal(map[string]string{common.CDIComponentLabel: common.CDIControllerResourceName}))
 			})
+
+			It("should create all deployment containers with terminationMessagePolicy FallbackToLogsOnError", func() {
+				args := createArgs()
+				doReconcile(args)
+
+				resources, err := getAllResources(args.reconciler)
+				Expect(err).ToNot(HaveOccurred())
+
+				for _, r := range resources {
+					d, ok := r.(*appsv1.Deployment)
+					if !ok {
+						continue
+					}
+					d, err = getDeployment(args.client, d)
+					Expect(err).ToNot(HaveOccurred())
+					for _, c := range d.Spec.Template.Spec.Containers {
+						Expect(c.TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
+					}
+				}
+			})
 		})
 	})
 

@@ -870,6 +870,7 @@ func (r *UploadReconciler) makeUploadPodContainers(args UploadPodArgs, resourceR
 					MountPath: certMountPath,
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		},
 	}
 	if args.Deadline != nil {
