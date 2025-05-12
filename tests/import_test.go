@@ -2135,19 +2135,18 @@ var _ = Describe("Propogate DV Labels to Importer Pod", func() {
 		testNonKubevirtVal = "none"
 	)
 
-	It("Import pod should inherit non KUBEVIRT_IO_ labels from Data Volume", func() {
+	It("Import pod should inherit any labels from Data Volume", func() {
 
 		dataVolume := utils.NewDataVolumeWithHTTPImport("label-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
 		dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
-		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
 
-		// The existing key should not be overwritten
 		dataVolume.ObjectMeta.Labels = map[string]string{
 			testKubevirtKey:    testKubevirtValue,
 			testNonKubevirtKey: testNonKubevirtVal,
 		}
 
+		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
 
