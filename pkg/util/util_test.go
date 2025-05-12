@@ -183,3 +183,39 @@ var _ = Describe("Usable Space calculation", func() {
 		Entry("40Gi virtual size, large overhead to be 40Gi if <= 40Gi and 41Gi if > 40Gi", 40*Gi, largeOverhead),
 	)
 })
+
+var _ = Describe("Append Labels", func() {
+
+	some_labels := map[string]string{
+		"label1": "val1",
+		"label2": "val2",
+		"label3": "val3",
+	}
+
+	empty_labels := map[string]string{}
+
+	It("Should append all entries from source map to the empty destination map", func() {
+		AppendLabels(empty_labels, some_labels)
+		Expect(len(empty_labels)).To(Equal(len(some_labels)))
+		for key, val := range some_labels {
+			Expect(val).To(Equal(empty_labels[key]))
+		}
+	})
+
+	new_labels := map[string]string{
+		"label4": "val4",
+		"label5": "val5",
+	}
+	original_len := len(new_labels)
+
+	It("Should append all entries from source map to non-empty destination map", func() {
+		AppendLabels(new_labels, some_labels)
+		Expect(len(new_labels)).To(Equal(original_len + len(some_labels)))
+		for key, val := range some_labels {
+			Expect(val).To(Equal(new_labels[key]))
+		}
+		// make sure we still retain any entries from the map prior to the Append
+		Expect(new_labels["label4"]).To(Equal("val4"))
+		Expect(new_labels["label5"]).To(Equal("val5"))
+	})
+})
