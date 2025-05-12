@@ -195,7 +195,7 @@ var _ = Describe("Append Labels", func() {
 	empty_labels := map[string]string{}
 
 	It("Should append all entries from source map to the empty destination map", func() {
-		AppendLabels(empty_labels, some_labels)
+		AppendLabels(some_labels, empty_labels)
 		Expect(len(empty_labels)).To(Equal(len(some_labels)))
 		for key, val := range some_labels {
 			Expect(val).To(Equal(empty_labels[key]))
@@ -209,7 +209,7 @@ var _ = Describe("Append Labels", func() {
 	original_len := len(new_labels)
 
 	It("Should append all entries from source map to non-empty destination map", func() {
-		AppendLabels(new_labels, some_labels)
+		AppendLabels(some_labels, new_labels)
 		Expect(len(new_labels)).To(Equal(original_len + len(some_labels)))
 		for key, val := range some_labels {
 			Expect(val).To(Equal(new_labels[key]))
