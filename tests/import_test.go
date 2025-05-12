@@ -2163,8 +2163,9 @@ var _ = Describe("Propogate DV Labels to Importer Pod", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Check labels were appended")
-		Expect(importer.GetLabels()).Should(HaveKeyWithValue(testKubevirtKey, testKubevirtValue))
-		Expect(importer.GetLabels()).Should(HaveKeyWithValue(testNonKubevirtKey, testNonKubevirtVal))
+		import_labels := importer.GetLabels()
+		Expect(import_labels).Should(HaveKeyWithValue(testKubevirtKey, testKubevirtValue))
+		Expect(import_labels).Should(HaveKeyWithValue(testNonKubevirtKey, testNonKubevirtVal))
 
 	})
 })

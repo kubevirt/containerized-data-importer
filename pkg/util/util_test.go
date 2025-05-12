@@ -215,7 +215,7 @@ var _ = Describe("Append Labels", func() {
 			Expect(val).To(Equal(new_labels[key]))
 		}
 		// make sure we still retain any entries from the map prior to the Append
-		Expect(new_labels["label4"]).To(Equal("val4"))
-		Expect(new_labels["label5"]).To(Equal("val5"))
+		Expect(new_labels).Should(HaveKeyWithValue("label4", "val4"))
+		Expect(new_labels).Should(HaveKeyWithValue("label5", "val5"))
 	})
 })
