@@ -186,36 +186,36 @@ var _ = Describe("Usable Space calculation", func() {
 
 var _ = Describe("Append Labels", func() {
 
-	some_labels := map[string]string{
+	someLabels := map[string]string{
 		"label1": "val1",
 		"label2": "val2",
 		"label3": "val3",
 	}
 
-	empty_labels := map[string]string{}
+	emptyLabels := map[string]string{}
 
 	It("Should append all entries from source map to the empty destination map", func() {
-		MergeLabels(some_labels, empty_labels)
-		Expect(len(empty_labels)).To(Equal(len(some_labels)))
-		for key, val := range some_labels {
-			Expect(val).To(Equal(empty_labels[key]))
+		MergeLabels(someLabels, emptyLabels)
+		Expect(len(emptyLabels)).To(HaveLen(len(someLabels)))
+		for key, val := range someLabels {
+			Expect(val).To(Equal(emptyLabels[key]))
 		}
 	})
 
-	new_labels := map[string]string{
+	newLabels := map[string]string{
 		"label4": "val4",
 		"label5": "val5",
 	}
-	original_len := len(new_labels)
+	originalLen := len(newLabels)
 
 	It("Should append all entries from source map to non-empty destination map", func() {
-		MergeLabels(some_labels, new_labels)
-		Expect(len(new_labels)).To(Equal(original_len + len(some_labels)))
-		for key, val := range some_labels {
-			Expect(val).To(Equal(new_labels[key]))
+		MergeLabels(someLabels, newLabels)
+		Expect(len(newLabels)).To(HaveLen(originalLen + len(someLabels)))
+		for key, val := range someLabels {
+			Expect(val).To(Equal(newLabels[key]))
 		}
 		// make sure we still retain any entries from the map prior to the Append
-		Expect(new_labels).Should(HaveKeyWithValue("label4", "val4"))
-		Expect(new_labels).Should(HaveKeyWithValue("label5", "val5"))
+		Expect(newLabels).Should(HaveKeyWithValue("label4", "val4"))
+		Expect(newLabels).Should(HaveKeyWithValue("label5", "val5"))
 	})
 })

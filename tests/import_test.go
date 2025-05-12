@@ -2125,7 +2125,7 @@ var _ = Describe("Containerdisk envs to PVC labels", func() {
 	)
 })
 
-var _ = Describe("Propogate DV Labels to Importer Pod", func() {
+var _ = Describe("Propagate DV Labels to Importer Pod", func() {
 	f := framework.NewFramework(namespacePrefix)
 
 	const (
@@ -2163,9 +2163,9 @@ var _ = Describe("Propogate DV Labels to Importer Pod", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Check labels were appended")
-		import_labels := importer.GetLabels()
-		Expect(import_labels).Should(HaveKeyWithValue(testKubevirtKey, testKubevirtValue))
-		Expect(import_labels).Should(HaveKeyWithValue(testNonKubevirtKey, testNonKubevirtVal))
+		importLabels := importer.GetLabels()
+		Expect(importLabels).Should(HaveKeyWithValue(testKubevirtKey, testKubevirtValue))
+		Expect(importLabels).Should(HaveKeyWithValue(testNonKubevirtKey, testNonKubevirtVal))
 
 	})
 })
