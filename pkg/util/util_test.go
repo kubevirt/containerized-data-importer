@@ -196,7 +196,7 @@ var _ = Describe("Append Labels", func() {
 
 	It("Should append all entries from source map to the empty destination map", func() {
 		MergeLabels(someLabels, emptyLabels)
-		Expect(len(emptyLabels)).To(HaveLen(len(someLabels)))
+		Expect(emptyLabels).To(HaveLen(len(someLabels)))
 		for key, val := range someLabels {
 			Expect(val).To(Equal(emptyLabels[key]))
 		}
@@ -210,7 +210,7 @@ var _ = Describe("Append Labels", func() {
 
 	It("Should append all entries from source map to non-empty destination map", func() {
 		MergeLabels(someLabels, newLabels)
-		Expect(len(newLabels)).To(HaveLen(originalLen + len(someLabels)))
+		Expect(newLabels).To(HaveLen(originalLen + len(someLabels)))
 		for key, val := range someLabels {
 			Expect(val).To(Equal(newLabels[key]))
 		}
