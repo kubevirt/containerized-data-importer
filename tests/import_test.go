@@ -2125,6 +2125,51 @@ var _ = Describe("Containerdisk envs to PVC labels", func() {
 	)
 })
 
+var _ = Describe("Propogate DV Labels to Importer Pod", func() {
+	f := framework.NewFramework(namespacePrefix)
+
+	const (
+		testKubevirtKey    = "test.kubevirt.io/test"
+		testKubevirtValue  = "true"
+		testNonKubevirtKey = "testLabel"
+		testNonKubevirtVal = "none"
+	)
+
+	It("Import pod should inherit non KUBEVIRT_IO_ labels from Data Volume", func() {
+
+		dataVolume := utils.NewDataVolumeWithHTTPImport("label-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
+		dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+
+		// The existing key should not be overwritten
+		dataVolume.ObjectMeta.Labels = map[string]string{
+			testKubevirtKey:    testKubevirtValue,
+			testNonKubevirtKey: testNonKubevirtVal,
+		}
+
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify pvc was created")
+		_, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+
+		By("Find importer pod")
+		importer, err := utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Check labels were appended")
+		Expect(importer.GetLabels()).Should(HaveKeyWithValue(testKubevirtKey, testKubevirtValue))
+		Expect(importer.GetLabels()).Should(HaveKeyWithValue(testNonKubevirtKey, testNonKubevirtVal))
+
+	})
+})
+
 var _ = Describe("pull image failure", func() {
 	var (
 		f = framework.NewFramework(namespacePrefix)
