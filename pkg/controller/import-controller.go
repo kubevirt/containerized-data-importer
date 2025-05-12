@@ -880,7 +880,7 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 	util.SetRecommendedLabels(pod, installerLabels, "cdi-controller")
 
 	// add any labels from pvc to the importer pod
-	util.AppendLabels(args.pvc.Labels, pod.Labels)
+	util.MergeLabels(args.pvc.Labels, pod.Labels)
 
 	if err = client.Create(context.TODO(), pod); err != nil {
 		return nil, err
