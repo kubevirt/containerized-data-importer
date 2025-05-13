@@ -86,6 +86,8 @@ const (
 	AnnPodReady = AnnAPIGroup + "/storage.pod.ready"
 	// AnnPodRestarts is a PVC annotation that tells how many times a related pod was restarted
 	AnnPodRestarts = AnnAPIGroup + "/storage.pod.restarts"
+	// AnnPodSchedulable is a PVC annotation that tells if the Pod is schedulable or not
+	AnnPodSchedulable = AnnAPIGroup + "/storage.pod.schedulable"
 	// AnnPopulatedFor is a PVC annotation telling the datavolume controller that the PVC is already populated
 	AnnPopulatedFor = AnnAPIGroup + "/storage.populatedFor"
 	// AnnPrePopulated is a PVC annotation telling the datavolume controller that the PVC is already populated

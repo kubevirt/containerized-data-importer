@@ -2210,10 +2210,12 @@ var _ = Describe("Multi-arch image pull", func() {
 		errMessageArchitectureAbsent = "Unable to process data: Unable to transfer source data to scratch space: " +
 			"Failed to read registry image: Error retrieving image: choosing image instance: " +
 			`no image found in image index for architecture "absent", variant "", OS "linux"`
+		errImporterPodUnschedulable = "Importer pod cannot be scheduled"
 	)
 	var (
 		f                         = framework.NewFramework(namespacePrefix)
 		tinyCoreMultiarchRegistry = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
+		trustedRegistryURL        = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
 	)
 
 	It("Should succeed to pull multi-arch image matching architecture with pull method Pod", func() {
@@ -2240,7 +2242,6 @@ var _ = Describe("Multi-arch image pull", func() {
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
 		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
-
 	})
 
 	It("Should fail to pull multi-arch image with absent architecture with pull method Pod", func() {
@@ -2268,6 +2269,33 @@ var _ = Describe("Multi-arch image pull", func() {
 			Reason:  "Error",
 		}
 		utils.WaitForConditions(f, dv.Name, f.Namespace.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
+	})
+
+	It("Should put correct node selector for multi-arch image architecture with pull method Node", func() {
+		dv := utils.NewDataVolumeWithRegistryImport("multi-arch-pull", "100Mi", trustedRegistryURL())
+		if dv.Annotations == nil {
+			dv.Annotations = make(map[string]string)
+		}
+		pullMethod := cdiv1.RegistryPullNode
+		dv.Annotations[controller.AnnImmediateBinding] = "true"
+		dv.Spec.Source.Registry.PullMethod = &pullMethod
+		dv.Spec.Source.Registry.Platform = &cdiv1.PlatformOptions{Architecture: "absent"}
+
+		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify datavolume condition")
+		runningCondition := &cdiv1.DataVolumeCondition{
+			Type:    cdiv1.DataVolumeRunning,
+			Status:  v1.ConditionFalse,
+			Message: errImporterPodUnschedulable,
+			Reason:  "Unschedulable",
+		}
+		utils.WaitForConditions(f, dv.Name, f.Namespace.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
+
+		importer, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(importer.Spec.NodeSelector).To(HaveKeyWithValue(v1.LabelArchStable, "absent"))
 	})
 })
 

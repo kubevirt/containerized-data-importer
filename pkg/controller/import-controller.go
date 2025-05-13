@@ -406,6 +406,16 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		anno[cc.AnnPodPhase] = string(pod.Status.Phase)
 	}
 
+	anno[cc.AnnPodSchedulable] = "true"
+	if phase, ok := anno[cc.AnnPodPhase]; ok && phase == string(corev1.PodPending) {
+		for _, cond := range pod.Status.Conditions {
+			if cond.Type == corev1.PodScheduled && cond.Reason == corev1.PodReasonUnschedulable {
+				anno[cc.AnnPodSchedulable] = "false"
+				break
+			}
+		}
+	}
+
 	for _, ev := range pod.Spec.Containers[0].Env {
 		if ev.Name == common.CacheMode && ev.Value == common.CacheModeTryNone {
 			anno[cc.AnnRequiresDirectIO] = "false"
@@ -875,6 +885,9 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 			return nil, err
 		}
 		setRegistryNodeImportEnvVars(args)
+		if args.podEnvVar.registryImageArchitecture != "" {
+			setRegistryNodeImportNodeSelector(args)
+		}
 	}
 
 	pod := makeImporterPodSpec(args)
@@ -1181,6 +1194,13 @@ func setRegistryNodeImportEnvVars(args *importerPodArgs) {
 	args.podEnvVar.pullMethod = string(cdiv1.RegistryPullNode)
 	args.podEnvVar.readyFile = "/shared/ready"
 	args.podEnvVar.doneFile = "/shared/done"
+}
+
+func setRegistryNodeImportNodeSelector(args *importerPodArgs) {
+	if args.workloadNodePlacement.NodeSelector == nil {
+		args.workloadNodePlacement.NodeSelector = make(map[string]string, 0)
+	}
+	args.workloadNodePlacement.NodeSelector[v1.LabelArchStable] = args.podEnvVar.registryImageArchitecture
 }
 
 func createConfigMapVolume(certVolName, objRef string) corev1.Volume {
