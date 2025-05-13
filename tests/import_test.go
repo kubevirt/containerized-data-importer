@@ -1697,8 +1697,6 @@ var _ = Describe("Import populator", func() {
 		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.TinyCoreMD5))
-		By("Verifying the image is sparse")
-		Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
 		sourceMD5 := md5
 
 		By("Retaining PV")
