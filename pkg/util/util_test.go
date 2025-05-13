@@ -184,38 +184,44 @@ var _ = Describe("Usable Space calculation", func() {
 	)
 })
 
-var _ = Describe("Append Labels", func() {
+var _ = Describe("Merge Labels", func() {
 
-	someLabels := map[string]string{
-		"label1": "val1",
-		"label2": "val2",
-		"label3": "val3",
-	}
+	var (
+		someLabels, emptyLabels, existingLabels, expectedMergedLabels map[string]string
+	)
 
-	emptyLabels := map[string]string{}
-
-	It("Should append all entries from source map to the empty destination map", func() {
-		MergeLabels(someLabels, emptyLabels)
-		Expect(emptyLabels).To(HaveLen(len(someLabels)))
-		for key, val := range someLabels {
-			Expect(val).To(Equal(emptyLabels[key]))
+	BeforeEach(func() {
+		someLabels = map[string]string{
+			"label1": "val1",
+			"label2": "val2",
+			"label3": "val3",
+		}
+		emptyLabels = make(map[string]string)
+		existingLabels = map[string]string{
+			"label4": "val4",
+			"label5": "val5",
+		}
+		expectedMergedLabels = map[string]string{
+			"label1": "val1",
+			"label2": "val2",
+			"label3": "val3",
+			"label4": "val4",
+			"label5": "val5",
 		}
 	})
 
-	newLabels := map[string]string{
-		"label4": "val4",
-		"label5": "val5",
-	}
-	originalLen := len(newLabels)
-
-	It("Should append all entries from source map to non-empty destination map", func() {
-		MergeLabels(someLabels, newLabels)
-		Expect(newLabels).To(HaveLen(originalLen + len(someLabels)))
-		for key, val := range someLabels {
-			Expect(val).To(Equal(newLabels[key]))
+	DescribeTable("Should properly merge labels", func(original, merged, expected map[string]string) {
+		// copies entries from original to merged
+		MergeLabels(original, merged)
+		Expect(merged).To(HaveLen(len(expected)))
+		for key, val := range merged {
+			Expect(val).To(Equal(expected[key]))
 		}
-		// make sure we still retain any entries from the map prior to the Append
-		Expect(newLabels).Should(HaveKeyWithValue("label4", "val4"))
-		Expect(newLabels).Should(HaveKeyWithValue("label5", "val5"))
-	})
+	},
+		Entry("original is empty", emptyLabels, someLabels, someLabels),
+		Entry("original has values", someLabels, existingLabels, expectedMergedLabels),
+		Entry("original empty, adding empty", emptyLabels, emptyLabels, emptyLabels),
+		Entry("original has values, adding empty", someLabels, emptyLabels, someLabels),
+	)
+
 })

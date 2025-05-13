@@ -2141,7 +2141,7 @@ var _ = Describe("Propagate DV Labels to Importer Pod", func() {
 		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
 		dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 
-		dataVolume.ObjectMeta.Labels = map[string]string{
+		dataVolume.Labels = map[string]string{
 			testKubevirtKey:    testKubevirtValue,
 			testNonKubevirtKey: testNonKubevirtVal,
 		}
