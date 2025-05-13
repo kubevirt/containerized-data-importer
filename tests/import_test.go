@@ -2169,11 +2169,13 @@ var _ = Describe("Multi-arch image pull", func() {
 		errMessageArchitectureMismatch = "Unable to process data: Unable to transfer source data to scratch space: " +
 			"Failed to read registry image: Error validating architecture: " +
 			`manifest image architecture: "%s" doesn't match requested architecture: "%s"`
+		errImporterPodUnschedulable = "Importer pod cannot be scheduled"
 	)
 	var (
 		f                         = framework.NewFramework(namespacePrefix)
 		tinyCoreRegistry          = func() string { return fmt.Sprintf(tinyCoreSingleArchRegistryURL, f.CdiInstallNs) }
 		tinyCoreMultiarchRegistry = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
+		trustedRegistryURL        = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
 	)
 
 	DescribeTable("Should succeed to pull image with platform options", func(platform cdiv1.PlatformOptions, urlFn func() string, pullMethod cdiv1.RegistryPullMethod) {
@@ -2210,9 +2212,14 @@ var _ = Describe("Multi-arch image pull", func() {
 			tinyCoreRegistry,
 			cdiv1.RegistryPullPod,
 		),
+		Entry("single-arch image matching host architecture with pull method node",
+			cdiv1.PlatformOptions{Architecture: runtime.GOARCH},
+			trustedRegistryURL,
+			cdiv1.RegistryPullNode,
+		),
 	)
 
-	DescribeTable(("Should fail to pull image with platform options"), func(platform cdiv1.PlatformOptions, urlFn func() string, pullMethod cdiv1.RegistryPullMethod, errMessage string) {
+	DescribeTable(("Should fail to pull image with platform options"), func(platform cdiv1.PlatformOptions, urlFn func() string, pullMethod cdiv1.RegistryPullMethod, errMessage string, reason string) {
 		dv := utils.NewDataVolumeWithRegistryImport("multi-arch-pull", "10Gi", urlFn())
 		if dv.Annotations == nil {
 			dv.Annotations = make(map[string]string)
@@ -2233,7 +2240,7 @@ var _ = Describe("Multi-arch image pull", func() {
 			Type:    cdiv1.DataVolumeRunning,
 			Status:  v1.ConditionFalse,
 			Message: errMessage,
-			Reason:  "Error",
+			Reason:  reason,
 		}
 		utils.WaitForConditions(f, dv.Name, f.Namespace.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
 	},
@@ -2242,12 +2249,21 @@ var _ = Describe("Multi-arch image pull", func() {
 			tinyCoreMultiarchRegistry,
 			cdiv1.RegistryPullPod,
 			fmt.Sprintf(errMessageArchitectureNotFound, "absent"),
+			"Error",
 		),
 		Entry("single-arch image with mismatching architecture with pull method pod",
 			cdiv1.PlatformOptions{Architecture: "absent"},
 			tinyCoreRegistry,
 			cdiv1.RegistryPullPod,
 			fmt.Sprintf(errMessageArchitectureMismatch, runtime.GOARCH, "absent"),
+			"Error",
+		),
+		Entry("single-arch image with absent architecture with pull method node",
+			cdiv1.PlatformOptions{Architecture: "absent"},
+			trustedRegistryURL,
+			cdiv1.RegistryPullNode,
+			errImporterPodUnschedulable,
+			"Unschedulable",
 		),
 	)
 })
