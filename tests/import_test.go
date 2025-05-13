@@ -2135,11 +2135,12 @@ var _ = Describe("Propagate DV Labels to Importer Pod", func() {
 		testNonKubevirtVal = "none"
 	)
 
-	It("Import pod should inherit any labels from Data Volume", func() {
+	DescribeTable("Import pod should inherit any labels from Data Volume", func(usePopulator string) {
 
 		dataVolume := utils.NewDataVolumeWithHTTPImport("label-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
 		dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+		dataVolume.Annotations[controller.AnnUsePopulator] = usePopulator
 
 		dataVolume.Labels = map[string]string{
 			testKubevirtKey:    testKubevirtValue,
@@ -2167,7 +2168,10 @@ var _ = Describe("Propagate DV Labels to Importer Pod", func() {
 		Expect(importLabels).Should(HaveKeyWithValue(testKubevirtKey, testKubevirtValue))
 		Expect(importLabels).Should(HaveKeyWithValue(testNonKubevirtKey, testNonKubevirtVal))
 
-	})
+	},
+		Entry("With Populators", "true"),
+		Entry("Without Populators", "false"),
+	)
 })
 
 var _ = Describe("pull image failure", func() {

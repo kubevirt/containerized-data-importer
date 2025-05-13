@@ -209,6 +209,7 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	}
 	cc.CopyAllowedAnnotations(pvc, pvcPrime)
 	util.SetRecommendedLabels(pvcPrime, r.installerLabels, "cdi-controller")
+	util.MergeLabels(pvc.Labels, pvcPrime.Labels)
 
 	// We use the populator-specific pvcModifierFunc to add required annotations
 	if updatePVCForPopulation != nil {
