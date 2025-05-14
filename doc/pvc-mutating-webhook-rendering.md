@@ -10,7 +10,7 @@ CDI volume populators already cover almost all DV import/clone/upload functional
 
 ## Configuration
 
-To be fully compatible with any external tools that may already use CDI, this new feature has to be enabled by the feature gate: `WebhookPvcRendering`. In the released `cdi-cr` it is disabled by default. To enable it, add the feature gate in the `CDI` custom resource, under spec.config (see [cdi-config doc](./cdi-config.md)).
+To be fully compatible with any external tools that may already use CDI, this feature has to be enabled by the feature gate: `WebhookPvcRendering`. In the released `cdi-cr` it is enabled by default. To disable it, remove the feature gate from the `CDI` custom resource spec.config (see [cdi-config doc](./cdi-config.md)).
 
 A Snippet below shows CDI resource with `WebhookPvcRendering` enabled.
 ```yaml
