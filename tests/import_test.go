@@ -2122,6 +2122,55 @@ var _ = Describe("Containerdisk envs to PVC labels", func() {
 	)
 })
 
+var _ = Describe("Propagate DV Labels to Importer Pod", func() {
+	f := framework.NewFramework(namespacePrefix)
+
+	const (
+		testKubevirtKey    = "test.kubevirt.io/test"
+		testKubevirtValue  = "true"
+		testNonKubevirtKey = "testLabel"
+		testNonKubevirtVal = "none"
+	)
+
+	DescribeTable("Import pod should inherit any labels from Data Volume", func(usePopulator string) {
+
+		dataVolume := utils.NewDataVolumeWithHTTPImport("label-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
+		dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+		dataVolume.Annotations[controller.AnnUsePopulator] = usePopulator
+
+		dataVolume.Labels = map[string]string{
+			testKubevirtKey:    testKubevirtValue,
+			testNonKubevirtKey: testNonKubevirtVal,
+		}
+
+		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify pvc was created")
+		_, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+
+		By("Find importer pod")
+		importer, err := utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Check labels were appended")
+		importLabels := importer.GetLabels()
+		Expect(importLabels).Should(HaveKeyWithValue(testKubevirtKey, testKubevirtValue))
+		Expect(importLabels).Should(HaveKeyWithValue(testNonKubevirtKey, testNonKubevirtVal))
+
+	},
+		Entry("With Populators", "true"),
+		Entry("Without Populators", "false"),
+	)
+})
+
 var _ = Describe("pull image failure", func() {
 	var (
 		f = framework.NewFramework(namespacePrefix)
