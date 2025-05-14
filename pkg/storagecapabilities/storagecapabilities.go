@@ -4,6 +4,7 @@ package storagecapabilities
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -92,13 +93,11 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// IBM block arrays (FlashSystem)
 	"block.csi.ibm.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// Portworx in-tree CSI
-	"kubernetes.io/portworx-volume/shared": {{rwx, file}},
-	"kubernetes.io/portworx-volume":        {{rwo, file}},
+	"kubernetes.io/portworx-volume/nfs": {{rwx, file}, {rwo, file}},
+	"kubernetes.io/portworx-volume":     {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
 	// Portworx CSI
-	"pxd.openstorage.org/shared": createOpenStorageSharedVolumeCapabilities(),
-	"pxd.openstorage.org":        createOpenStorageSharedVolumeCapabilities(),
-	"pxd.portworx.com/shared":    {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
-	"pxd.portworx.com":           {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
+	"pxd.portworx.com/nfs": {{rwx, file}, {rwo, file}},
+	"pxd.portworx.com":     {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{rwx, file}, {rwo, file}},
 	"csi.trident.netapp.io/ontap-san": {{rwx, block}},
@@ -151,9 +150,7 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"openshift-storage.rbd.csi.ceph.com":       cdiv1.CloneStrategyCsiClone,
 	"cephfs.csi.ceph.com":                      cdiv1.CloneStrategyCsiClone,
 	"openshift-storage.cephfs.csi.ceph.com":    cdiv1.CloneStrategyCsiClone,
-	"pxd.openstorage.org/shared":               cdiv1.CloneStrategyCsiClone,
-	"pxd.openstorage.org":                      cdiv1.CloneStrategyCsiClone,
-	"pxd.portworx.com/shared":                  cdiv1.CloneStrategyCsiClone,
+	"pxd.portworx.com/nfs":                     cdiv1.CloneStrategyCsiClone,
 	"pxd.portworx.com":                         cdiv1.CloneStrategyCsiClone,
 	"topolvm.cybozu.com":                       cdiv1.CloneStrategyHostAssisted,
 	"topolvm.io":                               cdiv1.CloneStrategyHostAssisted,
@@ -252,26 +249,18 @@ func storageProvisionerKey(sc *storagev1.StorageClass) string {
 }
 
 var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageClass) string{
-	"pxd.openstorage.org": func(sc *storagev1.StorageClass) string {
-		// https://docs.portworx.com/portworx-install-with-kubernetes/storage-operations/create-pvcs/create-shared-pvcs/
-		val := sc.Parameters["shared"]
-		if val == "true" {
-			return "pxd.openstorage.org/shared"
-		}
-		return "pxd.openstorage.org"
-	},
 	"kubernetes.io/portworx-volume": func(sc *storagev1.StorageClass) string {
-		val := sc.Parameters["shared"]
-		if val == "true" {
-			return "kubernetes.io/portworx-volume/shared"
+		opts := strings.Split(sc.Parameters["sharedv4_mount_options"], ",")
+		if slices.Contains(opts, "vers=3.0") && slices.Contains(opts, "nolock") {
+			return "kubernetes.io/portworx-volume/nfs"
 		}
 		return "kubernetes.io/portworx-volume"
 	},
 	"pxd.portworx.com": func(sc *storagev1.StorageClass) string {
-		// https://docs.portworx.com/portworx-install-with-kubernetes/storage-operations/csi/volumelifecycle/#create-shared-csi-enabled-volumes
-		val := sc.Parameters["shared"]
-		if val == "true" {
-			return "pxd.portworx.com/shared"
+		// https://docs.portworx.com/portworx-enterprise/operations/operate-kubernetes/storage-operations/manage-kubevirt-vms.html#create-a-storageclass
+		opts := strings.Split(sc.Parameters["sharedv4_mount_options"], ",")
+		if slices.Contains(opts, "vers=3.0") && slices.Contains(opts, "nolock") {
+			return "pxd.portworx.com/nfs"
 		}
 		return "pxd.portworx.com"
 	},
@@ -441,14 +430,6 @@ func createDellPowerStoreCapabilities() []StorageCapabilities {
 
 func createTopoLVMCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
-		{rwo, block},
-		{rwo, file},
-	}
-}
-
-func createOpenStorageSharedVolumeCapabilities() []StorageCapabilities {
-	return []StorageCapabilities{
-		{rwx, file},
 		{rwo, block},
 		{rwo, file},
 	}
