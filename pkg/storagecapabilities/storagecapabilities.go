@@ -70,7 +70,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// AWSElasticBlockStore
 	"kubernetes.io/aws-ebs": {{rwo, block}},
 	"ebs.csi.aws.com":       {{rwo, block}},
+	"ebs.csi.aws.com/io1":   {{rwo, block}},
 	"ebs.csi.aws.com/io2":   {{rwx, block}, {rwo, block}, {rwo, file}},
+	"ebs.csi.aws.com/gp":    {{rwo, block}},
 	// AWSElasticFileSystem
 	"efs.csi.aws.com": {{rwx, file}, {rwo, file}},
 	// Azure disk
@@ -170,6 +172,15 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"pd.csi.storage.gke.io/hyperdisk":          cdiv1.CloneStrategySnapshot,
 }
 
+// MinimumSupportedPVCSizeByProvisionerKey defines the minimum supported PVC size for a provisioner
+var MinimumSupportedPVCSizeByProvisionerKey = map[string]string{
+	"pd.csi.storage.gke.io/hyperdisk": "4Gi",
+	// https://aws.amazon.com/ebs/volume-types
+	"ebs.csi.aws.com/io1": "4Gi",
+	"ebs.csi.aws.com/io2": "4Gi",
+	"ebs.csi.aws.com/gp":  "1Gi",
+}
+
 const (
 	// ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
 	ProvisionerNoobaa = "openshift-storage.noobaa.io/obc"
@@ -213,6 +224,13 @@ func GetAdvisedCloneStrategy(sc *storagev1.StorageClass) (cdiv1.CDICloneStrategy
 	provisionerKey := storageProvisionerKey(sc)
 	strategy, found := CloneStrategyByProvisionerKey[provisionerKey]
 	return strategy, found
+}
+
+// GetMinimumSupportedPVCSize finds and returns the minimum supported PVC size
+func GetMinimumSupportedPVCSize(sc *storagev1.StorageClass) (string, bool) {
+	provisionerKey := storageProvisionerKey(sc)
+	size, found := MinimumSupportedPVCSizeByProvisionerKey[provisionerKey]
+	return size, found
 }
 
 func capabilitiesForNoProvisioner(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
@@ -371,11 +389,16 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		return "driver.longhorn.io"
 	},
 	"ebs.csi.aws.com": func(sc *storagev1.StorageClass) string {
-		val := sc.Parameters["type"]
-		if val == "io2" {
+		switch sc.Parameters["type"] {
+		case "io1":
+			return "ebs.csi.aws.com/io1"
+		case "io2":
 			return "ebs.csi.aws.com/io2"
+		case "gp2", "gp3":
+			return "ebs.csi.aws.com/gp"
+		default:
+			return "ebs.csi.aws.com"
 		}
-		return "ebs.csi.aws.com"
 	},
 	"pd.csi.storage.gke.io": func(sc *storagev1.StorageClass) string {
 		switch sc.Parameters["type"] {
