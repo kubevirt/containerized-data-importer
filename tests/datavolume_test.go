@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	core "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -213,12 +212,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			parent = checkpoint
 		}
 		return utils.NewDataVolumeWithImageioWarmImport(dataVolumeName, size, url, s.Name, cm, diskID, checkpoints, true)
-	}
-
-	updateWebhookPvcRendering := func(webhookRenderingLabel string) {
-		if webhookRenderingLabel == "true" {
-			EnableWebhookPvcRendering(f.CrClient)
-		}
 	}
 
 	AfterEach(func() {
@@ -2075,8 +2068,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				origSpec.DeepCopyInto(config)
 			})
 
-			DisableWebhookPvcRendering(f.CrClient)
-
 			Eventually(func() bool {
 				config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
@@ -2184,8 +2175,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		DescribeTable("Import fails creating a PVC from DV without accessModes and volume mode, no profile", func(webhookRenderingLabel string, verifyEvent func(string) bool) {
-			updateWebhookPvcRendering(webhookRenderingLabel)
-
 			// assumes local is available and has no volumeMode
 			storageProfileName := findStorageProfileWithoutAccessModes(f.CrClient)
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
@@ -2220,12 +2209,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, timeout, pollingInterval).Should(BeTrue())
 		},
 			Entry("[test_id:5912] (controller rendering)", "false", verifyControllerRenderingEvent),
-			Entry("[rfe_id:10985][crit:high][test_id:11045] (webhook rendering)", Serial, "true", verifyWebhookRenderingEvent),
+			Entry("[rfe_id:10985][crit:high][test_id:11045] (webhook rendering)", "true", verifyWebhookRenderingEvent),
 		)
 
 		DescribeTable("Import fails when no default storage class, and recovers when default is set", func(webhookRenderingLabel string, verifyEvent func(string) bool) {
-			updateWebhookPvcRendering(webhookRenderingLabel)
-
 			By("updating to no default storage class")
 			defaultSc.Annotations[controller.AnnDefaultStorageClass] = "false"
 			defaultSc, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), defaultSc, metav1.UpdateOptions{})
@@ -2269,12 +2256,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 		},
 			Entry("[test_id:8383] (controller rendering)", "false", verifyControllerRenderingNoDefaultScEvent),
-			Entry("[rfe_id:10985][crit:high][test_id:11046] (webhook rendering)", Serial, "true", verifyWebhookRenderingEvent),
+			Entry("[rfe_id:10985][crit:high][test_id:11046] (webhook rendering)", "true", verifyWebhookRenderingEvent),
 		)
 
 		DescribeTable("Import recovers when user adds accessModes to profile", func(webhookRenderingLabel string, verifyEvent func(string) bool) {
-			updateWebhookPvcRendering(webhookRenderingLabel)
-
 			// assumes local is available and has no volumeMode
 			storageProfileName := findStorageProfileWithoutAccessModes(f.CrClient)
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
@@ -2324,7 +2309,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			updateStorageProfileSpec(f.CrClient, storageProfileName, *originalProfileSpec)
 		},
 			Entry("[test_id:5913] (controller rendering)", "false", verifyControllerRenderingEvent),
-			Entry("[rfe_id:10985][crit:high][test_id:11047] (webhook rendering)", Serial, "true", verifyWebhookRenderingEvent),
+			Entry("[rfe_id:10985][crit:high][test_id:11047] (webhook rendering)", "true", verifyWebhookRenderingEvent),
 		)
 
 		It("[test_id:6483]Import pod should not have size corrected on block", func() {
@@ -2662,8 +2647,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				})
 				pvName = ""
 			}
-
-			DisableWebhookPvcRendering(f.CrClient)
 		})
 
 		verifyControllerRenderingEventAndConditions := func(dv *cdiv1.DataVolume) {
@@ -2709,8 +2692,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Skip("Default storage class has no provisioner. The new storage class won't work")
 			}
 
-			updateWebhookPvcRendering(webhookRenderingLabel)
-
 			By(fmt.Sprintf("verifying no storage class %s", testScName))
 			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
 			Expect(err).To(HaveOccurred())
@@ -2746,9 +2727,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Entry("[test_id:9922]the storage class is created (controller rendering)", "false", testScName, verifyControllerRenderingEventAndConditions, createStorageClass),
 			Entry("[test_id:9924]PV with the SC name is created (controller rendering)", "false", testScName, verifyControllerRenderingEventAndConditions, createPV),
 			Entry("[test_id:9925]PV with the SC name (\"\" blank) is created (controller rendering)", "false", "", verifyControllerRenderingEventAndConditions, createPV),
-			Entry("[rfe_id:10985][crit:high][test_id:11049]the storage class is created (webhook rendering)", Serial, "true", testScName, verifyWebhookRenderingEventAndConditions, createStorageClass),
-			Entry("[rfe_id:10985][crit:high][test_id:11050]PV with the SC name is created (webhook rendering)", Serial, "true", testScName, verifyWebhookRenderingEventAndConditions, createPV),
-			Entry("[rfe_id:10985][crit:high][test_id:11051]PV with the SC name (\"\" blank) is created (webhook rendering)", Serial, "true", "", verifyWebhookRenderingEventAndConditions, createPV),
+			Entry("[rfe_id:10985][crit:high][test_id:11049]the storage class is created (webhook rendering)", "true", testScName, verifyWebhookRenderingEventAndConditions, createStorageClass),
+			Entry("[rfe_id:10985][crit:high][test_id:11050]PV with the SC name is created (webhook rendering)", "true", testScName, verifyWebhookRenderingEventAndConditions, createPV),
+			Entry("[rfe_id:10985][crit:high][test_id:11051]PV with the SC name (\"\" blank) is created (webhook rendering)", "true", "", verifyWebhookRenderingEventAndConditions, createPV),
 		)
 
 		newDataVolumeWithStorageSpec := func(scName string) *cdiv1.DataVolume {
@@ -2902,10 +2883,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Skip("Not HPP")
 			}
 			size := "1Gi"
-			By("Verify No FeatureGates")
+			By("Verify no WaitForFirstConsumer FeatureGate")
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(config.Spec.FeatureGates).To(BeNil())
+			Expect(config.Spec.FeatureGates).ShouldNot(ContainElements(featuregates.HonorWaitForFirstConsumer))
 
 			dataVolume := dvFunc(dvName, size, url())
 
@@ -3567,29 +3548,4 @@ func SetFilesystemOverhead(f *framework.Framework, globalOverhead, scOverhead st
 		}
 		return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(globalOverhead)
 	}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig filesystem overhead wasn't set")
-}
-
-func EnableWebhookPvcRendering(c client.Client) {
-	By("enabling WebhookPvcRendering feature gate")
-	_, err := utils.EnableFeatureGate(c, featuregates.WebhookPvcRendering)
-	Expect(err).ToNot(HaveOccurred())
-	Eventually(func() error {
-		whc := &admissionregistrationv1.MutatingWebhookConfiguration{}
-		return c.Get(context.TODO(), types.NamespacedName{Name: "cdi-api-pvc-mutate"}, whc)
-	}, timeout, pollingInterval).ShouldNot(HaveOccurred())
-}
-
-func DisableWebhookPvcRendering(c client.Client) {
-	enabled, err := featuregates.IsWebhookPvcRenderingEnabled(c)
-	Expect(err).ToNot(HaveOccurred())
-	if enabled {
-		By("disabling WebhookPvcRendering feature gate")
-		_, err := utils.DisableFeatureGate(c, featuregates.WebhookPvcRendering)
-		Expect(err).ToNot(HaveOccurred())
-	}
-	Eventually(func() bool {
-		whc := &admissionregistrationv1.MutatingWebhookConfiguration{}
-		err := c.Get(context.TODO(), types.NamespacedName{Name: "cdi-api-pvc-mutate"}, whc)
-		return err != nil && k8serrors.IsNotFound(err)
-	}, timeout, pollingInterval).Should(BeTrue())
 }
