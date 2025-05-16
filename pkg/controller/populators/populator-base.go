@@ -18,6 +18,7 @@ package populators
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/go-logr/logr"
@@ -60,6 +61,8 @@ const (
 	dataSourceRefField = "spec.dataSourceRef"
 
 	uidField = "metadata.uid"
+
+	involvedNameField = "involvedObject.name"
 )
 
 // Interface to store populator-specific methods
@@ -99,6 +102,14 @@ func getIndexArgs() []indexArgs {
 			field: uidField,
 			extractValue: func(obj client.Object) []string {
 				return []string{string(obj.GetUID())}
+			},
+		},
+		{
+			obj:   &corev1.Event{},
+			field: involvedNameField,
+			extractValue: func(obj client.Object) []string {
+				event := obj.(*corev1.Event)
+				return []string{string(event.InvolvedObject.Name)}
 			},
 		},
 	}
@@ -265,6 +276,28 @@ func (r *ReconcilerBase) updatePVCWithPVCPrimeLabels(pvc *corev1.PersistentVolum
 	return pvcCopy, nil
 }
 
+func (r *ReconcilerBase) copyEvents(pvcPrime, pvc *corev1.PersistentVolumeClaim) {
+	fmt.Println("DANNY func call ===========")
+	fmt.Println("PVC prime Name = ", pvcPrime.GetName())
+
+	eventList := &corev1.EventList{}
+	err := r.client.List(context.TODO(), eventList,
+		client.InNamespace(pvc.Namespace),
+		client.MatchingFields{"involvedObject.name": string(pvcPrime.GetName())},
+	)
+
+	if err != nil {
+		fmt.Printf("DANNY: error %s\n", err.Error())
+	} else {
+
+		fmt.Println("DANNY events list size =", len(eventList.Items))
+		for _, event := range eventList.Items {
+			fmt.Printf("event FROM: %s MESSAGE: %s\n", event.InvolvedObject.Name, event.Message)
+			r.recorder.Eventf(pvc, event.Type, event.Reason, event.Message)
+		}
+	}
+}
+
 // reconcile functions
 
 func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorController, pvcNameLogger logr.Logger) (reconcile.Result, error) {
@@ -292,6 +325,8 @@ func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorCon
 
 	// Making sure to clean PVC' once population is completed
 	if cc.IsPVCComplete(pvc) && cc.IsBound(pvc) && !cc.IsMultiStageImportInProgress(pvc) {
+		// before we cleanup pvcPrime, copy over events to pvc
+		r.copyEvents(pvcPrime, pvc)
 		res, err = r.reconcileCleanup(pvcPrime)
 	}
 
