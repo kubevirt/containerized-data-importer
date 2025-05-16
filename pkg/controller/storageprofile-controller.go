@@ -101,6 +101,7 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 	}
 	storageProfile.Status.CloneStrategy = r.reconcileCloneStrategy(sc, storageProfile.Spec.CloneStrategy, snapClass)
 	storageProfile.Status.DataImportCronSourceFormat = r.reconcileDataImportCronSourceFormat(sc, storageProfile.Spec.DataImportCronSourceFormat, snapClass)
+	r.reconcileMinimumSupportedPVCSize(sc, storageProfile)
 
 	var claimPropertySets []cdiv1.ClaimPropertySet
 
@@ -238,6 +239,17 @@ func (r *StorageProfileReconciler) reconcileDataImportCronSourceFormat(sc *stora
 	}
 
 	return &format
+}
+
+func (r *StorageProfileReconciler) reconcileMinimumSupportedPVCSize(sc *storagev1.StorageClass, sp *cdiv1.StorageProfile) {
+	if size, hasSize := storagecapabilities.GetMinimumSupportedPVCSize(sc); hasSize {
+		if _, isAnnotated := sp.Annotations[cc.AnnMinimumSupportedPVCSize]; !isAnnotated {
+			if sp.Annotations == nil {
+				sp.Annotations = make(map[string]string)
+			}
+			sp.Annotations[cc.AnnMinimumSupportedPVCSize] = size
+		}
+	}
 }
 
 func (r *StorageProfileReconciler) createEmptyStorageProfile(sc *storagev1.StorageClass) (*cdiv1.StorageProfile, error) {

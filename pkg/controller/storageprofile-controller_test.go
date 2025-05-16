@@ -449,6 +449,48 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Entry("provisioners where there is no known preferred format", "format.unknown.provisioner.csi.com", cdiv1.DataImportCronSourceFormatPvc, false),
 	)
 
+	DescribeTable("should annotate minimum supported PVC size for", func(provisioner string, setAnnotation *string, expectedAnnotation *string) {
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, provisioner)
+		reconciler = createStorageProfileReconciler(storageClass)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+
+		sp := &cdiv1.StorageProfile{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		minSize, hasMinSize := storagecapabilities.GetMinimumSupportedPVCSize(storageClass)
+		if hasMinSize {
+			Expect(sp.Annotations[AnnMinimumSupportedPVCSize]).To(Equal(minSize))
+		}
+
+		if setAnnotation != nil {
+			if sp.Annotations == nil {
+				sp.Annotations = make(map[string]string)
+			}
+			sp.Annotations[AnnMinimumSupportedPVCSize] = *setAnnotation
+		}
+
+		err = reconciler.client.Update(context.TODO(), sp, &client.UpdateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		if expectedAnnotation == nil {
+			Expect(sp.Annotations).NotTo(HaveKey(AnnMinimumSupportedPVCSize))
+		} else {
+			Expect(sp.Annotations[AnnMinimumSupportedPVCSize]).To(Equal(*expectedAnnotation))
+		}
+	},
+		Entry("provisioner with minimum and StorageProfile not annotated", "pd.csi.storage.gke.io/hyperdisk", nil, ptr.To("4Gi")),
+		Entry("provisioner with minimum and StorageProfile annotated", "ebs.csi.aws.com/io2", ptr.To("1Mi"), ptr.To("1Mi")),
+		Entry("provisioner with minimum and StorageProfile annotated with no-size", "ebs.csi.aws.com/io1", ptr.To(""), ptr.To("")),
+		Entry("provisioner without minimum and StorageProfile annotated", "rbd.csi.ceph.com", ptr.To("1Mi"), ptr.To("1Mi")),
+		Entry("provisioner without minimum and StorageProfile not annotated", "prov", nil, nil),
+	)
+
 	DescribeTable("should set cloneStrategy", func(provisioner string, expectedCloneStrategy cdiv1.CDICloneStrategy, deploySnapClass bool) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
 		reconciler = createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
