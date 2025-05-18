@@ -138,6 +138,20 @@ go_repository(
     urls = ["https://api.github.com/repos/google/go-containerregistry/tarball/efb2d62d93a7705315b841d0544cb5b13565ff2a"],  # v0.1.4.1
 )
 
+# Compress Dependency
+go_repository(
+    name = "com_github_klauspost_compress",
+    commit = "67a538e2b4df11f8ec7139388838a13bce84b5d5",
+    importpath = "github.com/klauspost/compress",
+)
+
+go_repository(
+    name = "org_golang_x_sys",
+    importpath = "golang.org/x/sys",
+    sum = "h1:CM0HF96J0hcLAwsHPJZjfdNzs0gftsLfgKt57wWHJ0o=",
+    version = "v0.12.0",
+)
+
 # RPM rules
 http_archive(
     name = "io_bazel_rules_container_rpm",
