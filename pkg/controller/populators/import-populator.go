@@ -34,8 +34,10 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -97,7 +99,27 @@ func NewImportPopulator(
 		return nil, err
 	}
 
+	if err := addEventWatcher(mgr, importPopulator); err != nil {
+		return nil, err
+	}
+
 	return importPopulator, nil
+}
+
+func addEventWatcher(mgr manager.Manager, c controller.Controller) error {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Event{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.Event](
+		func(_ context.Context, e *corev1.Event) []reconcile.Request {
+			if e.InvolvedObject.Kind == "PersistentVolumeClaim" {
+				return []reconcile.Request{{
+					NamespacedName: types.NamespacedName{Name: e.Namespace},
+				}}
+			}
+			return nil
+		}),
+	)); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Reconcile the reconcile loop for the PVC with DataSourceRef of VolumeImportSource kind
@@ -181,6 +203,51 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	}
 
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcilerBase) copyEvents(pvcPrime, pvc *corev1.PersistentVolumeClaim, log logr.Logger) {
+	newEvents := &corev1.EventList{}
+	err := r.client.List(context.TODO(), newEvents,
+		client.InNamespace(pvcPrime.Namespace),
+		client.MatchingFields{"involvedObject.name": string(pvcPrime.GetName())},
+	)
+
+	if err != nil {
+		log.Error(err, "Could not retrieve PVC Prime list of Events")
+	}
+
+	oldEvents := &corev1.EventList{}
+	err = r.client.List(context.TODO(), oldEvents,
+		client.InNamespace(pvc.Namespace),
+		client.MatchingFields{"involvedObject.name": string(pvc.GetName())},
+	)
+
+	if err != nil {
+		log.Error(err, "Could not retrieve PVC list of Events")
+	}
+
+	log.V(1).Info("List size", "pvcPrime", len(newEvents.Items), "regularPvc", len(oldEvents.Items))
+
+	emitEvent := true
+	for _, primeEvent := range newEvents.Items {
+		emitEvent = true
+		for _, oldEvent := range oldEvents.Items {
+			log.V(1).Info("DANNY: comparing  ====== ")
+			log.V(1).Info(oldEvent.Message)
+			log.V(1).Info(primeEvent.Message)
+			// only want to emit new events from primePvc
+			if strings.Contains(oldEvent.Message, primeEvent.Message) && oldEvent.Reason == primeEvent.Reason {
+				emitEvent = false
+				log.V(1).Info("DANNY: REJECTING")
+				break
+			}
+		}
+		if emitEvent {
+			log.V(1).Info("DANNY: EMITTING")
+			message := "[" + pvcPrime.Name + "]" + primeEvent.Message
+			r.recorder.Eventf(pvc, primeEvent.Type, primeEvent.Reason, message)
+		}
+	}
 }
 
 // Import-specific implementation of updatePVCForPopulation
