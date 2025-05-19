@@ -1632,15 +1632,12 @@ var _ = Describe("Import populator", func() {
 			Expect(err).ToNot(HaveOccurred())
 			pvc = nil
 		}
-
-		tests.DisableWebhookPvcRendering(f.CrClient)
 	})
 
 	DescribeTable("should import fileSystem PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error, preallocation, webhookRendering bool) {
 		pvc = importPopulationPVCDefinition()
 
 		if webhookRendering {
-			tests.EnableWebhookPvcRendering(f.CrClient)
 			controller.AddLabel(pvc, common.PvcApplyStorageProfileLabel, "true")
 			// Unset AccessModes which will be set by the webhook rendering
 			pvc.Spec.AccessModes = nil
@@ -1697,7 +1694,7 @@ var _ = Describe("Import populator", func() {
 	},
 		Entry("[test_id:11001]with HTTP image and preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, false),
 		Entry("[test_id:11002]with HTTP image without preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, false, false),
-		Entry("[rfe_id:10985][crit:high][test_id:11003]with HTTP image and preallocation, with incomplete PVC webhook rendering", Serial, utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, true),
+		Entry("[rfe_id:10985][crit:high][test_id:11003]with HTTP image and preallocation, with incomplete PVC webhook rendering", utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, true),
 		Entry("[test_id:11004]with Registry image and preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, true, false),
 		Entry("[test_id:11005]with Registry image without preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, false, false),
 		Entry("[test_id:11006]with ImageIO image with preallocation", Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, true, false),
