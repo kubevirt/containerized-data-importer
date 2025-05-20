@@ -267,6 +267,7 @@ func (r *ReconcilerBase) copyEvents(pvcPrime, pvc *corev1.PersistentVolumeClaim)
 					r.log.V(1).Info("DANNY: REJECTING")
 					return
 				}
+			}
 		}
 		if emitEvent {
 			r.log.V(1).Info("DANNY: EMITTING")
