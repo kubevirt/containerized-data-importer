@@ -110,7 +110,8 @@ func NewImportPopulator(
 func addEventWatcher(mgr manager.Manager, c controller.Controller) error {
 	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Event{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.Event](
 		func(_ context.Context, e *corev1.Event) []reconcile.Request {
-			if e.InvolvedObject.Kind == "PersistentVolumeClaim" {
+			if e.InvolvedObject.Kind == "PersistentVolumeClaim" && strings.Contains(e.InvolvedObject.Name, "prime") {
+				mgr.GetLogger().V(1).Info("DANNY: got prime event", "name", e.InvolvedObject.Name)
 				return []reconcile.Request{{
 					NamespacedName: types.NamespacedName{Name: e.Namespace},
 				}}
@@ -153,12 +154,16 @@ func (r *ImportPopulatorReconciler) getPopulationSource(pvc *corev1.PersistentVo
 
 // Import-specific implementation of reconcileTargetPVC
 func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
+	r.log.V(1).Info("DANNY: IN REC TARGET PVC")
 	pvcCopy := pvc.DeepCopy()
 	phase := pvcPrime.Annotations[cc.AnnPodPhase]
 	source, err := r.getPopulationSource(pvc)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+
+	// copy over any new events from pvcPrime to pvc
+	r.copyEvents(pvcPrime, pvc)
 
 	switch phase {
 	case string(corev1.PodRunning):
@@ -206,8 +211,8 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcilerBase) copyEvents(pvcPrime, pvc *corev1.PersistentVolumeClaim, log logr.Logger) {
-	log.V(1).Info("DANNY: Starting Copy")
+func (r *ReconcilerBase) copyEvents(pvcPrime, pvc *corev1.PersistentVolumeClaim) {
+	r.log.V(1).Info("DANNY: Starting Copy", "source", r.sourceKind)
 	newEvents := &corev1.EventList{}
 	err := r.client.List(context.TODO(), newEvents,
 		client.InNamespace(pvcPrime.Namespace),
@@ -216,7 +221,7 @@ func (r *ReconcilerBase) copyEvents(pvcPrime, pvc *corev1.PersistentVolumeClaim,
 	)
 
 	if err != nil {
-		log.Error(err, "Could not retrieve PVC Prime list of Events")
+		r.log.Error(err, "Could not retrieve PVC Prime list of Events")
 	}
 
 	oldEvents := &corev1.EventList{}
@@ -227,10 +232,10 @@ func (r *ReconcilerBase) copyEvents(pvcPrime, pvc *corev1.PersistentVolumeClaim,
 	)
 
 	if err != nil {
-		log.Error(err, "Could not retrieve PVC list of Events")
+		r.log.Error(err, "Could not retrieve PVC list of Events")
 	}
 
-	log.V(1).Info("List size", "pvcPrime", len(newEvents.Items), "regularPvc", len(oldEvents.Items))
+	r.log.V(1).Info("List size", "pvcPrime", len(newEvents.Items), "regularPvc", len(oldEvents.Items))
 
 	// Sort event lists by most recent
 	sort.Slice(oldEvents.Items, func(i, j int) bool {
@@ -241,25 +246,35 @@ func (r *ReconcilerBase) copyEvents(pvcPrime, pvc *corev1.PersistentVolumeClaim,
 		return newEvents.Items[i].FirstTimestamp.Time.After(newEvents.Items[j].FirstTimestamp.Time)
 	})
 
-Outer:
-	for _, primeEvent := range newEvents.Items {
+	emitEvent := true
+	for idx, primeEvent := range newEvents.Items {
+		emitEvent = true
+		currTime := primeEvent.FirstTimestamp.Unix()
 		for _, pvcEvent := range oldEvents.Items {
-			log.V(1).Info("DANNY: comparing  ====== ")
-			log.V(1).Info("PVC event", "event: ", pvcEvent.Message)
-			log.V(1).Info("Prime event", "event: ", primeEvent.Message)
+			r.log.V(1).Info("DANNY: comparing  ====== ")
+			r.log.V(1).Info("PVC event", "event: ", pvcEvent.Message)
+			r.log.V(1).Info("Prime event", "event: ", primeEvent.Message)
 			// only want to emit new events from primePvc
-			// since sorted by time, if we find one we've emitted (prefixed with the primePVC name)
+			// since lists are sorted by time, if we find one we've emitted (prefixed with the primePVC name)
 			// then all subsequent events have also been emitted
 			if strings.Contains(pvcEvent.Message, primeEvent.Message) && strings.Contains(pvcEvent.Message, pvcPrime.Name) {
-				log.V(1).Info("DANNY: REJECTING")
-				break Outer
-			}
+				// sometimes events have the equal timestamps, so evaulate next one before quitting
+				if len(newEvents.Items) > idx+1 && currTime == newEvents.Items[idx+1].FirstTimestamp.Unix() {
+					r.log.V(1).Info("Next Timstamp is equal, don't quit")
+					emitEvent = false
+					break
+				} else {
+					r.log.V(1).Info("DANNY: REJECTING")
+					return
+				}
 		}
-		log.V(1).Info("DANNY: EMITTING")
-		message := "[" + pvcPrime.Name + "] : " + primeEvent.Message
-		r.recorder.Eventf(pvc, primeEvent.Type, primeEvent.Reason, message)
+		if emitEvent {
+			r.log.V(1).Info("DANNY: EMITTING")
+			message := "[" + pvcPrime.Name + "] : " + primeEvent.Message
+			r.recorder.Event(pvc, primeEvent.Type, primeEvent.Reason, message)
+		}
 	}
-	log.V(1).Info("DANNY: Ending Copy")
+	r.log.V(1).Info("DANNY: Ending Copy")
 }
 
 // Import-specific implementation of updatePVCForPopulation
