@@ -211,7 +211,7 @@ func (r *ReconcilerBase) copyEvents(pvcPrime, pvc *corev1.PersistentVolumeClaim,
 	newEvents := &corev1.EventList{}
 	err := r.client.List(context.TODO(), newEvents,
 		client.InNamespace(pvcPrime.Namespace),
-		client.MatchingFields{"involvedObject.name": string(pvcPrime.GetName()),
+		client.MatchingFields{"involvedObject.name": pvcPrime.GetName(),
 			"involvedObject.uid": string(pvcPrime.GetUID())},
 	)
 
@@ -222,7 +222,7 @@ func (r *ReconcilerBase) copyEvents(pvcPrime, pvc *corev1.PersistentVolumeClaim,
 	oldEvents := &corev1.EventList{}
 	err = r.client.List(context.TODO(), oldEvents,
 		client.InNamespace(pvc.Namespace),
-		client.MatchingFields{"involvedObject.name": string(pvc.GetName()),
+		client.MatchingFields{"involvedObject.name": pvc.GetName(),
 			"involvedObject.uid": string(pvc.GetUID())},
 	)
 

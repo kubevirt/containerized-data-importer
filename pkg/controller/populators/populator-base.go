@@ -62,7 +62,7 @@ const (
 	uidField = "metadata.uid"
 
 	involvedNameField = "involvedObject.name"
-	involvedUidField  = "involvedObject.uid"
+	involvedUIDField  = "involvedObject.uid"
 )
 
 // Interface to store populator-specific methods
@@ -109,12 +109,12 @@ func getIndexArgs() []indexArgs {
 			field: involvedNameField,
 			extractValue: func(obj client.Object) []string {
 				event := obj.(*corev1.Event)
-				return []string{string(event.InvolvedObject.Name)}
+				return []string{event.InvolvedObject.Name}
 			},
 		},
 		{
 			obj:   &corev1.Event{},
-			field: involvedUidField,
+			field: involvedUIDField,
 			extractValue: func(obj client.Object) []string {
 				event := obj.(*corev1.Event)
 				return []string{string(event.InvolvedObject.UID)}
