@@ -552,6 +552,26 @@ var _ = Describe("MergeDelta", func() {
 	})
 })
 
+var _ = Describe("ValidatePreScratch", func() {
+	It("Should return an error when validation fails due to insufficient space", func() {
+		url, err := url.Parse("http://fakeurl-notreal.fake")
+		Expect(err).ToNot(HaveOccurred())
+		mdp := &MockDataProvider{
+			infoResponse: ProcessingPhaseValidatePreScratch,
+			url:          url,
+		}
+		dp := NewDataProcessor(mdp, "dest", "dataDir", "scratchDataDir", "1G", 0.055, false, "")
+		qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, nil}, image.ErrLargerPVCRequired, nil, nil)
+		replaceQEMUOperations(qemuOperations, func() {
+			err = dp.ProcessData()
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(ValidationSizeError{image.ErrLargerPVCRequired}))
+			Expect(mdp.calledPhases).To(HaveLen(1))
+			Expect(mdp.calledPhases[0]).To(Equal(ProcessingPhaseInfo))
+		})
+	})
+})
+
 func replaceQEMUOperations(replacement image.QEMUOperations, f func()) {
 	orig := qemuOperations
 	if replacement != nil {

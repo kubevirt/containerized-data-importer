@@ -46,6 +46,8 @@ const (
 	ProcessingPhaseTransferDataFile ProcessingPhase = "TransferDataFile"
 	// ProcessingPhaseValidatePause is the phase in which the data processor should validate and then pause.
 	ProcessingPhaseValidatePause ProcessingPhase = "ValidatePause"
+	// ProcessingPhaseValidatePreScratch is the phase in which the data processor should validate available storage before transferring to scratch space.
+	ProcessingPhaseValidatePreScratch ProcessingPhase = "ValidatePreScratch"
 	// ProcessingPhaseConvert is the phase in which the data is taken from the url provided by the source, and it is converted to the target RAW disk image format.
 	// The url can be an http end point or file system end point.
 	ProcessingPhaseConvert ProcessingPhase = "Convert"
@@ -198,6 +200,17 @@ func (dp *DataProcessor) initDefaultPhases() {
 		err := dp.validate(dp.source.GetURL())
 		if err != nil {
 			pp = ProcessingPhaseError
+		}
+		return pp, err
+	})
+	dp.RegisterPhaseExecutor(ProcessingPhaseValidatePreScratch, func() (ProcessingPhase, error) {
+		pp := ProcessingPhaseTransferScratch
+		var err error
+		if sizeErr := dp.validate(dp.source.GetURL()); sizeErr != nil {
+			if errors.Is(sizeErr, ValidationSizeError{image.ErrLargerPVCRequired}) {
+				pp = ProcessingPhaseError
+				err = sizeErr
+			}
 		}
 		return pp, err
 	})
