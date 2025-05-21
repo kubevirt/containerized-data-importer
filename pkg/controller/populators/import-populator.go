@@ -212,7 +212,12 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	return reconcile.Result{}, nil
 }
 
-func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger, rec record.EventRecorder) {
+func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger, recorder record.EventRecorder) {
+	copyingToDv := false
+	log.V(1).Info("DANNY: Kind = ", "kind", destObj.GetObjectKind().GroupVersionKind().Kind)
+	if destObj.GetObjectKind().GroupVersionKind().Kind == "DataVolume" {
+		copyingToDv = true
+	}
 	newEvents := &corev1.EventList{}
 	err := c.List(context.TODO(), newEvents,
 		client.InNamespace(srcObj.GetNamespace()),
@@ -252,12 +257,12 @@ func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger,
 		currTime := newEvent.FirstTimestamp.Unix()
 		for _, oldEvent := range oldEvents.Items {
 			log.V(1).Info("DANNY: comparing  ====== ")
-			log.V(1).Info("PVC event", "event: ", oldEvent.Message)
-			log.V(1).Info("Prime event", "event: ", newEvent.Message)
+			log.V(1).Info("old event", "event: ", oldEvent.Message)
+			log.V(1).Info("new event", "event: ", newEvent.Message)
 			// only want to emit new events from primePvc
 			// since lists are sorted by time, if we find one we've emitted (prefixed with the primePVC name)
 			// then all subsequent events have also been emitted
-			if strings.Contains(oldEvent.Message, newEvent.Message) && strings.Contains(oldEvent.Message, srcObj.GetName()) {
+			if strings.Contains(oldEvent.Message, newEvent.Message) {
 				// sometimes events have the equal timestamps, so evaulate next one before quitting
 				if len(newEvents.Items) > idx+1 && currTime == newEvents.Items[idx+1].FirstTimestamp.Unix() {
 					log.V(1).Info("Next Timstamp is equal, don't quit")
@@ -270,14 +275,20 @@ func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger,
 			}
 		}
 		if emitEvent {
-			log.V(1).Info("DANNY: EMITTING")
 			message := ""
-			if strings.Contains(srcObj.GetName(), "prime") {
-				message = "[" + srcObj.GetName() + "] : " + newEvent.Message
+			// if we are copying to a DV, we only want to copy over events with pvcPrime prefix
+			if copyingToDv {
+				if !strings.Contains(newEvent.Message, "prime") {
+					continue
+				} else {
+					message = newEvent.Message
+				}
 			} else {
-				message = newEvent.Message
+				// only want to add pvcPrime prefix if we are copying to another PVC
+				message = "[" + srcObj.GetName() + "] : " + newEvent.Message
 			}
-			rec.Event(destObj, newEvent.Type, newEvent.Reason, message)
+			recorder.Event(destObj, newEvent.Type, newEvent.Reason, message)
+			log.V(1).Info("DANNY: EMITTING", "message", message)
 		}
 	}
 	log.V(1).Info("DANNY: Ending Copy")
