@@ -5,6 +5,9 @@
 # Container images are built with buildah 
 
 CONTAINER_DISK_IMAGE=${CONTAINER_DISK_IMAGE:-quay.io/kubevirt/container-disk-v1alpha}
+ARCHITECTURES="${ARCHITECTURES:-amd64,arm64,s390x}"
+: "${MULTIARCH_IMAGES:=tinycoreqcow2}"
+MULTIARCH_IMAGES=($MULTIARCH_IMAGES)
 
 #images args
 IMAGES_SRC=$1        #path to files to be encapsulated in docker image
@@ -42,6 +45,15 @@ function health {
 function imageList {
     registry=$registry_host":"$registry_port
     echo curl -k -X GET https://$registry/v2/_catalog
+}
+
+in_array() {
+    local item match="$1"
+    shift
+    for item; do
+        [[ "$item" == "$match" ]] && return 0
+    done
+    return 1
 }
 
 #Convert all images to docker build consumable format
@@ -108,11 +120,18 @@ function pushImages {
         FILE=$(ls | grep -v $DOCKERFILE)
         IMAGENAME=${FILE//.}
         echo "building image "$IMAGENAME
-        buildah bud -t $IMAGENAME":latest" $images"/"$IMAGEDIR"/"
+        if in_array "$IMAGENAME" "${MULTIARCH_IMAGES[@]}"; then
+          buildah bud --platform $ARCHITECTURES --manifest $IMAGENAME":latest" $images"/"$IMAGEDIR"/"
+          error $?
+          echo "pushing image "$IMAGENAME" to registry-service: "$registry
+          buildah manifest push --all $registry_tls  $IMAGENAME":latest" "docker://"$registry"/"$IMAGENAME
+        else 
+          buildah bud -t $IMAGENAME":latest" $images"/"$IMAGEDIR"/"
+          error $?
+          echo "pushing image "$IMAGENAME" to registry-service: "$registry
+          buildah push $registry_tls  $IMAGENAME":latest" "docker://"$registry"/"$IMAGENAME
+        fi
         error $?
-        echo "pushing image "$IMAGENAME" to registry-service: "$registry
-        buildah push $registry_tls  $IMAGENAME":latest" "docker://"$registry"/"$IMAGENAME
-	    error $?
         cd ../
    done
 }
