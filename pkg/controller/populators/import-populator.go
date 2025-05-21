@@ -214,7 +214,6 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 
 func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger, recorder record.EventRecorder) {
 	copyingToDv := false
-	log.V(1).Info("DANNY: Kind = ", "kind", destObj.GetObjectKind().GroupVersionKind().Kind)
 	if destObj.GetObjectKind().GroupVersionKind().Kind == "DataVolume" {
 		copyingToDv = true
 	}
@@ -226,52 +225,45 @@ func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger,
 	)
 
 	if err != nil {
-		log.Error(err, "Could not retrieve destObj Prime list of Events")
+		log.Error(err, "Could not retrieve destObj list of Events")
 	}
 
-	oldEvents := &corev1.EventList{}
-	err = c.List(context.TODO(), oldEvents,
+	currEvents := &corev1.EventList{}
+	err = c.List(context.TODO(), currEvents,
 		client.InNamespace(destObj.GetNamespace()),
 		client.MatchingFields{"involvedObject.name": destObj.GetName(),
 			"involvedObject.uid": string(destObj.GetUID())},
 	)
 
 	if err != nil {
-		log.Error(err, "Could not retrieve PVC list of Events")
+		log.Error(err, "Could not retrieve srcObj list of Events")
 	}
 
-	log.V(1).Info("List size", "srcObj", len(newEvents.Items), "regularPvc", len(oldEvents.Items))
-
 	// Sort event lists by most recent
-	sort.Slice(oldEvents.Items, func(i, j int) bool {
-		return oldEvents.Items[i].FirstTimestamp.Time.After(oldEvents.Items[j].FirstTimestamp.Time)
+	sort.Slice(currEvents.Items, func(i, j int) bool {
+		return currEvents.Items[i].FirstTimestamp.Time.After(currEvents.Items[j].FirstTimestamp.Time)
 	})
 
 	sort.Slice(newEvents.Items, func(i, j int) bool {
 		return newEvents.Items[i].FirstTimestamp.Time.After(newEvents.Items[j].FirstTimestamp.Time)
 	})
 
-	emitEvent := true
+	var emitEvent bool
 	for idx, newEvent := range newEvents.Items {
 		emitEvent = true
 		currTime := newEvent.FirstTimestamp.Unix()
-		for _, oldEvent := range oldEvents.Items {
-			log.V(1).Info("DANNY: comparing  ====== ")
-			log.V(1).Info("old event", "event: ", oldEvent.Message)
-			log.V(1).Info("new event", "event: ", newEvent.Message)
+		for _, currEvent := range currEvents.Items {
 			// only want to emit new events from primePvc
-			// since lists are sorted by time, if we find one we've emitted (prefixed with the primePVC name)
+			// since lists are sorted by time, if we find one we've emitted
 			// then all subsequent events have also been emitted
-			if strings.Contains(oldEvent.Message, newEvent.Message) {
+			if strings.Contains(currEvent.Message, newEvent.Message) {
 				// sometimes events have the equal timestamps, so evaulate next one before quitting
 				if len(newEvents.Items) > idx+1 && currTime == newEvents.Items[idx+1].FirstTimestamp.Unix() {
-					log.V(1).Info("Next Timstamp is equal, don't quit")
 					emitEvent = false
+					// move onto next newEvent
 					break
-				} else {
-					log.V(1).Info("DANNY: REJECTING")
-					return
 				}
+				return
 			}
 		}
 		if emitEvent {
@@ -280,18 +272,15 @@ func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger,
 			if copyingToDv {
 				if !strings.Contains(newEvent.Message, "prime") {
 					continue
-				} else {
-					message = newEvent.Message
 				}
+				message = newEvent.Message
 			} else {
 				// only want to add pvcPrime prefix if we are copying to another PVC
 				message = "[" + srcObj.GetName() + "] : " + newEvent.Message
 			}
 			recorder.Event(destObj, newEvent.Type, newEvent.Reason, message)
-			log.V(1).Info("DANNY: EMITTING", "message", message)
 		}
 	}
-	log.V(1).Info("DANNY: Ending Copy")
 }
 
 // Import-specific implementation of updatePVCForPopulation
