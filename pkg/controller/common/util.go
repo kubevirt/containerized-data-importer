@@ -391,6 +391,9 @@ var (
 	}
 
 	validLabelsMatch = regexp.MustCompile(`^([\w.]+\.kubevirt.io|kubevirt.io)/[\w-]+$`)
+
+	ErrDataSourceMaxDepthReached = errors.New("DataSource reference chain exceeds maximum depth of 1")
+	ErrDataSourceSelfReference   = errors.New("DataSource cannot self-reference")
 )
 
 // FakeValidator is a fake token validator
@@ -2085,4 +2088,29 @@ func AllowClaimAdoption(c client.Client, pvc *corev1.PersistentVolumeClaim, dv *
 		return val, nil
 	}
 	return featuregates.NewFeatureGates(c).ClaimAdoptionEnabled()
+}
+
+// ResolveDataSourceChain resolves a DataSource reference.
+// Returns an error if DataSource reference is not found or
+// DataSource reference points to another DataSource
+func ResolveDataSourceChain(ctx context.Context, client client.Client, dataSource *cdiv1.DataSource) (*cdiv1.DataSource, error) {
+	if dataSource.Spec.Source.DataSource == nil {
+		return dataSource, nil
+	}
+
+	ref := dataSource.Spec.Source.DataSource
+	refNs := GetNamespace(ref.Namespace, dataSource.Namespace)
+	if ref.Name == dataSource.Name && refNs == dataSource.Namespace {
+		return nil, ErrDataSourceSelfReference
+	}
+	resolved := &cdiv1.DataSource{}
+	if err := client.Get(ctx, types.NamespacedName{Name: ref.Name, Namespace: refNs}, resolved); err != nil {
+		return nil, err
+	}
+
+	if resolved.Spec.Source.DataSource != nil {
+		return nil, ErrDataSourceMaxDepthReached
+	}
+
+	return resolved, nil
 }

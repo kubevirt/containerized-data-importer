@@ -4533,10 +4533,33 @@
      }
     }
    },
+   "v1beta1.DataSourceRefSourceDataSource": {
+    "description": "DataSourceRefSourceDataSource serves as a reference to another DataSource Can be resolved into a DataVolumeSourcePVC or a DataVolumeSourceSnapshot The maximum depth of a reference chain may not exceed 1.",
+    "type": "object",
+    "required": [
+     "namespace",
+     "name"
+    ],
+    "properties": {
+     "name": {
+      "description": "The name of the source DataSource",
+      "type": "string",
+      "default": ""
+     },
+     "namespace": {
+      "description": "The namespace of the source DataSource",
+      "type": "string",
+      "default": ""
+     }
+    }
+   },
    "v1beta1.DataSourceSource": {
     "description": "DataSourceSource represents the source for our DataSource",
     "type": "object",
     "properties": {
+     "dataSource": {
+      "$ref": "#/definitions/v1beta1.DataSourceRefSourceDataSource"
+     },
      "pvc": {
       "$ref": "#/definitions/v1beta1.DataVolumeSourcePVC"
      },

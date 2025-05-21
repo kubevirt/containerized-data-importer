@@ -156,6 +156,17 @@ type DataVolumeSourceSnapshot struct {
 	Name string `json:"name"`
 }
 
+// DataSourceRefSourceDataSource serves as a reference to another DataSource
+// Can be resolved into a DataVolumeSourcePVC or a DataVolumeSourceSnapshot
+// The maximum depth of a reference chain may not exceed 1.
+type DataSourceRefSourceDataSource struct {
+	// The namespace of the source DataSource
+	Namespace string `json:"namespace"`
+	// The name of the source DataSource
+	Name string `json:"name"`
+
+}
+
 // DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC
 type DataVolumeBlankImage struct{}
 
@@ -505,6 +516,8 @@ type DataSourceSource struct {
 	PVC *DataVolumeSourcePVC `json:"pvc,omitempty"`
 	// +optional
 	Snapshot *DataVolumeSourceSnapshot `json:"snapshot,omitempty"`
+	// +optional
+	DataSource *DataSourceRefSourceDataSource `json:"dataSource,omitempty"` 
 }
 
 // DataSourceStatus provides the most recently observed status of the DataSource
