@@ -274,8 +274,6 @@ func (r *ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, 
 		return nil
 	}
 
-	populators.CopyEvents(pvc, dataVolumeCopy, r.client, r.log, r.recorder)
-
 	switch phase {
 	case string(corev1.PodPending):
 		// TODO: Use a more generic Scheduled, like maybe TransferScheduled.
