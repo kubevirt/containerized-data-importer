@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -57,6 +58,8 @@ const (
 	ready                    = "Ready"
 	noSource                 = "NoSource"
 	dataSourceControllerName = "datasource-controller"
+	maxReferenceDepthReached = "MaxReferenceDepthReached"
+	selfReference            = "SelfReference"
 )
 
 // Reconcile loop for DataSourceReconciler
@@ -75,21 +78,37 @@ func (r *DataSourceReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 }
 
 func (r *DataSourceReconciler) update(ctx context.Context, dataSource *cdiv1.DataSource) error {
-	if !reflect.DeepEqual(dataSource.Status.Source, dataSource.Spec.Source) {
-		dataSource.Spec.Source.DeepCopyInto(&dataSource.Status.Source)
+	dataSourceCopy := dataSource.DeepCopy()
+	resolved, err := cc.ResolveDataSourceChain(ctx, r.client, dataSource)
+	if err != nil {
+		log := r.log.WithValues("datasource", dataSource.Name, "namespace", dataSource.Namespace)
+		log.Info(err.Error())
+		if err := handleDataSourceRefError(dataSource, err); err != nil {
+			return err
+		}
+		resolved = dataSource
+	} else {
+		resolved.Spec.Source.DeepCopyInto(&dataSource.Status.Source)
 		dataSource.Status.Conditions = nil
 	}
-	dataSourceCopy := dataSource.DeepCopy()
-	if sourcePVC := dataSource.Spec.Source.PVC; sourcePVC != nil {
-		if err := r.handlePvcSource(ctx, sourcePVC, dataSource); err != nil {
+
+	switch {
+	case resolved.Spec.Source.DataSource != nil:
+		// Status condition handling already took place, continue to update
+	case resolved.Spec.Source.PVC != nil:
+		if err := r.handlePvcSource(ctx, resolved.Spec.Source.PVC, dataSource); err != nil {
 			return err
 		}
-	} else if sourceSnapshot := dataSource.Spec.Source.Snapshot; sourceSnapshot != nil {
-		if err := r.handleSnapshotSource(ctx, sourceSnapshot, dataSource); err != nil {
+	case resolved.Spec.Source.Snapshot != nil:
+		if err := r.handleSnapshotSource(ctx, resolved.Spec.Source.Snapshot, dataSource); err != nil {
 			return err
 		}
-	} else {
+	default:
 		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "No source PVC set", noSource)
+	}
+
+	if dsCond := FindDataSourceConditionByType(dataSource, cdiv1.DataSourceReady); dsCond != nil && dsCond.Status == corev1.ConditionFalse {
+		dataSource.Status.Source = cdiv1.DataSourceSource{}
 	}
 
 	if !reflect.DeepEqual(dataSource, dataSourceCopy) {
@@ -152,6 +171,22 @@ func (r *DataSourceReconciler) handleSnapshotSource(ctx context.Context, sourceS
 		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "Snapshot phase is not ready", "SnapshotNotReady")
 	}
 
+	return nil
+}
+
+func handleDataSourceRefError(dataSource *cdiv1.DataSource, err error) error {
+	reason := ""
+	switch {
+	case errors.Is(err, cc.ErrDataSourceMaxDepthReached):
+		reason = maxReferenceDepthReached
+	case errors.Is(err, cc.ErrDataSourceSelfReference):
+		reason = selfReference
+	case k8serrors.IsNotFound(err):
+		reason = cc.NotFound
+	default:
+		return err
+	}
+	updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, err.Error(), reason)
 	return nil
 }
 
