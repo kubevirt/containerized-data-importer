@@ -121,13 +121,13 @@ func (r *UploadPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	pvc.Annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, uploadSource.Spec.Preallocation))
 }
 
-func (r *UploadPopulatorReconciler) updatePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim, pvcPrimeName string) (bool, error) {
+func updatePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim, pvcPrimeName string, client client.Client) (bool, error) {
 	if _, ok := pvc.Annotations[AnnPVCPrimeName]; ok {
 		return false, nil
 	}
 
 	cc.AddAnnotation(pvc, AnnPVCPrimeName, pvcPrimeName)
-	if err := r.client.Update(context.TODO(), pvc); err != nil {
+	if err := client.Update(context.TODO(), pvc); err != nil {
 		return false, err
 	}
 
@@ -149,7 +149,7 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	phase := pvcPrime.Annotations[cc.AnnPodPhase]
 
 	if phase != string(corev1.PodSucceeded) {
-		updated, err := r.updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name)
+		updated, err := updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name, r.client)
 		if updated || err != nil {
 			// wait for the annotation to be updated
 			return reconcile.Result{}, err
