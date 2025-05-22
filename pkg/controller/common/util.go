@@ -331,7 +331,7 @@ const (
 	// LabelExcludeFromVeleroBackup provides a const to indicate whether an object should be excluded from velero backup
 	LabelExcludeFromVeleroBackup = "velero.io/exclude-from-backup"
 
-	// LabelIstioAmbientDataPlaneMode is a label used to enable/disable Istio ambient mesh
+	// LabelIstioAmbientDataPlaneMode is a label used to enable/disable Istio ambient mesh (options: none, ambient)
 	LabelIstioAmbientDataPlaneMode = "istio.io/dataplane-mode"
 	// LabelIstioAmbientDatePlaneModeDefault is the default value for Istio ambient mesh (disabled)
 	LabelIstioAmbientDatePlaneModeDefault = "none"
