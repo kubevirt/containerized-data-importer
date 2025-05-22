@@ -112,7 +112,6 @@ func addEventWatcher(mgr manager.Manager, c controller.Controller) error {
 	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Event{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.Event](
 		func(_ context.Context, e *corev1.Event) []reconcile.Request {
 			if e.InvolvedObject.Kind == "PersistentVolumeClaim" && strings.Contains(e.InvolvedObject.Name, "prime") {
-				mgr.GetLogger().V(1).Info("DANNY: got prime event", "name", e.InvolvedObject.Name)
 				return []reconcile.Request{{
 					NamespacedName: types.NamespacedName{Name: e.Namespace},
 				}}
@@ -155,7 +154,6 @@ func (r *ImportPopulatorReconciler) getPopulationSource(pvc *corev1.PersistentVo
 
 // Import-specific implementation of reconcileTargetPVC
 func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
-	r.log.V(1).Info("DANNY: IN REC TARGET PVC")
 	pvcCopy := pvc.DeepCopy()
 	phase := pvcPrime.Annotations[cc.AnnPodPhase]
 	source, err := r.getPopulationSource(pvc)

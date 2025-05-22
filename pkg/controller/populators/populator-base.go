@@ -288,7 +288,6 @@ func (r *ReconcilerBase) updatePVCWithPVCPrimeLabels(pvc *corev1.PersistentVolum
 
 func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorController, pvcNameLogger logr.Logger) (reconcile.Result, error) {
 	// Get the target PVC
-	pvcNameLogger.V(1).Info("DANNY: IN POPULATOR REC")
 	pvc := &corev1.PersistentVolumeClaim{}
 	if err := r.client.Get(context.TODO(), req.NamespacedName, pvc); err != nil {
 		if k8serrors.IsNotFound(err) {
