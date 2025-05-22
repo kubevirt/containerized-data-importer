@@ -318,6 +318,31 @@ var _ = Describe("GetMetricsURL", func() {
 	})
 })
 
+var _ = Describe("SetDefaultLables", func() {
+	It("Should set default labels", func() {
+		pod := &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"test": "test",
+				},
+			},
+		}
+		SetDefaultLabels(pod)
+		Expect(pod.Labels).To(HaveKeyWithValue(LabelIstioAmbientDataPlaneMode, LabelIstioAmbientDatePlaneModeDefault))
+	})
+	It("Should not overwrite existing labels", func() {
+		pod := &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					LabelIstioAmbientDataPlaneMode: "ambient",
+				},
+			},
+		}
+		SetDefaultLabels(pod)
+		Expect(pod.Labels).To(HaveKeyWithValue(LabelIstioAmbientDataPlaneMode, "ambient"))
+	})
+})
+
 var _ = Describe("CopyAllowedLabels", func() {
 	const (
 		testKubevirtIoKey               = "test.kubevirt.io/test"
