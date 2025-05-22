@@ -81,6 +81,8 @@ const (
 
 	populatorValidatePath = "/populator-validate"
 
+	dataSourceValidatePath = "/datasource-validate"
+
 	healthzPath = "/healthz"
 )
 
@@ -217,6 +219,11 @@ func NewCdiAPIServer(bindAddress string,
 	err = app.createPopulatorValidatingWebhook()
 	if err != nil {
 		return nil, errors.Errorf("failed to create Populator validating webhook: %s", err)
+	}
+
+	err = app.createDataSourceValidatingWebhook()
+	if err != nil {
+		return nil, errors.Errorf("failed to create DataSource validating webhook: %s", err)
 	}
 
 	return app, nil
@@ -558,6 +565,11 @@ func (app *cdiAPIApp) createDataImportCronValidatingWebhook() error {
 }
 func (app *cdiAPIApp) createPopulatorValidatingWebhook() error {
 	app.container.ServeMux.Handle(populatorValidatePath, webhooks.NewPopulatorValidatingWebhook(app.client, app.cdiClient))
+	return nil
+}
+
+func (app *cdiAPIApp) createDataSourceValidatingWebhook() error {
+	app.container.ServeMux.Handle(dataSourceValidatePath, webhooks.NewDataSourceValidatingWebhook())
 	return nil
 }
 

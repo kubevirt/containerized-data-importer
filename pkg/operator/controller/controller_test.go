@@ -2011,6 +2011,7 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.MutatingWebhookConfiguration cdi-api-datavolume-mutate"] = false
 	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration cdi-api-validate"] = false
 	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration cdi-api-populator-validate"] = false
+	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration cdi-api-datasource-validate"] = false
 	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration objecttransfer-api-validate"] = false
 	match[normalCreateSuccess+" *v1.ValidatingWebhookConfiguration cdi-api-dataimportcron-validate"] = false
 	match[normalCreateSuccess+" *v1.Secret cdi-apiserver-signer"] = false

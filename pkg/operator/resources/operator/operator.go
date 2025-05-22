@@ -132,6 +132,7 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 			ResourceNames: []string{
 				"cdi-api-dataimportcron-validate",
 				"cdi-api-populator-validate",
+				"cdi-api-datasource-validate",
 				"cdi-api-datavolume-validate",
 				"cdi-api-validate",
 				"objecttransfer-api-validate",

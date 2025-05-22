@@ -96,6 +96,10 @@ func NewPopulatorValidatingWebhook(k8sClient kubernetes.Interface, cdiClient cdi
 	return newAdmissionHandler(&populatorValidatingWebhook{dataVolumeValidatingWebhook{k8sClient: k8sClient, cdiClient: cdiClient}})
 }
 
+func NewDataSourceValidatingWebhook() http.Handler {
+	return newAdmissionHandler(&dataSourceValidatingWebhook{})
+}
+
 func newCloneTokenGenerator(key *rsa.PrivateKey) token.Generator {
 	return token.NewGenerator(common.CloneTokenIssuer, key, 5*time.Minute)
 }

@@ -2074,3 +2074,31 @@ func AllowClaimAdoption(c client.Client, pvc *corev1.PersistentVolumeClaim, dv *
 	}
 	return featuregates.NewFeatureGates(c).ClaimAdoptionEnabled()
 }
+
+// ResolveDataSourceChain resolves a DataSource reference until there's either
+// no more DataSource references to resolve or max resolution depth is reached
+func ResolveDataSourceChain(ctx context.Context, client client.Client, dataSource *cdiv1.DataSource, maxDepth int) (*cdiv1.DataSource, error) {
+	current := dataSource.DeepCopy()
+	ns := current.Namespace
+
+	for range maxDepth {
+		if current.Spec.Source.DataSource == nil {
+			break
+		}
+		ref := current.Spec.Source.DataSource
+		name := ref.Name
+		ns = GetNamespace(ref.Namespace, ns)
+
+		next := &cdiv1.DataSource{}
+		if err := client.Get(ctx, types.NamespacedName{Name: name, Namespace: ns}, next); err != nil {
+			return current, err
+		}
+		current = next
+	}
+
+	if current.Spec.Source.DataSource != nil {
+		return current, fmt.Errorf("DataSource reference chain exceeds maximum depth of %d", maxDepth)
+	}
+
+	return current, nil
+}

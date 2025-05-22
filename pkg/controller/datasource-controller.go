@@ -57,6 +57,7 @@ const (
 	ready                    = "Ready"
 	noSource                 = "NoSource"
 	dataSourceControllerName = "datasource-controller"
+	maxReferenceDepthReached = "MaxReferenceDepthReached"
 )
 
 // Reconcile loop for DataSourceReconciler
@@ -75,20 +76,30 @@ func (r *DataSourceReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 }
 
 func (r *DataSourceReconciler) update(ctx context.Context, dataSource *cdiv1.DataSource) error {
-	if !reflect.DeepEqual(dataSource.Status.Source, dataSource.Spec.Source) {
-		dataSource.Spec.Source.DeepCopyInto(&dataSource.Status.Source)
+	resolved, err := cc.ResolveDataSourceChain(ctx, r.client, dataSource, 1)
+	if resolved != nil && !reflect.DeepEqual(dataSource.Status.Source, resolved.Spec.Source) {
+		resolved.Spec.Source.DeepCopyInto(&dataSource.Status.Source)
 		dataSource.Status.Conditions = nil
 	}
+
 	dataSourceCopy := dataSource.DeepCopy()
-	if sourcePVC := dataSource.Spec.Source.PVC; sourcePVC != nil {
-		if err := r.handlePvcSource(ctx, sourcePVC, dataSource); err != nil {
+	switch {
+	case resolved.Spec.Source.DataSource != nil && err != nil:
+		reason := maxReferenceDepthReached
+		if k8serrors.IsNotFound(err) {
+			reason = cc.NotFound
+		}
+		r.log.Info(err.Error())
+		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, err.Error(), reason)
+	case resolved.Spec.Source.PVC != nil:
+		if err := r.handlePvcSource(ctx, resolved.Spec.Source.PVC, dataSource); err != nil {
 			return err
 		}
-	} else if sourceSnapshot := dataSource.Spec.Source.Snapshot; sourceSnapshot != nil {
-		if err := r.handleSnapshotSource(ctx, sourceSnapshot, dataSource); err != nil {
+	case resolved.Spec.Source.Snapshot != nil:
+		if err := r.handleSnapshotSource(ctx, resolved.Spec.Source.Snapshot, dataSource); err != nil {
 			return err
 		}
-	} else {
+	default:
 		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "No source PVC set", noSource)
 	}
 
