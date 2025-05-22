@@ -331,6 +331,11 @@ const (
 	// LabelExcludeFromVeleroBackup provides a const to indicate whether an object should be excluded from velero backup
 	LabelExcludeFromVeleroBackup = "velero.io/exclude-from-backup"
 
+	// LabelIstioAmbientDataPlaneMode is a label used to enable/disable Istio ambient mesh
+	LabelIstioAmbientDataPlaneMode = "istio.io/dataplane-mode"
+	// LabelIstioAmbientDatePlaneModeDefault is the default value for Istio ambient mesh (disabled)
+	LabelIstioAmbientDatePlaneModeDefault = "none"
+
 	// ProgressDone this means we are DONE
 	ProgressDone = "100.0%"
 
@@ -387,6 +392,12 @@ var (
 	}
 
 	validLabelsMatch = regexp.MustCompile(`^([\w.]+\.kubevirt.io|kubevirt.io)/[\w-]+$`)
+
+	// defaultLabels is a list of default labels
+	// that should be added to the pod
+	defaultLabels = map[string]string{
+		LabelIstioAmbientDataPlaneMode: LabelIstioAmbientDatePlaneModeDefault,
+	}
 )
 
 // FakeValidator is a fake token validator
@@ -2030,6 +2041,16 @@ func CopyAllowedAnnotations(srcObj, dstObj metav1.Object) {
 		if val != "" {
 			klog.V(1).Info("Applying annotation", "Name", dstObj.GetName(), ann, val)
 			AddAnnotation(dstObj, ann, val)
+		}
+	}
+}
+
+// SetDefaultLabels sets default labels on the object if they are not already set
+func SetDefaultLabels(obj metav1.Object) {
+	for l, v := range defaultLabels {
+		if val, ok := obj.GetLabels()[l]; !ok || val == "" {
+			klog.V(1).Info("Applying label", "Name", obj.GetName(), l, v)
+			AddLabel(obj, l, v)
 		}
 	}
 }
