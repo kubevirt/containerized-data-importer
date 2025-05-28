@@ -3477,6 +3477,52 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume.Spec.Source.VDDK.ExtraArgs = "vddk-extras"
 		}),
 	)
+
+	Describe("Events and Conditions from PVC Prime", func() {
+
+		It("should have PVC Prime events and name populated in bound condition while pending", func() {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1G", tinyCoreIsoURL())
+
+			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			// verify PVC was created
+			By("verifying pvc was created")
+			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("checking pvcPrime annotation was set")
+			primeName := pvc.GetAnnotations()[controller.AnnAPIGroup+"/storage.populator.pvcPrime"]
+			Expect(primeName).ToNot(Equal(""))
+
+			By("verifying bound condition")
+			boundCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeBound,
+				Status:  v1.ConditionFalse,
+				Message: "PVC test-dv [Prime PVC " + primeName + "] Pending",
+				Reason:  "Pending",
+			}
+			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition)
+
+			By("Verifying event occurred")
+			Eventually(func() bool {
+				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=PersistentVolumeClaim")
+				primeEvent := fmt.Sprintf("[%s]", primeName)
+				if err == nil {
+					fmt.Fprintf(GinkgoWriter, "%s", events)
+					// make sure we get events from pvcPrime
+					return strings.Contains(events, primeEvent)
+				}
+				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+
+		})
+
+	})
+
 })
 
 func SetFilesystemOverhead(f *framework.Framework, globalOverhead, scOverhead string) {
