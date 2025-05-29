@@ -3501,7 +3501,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			boundCondition := &cdiv1.DataVolumeCondition{
 				Type:    cdiv1.DataVolumeBound,
 				Status:  v1.ConditionFalse,
-				Message: "PVC test-dv [Prime PVC " + primeName + "] Pending",
+				Message: "PVC test-dv Pending [prime PVC " + primeName + "]",
 				Reason:  "Pending",
 			}
 			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition)

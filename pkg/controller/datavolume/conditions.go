@@ -130,7 +130,7 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 		pvcPrimeMessage := ""
 		val, exists := pvc.GetAnnotations()[cc.AnnAPIGroup+"/storage.populator.pvcPrime"]
 		if exists {
-			pvcPrimeMessage = fmt.Sprintf(" [Prime PVC %s]", val)
+			pvcPrimeMessage = fmt.Sprintf("[prime PVC %s]", val)
 		}
 		switch pvc.Status.Phase {
 		case corev1.ClaimBound:
@@ -142,7 +142,7 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 			}
 		case corev1.ClaimPending:
 			if pvcCondition == nil || pvcCondition.Status == corev1.ConditionTrue {
-				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("PVC %s%s Pending", pvc.Name, pvcPrimeMessage), pvcPending)
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("PVC %s Pending %s", pvc.Name, pvcPrimeMessage), pvcPending)
 				conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			} else {
 				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC %s Pending and %s", pvc.Name, pvcCondition.Message), pvcCondition.Reason)
