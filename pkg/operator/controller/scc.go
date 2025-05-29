@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/go-logr/logr"
 	secv1 "github.com/openshift/api/security/v1"
@@ -133,8 +134,12 @@ func ensureSCCExists(ctx context.Context, logger logr.Logger, c client.Client, s
 	if !sdk.ContainsStringValue(scc.Users, cronUserName) {
 		scc.Users = append(scc.Users, cronUserName)
 	}
+	// Avoid hotloop by sorting volumes slice prior to comparison
+	slices.Sort(origSCC.Volumes)
+	slices.Sort(scc.Volumes)
 
 	if !apiequality.Semantic.DeepEqual(origSCC, scc) {
+		sdk.LogJSONDiff(logger, origSCC, scc)
 		if err := c.Update(context.TODO(), scc); err != nil {
 			return false, err
 		}

@@ -37,6 +37,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -247,6 +248,35 @@ var _ = Describe("Controller", func() {
 				))
 				Expect(scc.AllowPrivilegeEscalation).To(HaveValue(BeFalse()))
 				validateEvents(args.reconciler, createReadyEventValidationMap())
+			})
+
+			It("should not fire event over order differences in scc volumes stanza", func() {
+				scc := &secv1.SecurityContextConstraints{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: sccName,
+						Labels: map[string]string{
+							"cdi.kubevirt.io": "",
+						},
+					},
+					Users: []string{
+						"system:serviceaccount:cdi:cdi-sa",
+						"system:serviceaccount:cdi:cdi-cronjob",
+					},
+				}
+				setSCC(scc)
+				sccCpy := scc.DeepCopy()
+				// Shuffle order
+				scc.Volumes[0], scc.Volumes[1] = scc.Volumes[1], scc.Volumes[0]
+				Expect(apiequality.Semantic.DeepEqual(sccCpy.Volumes, scc.Volumes)).To(BeFalse())
+				args := createArgs(scc)
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				events := args.reconciler.recorder.(*record.FakeRecorder).Events
+				close(events)
+				for event := range events {
+					Expect(event).ToNot(ContainSubstring("SecurityContextConstraint"))
+				}
 			})
 
 			It("should create all resources", func() {
