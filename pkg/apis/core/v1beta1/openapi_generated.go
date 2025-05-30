@@ -373,6 +373,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransferSpec":       schema_pkg_apis_core_v1beta1_ObjectTransferSpec(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransferStatus":     schema_pkg_apis_core_v1beta1_ObjectTransferStatus(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.OldTLSProfile":            schema_pkg_apis_core_v1beta1_OldTLSProfile(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.PlatformOptions":          schema_pkg_apis_core_v1beta1_PlatformOptions(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfile":           schema_pkg_apis_core_v1beta1_StorageProfile(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileList":       schema_pkg_apis_core_v1beta1_StorageProfileList(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileSpec":       schema_pkg_apis_core_v1beta1_StorageProfileSpec(ref),
@@ -18273,9 +18274,17 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref common.ReferenceC
 							Format:      "",
 						},
 					},
+					"platform": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Platform describes the minimum runtime requirements of the image",
+							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.PlatformOptions"),
+						},
+					},
 				},
 			},
 		},
+		Dependencies: []string{
+			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.PlatformOptions"},
 	}
 }
 
@@ -19032,6 +19041,25 @@ func schema_pkg_apis_core_v1beta1_OldTLSProfile(ref common.ReferenceCallback) co
 			SchemaProps: spec.SchemaProps{
 				Description: "OldTLSProfile is a TLS security profile based on: https://wiki.mozilla.org/Security/Server_Side_TLS#Old_backward_compatibility",
 				Type:        []string{"object"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_PlatformOptions(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"architecture": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Architecture specifies the image target CPU architecture",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
 			},
 		},
 	}
