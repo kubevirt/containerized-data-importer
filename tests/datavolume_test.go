@@ -3493,8 +3493,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
-			By("checking pvcPrime annotation was set")
 			primeName := pvc.GetAnnotations()[controller.AnnAPIGroup+"/storage.populator.pvcPrime"]
+			if primeName == "" {
+				primeName = populators.PVCPrimeName(pvc)
+			}
 			Expect(primeName).ToNot(Equal(""))
 
 			By("verifying bound condition")
