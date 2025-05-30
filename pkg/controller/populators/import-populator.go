@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -31,11 +32,14 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -97,7 +101,27 @@ func NewImportPopulator(
 		return nil, err
 	}
 
+	if err := addEventWatcher(mgr, importPopulator); err != nil {
+		return nil, err
+	}
+
 	return importPopulator, nil
+}
+
+func addEventWatcher(mgr manager.Manager, c controller.Controller) error {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Event{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.Event](
+		func(_ context.Context, e *corev1.Event) []reconcile.Request {
+			if e.InvolvedObject.Kind == "PersistentVolumeClaim" && strings.Contains(e.InvolvedObject.Name, "prime") {
+				return []reconcile.Request{{
+					NamespacedName: types.NamespacedName{Name: e.Namespace},
+				}}
+			}
+			return nil
+		}),
+	)); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Reconcile the reconcile loop for the PVC with DataSourceRef of VolumeImportSource kind
@@ -136,6 +160,14 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+
+	_, err = updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name, r.client)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// copy over any new events from pvcPrime to pvc
+	CopyEvents(pvcPrime, pvc, r.client, r.log, r.recorder)
 
 	switch phase {
 	case string(corev1.PodRunning):
@@ -181,6 +213,77 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	}
 
 	return reconcile.Result{}, nil
+}
+
+func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger, recorder record.EventRecorder) {
+	copyingToDv := false
+	if destObj.GetObjectKind().GroupVersionKind().Kind == "DataVolume" {
+		copyingToDv = true
+	}
+	newEvents := &corev1.EventList{}
+	err := c.List(context.TODO(), newEvents,
+		client.InNamespace(srcObj.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": srcObj.GetName(),
+			"involvedObject.uid": string(srcObj.GetUID())},
+	)
+
+	if err != nil {
+		log.Error(err, "Could not retrieve destObj list of Events")
+	}
+
+	currEvents := &corev1.EventList{}
+	err = c.List(context.TODO(), currEvents,
+		client.InNamespace(destObj.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": destObj.GetName(),
+			"involvedObject.uid": string(destObj.GetUID())},
+	)
+
+	if err != nil {
+		log.Error(err, "Could not retrieve srcObj list of Events")
+	}
+
+	// Sort event lists by most recent
+	sort.Slice(currEvents.Items, func(i, j int) bool {
+		return currEvents.Items[i].FirstTimestamp.Time.After(currEvents.Items[j].FirstTimestamp.Time)
+	})
+
+	sort.Slice(newEvents.Items, func(i, j int) bool {
+		return newEvents.Items[i].FirstTimestamp.Time.After(newEvents.Items[j].FirstTimestamp.Time)
+	})
+
+	var emitEvent bool
+	for idx, newEvent := range newEvents.Items {
+		emitEvent = true
+		currTime := newEvent.FirstTimestamp.Unix()
+		for _, currEvent := range currEvents.Items {
+			// only want to emit new events from primePvc
+			// since lists are sorted by time, if we find one we've emitted
+			// then all subsequent events have also been emitted
+			if strings.Contains(currEvent.Message, newEvent.Message) {
+				// sometimes events have the equal timestamps, so evaulate next one before quitting
+				if len(newEvents.Items) > idx+1 && currTime == newEvents.Items[idx+1].FirstTimestamp.Unix() {
+					emitEvent = false
+					// move onto next newEvent
+					break
+				}
+				return
+			}
+		}
+		if emitEvent {
+			message := ""
+			// if we are copying to a DV, we only want to copy over events with pvcPrime prefix
+			if copyingToDv {
+				if !strings.Contains(newEvent.Message, "prime") {
+					continue
+				}
+				message = newEvent.Message
+			} else {
+				// only want to add pvcPrime prefix if we are copying to another PVC
+				message = "[" + srcObj.GetName() + "] : " + newEvent.Message
+			}
+			recorder.Event(destObj, newEvent.Type, newEvent.Reason, message)
+		}
+	}
 }
 
 // Import-specific implementation of updatePVCForPopulation

@@ -125,6 +125,11 @@ func UpdateReadyCondition(conditions []cdiv1.DataVolumeCondition, status corev1.
 func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim, message, reason string) []cdiv1.DataVolumeCondition {
 	if pvc != nil {
 		pvcCondition := getPVCCondition(pvc.GetAnnotations())
+		pvcPrimeMessage := ""
+		val, exists := pvc.GetAnnotations()[cc.AnnAPIGroup+"/storage.populator.pvcPrime"]
+		if exists {
+			pvcPrimeMessage = fmt.Sprintf(" [prime PVC %s]", val)
+		}
 		switch pvc.Status.Phase {
 		case corev1.ClaimBound:
 			if pvcCondition == nil || pvcCondition.Status == corev1.ConditionTrue {
@@ -135,7 +140,7 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 			}
 		case corev1.ClaimPending:
 			if pvcCondition == nil || pvcCondition.Status == corev1.ConditionTrue {
-				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("PVC %s Pending", pvc.Name), pvcPending)
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("PVC %s Pending%s", pvc.Name, pvcPrimeMessage), pvcPending)
 				conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			} else {
 				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC %s Pending and %s", pvc.Name, pvcCondition.Message), pvcCondition.Reason)
@@ -158,6 +163,16 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 		conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, message, reason)
 		conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 	}
+	return conditions
+}
+
+func appendPVCEventToBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim, event string) []cdiv1.DataVolumeCondition {
+	// only want to update message if we are stuck in pending phase
+	if pvc == nil || pvc.Status.Phase != corev1.ClaimPending || event == "" {
+		return conditions
+	}
+	condition := FindConditionByType(cdiv1.DataVolumeBound, conditions)
+	condition.Message += event
 	return conditions
 }
 

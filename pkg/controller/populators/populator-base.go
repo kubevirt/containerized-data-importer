@@ -60,6 +60,9 @@ const (
 	dataSourceRefField = "spec.dataSourceRef"
 
 	uidField = "metadata.uid"
+
+	involvedNameField = "involvedObject.name"
+	involvedUIDField  = "involvedObject.uid"
 )
 
 // Interface to store populator-specific methods
@@ -99,6 +102,22 @@ func getIndexArgs() []indexArgs {
 			field: uidField,
 			extractValue: func(obj client.Object) []string {
 				return []string{string(obj.GetUID())}
+			},
+		},
+		{
+			obj:   &corev1.Event{},
+			field: involvedNameField,
+			extractValue: func(obj client.Object) []string {
+				event := obj.(*corev1.Event)
+				return []string{event.InvolvedObject.Name}
+			},
+		},
+		{
+			obj:   &corev1.Event{},
+			field: involvedUIDField,
+			extractValue: func(obj client.Object) []string {
+				event := obj.(*corev1.Event)
+				return []string{string(event.InvolvedObject.UID)}
 			},
 		},
 	}
@@ -294,7 +313,6 @@ func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorCon
 	if cc.IsPVCComplete(pvc) && cc.IsBound(pvc) && !cc.IsMultiStageImportInProgress(pvc) {
 		res, err = r.reconcileCleanup(pvcPrime)
 	}
-
 	return res, err
 }
 
