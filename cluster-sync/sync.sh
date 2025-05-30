@@ -113,7 +113,7 @@ function configure_uploadproxy_override {
     host_port=$(echo "$KIND_PORT_MAPPING" | awk -F: '{print $2}')
     override="https://127.0.0.1:$host_port"
   else
-    host_port=$(./cluster-up/cli.sh ports uploadproxy | xargs)
+    host_port=$(./cluster-up/cli.sh ports uploadproxy-lowerband | xargs)
     override="https://127.0.0.1:$host_port"
   fi
   _kubectl patch cdi ${CR_NAME} --type=merge -p '{"spec": {"config": {"uploadProxyURLOverride": "'"$override"'"}}}'
