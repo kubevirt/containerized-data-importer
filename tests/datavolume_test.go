@@ -3481,7 +3481,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 	Describe("Events and Conditions from PVC Prime", func() {
 
 		It("should have PVC Prime events and name populated in bound condition while pending", func() {
-			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1G", tinyCoreIsoURL())
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", tinyCoreIsoURL())
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -3498,15 +3498,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				primeName = populators.PVCPrimeName(pvc)
 			}
 			Expect(primeName).ToNot(Equal(""))
-
-			By("verifying bound condition")
-			boundCondition := &cdiv1.DataVolumeCondition{
-				Type:    cdiv1.DataVolumeBound,
-				Status:  v1.ConditionFalse,
-				Message: "PVC test-dv Pending [prime PVC " + primeName + "]",
-				Reason:  "Pending",
-			}
-			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition)
 
 			By("Verifying event occurred")
 			Eventually(func() bool {

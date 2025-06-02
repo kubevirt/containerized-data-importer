@@ -168,16 +168,6 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 	return conditions
 }
 
-func appendPVCEventToBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim, event string) []cdiv1.DataVolumeCondition {
-	// only want to update message if we are stuck in pending phase
-	if pvc == nil || pvc.Status.Phase != corev1.ClaimPending || event == "" {
-		return conditions
-	}
-	condition := FindConditionByType(cdiv1.DataVolumeBound, conditions)
-	condition.Message += event
-	return conditions
-}
-
 func getPVCCondition(anno map[string]string) *cdiv1.DataVolumeCondition {
 	if val, ok := anno[cc.AnnBoundCondition]; ok {
 		status := corev1.ConditionUnknown

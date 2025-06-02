@@ -23,9 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"sort"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -1043,41 +1041,6 @@ func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *cor
 	dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, pvc, message, reason)
 	dataVolume.Status.Conditions = UpdateReadyCondition(dataVolume.Status.Conditions, readyStatus, message, reason)
 	dataVolume.Status.Conditions = updateRunningCondition(dataVolume.Status.Conditions, anno)
-	if pvc != nil {
-		dataVolume.Status.Conditions = appendPVCEventToBoundCondition(dataVolume.Status.Conditions, pvc, r.getLatestPrimePVCEvent(pvc))
-	}
-}
-
-func (r *ReconcilerBase) getLatestPrimePVCEvent(pvc *corev1.PersistentVolumeClaim) string {
-	events := &corev1.EventList{}
-
-	err := r.client.List(context.TODO(), events,
-		client.InNamespace(pvc.GetNamespace()),
-		client.MatchingFields{"involvedObject.name": pvc.GetName(),
-			"involvedObject.uid": string(pvc.GetUID())},
-	)
-	// Sort event lists by most recent
-	sort.Slice(events.Items, func(i, j int) bool {
-		return events.Items[i].FirstTimestamp.Time.After(events.Items[j].FirstTimestamp.Time)
-	})
-
-	pvcPrime, exists := pvc.GetAnnotations()[cc.AnnAPIGroup+"/storage.populator.pvcPrime"]
-
-	// only want to return events that have come from pvcPrime
-	if err != nil || len(events.Items) == 0 || !exists {
-		return ""
-	}
-
-	pvcPrime = fmt.Sprintf("[%s] :", pvcPrime)
-
-	for _, event := range events.Items {
-		if strings.Contains(event.Message, pvcPrime) {
-			res := strings.Split(event.Message, pvcPrime)
-			r.log.V(1).Info("DANNY", "event", res[len(res)-1])
-			return res[len(res)-1]
-		}
-	}
-	return ""
 }
 
 func (r *ReconcilerBase) emitConditionEvent(dataVolume *cdiv1.DataVolume, originalCond []cdiv1.DataVolumeCondition) {
