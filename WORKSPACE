@@ -3804,10 +3804,7 @@ rpm(
 rpm(
     name = "ovirt-imageio-client-0__2.5.1-0.202505141115.git4cde810.el9.x86_64",
     sha256 = "431b16e8b62d473e19cdc0a2fa57467ae183d5b3004dd1ee3f3df4de9a888f3e",
-    urls = [
-        "https://download.copr.fedorainfracloud.org/results/ovirt/ovirt-master-snapshot/centos-stream-9-x86_64/09037221-ovirt-imageio/ovirt-imageio-client-2.5.1-0.202505141115.git4cde810.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/431b16e8b62d473e19cdc0a2fa57467ae183d5b3004dd1ee3f3df4de9a888f3e",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/431b16e8b62d473e19cdc0a2fa57467ae183d5b3004dd1ee3f3df4de9a888f3e"],
 )
 
 rpm(
@@ -3822,10 +3819,7 @@ rpm(
 rpm(
     name = "ovirt-imageio-common-0__2.5.1-0.202505141115.git4cde810.el9.x86_64",
     sha256 = "d6deb00554fdb6d1b8696bd5fd190a717d9e868ee5e22209d364de6b26bdf543",
-    urls = [
-        "https://download.copr.fedorainfracloud.org/results/ovirt/ovirt-master-snapshot/centos-stream-9-x86_64/09037221-ovirt-imageio/ovirt-imageio-common-2.5.1-0.202505141115.git4cde810.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/d6deb00554fdb6d1b8696bd5fd190a717d9e868ee5e22209d364de6b26bdf543",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/d6deb00554fdb6d1b8696bd5fd190a717d9e868ee5e22209d364de6b26bdf543"],
 )
 
 rpm(
