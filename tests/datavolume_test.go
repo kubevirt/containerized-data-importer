@@ -3493,25 +3493,45 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
-			primeName := pvc.GetAnnotations()[controller.AnnAPIGroup+"/storage.populator.pvcPrime"]
-			if primeName == "" {
-				primeName = populators.PVCPrimeName(pvc)
-			}
-			Expect(primeName).ToNot(Equal(""))
+			usePopulator, err := dvc.CheckPVCUsingPopulators(pvc)
+			Expect(err).ToNot(HaveOccurred())
 
-			By("Verifying event occurred")
-			Eventually(func() bool {
-				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=PersistentVolumeClaim")
-				primeEvent := fmt.Sprintf("[%s]", primeName)
-				if err == nil {
-					fmt.Fprintf(GinkgoWriter, "%s", events)
-					// make sure we get events from pvcPrime
-					return strings.Contains(events, primeEvent)
+			// if we are using populators check that we get prime events in DV
+			if usePopulator {
+				By("Checking pvc prime annotation was set")
+				primeName := pvc.GetAnnotations()[controller.AnnAPIGroup+"/storage.populator.pvcPrime"]
+				if primeName == "" {
+					primeName = populators.PVCPrimeName(pvc)
 				}
-				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
-				return false
-			}, timeout, pollingInterval).Should(BeTrue())
 
+				By("Verifying event occurred")
+				Eventually(func() bool {
+					events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=PersistentVolumeClaim")
+					primeEvent := fmt.Sprintf("[%s]", primeName)
+					if err == nil {
+						fmt.Fprintf(GinkgoWriter, "%s", events)
+						// make sure we get events from pvcPrime
+						return strings.Contains(events, primeEvent)
+					}
+					fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+					return false
+				}, timeout, pollingInterval).Should(BeTrue())
+			} else {
+				// if we aren't using populators, just check that pvc was bound and dv was imported
+				boundCondition := &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC test-dv Bound",
+					Reason:  "Bound",
+				}
+				runningCondition := &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}
+				utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, runningCondition)
+			}
 		})
 
 	})
