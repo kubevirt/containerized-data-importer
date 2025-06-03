@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	forklift "kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
@@ -58,6 +59,7 @@ const (
 var (
 	kubeconfig             string
 	kubeURL                string
+	metricsBindAddress     string
 	importerImage          string
 	clonerImage            string
 	uploadServerImage      string
@@ -98,6 +100,7 @@ type ControllerEnvs struct {
 func init() {
 	// flags
 	flag.StringVar(&kubeURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
+	flag.StringVar(&metricsBindAddress, "metrics_address", ":8080", "(Optional) URL address of a metrics server.")
 	klog.InitFlags(nil)
 	flag.Parse()
 
@@ -199,6 +202,9 @@ func start() {
 		LeaderElectionResourceLock: "leases",
 		Cache:                      getCacheOptions(apiClient, namespace),
 		Scheme:                     scheme,
+		Metrics:                    metricsserver.Options{
+			BindAddress: metricsBindAddress,
+		},
 	}
 
 	cfg = config.GetConfigOrDie()

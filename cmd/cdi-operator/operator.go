@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/operator/controller"
@@ -45,6 +46,7 @@ import (
 )
 
 var log = logf.Log.WithName("cmd")
+var metricsBindAddress string
 
 func printVersion() {
 	log.Info(fmt.Sprintf("Go Version: %s", runtime.Version()))
@@ -52,6 +54,7 @@ func printVersion() {
 }
 
 func main() {
+	flag.StringVar(&metricsBindAddress, "metrics_address", ":8080", "(Optional) URL address of a metrics server.")
 	flag.Parse()
 
 	defVerbose := fmt.Sprintf("%d", 1) // note flag values are strings
@@ -97,6 +100,9 @@ func main() {
 		LeaderElectionNamespace:    namespace,
 		LeaderElectionID:           "cdi-operator-leader-election-helper",
 		LeaderElectionResourceLock: "leases",
+		Metrics:                    metricsserver.Options{
+			BindAddress: metricsBindAddress,
+		},
 	}
 
 	// Create a new Manager to provide shared dependencies and start components
