@@ -103,9 +103,10 @@ func (p *CSIClonePhase) createClaim(ctx context.Context) (*corev1.PersistentVolu
 		Name: sourceClaim.Name,
 	}
 
-	sourceSize := sourceClaim.Status.Capacity[corev1.ResourceStorage]
-	p.Log.V(3).Info("setting desired pvc request size to", "restoreSize", sourceSize)
-	desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage] = sourceSize
+	// With csi-clone, it's possible to specify the same or a larger capacity for the target pvc immediately, with no need to postpone resizing.
+	// sourceSize := sourceClaim.Status.Capacity[corev1.ResourceStorage]
+	// p.Log.V(3).Info("setting desired pvc request size to", "restoreSize", sourceSize)
+	// desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage] = sourceSize
 
 	cc.AddAnnotation(desiredClaim, cc.AnnPopulatorKind, cdiv1.VolumeCloneSourceRef)
 	if p.OwnershipLabel != "" {

@@ -146,6 +146,7 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"hspc.csi.hitachi.com":                     cdiv1.CloneStrategyCsiClone,
 	"csi.hpe.com":                              cdiv1.CloneStrategyCsiClone,
 	"spectrumscale.csi.ibm.com":                cdiv1.CloneStrategyCsiClone,
+	"rbd.csi.ceph.com":                         cdiv1.CloneStrategyCsiClone,
 	"rook-ceph.rbd.csi.ceph.com":               cdiv1.CloneStrategyCsiClone,
 	"openshift-storage.rbd.csi.ceph.com":       cdiv1.CloneStrategyCsiClone,
 	"cephfs.csi.ceph.com":                      cdiv1.CloneStrategyCsiClone,
