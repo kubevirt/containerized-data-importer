@@ -52,7 +52,6 @@ import (
 func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteControllerDeployment)
 	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileSCC)
-	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreatePrometheusInfra)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileRemainingRelationshipLabels)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteDeprecatedResources)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCDICRD)
