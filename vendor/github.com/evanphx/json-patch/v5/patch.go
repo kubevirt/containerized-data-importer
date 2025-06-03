@@ -1011,8 +1011,8 @@ func (p Patch) replace(doc *container, op Operation, options *ApplyOptions) erro
 		return errors.Wrapf(ErrMissing, "replace operation does not apply: doc is missing path: %s", path)
 	}
 
-	_, ok := con.get(key, options)
-	if ok != nil {
+	_, err = con.get(key, options)
+	if err != nil && errors.Cause(err) != ErrMissing {
 		return errors.Wrapf(ErrMissing, "replace operation does not apply: doc is missing key: %s", path)
 	}
 
