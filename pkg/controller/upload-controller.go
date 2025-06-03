@@ -45,6 +45,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
@@ -54,7 +56,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
 const (
@@ -430,7 +431,7 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *corev1.PersistentVolumeCla
 	args := UploadPodArgs{
 		Name:               podName,
 		PVC:                pvc,
-		ScratchPVCName:     createScratchPvcNameFromPvc(pvc, isCloneTarget),
+		ScratchPVCName:     createScratchPvcNameFromPvc(pvc),
 		ClientName:         clientName,
 		FilesystemOverhead: string(fsOverhead),
 		ServerCert:         serverCert,
@@ -723,11 +724,7 @@ func addUploadControllerWatches(mgr manager.Manager, uploadController controller
 	return nil
 }
 
-func createScratchPvcNameFromPvc(pvc *corev1.PersistentVolumeClaim, isCloneTarget bool) string {
-	if isCloneTarget {
-		return ""
-	}
-
+func createScratchPvcNameFromPvc(pvc *corev1.PersistentVolumeClaim) string {
 	return naming.GetResourceName(pvc.Name, common.ScratchNameSuffix)
 }
 
@@ -800,6 +797,8 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 	cc.CopyAllowedAnnotations(args.PVC, pod)
 	cc.SetNodeNameIfPopulator(args.PVC, &pod.Spec)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
+
+	pod.Spec.InitContainers = r.makeUploadPodInitContainers(args)
 
 	return pod
 }
@@ -901,6 +900,33 @@ func (r *UploadReconciler) makeUploadPodContainers(args UploadPodArgs, resourceR
 	if resourceRequirements != nil {
 		containers[0].Resources = *resourceRequirements
 	}
+	return containers
+}
+
+func (r *UploadReconciler) makeUploadPodInitContainers(args UploadPodArgs) []corev1.Container {
+	if args.PVC == nil || len(args.PVC.Spec.AccessModes) == 0 || args.PVC.Spec.AccessModes[0] != corev1.ReadWriteMany {
+		return nil
+	}
+
+	if cc.GetVolumeMode(args.PVC) == corev1.PersistentVolumeBlock {
+		return nil
+	}
+
+	containers := []corev1.Container{
+		{
+			Name:            "chmod-" + common.UploadServerPodname,
+			Image:           r.image,
+			ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
+			Command:         []string{"sh", "-c", "chmod 775 " + common.UploadServerDataDir},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      cc.DataVolName,
+					MountPath: common.UploadServerDataDir,
+				},
+			},
+		},
+	}
+
 	return containers
 }
 

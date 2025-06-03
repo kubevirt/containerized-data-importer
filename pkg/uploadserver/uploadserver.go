@@ -29,6 +29,7 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -36,11 +37,14 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"k8s.io/klog/v2"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
@@ -491,7 +495,7 @@ func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string,
 func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string, dvContentType cdiv1.DataVolumeContentType) (bool, error) {
 	stream = newContentReader(stream, sourceContentType)
 	if isCloneTarget(sourceContentType) {
-		return cloneProcessor(stream, sourceContentType, dest, preallocation)
+		return cloneProcessor(stream, sourceContentType, dest, imageSize, preallocation)
 	}
 
 	// Clone block device to block device or file system
@@ -501,7 +505,7 @@ func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, file
 	return processor.PreallocationApplied(), err
 }
 
-func cloneProcessor(stream io.ReadCloser, contentType, dest string, preallocate bool) (bool, error) {
+func cloneProcessor(stream io.ReadCloser, contentType, dest, imageSize string, preallocate bool) (bool, error) {
 	if contentType == common.FilesystemCloneContentType {
 		if dest != common.WriteBlockPath {
 			return fileToFileCloneProcessor(stream)
@@ -516,14 +520,77 @@ func cloneProcessor(stream io.ReadCloser, contentType, dest string, preallocate 
 	}
 
 	defer stream.Close()
-	bytesRead, bytesWrittenn, err := util.StreamDataToFile(stream, dest, preallocate)
+
+	scratchDisk := common.ScratchDataDir + "/" + common.DiskImageName
+
+	bytesRead, bytesWritten, err := util.StreamDataToFile(stream, scratchDisk, preallocate)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to stream data to file: %w", err)
 	}
 
-	klog.Infof("Read %d bytes, wrote %d bytes to %s", bytesRead, bytesWrittenn, dest)
+	parsedScratchPath, err := url.Parse(scratchDisk)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse url: %w", err)
+	}
+
+	err = image.NewQEMUOperations().Validate(parsedScratchPath, calculateTargetSize(dest, imageSize))
+	if err != nil {
+		return false, fmt.Errorf("failed to validate parsed scratch path: %w", err)
+	}
+
+	err = importer.CleanAll(dest)
+	if err != nil {
+		return false, fmt.Errorf("failed to clean all: %w", err)
+	}
+
+	format, err := util.GetFormat(dest)
+	if err != nil {
+		return false, fmt.Errorf("failed to get format: %w", err)
+	}
+
+	err = image.NewQEMUOperations().ConvertToFormatStream(parsedScratchPath, format, dest, false)
+	if err != nil {
+		return false, fmt.Errorf("failed to convert: %w", err)
+	}
+
+	klog.Infof("Read %d bytes, wrote %d bytes to %s", bytesRead, bytesWritten, dest)
 
 	return false, nil
+}
+
+func calculateTargetSize(dest, imageSize string) int64 {
+	klog.Infof("Calculating available size")
+
+	var targetQuantity *resource.Quantity
+	size, err := util.GetAvailableSpaceBlock(dest)
+	if err != nil {
+		klog.Error(err)
+	}
+
+	if size >= int64(0) {
+		// Block volume.
+		klog.Infof("Checking out block volume size")
+		targetQuantity = resource.NewScaledQuantity(size, 0)
+	} else {
+		// File system volume.
+		klog.Infof("Checking out file system volume size")
+		size, err := util.GetAvailableSpace(common.ImporterDataDir)
+		if err != nil {
+			klog.Error(err)
+		}
+		targetQuantity = resource.NewScaledQuantity(size, 0)
+
+		if imageSize != "" {
+			klog.Infof("Request image size not empty")
+			newImageSizeQuantity := resource.MustParse(imageSize)
+			minQuantity := util.MinQuantity(targetQuantity, &newImageSizeQuantity)
+			targetQuantity = &minQuantity
+		}
+	}
+
+	klog.Infof("Target size %s", targetQuantity.String())
+	targetSize := targetQuantity.Value()
+	return targetSize
 }
 
 func fileToFileCloneProcessor(stream io.ReadCloser) (bool, error) {
