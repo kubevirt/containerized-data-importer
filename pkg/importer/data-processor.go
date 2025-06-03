@@ -268,10 +268,15 @@ func (dp *DataProcessor) convert(url *url.URL) (ProcessingPhase, error) {
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
-	klog.V(3).Infoln("Converting to Raw")
-	err = qemuOperations.ConvertToRawStream(url, dp.dataFile, dp.preallocation, dp.cacheMode)
+
+	format, err := util.GetFormat(dp.dataFile)
 	if err != nil {
-		return ProcessingPhaseError, errors.Wrap(err, "Conversion to Raw failed")
+		return ProcessingPhaseError, errors.Wrap(err, "Unable to get format")
+	}
+	klog.V(3).Infof("Converting to %s", format)
+	err = qemuOperations.ConvertToFormatStream(url, format, dp.dataFile, dp.preallocation)
+	if err != nil {
+		return ProcessingPhaseError, errors.Wrapf(err, "Conversion to %s failed", format)
 	}
 	dp.preallocationApplied = dp.preallocation
 

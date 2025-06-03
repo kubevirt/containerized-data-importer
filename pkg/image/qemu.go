@@ -59,6 +59,7 @@ type ImgInfo struct {
 // QEMUOperations defines the interface for executing qemu subprocesses
 type QEMUOperations interface {
 	ConvertToRawStream(*url.URL, string, bool, string) error
+	ConvertToFormatStream(url *url.URL, format, dest string, preallocate bool) error
 	Resize(string, resource.Quantity, bool) error
 	Info(url *url.URL) (*ImgInfo, error)
 	Validate(*url.URL, int64) error
@@ -288,13 +289,18 @@ func CreateBlankImage(dest string, size resource.Quantity, preallocate bool) err
 
 // CreateBlankImage creates a raw image with a given size
 func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity, preallocate bool) error {
+	format, err := util.GetFormat(dest)
+	if err != nil {
+		return err
+	}
+
 	klog.V(3).Infof("image size is %s", size.String())
-	args := []string{"create", "-f", "raw", dest, convertQuantityToQemuSize(size)}
+	args := []string{"create", "-f", format, dest, convertQuantityToQemuSize(size)}
 	if preallocate {
 		klog.V(1).Infof("Added preallocation")
 		args = append(args, []string{"-o", "preallocation=falloc"}...)
 	}
-	_, err := qemuExecFunction(nil, nil, "qemu-img", args...)
+	_, err = qemuExecFunction(nil, nil, "qemu-img", args...)
 	if err != nil {
 		os.Remove(dest)
 		return errors.Wrap(err, fmt.Sprintf("could not create raw image with size %s in %s", size.String(), dest))
