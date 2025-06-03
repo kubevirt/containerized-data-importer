@@ -41,12 +41,12 @@ type factoryFunc func(*FactoryArgs) []client.Object
 type factoryFuncMap map[string]factoryFunc
 
 var staticFactoryFunctions = factoryFuncMap{
-	"apiserver-rbac":   createStaticAPIServerResources,
-	"controller-rbac":  createControllerResources,
-	"crd-resources":    createCRDResources,
-	"uploadproxy-rbac": createUploadProxyResources,
-	"cronjob-rbac":     createCronJobResources,
-	"aggregate-roles":  createAggregateClusterRoles,
+	"apiserver-rbac":  createStaticAPIServerResources,
+	"controller-rbac": createControllerResources,
+	"crd-resources":   createCRDResources,
+	// "uploadproxy-rbac": createUploadProxyResources,
+	"cronjob-rbac":    createCronJobResources,
+	"aggregate-roles": createAggregateClusterRoles,
 }
 
 var dynamicFactoryFunctions = factoryFuncMap{
@@ -117,7 +117,7 @@ func createResourceGroup(funcMap factoryFuncMap, group string, args *FactoryArgs
 func GetClusterRolePolicyRules() []rbacv1.PolicyRule {
 	result := getAPIServerClusterPolicyRules()
 	result = append(result, getControllerClusterPolicyRules()...)
-	result = append(result, getUploadProxyClusterPolicyRules()...)
+	// result = append(result, getUploadProxyClusterPolicyRules()...)
 	result = append(result, getCronJobClusterPolicyRules()...)
 	return result
 }

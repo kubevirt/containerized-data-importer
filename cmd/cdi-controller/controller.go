@@ -111,9 +111,9 @@ func init() {
 	}
 	importerImage = getRequiredEnvVar("IMPORTER_IMAGE")
 	clonerImage = getRequiredEnvVar("CLONER_IMAGE")
-	uploadServerImage = getRequiredEnvVar("UPLOADSERVER_IMAGE")
+	// uploadServerImage = getRequiredEnvVar("UPLOADSERVER_IMAGE")
 	ovirtPopulatorImage = getRequiredEnvVar("OVIRT_POPULATOR_IMAGE")
-	uploadProxyServiceName = getRequiredEnvVar("UPLOADPROXY_SERVICE")
+	// uploadProxyServiceName = getRequiredEnvVar("UPLOADPROXY_SERVICE")
 	installerLabels = map[string]string{}
 
 	pullPolicy = common.DefaultPullPolicy
@@ -204,7 +204,7 @@ func start() {
 		LeaderElectionResourceLock: "leases",
 		Cache:                      getCacheOptions(apiClient, namespace),
 		Scheme:                     scheme,
-		Metrics:                    metricsserver.Options{
+		Metrics: metricsserver.Options{
 			BindAddress: metricsBindAddress,
 		},
 	}

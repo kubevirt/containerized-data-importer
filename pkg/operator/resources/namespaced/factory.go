@@ -38,8 +38,8 @@ type FactoryArgs struct {
 	ClonerImage            string `required:"true" split_words:"true"`
 	OvirtPopulatorImage    string `required:"true" split_words:"true"`
 	APIServerImage         string `required:"true" envconfig:"apiserver_image"`
-	UploadProxyImage       string `required:"true" split_words:"true"`
-	UploadServerImage      string `required:"true" split_words:"true"`
+	UploadProxyImage       string `required:"false" split_words:"true"`
+	UploadServerImage      string `required:"false" split_words:"true"`
 	Verbosity              string `required:"true"`
 	PullPolicy             string `required:"true" split_words:"true"`
 	ImagePullSecrets       []corev1.LocalObjectReference
@@ -59,10 +59,10 @@ type namespaceHaver interface {
 }
 
 var factoryFunctions = map[string]factoryFunc{
-	"apiserver":   createAPIServerResources,
-	"controller":  createControllerResources,
-	"uploadproxy": createUploadProxyResources,
-	"cronjob":     createCronJobResources,
+	"apiserver":  createAPIServerResources,
+	"controller": createControllerResources,
+	// "uploadproxy": createUploadProxyResources,
+	"cronjob": createCronJobResources,
 }
 
 // CreateAllResources creates all namespaced resources
@@ -107,7 +107,7 @@ func assignNamspaceIfMissing(resource client.Object, namespace string) {
 func GetRolePolicyRules() []rbacv1.PolicyRule {
 	result := getAPIServerNamespacedRules()
 	result = append(result, getControllerNamespacedRules()...)
-	result = append(result, getUploadProxyNamespacedRules()...)
+	// result = append(result, getUploadProxyNamespacedRules()...)
 	result = append(result, GetPrometheusNamespacedRules()...)
 	return result
 }

@@ -58,9 +58,9 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcilePvcMutatingWebhook)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileSetConfigAuthority)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileHandleOldVersion)
-	if r.haveRoutes {
-		r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileRoute)
-	}
+	// if r.haveRoutes {
+	// 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileRoute)
+	// }
 }
 
 func isControllerDeployment(d *appsv1.Deployment) bool {

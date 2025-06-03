@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"reflect"
 
-	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -115,12 +114,12 @@ func reconcileRemainingRelationshipLabels(args *callbacks.ReconcileCallbackArgs)
 				Namespace: namespace,
 			},
 		},
-		&routev1.Route{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      uploadProxyRouteName,
-				Namespace: namespace,
-			},
-		},
+		// &routev1.Route{
+		// 	ObjectMeta: metav1.ObjectMeta{
+		// 		Name:      uploadProxyRouteName,
+		// 		Namespace: namespace,
+		// 	},
+		// },
 		&secv1.SecurityContextConstraints{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: sccName,

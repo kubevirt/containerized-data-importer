@@ -94,9 +94,9 @@ func (r *CDIConfigReconciler) Reconcile(_ context.Context, req reconcile.Request
 		return reconcile.Result{}, err
 	}
 
-	if err := r.reconcileUploadProxy(config); err != nil {
-		return reconcile.Result{}, err
-	}
+	// if err := r.reconcileUploadProxy(config); err != nil {
+	// 	return reconcile.Result{}, err
+	// }
 
 	if err := r.reconcileStorageClass(config); err != nil {
 		return reconcile.Result{}, err
@@ -324,7 +324,7 @@ func buildPemFromCert(matchingCert *x509.Certificate, allCerts []*x509.Certifica
 	}
 
 	if matchingCert.Issuer.CommonName != matchingCert.Subject.CommonName && !matchingCert.IsCA {
-		//lookup issuer recursively, if not found a blank is returned.
+		// lookup issuer recursively, if not found a blank is returned.
 		chain, err := findCertByHostName(matchingCert.Issuer.CommonName, allCerts)
 		if err != nil {
 			return "", err
@@ -477,7 +477,7 @@ func (r *CDIConfigReconciler) reconcileDefaultPodResourceRequirements(config *cd
 
 func (r *CDIConfigReconciler) reconcileFilesystemOverhead(config *cdiv1.CDIConfig) error {
 	var globalOverhead cdiv1.Percent = common.DefaultGlobalOverhead
-	var perStorageConfig = make(map[string]cdiv1.Percent)
+	perStorageConfig := make(map[string]cdiv1.Percent)
 
 	log := r.log.WithName("CDIconfig").WithName("FilesystemOverhead")
 
@@ -640,7 +640,8 @@ func (r *CDIConfigReconciler) createProxyConfigMap(cmName, cert string) *v1.Conf
 	return &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      cmName,
-			Namespace: r.cdiNamespace},
+			Namespace: r.cdiNamespace,
+		},
 		Data: map[string]string{common.ImportProxyConfigMapKey: cert},
 	}
 }
