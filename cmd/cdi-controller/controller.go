@@ -166,6 +166,7 @@ func start() {
 	if err != nil {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
 	}
+	cfg.ContentType = apiruntime.ContentTypeJSON
 
 	k8sClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
@@ -200,7 +201,9 @@ func start() {
 		Scheme:                     scheme,
 	}
 
-	mgr, err := manager.New(config.GetConfigOrDie(), opts)
+	cfg = config.GetConfigOrDie()
+	cfg.ContentType = apiruntime.ContentTypeJSON
+	mgr, err := manager.New(cfg, opts)
 	if err != nil {
 		klog.Errorf("Unable to setup controller manager: %v", err)
 		os.Exit(1)

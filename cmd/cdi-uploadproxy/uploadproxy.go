@@ -8,6 +8,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"github.com/pkg/errors"
 
+	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
@@ -81,6 +82,8 @@ func main() {
 	if err != nil {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
 	}
+	cfg.ContentType = apiruntime.ContentTypeJSON
+
 	client, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))

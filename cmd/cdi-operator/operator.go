@@ -30,6 +30,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -85,6 +86,7 @@ func main() {
 		log.Error(err, "")
 		os.Exit(1)
 	}
+	cfg.ContentType = apiruntime.ContentTypeJSON
 
 	managerOpts := manager.Options{
 		Cache: cache.Options{
