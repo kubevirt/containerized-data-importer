@@ -50,7 +50,7 @@ func createStaticAPIServerResources(args *FactoryArgs) []client.Object {
 
 func createDynamicAPIServerResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
-		createAPIService("v1beta1", args.Namespace, args.Client, args.Logger),
+		// createAPIService("v1beta1", args.Namespace, args.Client, args.Logger),
 		createDataVolumeValidatingWebhook(args.Namespace, args.Client, args.Logger),
 		createDataVolumeMutatingWebhook(args.Namespace, args.Client, args.Logger),
 		createCDIValidatingWebhook(args.Namespace, args.Client, args.Logger),

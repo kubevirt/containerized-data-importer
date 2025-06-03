@@ -64,17 +64,17 @@ func getAdminPolicyRules() []rbacv1.PolicyRule {
 				"create",
 			},
 		},
-		{
-			APIGroups: []string{
-				"upload.cdi.kubevirt.io",
-			},
-			Resources: []string{
-				"uploadtokenrequests",
-			},
-			Verbs: []string{
-				"*",
-			},
-		},
+		// {
+		//	APIGroups: []string{
+		//		"upload.cdi.kubevirt.io",
+		//	},
+		//	Resources: []string{
+		//		"uploadtokenrequests",
+		//	},
+		//	Verbs: []string{
+		//		"*",
+		//	},
+		// },
 	}
 }
 
