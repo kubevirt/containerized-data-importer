@@ -167,6 +167,9 @@ github.com/coreos/go-semver/semver
 # github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 ## explicit
 github.com/davecgh/go-spew/spew
+# github.com/deckhouse/sds-replicated-volume/api v0.0.0-20241206095502-b096856636cd
+## explicit; go 1.22.2
+github.com/deckhouse/sds-replicated-volume/api/v1alpha1
 # github.com/distribution/reference v0.6.0
 ## explicit; go 1.20
 github.com/distribution/reference

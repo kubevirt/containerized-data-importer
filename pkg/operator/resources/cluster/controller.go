@@ -47,6 +47,20 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 	return []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
+				"storage.deckhouse.io",
+			},
+			Resources: []string{
+				"replicatedstorageclasses",
+				"replicatedstoragepools",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
 				"",
 			},
 			Resources: []string{

@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 
+	rcsiv1 "github.com/deckhouse/sds-replicated-volume/api/v1alpha1"
 	"github.com/kelseyhightower/envconfig"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
@@ -80,6 +81,7 @@ var (
 		imagev1.Install,
 		ocpconfigv1.Install,
 		routev1.Install,
+		rcsiv1.AddToScheme,
 	}
 )
 

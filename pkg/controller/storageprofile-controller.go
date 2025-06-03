@@ -194,6 +194,16 @@ func (r *StorageProfileReconciler) reconcileCloneStrategy(sc *storagev1.StorageC
 		strategy = knownStrategy
 	}
 
+	if overrider, ok := storagecapabilities.GetCloneStrategyOverrider(sc); ok {
+		strategyToUse, err := overrider(context.TODO(), r.client, sc)
+		if err != nil {
+			r.log.Error(fmt.Errorf("override clone strategy: %w", err), "StorageClass.Name", sc.Name, "oldStrategy", strategy, "newStrategy", cdiv1.CloneStrategyHostAssisted)
+			strategy = cdiv1.CloneStrategyHostAssisted
+		} else {
+			strategy = strategyToUse
+		}
+	}
+
 	if strategy == cdiv1.CloneStrategySnapshot && snapClass == "" {
 		r.log.Info("No VolumeSnapshotClass found for storage class, falling back to host assisted cloning", "StorageClass.Name", sc.Name)
 		return &hostAssistedStrategy

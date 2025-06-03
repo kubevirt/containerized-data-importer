@@ -4,10 +4,13 @@ package storagecapabilities
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
+	rcsiv1 "github.com/deckhouse/sds-replicated-volume/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	"k8s.io/apimachinery/pkg/types"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -137,6 +140,13 @@ var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"csi.trident.netapp.io/ontap-san":    cdiv1.DataImportCronSourceFormatSnapshot,
 }
 
+type CloneStrategyOverrider func(context.Context, client.Client, *storagev1.StorageClass) (cdiv1.CDICloneStrategy, error)
+
+var CloneStrategyOverriderByProvisionerKey = map[string]CloneStrategyOverrider{
+	"replicated.csi.storage.deckhouse.io": replicatedSCICloneStrategyOverrider,
+	"local.csi.storage.deckhouse.io": localSCICloneStrategyOverrider,
+}
+
 // CloneStrategyByProvisionerKey defines the advised clone strategy for a provisioner
 var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"csi-vxflexos.dellemc.com":                 cdiv1.CloneStrategyCsiClone,
@@ -206,6 +216,41 @@ func GetAdvisedCloneStrategy(sc *storagev1.StorageClass) (cdiv1.CDICloneStrategy
 	provisionerKey := storageProvisionerKey(sc)
 	strategy, found := CloneStrategyByProvisionerKey[provisionerKey]
 	return strategy, found
+}
+
+// GetCloneStrategyOverrider finds and returns the clone strategy overrider.
+func GetCloneStrategyOverrider(sc *storagev1.StorageClass) (CloneStrategyOverrider, bool) {
+	provisionerKey := storageProvisionerKey(sc)
+	overrider, found := CloneStrategyOverriderByProvisionerKey[provisionerKey]
+	return overrider, found
+}
+
+func replicatedSCICloneStrategyOverrider(ctx context.Context, c client.Client, sc *storagev1.StorageClass) (cdiv1.CDICloneStrategy, error) {
+	var rsc rcsiv1.ReplicatedStorageClass
+	err := c.Get(ctx, types.NamespacedName{Name: sc.Name}, &rsc)
+	if err != nil {
+		return "", fmt.Errorf("failed to get replicated storage class %q: %w", sc.Name,err)
+	}
+
+	var rsp rcsiv1.ReplicatedStoragePool
+	err = c.Get(ctx, types.NamespacedName{Name: rsc.Spec.StoragePool}, &rsp)
+	if err != nil {
+		return "", fmt.Errorf("failed to get replicated storage pool %q: %w", rsc.Spec.StoragePool, err)
+	}
+
+	if rsp.Spec.Type == "LVMThin" {
+		return cdiv1.CloneStrategySnapshot, nil
+	}
+
+	return cdiv1.CloneStrategyHostAssisted, nil
+}
+
+func localSCICloneStrategyOverrider(_ context.Context, _ client.Client, sc *storagev1.StorageClass) (cdiv1.CDICloneStrategy, error) {
+	if sc.Parameters["local.csi.storage.deckhouse.io/lvm-type"] == "Thin" {
+		return cdiv1.CloneStrategySnapshot, nil
+	}
+
+	return cdiv1.CloneStrategyHostAssisted, nil
 }
 
 func capabilitiesForNoProvisioner(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
