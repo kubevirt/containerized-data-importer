@@ -50,6 +50,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"openshift-storage.cephfs.csi.ceph.com": {{rwx, file}},
 	// LINSTOR
 	"linstor.csi.linbit.com": createAllButRWXFileCapabilities(),
+	// Deckhouse
+	"replicated.csi.storage.deckhouse.io": createAllButRWXFileCapabilities(),
+	"local.csi.storage.deckhouse.io":      createTopoLVMCapabilities(),
 	// DELL Unity XT
 	"csi-unity.dellemc.com":     createAllButRWXFileCapabilities(),
 	"csi-unity.dellemc.com/nfs": createAllFSCapabilities(),
