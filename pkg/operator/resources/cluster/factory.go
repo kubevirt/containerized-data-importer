@@ -55,7 +55,7 @@ var dynamicFactoryFunctions = factoryFuncMap{
 
 func createCRDResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
-		createDataVolumeCRD(),
+		// createDataVolumeCRD(),
 		createCDIConfigCRD(),
 		createStorageProfileCRD(),
 		createDataSourceCRD(),
