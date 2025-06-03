@@ -190,7 +190,7 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, ovi
 		},
 	}
 	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{common.PrometheusLabelKey: common.PrometheusLabelValue})
-	//Add label for pod affinity
+	// Add label for pod affinity
 	deployment.SetLabels(labels)
 	deployment.Spec.Template.SetLabels(labels)
 	container.Env = []corev1.EnvVar{
@@ -240,7 +240,7 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, ovi
 	container.ReadinessProbe = &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			Exec: &corev1.ExecAction{
-				Command: []string{"cat", "/tmp/ready"},
+				Command: []string{"printFile", "/tmp/ready"},
 			},
 		},
 		InitialDelaySeconds: 2,
