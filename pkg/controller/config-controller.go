@@ -419,7 +419,7 @@ func (r *CDIConfigReconciler) reconcileStorageClass(config *cdiv1.CDIConfig) err
 			if defaultClassValue == "true" {
 				log.Info("Setting scratch space to default", "storageClass.Name", storageClass.Name)
 				config.Status.ScratchSpaceStorageClass = storageClass.Name
-				return nil
+				break
 			}
 		}
 	}
