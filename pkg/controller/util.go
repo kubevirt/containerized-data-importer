@@ -38,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -173,10 +174,14 @@ func createScratchPersistentVolumeClaim(client client.Client, pvc *corev1.Persis
 	scratchPvcSpec := newScratchPersistentVolumeClaimSpec(pvc, pod, name, storageClassName)
 
 	sizeRequest := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-	scratchFsOverhead, err := GetFilesystemOverhead(context.TODO(), client, scratchPvcSpec)
+
+	scratchFsOverhead, err := getScratchFilesystemOverhead(sizeRequest)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get filesystem overhead for scratch PVC")
+		return nil, errors.Wrap(err, "failed to get scratch filesystem overhead")
 	}
+
+	klog.V(1).Info("Use scratch filesystem overhead", "scratchFsOverhead", scratchFsOverhead, "sizeRequest", sizeRequest)
+
 	scratchFsOverheadFloat, _ := strconv.ParseFloat(string(scratchFsOverhead), 64)
 	pvcFsOverhead, err := GetFilesystemOverhead(context.TODO(), client, pvc)
 	if err != nil {
@@ -205,6 +210,44 @@ func createScratchPersistentVolumeClaim(client client.Client, pvc *corev1.Persis
 	}
 	klog.V(3).Infof("scratch PVC \"%s/%s\" created\n", scratchPvc.Namespace, scratchPvc.Name)
 	return scratchPvc, nil
+}
+
+var (
+	rate24Mi   = resource.MustParse("24Mi")
+	rate512Mi  = resource.MustParse("512Mi")
+	rate4096Mi = resource.MustParse("4096Mi")
+)
+
+// getScratchFilesystemOverhead returns filesystem overhead for Scratch PVC.
+//
+// CDI always requests scratch space with a Filesystem volume mode, regardless of the volume mode of the related
+// DataVolume. An additional overhead space should be reserved for the Filesystem volume.
+//
+// By default, this overhead is taken from the CDI Config and is not dynamically updated based on the target PVC size.
+// As a result, the target PVC size with the overhead from the CDI Config may be insufficient to successfully complete
+// PVC creation.
+//
+// To address this, since there is no strict formula for ext4 filesystem overhead, empirical estimates of the filesystem
+// overhead were provided based on the target PVC size:
+//
+// return 0 for target PVC size == 0
+// add 40% for target PVC size < 24Mi
+// add 25% for target PVC size < 512Mi
+// add 15% for target PVC size < 4096Mi
+// add 10% for target PVC size >= 4096Mi
+func getScratchFilesystemOverhead(pvcSize resource.Quantity) (cdiv1.Percent, error) {
+	switch {
+	case pvcSize.IsZero():
+		return "", errors.New("got zero pvc size")
+	case pvcSize.Cmp(rate24Mi) == -1:
+		return "0.4", nil
+	case pvcSize.Cmp(rate512Mi) == -1:
+		return "0.25", nil
+	case pvcSize.Cmp(rate4096Mi) == -1:
+		return "0.15", nil
+	default:
+		return "0.1", nil
+	}
 }
 
 // GetFilesystemOverhead determines the filesystem overhead defined in CDIConfig for this PVC's volumeMode and storageClass.

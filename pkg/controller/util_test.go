@@ -19,10 +19,11 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
-	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
 var (
@@ -429,20 +430,19 @@ var _ = Describe("check PVC", func() {
 })
 
 var _ = Describe("createScratchPersistentVolumeClaim", func() {
-	DescribeTable("Should create a scratch PVC of the correct size, taking fs overhead into account", func(scratchOverhead, scOverhead cdiv1.Percent, expectedValue int64) {
+	DescribeTable("Should create a scratch PVC of the correct size, taking fs overhead into account", func(pvcSize string, scOverhead cdiv1.Percent, expectedValue int64) {
 		cdiConfig := createCDIConfigWithStorageClass(common.ConfigName, scratchStorageClassName)
 		cdiConfig.Status.FilesystemOverhead = &cdiv1.FilesystemOverhead{
 			Global: "0.05",
 			StorageClass: map[string]cdiv1.Percent{
-				scratchStorageClassName: scratchOverhead,
-				storageClassName:        scOverhead,
+				storageClassName: scOverhead,
 			},
 		}
 		cl := CreateClient(cdiConfig, CreateStorageClass(scratchStorageClassName, nil), CreateStorageClass(storageClassName, nil))
 		rec := record.NewFakeRecorder(10)
 		By("Create a 1Gi pvc")
 		testPvc := CreatePvcInStorageClass("testPvc", "default", ptr.To[string](storageClassName), nil, nil, v1.ClaimBound)
-		testPvc.Spec.Resources.Requests[v1.ResourceStorage] = resource.MustParse("1Gi")
+		testPvc.Spec.Resources.Requests[v1.ResourceStorage] = resource.MustParse(pvcSize)
 		name := "test-scratchspace-pvc"
 		pod := &v1.Pod{}
 		res, err := createScratchPersistentVolumeClaim(cl, testPvc, pod, name, scratchStorageClassName, nil, rec)
@@ -451,11 +451,11 @@ var _ = Describe("createScratchPersistentVolumeClaim", func() {
 		Expect(res.Spec.Resources).ToNot(BeNil())
 		Expect(res.Spec.Resources.Requests.Storage()).ToNot(BeNil())
 		scratchPVCSize := *res.Spec.Resources.Requests.Storage()
-		Expect(scratchPVCSize.Value()).To(Equal(expectedValue * 1024 * 1024))
+		Expect(scratchPVCSize.Value()).To(Equal(expectedValue))
 	},
-		Entry("same scratch and storage class overhead", cdiv1.Percent("0.03"), cdiv1.Percent("0.03"), int64(1024)),
-		Entry("scratch  > storage class overhead", cdiv1.Percent("0.1"), cdiv1.Percent("0.03"), int64(1104)),
-		Entry("scratch  < storage class overhead", cdiv1.Percent("0.03"), cdiv1.Percent("0.1"), int64(950)),
+		Entry("same scratch and storage class overhead", "5Gi", cdiv1.Percent("0.1"), int64(5368709120)),
+		Entry("scratch  > storage class overhead", "10Mi", cdiv1.Percent("0.1"), int64(15728640)),
+		Entry("scratch  < storage class overhead", "5Gi", cdiv1.Percent("0.3"), int64(4176478208)),
 	)
 
 	It("Should calculate the correct size for a scratch PVC from a block volume", func() {
@@ -477,8 +477,71 @@ var _ = Describe("createScratchPersistentVolumeClaim", func() {
 		Expect(res.Spec.Resources).ToNot(BeNil())
 		Expect(res.Spec.Resources.Requests.Storage()).ToNot(BeNil())
 		scratchPVCSize := *res.Spec.Resources.Requests.Storage()
-		Expect(scratchPVCSize.Value()).To(Equal(int64(1078 * 1024 * 1024)))
+		Expect(scratchPVCSize.Value()).To(Equal(int64(1263534080)))
 	})
+})
+
+var _ = Describe("getScratchFilesystemOverhead", func() {
+	var err error
+	var percent cdiv1.Percent
+
+	type testCase struct {
+		name      string
+		pvcSize   resource.Quantity
+		expected  cdiv1.Percent
+		expectErr bool
+	}
+
+	cases := []testCase{
+		{
+			name:      "zero pvc size",
+			pvcSize:   resource.MustParse("0Mi"),
+			expectErr: true,
+		},
+		{
+			name:     "< 24Mi",
+			pvcSize:  resource.MustParse("10Mi"),
+			expected: "0.4",
+		},
+		{
+			name:     "< 512Mi",
+			pvcSize:  resource.MustParse("100Mi"),
+			expected: "0.25",
+		},
+		{
+			name:     "< 4096Mi",
+			pvcSize:  resource.MustParse("1Gi"),
+			expected: "0.15",
+		},
+		{
+			name:     ">= 4096Mi",
+			pvcSize:  resource.MustParse("5Gi"),
+			expected: "0.1",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		When(fmt.Sprintf("testing case %q with pvc size %v", tc.name, tc.pvcSize), func() {
+			BeforeEach(func() {
+				percent, err = getScratchFilesystemOverhead(tc.pvcSize)
+			})
+
+			if tc.expectErr {
+				It("should return an error", func() {
+					Expect(err).To(HaveOccurred())
+				})
+			} else {
+				It("should not return an error", func() {
+					Expect(err).NotTo(HaveOccurred())
+				})
+
+				It("should return the expected result "+string(tc.expected), func() {
+					Expect(percent).To(Equal(tc.expected))
+				})
+			}
+		})
+	}
 })
 
 func createDataVolumeWithStorageClass(name, ns, storageClassName string) *cdiv1.DataVolume {
