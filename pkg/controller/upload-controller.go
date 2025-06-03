@@ -51,6 +51,7 @@ import (
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
+	patchedDV "kubevirt.io/containerized-data-importer/pkg/patcheddatavolume"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
@@ -473,6 +474,12 @@ func (r *UploadReconciler) getOrCreateScratchPvc(pvc *corev1.PersistentVolumeCla
 		// Scratch PVC doesn't exist yet, create it.
 		scratchPvc, err = createScratchPersistentVolumeClaim(r.client, pvc, pod, name, storageClassName, map[string]string{}, r.recorder)
 		if err != nil {
+			if strings.Contains(err.Error(), "exceeded quota") {
+				innerErr := patchedDV.UpdateDVQuotaNotExceededConditionByPVC(r.client, pvc, corev1.ConditionFalse, fmt.Sprintf("Exceeded quota: %q", err.Error()), patchedDV.QuotaExceededReason)
+				if innerErr != nil {
+					return nil, innerErr
+				}
+			}
 			return nil, err
 		}
 	} else {

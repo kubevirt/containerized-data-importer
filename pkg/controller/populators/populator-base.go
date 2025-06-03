@@ -18,7 +18,9 @@ package populators
 
 import (
 	"context"
+	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/go-logr/logr"
 
@@ -40,6 +42,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	patchedDV "kubevirt.io/containerized-data-importer/pkg/patcheddatavolume"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -181,6 +184,11 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 		annotations[cc.AnnPodRetainAfterCompletion] = pvc.Annotations[cc.AnnPodRetainAfterCompletion]
 	}
 
+	dvUid, ok := pvc.Annotations[cc.AnnCreatedForDataVolume]
+	if ok {
+		annotations[cc.AnnCreatedForDataVolume] = dvUid
+	}
+
 	// Assemble PVC' spec
 	pvcPrime := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
@@ -212,6 +220,12 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	}
 
 	if err := r.client.Create(context.TODO(), pvcPrime); err != nil {
+		if strings.Contains(err.Error(), "exceeded quota") {
+			innerErr := patchedDV.UpdateDVQuotaNotExceededConditionByPVC(r.client, pvc, corev1.ConditionFalse, fmt.Sprintf("Exceeded quota: %q", err.Error()), patchedDV.QuotaExceededReason)
+			if innerErr != nil {
+				return nil, innerErr
+			}
+		}
 		return nil, err
 	}
 	r.recorder.Eventf(pvc, corev1.EventTypeNormal, createdPVCPrimeSuccessfully, messageCreatedPVCPrimeSuccessfully)
