@@ -19,6 +19,7 @@ package image
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/url"
 	"os"
 	"regexp"
@@ -139,11 +140,12 @@ func getCacheMode(path string, cacheMode string) (string, error) {
 	var stat unix.Stat_t
 	var err error
 
-	if err = unix.Stat(path, &stat); err != nil {
-		return "", err
+	if err = unix.Stat(path, &stat); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		// volumeDevices specified on pod level definitely exist, must be filesystem
+		return "", fmt.Errorf("cannot stat for establishing O_DIRECT support: %w", err)
 	}
 
-	if (stat.Mode & unix.S_IFMT) == unix.S_IFBLK {
+	if err == nil && ((stat.Mode & unix.S_IFMT) == unix.S_IFBLK) {
 		supportDirectIO, err = odirectChecker.CheckBlockDevice(path)
 	} else {
 		supportDirectIO, err = odirectChecker.CheckFile(path)
