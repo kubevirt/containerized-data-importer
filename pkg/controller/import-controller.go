@@ -859,6 +859,11 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 		return nil, err
 	}
 
+	args.workloadNodePlacement, err = cc.AdjustWorkloadNodePlacement(context.TODO(), client, args.workloadNodePlacement, args.pvc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to adjust workload node placement: %w", err)
+	}
+
 	if isRegistryNodeImport(args) {
 		args.importImage, err = getRegistryImportImage(args.pvc)
 		if err != nil {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -769,6 +770,13 @@ func createDesiredClaim(namespace string, targetClaim *corev1.PersistentVolumeCl
 			Name:        fmt.Sprintf("tmp-pvc-%s", string(targetClaim.UID)),
 			Labels:      targetCpy.Labels,
 			Annotations: targetCpy.Annotations,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(targetClaim, schema.GroupVersionKind{
+					Group:   "",
+					Version: "v1",
+					Kind:    "PersistentVolumeClaim",
+				}),
+			},
 		},
 		Spec: targetCpy.Spec,
 	}
@@ -812,6 +820,13 @@ func createTempSourceClaim(ctx context.Context, log logr.Logger, namespace strin
 			Name:        fmt.Sprintf("tmp-source-pvc-%s", string(targetClaim.UID)),
 			Labels:      targetCpy.Labels,
 			Annotations: targetCpy.Annotations,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(targetClaim, schema.GroupVersionKind{
+					Group:   "",
+					Version: "v1",
+					Kind:    "PersistentVolumeClaim",
+				}),
+			},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			StorageClassName: &scName,

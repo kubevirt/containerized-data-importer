@@ -1145,6 +1145,11 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		annotations[k] = v
 	}
 	annotations[cc.AnnPodRestarts] = "0"
+
+	if dataVolume.Annotations[cc.AnnProvisionerTolerations] != "" {
+		annotations[cc.AnnProvisionerTolerations] = dataVolume.Annotations[cc.AnnProvisionerTolerations]
+	}
+
 	annotations[cc.AnnContentType] = string(cc.GetContentType(dataVolume.Spec.ContentType))
 	if dataVolume.Spec.PriorityClassName != "" {
 		annotations[cc.AnnPriorityClassName] = dataVolume.Spec.PriorityClassName

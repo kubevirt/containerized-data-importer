@@ -500,6 +500,11 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 		return nil, err
 	}
 
+	workloadNodePlacement, err = cc.AdjustWorkloadNodePlacement(context.TODO(), r.client, workloadNodePlacement, pvc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to adjust workload node placement: %w", err)
+	}
+
 	sourcePvc, err := r.getCloneRequestSourcePVC(pvc)
 	if err != nil {
 		return nil, err

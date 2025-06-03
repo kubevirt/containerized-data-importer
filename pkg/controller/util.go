@@ -341,7 +341,21 @@ func podSucceededFromPVC(pvc *corev1.PersistentVolumeClaim) bool {
 }
 
 func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *corev1.Pod, termMsg *common.TerminationMessage, prefix string) {
-	if pod == nil || pod.Status.ContainerStatuses == nil {
+	if pod == nil {
+		return
+	}
+
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type != corev1.PodScheduled {
+			continue
+		}
+
+		anno[cc.AnnProvisionerName] = pod.Name
+
+		break
+	}
+
+	if pod.Status.ContainerStatuses == nil {
 		return
 	}
 	annPodRestarts, _ := strconv.Atoi(anno[cc.AnnPodRestarts])

@@ -624,6 +624,11 @@ func (r *UploadReconciler) createUploadPod(args UploadPodArgs) (*corev1.Pod, err
 		return nil, err
 	}
 
+	workloadNodePlacement, err = cc.AdjustWorkloadNodePlacement(context.TODO(), r.client, workloadNodePlacement, args.PVC)
+	if err != nil {
+		return nil, fmt.Errorf("failed to adjust workload node placement: %w", err)
+	}
+
 	pod := r.makeUploadPodSpec(args, podResourceRequirements, imagePullSecrets, workloadNodePlacement)
 	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 

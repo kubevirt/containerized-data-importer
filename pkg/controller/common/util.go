@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -94,6 +95,11 @@ const (
 	AnnPriorityClassName = AnnAPIGroup + "/storage.pod.priorityclassname"
 	// AnnExternalPopulation annotation marks a PVC as "externally populated", allowing the import-controller to skip it
 	AnnExternalPopulation = AnnAPIGroup + "/externalPopulation"
+
+	// AnnProvisionerTolerations annotation specifies tolerations to use for provisioners.
+	AnnProvisionerTolerations = "virt.deckhouse.io/provisioner-tolerations"
+	// AnnProvisionerName provides a name of data volume provisioner.
+	AnnProvisionerName = "virt.deckhouse.io/provisioner-name"
 
 	// AnnDeleteAfterCompletion is PVC annotation for deleting DV after completion
 	AnnDeleteAfterCompletion = AnnAPIGroup + "/storage.deleteAfterCompletion"
@@ -775,6 +781,50 @@ func GetWorkloadNodePlacement(ctx context.Context, c client.Client) (*sdkapi.Nod
 	}
 
 	return &cr.Spec.Workloads, nil
+}
+
+// AdjustWorkloadNodePlacement adds tolerations specified in prime pvc annotation.
+func AdjustWorkloadNodePlacement(ctx context.Context, c client.Client, nodePlacement *sdkapi.NodePlacement, primePVC *corev1.PersistentVolumeClaim) (*sdkapi.NodePlacement, error) {
+	targetPVCKey := types.NamespacedName{
+		Namespace: primePVC.Namespace,
+	}
+
+	for _, ref := range primePVC.OwnerReferences {
+		if ref.Kind == "PersistentVolumeClaim" {
+			targetPVCKey.Name = ref.Name
+		}
+	}
+
+	var targetPVC corev1.PersistentVolumeClaim
+	err := c.Get(ctx, targetPVCKey, &targetPVC)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get target pvc %s: %w", targetPVCKey, err)
+	}
+
+	provisionerTolerations, err := ExtractProvisionerTolerations(&targetPVC)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract provisioner tolerations: %w", err)
+	}
+
+	nodePlacement.Tolerations = append(nodePlacement.Tolerations, provisionerTolerations...)
+
+	return nodePlacement, nil
+}
+
+func ExtractProvisionerTolerations(obj client.Object) ([]corev1.Toleration, error) {
+	rawTolerations := obj.GetAnnotations()[AnnProvisionerTolerations]
+
+	if rawTolerations == "" {
+		return nil, nil
+	}
+
+	var tolerations []corev1.Toleration
+	err := json.Unmarshal([]byte(rawTolerations), &tolerations)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal provisioner tolerations %s: %w", rawTolerations, err)
+	}
+
+	return tolerations, nil
 }
 
 // GetActiveCDI returns the active CDI CR

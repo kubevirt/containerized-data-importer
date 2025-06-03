@@ -42,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
@@ -683,6 +684,12 @@ func (r *PvcCloneReconciler) makeSizeDetectionPodSpec(
 	if err != nil {
 		return nil
 	}
+
+	workloadNodePlacement.Tolerations, err = cc.ExtractProvisionerTolerations(dv)
+	if err != nil {
+		return nil
+	}
+
 	// Generate individual specs
 	objectMeta := makeSizeDetectionObjectMeta(sourcePvc)
 	volume := makeSizeDetectionVolumeSpec(sourcePvc.Name)

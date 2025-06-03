@@ -139,6 +139,11 @@ func (p *PrepClaimPhase) createPod(ctx context.Context, name string, pvc *corev1
 		return err
 	}
 
+	workloadNodePlacement, err = cc.AdjustWorkloadNodePlacement(context.TODO(), p.Client, workloadNodePlacement, pvc)
+	if err != nil {
+		return fmt.Errorf("failed to adjust workload node placement: %w", err)
+	}
+
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
