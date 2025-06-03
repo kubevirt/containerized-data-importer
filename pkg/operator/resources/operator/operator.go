@@ -130,11 +130,11 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"validatingwebhookconfigurations",
 			},
 			ResourceNames: []string{
-				"cdi-api-dataimportcron-validate",
-				"cdi-api-populator-validate",
-				"cdi-api-datavolume-validate",
-				"cdi-api-validate",
-				"objecttransfer-api-validate",
+				"cdi-internal-virtualization-api-dataimportcron-validate",
+				"cdi-internal-virtualization-api-populator-validate",
+				"cdi-internal-virtualization-api-datavolume-validate",
+				"cdi-internal-virtualization-api-validate",
+				"cdi-internal-virtualization-objecttransfer-api-validate",
 			},
 			Verbs: []string{
 				"get",
@@ -150,8 +150,8 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"mutatingwebhookconfigurations",
 			},
 			ResourceNames: []string{
-				"cdi-api-datavolume-mutate",
-				"cdi-api-pvc-mutate",
+				"cdi-internal-virtualization-api-datavolume-mutate",
+				"cdi-internal-virtualization-api-pvc-mutate",
 			},
 			Verbs: []string{
 				"get",

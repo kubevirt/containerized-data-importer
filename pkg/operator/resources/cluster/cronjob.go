@@ -50,10 +50,12 @@ func getCronJobClusterPolicyRules() []rbacv1.PolicyRule {
 	}
 }
 
+const cronJobWrapName = "cdi-internal-virtualization-cronjob"
+
 func createCronJobClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return utils.ResourceBuilder.CreateClusterRoleBinding(common.CDICronJobResourceName, common.CDICronJobResourceName, common.CDICronJobResourceName, namespace)
+	return utils.ResourceBuilder.CreateClusterRoleBinding(cronJobWrapName, cronJobWrapName, common.CDICronJobResourceName, namespace)
 }
 
 func createCronJobClusterRole() *rbacv1.ClusterRole {
-	return utils.ResourceBuilder.CreateClusterRole(common.CDICronJobResourceName, getCronJobClusterPolicyRules())
+	return utils.ResourceBuilder.CreateClusterRole(cronJobWrapName, getCronJobClusterPolicyRules())
 }

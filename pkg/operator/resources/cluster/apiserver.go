@@ -294,7 +294,7 @@ func createDataImportCronValidatingWebhook(namespace string, c client.Client, l 
 			Kind:       "ValidatingWebhookConfiguration",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "cdi-api-dataimportcron-validate",
+			Name: "cdi-internal-virtualization-api-dataimportcron-validate",
 			Labels: map[string]string{
 				utils.CDILabel: APIServerServiceName,
 			},
@@ -361,7 +361,7 @@ func createPopulatorsValidatingWebhook(namespace string, c client.Client, l logr
 			Kind:       "ValidatingWebhookConfiguration",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "cdi-api-populator-validate",
+			Name: "cdi-internal-virtualization-api-populator-validate",
 			Labels: map[string]string{
 				utils.CDILabel: APIServerServiceName,
 			},
@@ -428,7 +428,7 @@ func createDataVolumeValidatingWebhook(namespace string, c client.Client, l logr
 			Kind:       "ValidatingWebhookConfiguration",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "cdi-api-datavolume-validate",
+			Name: "cdi-internal-virtualization-api-datavolume-validate",
 			Labels: map[string]string{
 				utils.CDILabel: APIServerServiceName,
 			},
@@ -495,7 +495,7 @@ func createCDIValidatingWebhook(namespace string, c client.Client, l logr.Logger
 			Kind:       "ValidatingWebhookConfiguration",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "cdi-api-validate",
+			Name: "cdi-internal-virtualization-api-validate",
 			Labels: map[string]string{
 				utils.CDILabel: APIServerServiceName,
 			},
@@ -564,7 +564,7 @@ func createObjectTransferValidatingWebhook(namespace string, c client.Client, l 
 			Kind:       "ValidatingWebhookConfiguration",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "objecttransfer-api-validate",
+			Name: "cdi-internal-virtualization-objecttransfer-api-validate",
 			Labels: map[string]string{
 				utils.CDILabel: APIServerServiceName,
 			},
@@ -637,7 +637,7 @@ func createDataVolumeMutatingWebhook(namespace string, c client.Client, l logr.L
 			Kind:       "MutatingWebhookConfiguration",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "cdi-api-datavolume-mutate",
+			Name: "cdi-internal-virtualization-api-datavolume-mutate",
 			Labels: map[string]string{
 				utils.CDILabel: APIServerServiceName,
 			},
@@ -706,10 +706,12 @@ func GetAPIServerCABundle(namespace string, c client.Client, l logr.Logger) []by
 	return nil
 }
 
+const apiServerWrapName = "cdi-internal-virtualization-apiserver"
+
 func createAPIServerClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return utils.ResourceBuilder.CreateClusterRoleBinding(common.CDIApiServerResourceName, common.CDIApiServerResourceName, common.CDIApiServerResourceName, namespace)
+	return utils.ResourceBuilder.CreateClusterRoleBinding(apiServerWrapName, apiServerWrapName, common.CDIApiServerResourceName, namespace)
 }
 
 func createAPIServerClusterRole() *rbacv1.ClusterRole {
-	return utils.ResourceBuilder.CreateClusterRole(common.CDIApiServerResourceName, getAPIServerClusterPolicyRules())
+	return utils.ResourceBuilder.CreateClusterRole(apiServerWrapName, getAPIServerClusterPolicyRules())
 }

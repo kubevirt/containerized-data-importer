@@ -27,11 +27,11 @@ import (
 
 func createAggregateClusterRoles(_ *FactoryArgs) []client.Object {
 	return []client.Object{
-		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:admin", "admin", getAdminPolicyRules()),
-		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:edit", "edit", getEditPolicyRules()),
-		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:view", "view", getViewPolicyRules()),
-		createConfigReaderClusterRole("cdi.kubevirt.io:config-reader"),
-		createConfigReaderClusterRoleBinding("cdi.kubevirt.io:config-reader"),
+		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.internal.virtualization.deckhouse.io:admin", "admin", getAdminPolicyRules()),
+		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.internal.virtualization.deckhouse.io:edit", "edit", getEditPolicyRules()),
+		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.internal.virtualization.deckhouse.io:view", "view", getViewPolicyRules()),
+		createConfigReaderClusterRole("cdi.internal.virtualization.deckhouse.io:config-reader"),
+		createConfigReaderClusterRoleBinding("cdi.internal.virtualization.deckhouse.io:config-reader"),
 	}
 }
 

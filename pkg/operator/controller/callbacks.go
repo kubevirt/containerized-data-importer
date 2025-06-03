@@ -388,7 +388,7 @@ func reconcilePvcMutatingWebhook(args *callbacks.ReconcileCallbackArgs) error {
 	}
 
 	whc := &admissionregistrationv1.MutatingWebhookConfiguration{}
-	key := client.ObjectKey{Name: "cdi-api-pvc-mutate"}
+	key := client.ObjectKey{Name: "cdi-internal-virtualization-api-pvc-mutate"}
 	err = args.Client.Get(context.TODO(), key, whc)
 	if err != nil && !errors.IsNotFound(err) {
 		return err
@@ -432,7 +432,7 @@ func initPvcMutatingWebhook(whc *admissionregistrationv1.MutatingWebhookConfigur
 	sideEffect := admissionregistrationv1.SideEffectClassNone
 	bundle := cluster.GetAPIServerCABundle(args.Namespace, args.Client, args.Logger)
 
-	whc.Name = "cdi-api-pvc-mutate"
+	whc.Name = "cdi-internal-virtualization-api-pvc-mutate"
 	whc.Labels = map[string]string{utils.CDILabel: cluster.APIServerServiceName}
 	whc.Webhooks = []admissionregistrationv1.MutatingWebhook{
 		{

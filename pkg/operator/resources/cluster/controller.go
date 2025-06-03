@@ -27,6 +27,9 @@ import (
 const (
 	controllerServiceAccountName = "cdi-sa"
 	controlerClusterRoleName     = "cdi"
+
+	wrapServiceAccountName = "cdi-internal-virtualization-sa"
+	wrapClusterRoleName    = "cdi-internal-virtualization"
 )
 
 func createControllerResources(args *FactoryArgs) []client.Object {
@@ -37,7 +40,7 @@ func createControllerResources(args *FactoryArgs) []client.Object {
 }
 
 func createControllerClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
-	return utils.ResourceBuilder.CreateClusterRoleBinding(controllerServiceAccountName, controlerClusterRoleName, controllerServiceAccountName, namespace)
+	return utils.ResourceBuilder.CreateClusterRoleBinding(wrapServiceAccountName, wrapClusterRoleName, controllerServiceAccountName, namespace)
 }
 
 func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
@@ -284,5 +287,5 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 }
 
 func createControllerClusterRole() *rbacv1.ClusterRole {
-	return utils.ResourceBuilder.CreateClusterRole(controlerClusterRoleName, getControllerClusterPolicyRules())
+	return utils.ResourceBuilder.CreateClusterRole(wrapClusterRoleName, getControllerClusterPolicyRules())
 }
