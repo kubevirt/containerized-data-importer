@@ -3506,7 +3506,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 				By("Verifying event occurred")
 				Eventually(func() bool {
-					events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=PersistentVolumeClaim")
+					events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
 					primeEvent := fmt.Sprintf("[%s]", primeName)
 					if err == nil {
 						fmt.Fprintf(GinkgoWriter, "%s", events)

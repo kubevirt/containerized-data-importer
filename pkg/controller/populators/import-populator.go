@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -241,15 +240,6 @@ func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger,
 	if err != nil {
 		log.Error(err, "Could not retrieve srcObj list of Events")
 	}
-
-	// Sort event lists by most recent
-	sort.Slice(currEvents.Items, func(i, j int) bool {
-		return currEvents.Items[i].FirstTimestamp.Time.After(currEvents.Items[j].FirstTimestamp.Time)
-	})
-
-	sort.Slice(newEvents.Items, func(i, j int) bool {
-		return newEvents.Items[i].FirstTimestamp.Time.After(newEvents.Items[j].FirstTimestamp.Time)
-	})
 
 	var emitEvent bool
 	for idx, newEvent := range newEvents.Items {
