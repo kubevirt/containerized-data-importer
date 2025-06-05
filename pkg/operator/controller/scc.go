@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/go-logr/logr"
 	secv1 "github.com/openshift/api/security/v1"
@@ -73,7 +74,7 @@ func setSCC(scc *secv1.SecurityContextConstraints) {
 	scc.AllowPrivilegeEscalation = &allowPrivilegeEscalation
 }
 
-func ensureSCCExists(ctx context.Context, logger logr.Logger, c client.Client, saNamespace, saName, cronSaName string) error {
+func ensureSCCExists(ctx context.Context, logger logr.Logger, c client.Client, saNamespace, saName, cronSaName string) (bool, error) {
 	scc := &secv1.SecurityContextConstraints{}
 	userName := fmt.Sprintf("system:serviceaccount:%s:%s", saNamespace, saName)
 	cronUserName := fmt.Sprintf("system:serviceaccount:%s:%s", saNamespace, cronSaName)
@@ -82,14 +83,14 @@ func ensureSCCExists(ctx context.Context, logger logr.Logger, c client.Client, s
 	if meta.IsNoMatchError(err) {
 		// not in openshift
 		logger.V(3).Info("No match error for SCC, must not be in openshift")
-		return nil
+		return false, nil
 	} else if errors.IsNotFound(err) {
 		cr, err := cc.GetActiveCDI(ctx, c)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if cr == nil {
-			return fmt.Errorf("no active CDI")
+			return false, fmt.Errorf("no active CDI")
 		}
 		installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
 
@@ -111,12 +112,16 @@ func ensureSCCExists(ctx context.Context, logger logr.Logger, c client.Client, s
 		util.SetRecommendedLabels(scc, installerLabels, "cdi-operator")
 
 		if err = operator.SetOwnerRuntime(c, scc); err != nil {
-			return err
+			return false, err
 		}
 
-		return c.Create(ctx, scc)
+		if err := c.Create(ctx, scc); err != nil {
+			return false, err
+		}
+
+		return true, nil
 	} else if err != nil {
-		return err
+		return false, err
 	}
 
 	origSCC := scc.DeepCopy()
@@ -129,12 +134,20 @@ func ensureSCCExists(ctx context.Context, logger logr.Logger, c client.Client, s
 	if !sdk.ContainsStringValue(scc.Users, cronUserName) {
 		scc.Users = append(scc.Users, cronUserName)
 	}
+	// Avoid hotloop by sorting volumes slice prior to comparison
+	slices.Sort(origSCC.Volumes)
+	slices.Sort(scc.Volumes)
 
 	if !apiequality.Semantic.DeepEqual(origSCC, scc) {
-		return c.Update(context.TODO(), scc)
+		sdk.LogJSONDiff(logger, origSCC, scc)
+		if err := c.Update(context.TODO(), scc); err != nil {
+			return false, err
+		}
+
+		return true, nil
 	}
 
-	return nil
+	return false, nil
 }
 
 func (r *ReconcileCDI) watchSecurityContextConstraints() error {
