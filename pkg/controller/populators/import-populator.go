@@ -112,7 +112,7 @@ func addEventWatcher(mgr manager.Manager, c controller.Controller) error {
 		func(_ context.Context, e *corev1.Event) []reconcile.Request {
 			if e.InvolvedObject.Kind == "PersistentVolumeClaim" && strings.Contains(e.InvolvedObject.Name, "prime") {
 				return []reconcile.Request{{
-					NamespacedName: types.NamespacedName{Name: e.Namespace},
+					NamespacedName: types.NamespacedName{Name: e.InvolvedObject.Name, Namespace: e.InvolvedObject.Namespace},
 				}}
 			}
 			return nil
@@ -216,9 +216,15 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 
 func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger, recorder record.EventRecorder) {
 	copyingToDv := false
+	primePrefixMsg := ""
 	if destObj.GetObjectKind().GroupVersionKind().Kind == "DataVolume" {
 		copyingToDv = true
+		primeName := srcObj.GetAnnotations()[cc.AnnPVCPrimeName]
+		primePrefixMsg = fmt.Sprintf("[%s] : ", primeName)
+	} else {
+		primePrefixMsg = fmt.Sprintf("[%s] : ", srcObj.GetName())
 	}
+
 	newEvents := &corev1.EventList{}
 	err := c.List(context.TODO(), newEvents,
 		client.InNamespace(srcObj.GetNamespace()),
@@ -227,7 +233,7 @@ func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger,
 	)
 
 	if err != nil {
-		log.Error(err, "Could not retrieve destObj list of Events")
+		log.Error(err, "Could not retrieve srcObj list of Events")
 	}
 
 	currEvents := &corev1.EventList{}
@@ -238,41 +244,40 @@ func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger,
 	)
 
 	if err != nil {
-		log.Error(err, "Could not retrieve srcObj list of Events")
+		log.Error(err, "Could not retrieve destObj list of Events")
 	}
 
-	var emitEvent bool
-	for idx, newEvent := range newEvents.Items {
-		emitEvent = true
-		currTime := newEvent.FirstTimestamp.Unix()
-		for _, currEvent := range currEvents.Items {
-			// only want to emit new events from primePvc
-			// since lists are sorted by time, if we find one we've emitted
-			// then all subsequent events have also been emitted
-			if strings.Contains(currEvent.Message, newEvent.Message) {
-				// sometimes events have the equal timestamps, so evaulate next one before quitting
-				if len(newEvents.Items) > idx+1 && currTime == newEvents.Items[idx+1].FirstTimestamp.Unix() {
-					emitEvent = false
-					// move onto next newEvent
-					break
-				}
-				return
+	// use this to hash each message for quick lookup, value is unused
+	eventMap := make(map[string]bool)
+
+	for _, event := range currEvents.Items {
+		eventMap[event.Message] = true
+	}
+
+	for _, newEvent := range newEvents.Items {
+		msg := newEvent.Message
+		// only want to copy events to DV that originated from the prime pvc
+		if copyingToDv && !strings.Contains(msg, "prime") {
+			continue
+		} else if !copyingToDv {
+			// if we copying from prime PVC to PVC, don't reemit duplicates
+			if strings.Contains(msg, primePrefixMsg) {
+				continue
 			}
 		}
-		if emitEvent {
-			message := ""
-			// if we are copying to a DV, we only want to copy over events with pvcPrime prefix
-			if copyingToDv {
-				if !strings.Contains(newEvent.Message, "prime") {
-					continue
-				}
-				message = newEvent.Message
-			} else {
-				// only want to add pvcPrime prefix if we are copying to another PVC
-				message = "[" + srcObj.GetName() + "] : " + newEvent.Message
-			}
-			recorder.Event(destObj, newEvent.Type, newEvent.Reason, message)
+		// check if new message exists in our map
+		_, exists := eventMap[msg]
+		if exists {
+			continue
 		}
+		outMessage := ""
+		if copyingToDv {
+			outMessage = msg
+		} else {
+			// only want to add pvcPrime prefix if we are copying to another PVC
+			outMessage = "[" + srcObj.GetName() + "] : " + msg
+		}
+		recorder.Event(destObj, newEvent.Type, newEvent.Reason, outMessage)
 	}
 }
 
