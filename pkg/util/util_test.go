@@ -160,8 +160,8 @@ var _ = Describe("Usable Space calculation", func() {
 	)
 	DescribeTable("getusablespace should return properly aligned sizes,", func(virtualSize int64, overhead float64) {
 		for i := virtualSize - 1024; i < virtualSize+1024; i++ {
-			// Requested space is virtualSize rounded up to 1Mi alignment / (1 - overhead) rounded up
-			requestedSpace := int64(float64(RoundUp(i, DefaultAlignBlockSize)+1) / (1 - overhead))
+			// Requested space is virtualSize rounded up to 1Mi alignment * (1 + overhead) rounded up
+			requestedSpace := int64(float64(RoundUp(i, DefaultAlignBlockSize)+1) * (1 + overhead))
 			if i <= virtualSize {
 				Expect(GetUsableSpace(overhead, requestedSpace)).To(Equal(virtualSize))
 			} else {
