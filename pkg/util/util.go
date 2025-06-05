@@ -249,9 +249,16 @@ func GetUsableSpace(filesystemOverhead float64, availableSpace int64) int64 {
 	return RoundDown(spaceWithoutOverhead, DefaultAlignBlockSize)
 }
 
-func CalculateOverheadSpace(filesystemOverhead float64, availableSpace int64) int64 {
-	spaceWithOverhead := int64(math.Ceil(float64(availableSpace) / (1 - filesystemOverhead)))
-	return RoundUp(spaceWithOverhead, DefaultAlignBlockSize)
+// GetRequiredSpace calculates space required taking file system overhead into account
+func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
+	// the `image` has to be aligned correctly, so the space requested has to be aligned to
+	// next value that is a multiple of a block size
+	alignedSize := RoundUp(requestedSpace, DefaultAlignBlockSize)
+
+	// count overhead as a percentage of the whole/new size, including aligned image
+	// and the space required by filesystem metadata
+	spaceWithOverhead := int64(math.Ceil(float64(alignedSize) * (1 + filesystemOverhead)))
+	return spaceWithOverhead
 }
 
 // ResolveVolumeMode returns the volume mode if set, otherwise defaults to file system mode
