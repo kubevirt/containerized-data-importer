@@ -273,6 +273,19 @@ func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.
 	return pvcCopy, nil
 }
 
+func (r *ReconcilerBase) updatePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim, pvcPrimeName string) (bool, error) {
+	if _, ok := pvc.Annotations[cc.AnnPVCPrimeName]; ok {
+		return false, nil
+	}
+
+	cc.AddAnnotation(pvc, cc.AnnPVCPrimeName, pvcPrimeName)
+	if err := r.client.Update(context.TODO(), pvc); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 func (r *ReconcilerBase) updatePVCWithPVCPrimeLabels(pvc *corev1.PersistentVolumeClaim, pvcPrimeLabels map[string]string) (*corev1.PersistentVolumeClaim, error) {
 	pvcCopy := pvc.DeepCopy()
 	cc.CopyAllowedLabels(pvcPrimeLabels, pvcCopy, false)

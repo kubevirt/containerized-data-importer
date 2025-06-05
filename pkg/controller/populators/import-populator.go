@@ -160,7 +160,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		return reconcile.Result{}, err
 	}
 
-	_, err = updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name, r.client)
+	_, err = r.updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
