@@ -391,7 +391,7 @@ func (app *uploadProxyApp) startTLS() error {
 }
 
 func (app *uploadProxyApp) getPopulationPVC(ctx context.Context, pvc *v1.PersistentVolumeClaim, pvcNamespace string) (*v1.PersistentVolumeClaim, error) {
-	pvcPrimeName, ok := pvc.Annotations[populators.AnnPVCPrimeName]
+	pvcPrimeName, ok := pvc.Annotations[cc.AnnPVCPrimeName]
 	if !ok {
 		// wait for pvcPrimeName annotation on the pvc
 		return nil, nil
