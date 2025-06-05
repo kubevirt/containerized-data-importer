@@ -183,9 +183,16 @@ func createScratchPersistentVolumeClaim(client client.Client, pvc *corev1.Persis
 		return nil, errors.Wrap(err, "failed to get filesystem overhead for original PVC")
 	}
 	pvcFsOverheadFloat, _ := strconv.ParseFloat(string(pvcFsOverhead), 64)
-	expectedVirtualSize := util.GetUsableSpace(pvcFsOverheadFloat, sizeRequest.Value())
 
-	usableSpaceRaw := util.CalculateOverheadSpace(scratchFsOverheadFloat, expectedVirtualSize)
+	// Calculate the expected usable space for the scratch PVC based on both original PVC size and its fs overhead.
+	expectedVirtualSize := util.GetUsableSpace(pvcFsOverheadFloat, sizeRequest.Value())
+	// Now we add the fs overhead for the scratch PVC.
+	// TODO: Should we allow using a smaller overhead for scratch PVCs?
+	usableSpaceRaw := util.GetRequiredSpace(scratchFsOverheadFloat, expectedVirtualSize)
+
+	// Since GetUsableSpace rounds down to the nearest block size to account for qemu-img calculations, and GetRequiredSpace rounds up before applying overhead,
+	// it's good practice round up here to ensure we don't end up with a scratch PVC that is smaller than the original PVC.
+	usableSpaceRaw = util.RoundUp(usableSpaceRaw, util.DefaultAlignBlockSize)
 
 	scratchPvcSpec.Spec.Resources.Requests[corev1.ResourceStorage] = *resource.NewScaledQuantity(usableSpaceRaw, 0)
 

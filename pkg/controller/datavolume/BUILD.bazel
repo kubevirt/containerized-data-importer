@@ -78,6 +78,7 @@ go_test(
         "//pkg/controller/populators:go_default_library",
         "//pkg/feature-gates:go_default_library",
         "//pkg/token:go_default_library",
+        "//pkg/util:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/go-logr/logr:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1:go_default_library",

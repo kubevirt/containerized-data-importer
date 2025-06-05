@@ -1707,45 +1707,6 @@ var _ = Describe("All DataVolume Tests", func() {
 		})
 	})
 
-	const (
-		Mi              = int64(1024 * 1024)
-		Gi              = 1024 * Mi
-		noOverhead      = float64(0)
-		defaultOverhead = float64(0.055)
-		largeOverhead   = float64(0.75)
-	)
-	DescribeTable("GetRequiredSpace should return properly enlarged sizes,", func(imageSize int64, overhead float64) {
-		for testedSize := imageSize - 1024; testedSize < imageSize+1024; testedSize++ {
-			alignedImageSpace := imageSize
-			if testedSize > imageSize {
-				alignedImageSpace = imageSize + Mi
-			}
-
-			// TEST
-			actualRequiredSpace := GetRequiredSpace(overhead, testedSize)
-
-			// ASSERT results
-			// check that the resulting space includes overhead over the `aligned image size`
-			overheadSpace := actualRequiredSpace - alignedImageSpace
-			actualOverhead := float64(overheadSpace) / float64(actualRequiredSpace)
-
-			Expect(actualOverhead).To(BeNumerically("~", overhead, 0.01))
-		}
-	},
-		Entry("1Mi virtual size, 0 overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, noOverhead),
-		Entry("1Mi virtual size, default overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, defaultOverhead),
-		Entry("1Mi virtual size, large overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, largeOverhead),
-		Entry("40Mi virtual size, 0 overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, noOverhead),
-		Entry("40Mi virtual size, default overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, defaultOverhead),
-		Entry("40Mi virtual size, large overhead to be 40Mi if <= 40Mi and 41Mi if > 40Mi", 40*Mi, largeOverhead),
-		Entry("1Gi virtual size, 0 overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, noOverhead),
-		Entry("1Gi virtual size, default overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, defaultOverhead),
-		Entry("1Gi virtual size, large overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, largeOverhead),
-		Entry("40Gi virtual size, 0 overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, noOverhead),
-		Entry("40Gi virtual size, default overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, defaultOverhead),
-		Entry("40Gi virtual size, large overhead to be 40Gi if <= 40Gi and 41Gi if > 40Gi", 40*Gi, largeOverhead),
-	)
-
 	var _ = Describe("shouldUseCDIPopulator", func() {
 		scName := "test"
 		sc := CreateStorageClassWithProvisioner(scName, map[string]string{
