@@ -169,6 +169,9 @@ type DataVolumeSourceS3 struct {
 	URL string `json:"url"`
 	//SecretRef provides the secret reference needed to access the S3 source
 	SecretRef string `json:"secretRef,omitempty"`
+	//ServiceAccountName provides the SAN needed if we want to use chain creds for S3 access (optional, if SecretRef supplied)
+	// +optional
+	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 	// CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate
 	// +optional
 	CertConfigMap string `json:"certConfigMap,omitempty"`
