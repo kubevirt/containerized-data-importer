@@ -12,3 +12,4 @@ index 7a7f71c8b..4028e837f 100644
 +	if err != nil && errors.Cause(err) != ErrMissing {
  		return errors.Wrapf(ErrMissing, "replace operation does not apply: doc is missing key: %s", path)
  	}
+
