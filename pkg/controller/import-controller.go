@@ -202,6 +202,14 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 		return reconcile.Result{}, err
 	}
 
+	// only want to update bound condition for relevant type
+	if (checkPVC(pvc, cc.AnnEndpoint, log) || checkPVC(pvc, cc.AnnSource, log)) &&
+		!checkPVC(pvc, cc.AnnPopulatorKind, log) {
+		if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
 	shouldReconcile, err := r.shouldReconcilePVC(pvc, log)
 	if err != nil {
 		return reconcile.Result{}, err

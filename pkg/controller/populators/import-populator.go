@@ -110,7 +110,7 @@ func NewImportPopulator(
 func addEventWatcher(mgr manager.Manager, c controller.Controller) error {
 	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Event{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.Event](
 		func(_ context.Context, e *corev1.Event) []reconcile.Request {
-			if e.InvolvedObject.Kind == "PersistentVolumeClaim" && strings.Contains(e.InvolvedObject.Name, "prime") {
+			if e.InvolvedObject.Kind == "PersistentVolumeClaim" && strings.Contains(e.InvolvedObject.Name, "prime") && e.InvolvedObject.GroupVersionKind().Group == "" {
 				return []reconcile.Request{{
 					NamespacedName: types.NamespacedName{Name: e.InvolvedObject.Name, Namespace: e.InvolvedObject.Namespace},
 				}}
@@ -166,7 +166,12 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	}
 
 	// copy over any new events from pvcPrime to pvc
-	CopyEvents(pvcPrime, pvc, r.client, r.log, r.recorder)
+	CopyEvents(pvcPrime, pvcCopy, r.client, r.log, r.recorder)
+
+	err = cc.UpdatePVCBoundContionFromEvents(pvcCopy, r.client, r.log)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 
 	switch phase {
 	case string(corev1.PodRunning):

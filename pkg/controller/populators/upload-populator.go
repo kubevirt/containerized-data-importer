@@ -143,6 +143,14 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		}
 	}
 
+	// copy over any new events from pvcPrime to pvc
+	CopyEvents(pvcPrime, pvcCopy, r.client, r.log, r.recorder)
+
+	err := cc.UpdatePVCBoundContionFromEvents(pvcCopy, r.client, r.log)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
 	// Wait upload completes
 	switch phase {
 	case string(corev1.PodFailed):
@@ -157,7 +165,7 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		}
 	}
 
-	_, err := r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateUploadAnnotations)
+	_, err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateUploadAnnotations)
 	if err != nil {
 		return reconcile.Result{}, err
 	}

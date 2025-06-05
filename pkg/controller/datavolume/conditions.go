@@ -127,11 +127,6 @@ func UpdateReadyCondition(conditions []cdiv1.DataVolumeCondition, status corev1.
 func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim, message, reason string) []cdiv1.DataVolumeCondition {
 	if pvc != nil {
 		pvcCondition := getPVCCondition(pvc.GetAnnotations())
-		pvcPrimeMessage := ""
-		val, exists := pvc.GetAnnotations()[cc.AnnAPIGroup+"/storage.populator.pvcPrime"]
-		if exists {
-			pvcPrimeMessage = fmt.Sprintf(" [prime PVC %s]", val)
-		}
 		switch pvc.Status.Phase {
 		case corev1.ClaimBound:
 			if pvcCondition == nil || pvcCondition.Status == corev1.ConditionTrue {
@@ -142,10 +137,11 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 			}
 		case corev1.ClaimPending:
 			if pvcCondition == nil || pvcCondition.Status == corev1.ConditionTrue {
-				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("PVC %s Pending%s", pvc.Name, pvcPrimeMessage), pvcPending)
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("PVC %s Pending", pvc.Name), pvcPending)
 				conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			} else {
-				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC %s Pending and %s", pvc.Name, pvcCondition.Message), pvcCondition.Reason)
+				pvcPrimeName := getPrimeName(pvc)
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC %s Pending and %s%s", pvc.Name, pvcPrimeName, pvcCondition.Message), pvcCondition.Reason)
 				conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			}
 		case corev1.ClaimLost:
@@ -183,4 +179,13 @@ func getPVCCondition(anno map[string]string) *cdiv1.DataVolumeCondition {
 		}
 	}
 	return nil
+}
+
+func getPrimeName(pvc *corev1.PersistentVolumeClaim) string {
+	val, exists := pvc.GetAnnotations()[cc.AnnPVCPrimeName]
+	if exists {
+		primeName := fmt.Sprintf("[%s]", val)
+		return primeName
+	}
+	return ""
 }
