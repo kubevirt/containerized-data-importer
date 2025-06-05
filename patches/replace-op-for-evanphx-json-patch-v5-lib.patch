@@ -1,0 +1,14 @@
+diff --git a/vendor/github.com/evanphx/json-patch/v5/patch.go b/vendor/github.com/evanphx/json-patch/v5/patch.go
+index 7a7f71c8b..4028e837f 100644
+--- a/vendor/github.com/evanphx/json-patch/v5/patch.go
++++ b/vendor/github.com/evanphx/json-patch/v5/patch.go
+@@ -1011,8 +1011,8 @@ func (p Patch) replace(doc *container, op Operation, options *ApplyOptions) erro
+ 		return errors.Wrapf(ErrMissing, "replace operation does not apply: doc is missing path: %s", path)
+ 	}
+
+-	_, ok := con.get(key, options)
+-	if ok != nil {
++	_, err = con.get(key, options)
++	if err != nil && errors.Cause(err) != ErrMissing {
+ 		return errors.Wrapf(ErrMissing, "replace operation does not apply: doc is missing key: %s", path)
+ 	}
