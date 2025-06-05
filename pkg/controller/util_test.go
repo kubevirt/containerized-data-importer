@@ -454,8 +454,8 @@ var _ = Describe("createScratchPersistentVolumeClaim", func() {
 		Expect(scratchPVCSize.Value()).To(Equal(expectedValue * 1024 * 1024))
 	},
 		Entry("same scratch and storage class overhead", cdiv1.Percent("0.03"), cdiv1.Percent("0.03"), int64(1024)),
-		Entry("scratch  > storage class overhead", cdiv1.Percent("0.1"), cdiv1.Percent("0.03"), int64(1104)),
-		Entry("scratch  < storage class overhead", cdiv1.Percent("0.03"), cdiv1.Percent("0.1"), int64(950)),
+		Entry("scratch  > storage class overhead", cdiv1.Percent("0.1"), cdiv1.Percent("0.03"), int64(1094)),
+		Entry("scratch  < storage class overhead", cdiv1.Percent("0.03"), cdiv1.Percent("0.1"), int64(958)),
 	)
 
 	It("Should calculate the correct size for a scratch PVC from a block volume", func() {
@@ -477,7 +477,7 @@ var _ = Describe("createScratchPersistentVolumeClaim", func() {
 		Expect(res.Spec.Resources).ToNot(BeNil())
 		Expect(res.Spec.Resources.Requests.Storage()).ToNot(BeNil())
 		scratchPVCSize := *res.Spec.Resources.Requests.Storage()
-		Expect(scratchPVCSize.Value()).To(Equal(int64(1078 * 1024 * 1024)))
+		Expect(scratchPVCSize.Value()).To(Equal(int64(1076 * 1024 * 1024)))
 	})
 
 	It("Should add skip velero backup label", func() {
