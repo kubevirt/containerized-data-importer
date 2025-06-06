@@ -521,6 +521,9 @@ const MaxPreadLengthESX = (23 << 20)
 //	 Failed to allocate the requested 24117272 bytes"
 const MaxPreadLengthVC = (2 << 20)
 
+// MaxPreadLengthNBD is the biggest pread length allowed by libnbd.
+const MaxPreadLengthNBD = (64 << 20)
+
 // MaxPreadLength is the maxmimum read size to request from VMware. Default to
 // the larger option, and reduce it in createVddkDataSource when connecting to
 // vCenter endpoints.
@@ -529,28 +532,45 @@ var MaxPreadLength = MaxPreadLengthESX
 // NbdOperations provides a mockable interface for the things needed from libnbd.
 type NbdOperations interface {
 	GetSize() (uint64, error)
-	Pread([]byte, uint64, *libnbd.PreadOptargs) error
+	AioPread(libnbd.AioBuffer, uint64, *libnbd.AioPreadOptargs) (uint64, error)
 	Close() *libnbd.LibnbdError
-	BlockStatus(uint64, uint64, libnbd.ExtentCallback, *libnbd.BlockStatusOptargs) error
+	AioBlockStatus(uint64, uint64, libnbd.ExtentCallback, *libnbd.AioBlockStatusOptargs) (uint64, error)
+	Poll(timeout int) (uint, error)
+	AioCommandCompleted(uint64) (bool, error)
+	AioInFlight() (uint, error)
+}
+
+type Extent struct {
+	Offset int64
+	Length int64
 }
 
 // BlockStatusData holds zero/hole status for one block of data
 type BlockStatusData struct {
-	Offset int64
-	Length int64
-	Flags  uint32
+	Extent
+	Flags uint32
 }
 
-// Request blocks one at a time from libnbd
-var fixedOptArgs = libnbd.BlockStatusOptargs{
-	Flags:    libnbd.CMD_FLAG_REQ_ONE,
-	FlagsSet: true,
+type AioBlockStatusResult struct {
+	blocks  *[]*BlockStatusData
+	err     error
+	ready   bool
+	request BlockStatusData
 }
 
-// GetBlockStatus runs libnbd.BlockStatus on a given disk range.
-// Translated from IMS v2v-conversion-host.
-func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) []*BlockStatusData {
-	var blocks []*BlockStatusData
+type AioReadResult struct {
+	buffer libnbd.AioBuffer
+	offset uint64
+	length int64
+	flags  uint32
+	err    error
+	ready  bool
+}
+
+// createBlockUpdateCallback creates a list of block status results and a
+// BlockStatus callback that fills out that list, for passing to libnbd.
+func createBlockUpdateCallback() (*[]*BlockStatusData, func(string, uint64, []uint32, *int) int) {
+	blocks := []*BlockStatusData{}
 
 	// Callback for libnbd.BlockStatus. Needs to modify blocks list above.
 	updateBlocksCallback := func(metacontext string, nbdOffset uint64, extents []uint32, err *int) int {
@@ -574,7 +594,7 @@ func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) []*Bloc
 		}
 		for i := 0; i < len(extents); i += 2 {
 			length, flags := int64(extents[i]), extents[i+1]
-			if blocks != nil {
+			if len(blocks) > 0 {
 				last := len(blocks) - 1
 				lastBlock := blocks[last]
 				lastFlags := lastBlock.Flags
@@ -582,110 +602,271 @@ func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) []*Bloc
 				if lastFlags == flags && lastOffset == offset {
 					// Merge with previous block
 					blocks[last] = &BlockStatusData{
-						Offset: lastBlock.Offset,
-						Length: lastBlock.Length + length,
-						Flags:  lastFlags,
+						Extent: Extent{
+							Offset: lastBlock.Offset,
+							Length: lastBlock.Length + length,
+						},
+						Flags: lastFlags,
 					}
 				} else {
-					blocks = append(blocks, &BlockStatusData{Offset: offset, Length: length, Flags: flags})
+					blocks = append(blocks, &BlockStatusData{Extent: Extent{Offset: offset, Length: length}, Flags: flags})
 				}
 			} else {
-				blocks = append(blocks, &BlockStatusData{Offset: offset, Length: length, Flags: flags})
+				blocks = append(blocks, &BlockStatusData{Extent: Extent{Offset: offset, Length: length}, Flags: flags})
 			}
 			offset += length
 		}
 		return 0
 	}
 
-	if extent.Length < 1024*1024 {
-		blocks = append(blocks, &BlockStatusData{
-			Offset: extent.Start,
-			Length: extent.Length,
-			Flags:  0})
-		return blocks
-	}
+	return &blocks, updateBlocksCallback
+}
 
-	lastOffset := extent.Start
-	endOffset := extent.Start + extent.Length
-	for lastOffset < endOffset {
-		var length int64
-		missingLength := endOffset - lastOffset
-		if missingLength > (MaxBlockStatusLength) {
-			length = MaxBlockStatusLength
-		} else {
-			length = missingLength
-		}
-		createWholeBlock := func() []*BlockStatusData {
-			block := &BlockStatusData{
-				Offset: extent.Start,
-				Length: extent.Length,
-				Flags:  0,
-			}
-			blocks = []*BlockStatusData{block}
-			return blocks
-		}
-		err := handle.BlockStatus(uint64(length), uint64(lastOffset), updateBlocksCallback, &fixedOptArgs)
-		if err != nil {
-			klog.Errorf("Error getting block status at offset %d, returning whole block instead. Error was: %v", lastOffset, err)
-			return createWholeBlock()
-		}
-		last := len(blocks) - 1
-		newOffset := blocks[last].Offset + blocks[last].Length
-		if lastOffset == newOffset {
-			klog.Infof("No new block status data at offset %d, returning whole block.", newOffset)
-			return createWholeBlock()
-		}
-		lastOffset = newOffset
+// createBlockStatusArguments creates a callback to receive the result of an
+// NBD block status command, and a structure to receive that result for later.
+func createBlockStatusArguments(blocks *[]*BlockStatusData) (*AioBlockStatusResult, *libnbd.AioBlockStatusOptargs) {
+	if blocks == nil {
+		return nil, nil
 	}
+	result := AioBlockStatusResult{
+		blocks: blocks,
+		ready:  false,
+		err:    nil,
+	}
+	completionCallback := func(error *int) int {
+		if *error != 0 {
+			klog.Errorf("error in block status completion callback: %d", *error)
+			result.err = syscall.Errno(*error)
+			return -1
+		}
+		result.ready = true
+		return 1
+	}
+	return &result, &libnbd.AioBlockStatusOptargs{
+		Flags:                 libnbd.CMD_FLAG_REQ_ONE,
+		FlagsSet:              true,
+		CompletionCallbackSet: true,
+		CompletionCallback:    completionCallback,
+	}
+}
 
-	return blocks
+func createPreadArguments(result *AioReadResult) *libnbd.AioPreadOptargs {
+	if result == nil {
+		return nil
+	}
+	completionCallback := func(error *int) int {
+		if *error != 0 {
+			klog.Errorf("error in pread callback: %d", *error)
+			result.err = syscall.Errno(*error)
+			return -1
+		}
+		// NBD pread is all or nothing, so shouldn't need to split up results based on how much was actually read
+		result.ready = true
+		return 1
+	}
+	return &libnbd.AioPreadOptargs{
+		CompletionCallbackSet: true,
+		CompletionCallback:    completionCallback,
+	}
 }
 
 // CopyRange takes one data block, checks if it is a hole or filled with zeroes, and copies it to the sink
-func CopyRange(handle NbdOperations, sink VDDKDataSink, block *BlockStatusData, updateProgress func(int)) error {
-	skip := ""
-	if (block.Flags & libnbd.STATE_HOLE) != 0 {
-		skip = "hole"
-	}
-	if (block.Flags & libnbd.STATE_ZERO) != 0 {
-		if skip != "" {
-			skip += "/"
-		}
-		skip += "zero block"
-	}
-
-	if (block.Flags & (libnbd.STATE_ZERO | libnbd.STATE_HOLE)) != 0 {
-		klog.Infof("Found a %d-byte %s at offset %d, filling destination with zeroes.", block.Length, skip, block.Offset)
-		err := sink.ZeroRange(block.Offset, block.Length)
-		updateProgress(int(block.Length))
+func CopyRange(handle NbdOperations, sink VDDKDataSink, rangeStart, rangeLength int64, updateProgress func(int)) error {
+	size, err := handle.GetSize()
+	if err != nil {
 		return err
 	}
+	// This needs to be able to handle partial ranges, so keep the expected end offset handy.
+	rangeEnd := min(rangeStart+rangeLength, int64(size))
 
-	buffer := bytes.Repeat([]byte{0}, MaxPreadLength)
-	count := int64(0)
-	for count < block.Length {
-		if block.Length-count < int64(MaxPreadLength) {
-			buffer = bytes.Repeat([]byte{0}, int(block.Length-count))
+	// Read request tracking
+	readCommands := []uint64{}                 // Queue of AIO pread commands
+	readResults := map[uint64]*AioReadResult{} // Map of pread command cookies to read results
+	readDepth := 4                             // Maximum concurrent downloads
+
+	// Block status tracking
+	statusCommands := []uint64{}                                                           // Queue of block status command cookies. This is only one deep but this way the code looks the same as pread's.
+	statusResults := map[uint64]*AioBlockStatusResult{}                                    // Map of block status command cookies to results
+	statusLength := uint64(min(rangeLength, int64(size)-rangeStart, MaxBlockStatusLength)) // Current request length, only changes when it needs to be shrunk for final block
+	statusOffset := uint64(rangeStart)                                                     // Current status offset, does not necessarily advance by statusLength every time!
+
+	for {
+		// 1. Block Status
+		// Make sure one block status command is always running. Only one at a
+		// time because the NBD server might not return the exact requested length,
+		// so the next block status starting offset depends on the result of this one.
+		if len(statusCommands) < 1 && statusOffset < uint64(rangeEnd) { // No status command in-flight, and there's still more to query
+			blocks, updateBlocksCallback := createBlockUpdateCallback()
+			result, blockStatusArguments := createBlockStatusArguments(blocks)
+
+			// Launch one status command
+			command, err := handle.AioBlockStatus(statusLength, statusOffset, updateBlocksCallback, blockStatusArguments)
+			if err != nil {
+				return err
+			}
+
+			// Put the AIO command cookie on the end of the queue, and add the result pointer to the command map to inspect later
+			statusCommands = append(statusCommands, command)
+			statusResults[command] = result
 		}
-		length := len(buffer)
 
-		offset := block.Offset + count
-		err := handle.Pread(buffer, uint64(offset), nil)
+		// 2. Block Status Completion:
+		// When a block status result is ready, advance the offset for the next block status command
+		if len(statusCommands) > 0 {
+			// Peek at the last command in the queue and check if it is ready
+			lastStatusCommand := statusCommands[len(statusCommands)-1]
+			lastStatusResult := statusResults[lastStatusCommand]
+
+			if lastStatusResult.ready && len(*lastStatusResult.blocks) > 0 {
+				lastBlock := (*lastStatusResult.blocks)[len(*lastStatusResult.blocks)-1]
+				statusOffset = uint64(lastBlock.Offset + lastBlock.Length)
+				statusLength = uint64(min(uint64(rangeEnd)-statusOffset, MaxBlockStatusLength)) // Current request length, only changes when it needs to be shrunk for final block
+			}
+		}
+
+		// 3. Block Reads
+		// If the read queue is not full, check if there's a block status command
+		// ready. If so, break it down and fill the read queue with pread commands.
+		for len(readCommands) < readDepth {
+			// Peek at the first block status command and make sure it is ready before continuing
+			if len(statusCommands) < 1 {
+				break
+			} // There's a block status statusCommand going, check if it's done
+			statusCommand := statusCommands[0] // Always take the first one to service them in order
+			if statusResults[statusCommand].err != nil {
+				return statusResults[statusCommand].err // Block status failed! Bail out? Or TODO copy whole block instead?
+			}
+			if !statusResults[statusCommand].ready {
+				break // There's a block status command, but it's not ready yet. Break to continue polling
+			}
+			blocks := (*statusResults[statusCommand].blocks)
+			if len(blocks) < 1 { // Something wrong with block status, should TODO try to copy the whole block
+				return fmt.Errorf("no blocks returned from block status command")
+			}
+
+			// Block status command is ready, check the zero/hole flags to see if it should be copied or fast-forwarded
+			var result AioReadResult
+			var readCommand uint64
+			var readSize int64
+
+			block := blocks[0]
+			if (block.Flags & (libnbd.STATE_ZERO | libnbd.STATE_HOLE)) != 0 {
+				// The range is empty, create a new read result entry with the
+				// same flags so that the write will know to skip these bytes.
+				result = AioReadResult{
+					length: block.Length,
+					offset: uint64(block.Offset),
+					flags:  block.Flags, // Writer will check this later
+					ready:  true,
+				}
+
+				// Borrow status cookie and use it in the read command list,
+				// because it is unique per libnbd handle and there is no
+				// AioPread to generate a new one here.
+				readCommand = statusCommand
+				readSize = block.Length
+			} else { // Range is not empty, issue a real read
+				// Need to break buffer down into maximum pread-sized chunks,
+				// removing chunks so that it can continue with this buffer on
+				// the next loop if the read queue is currently too full to handle
+				// all of the returned blocks.
+				readSize = min(block.Length, int64(MaxPreadLength/readDepth), math.MaxUint32) // Validate the uint cast below
+				result.buffer = libnbd.MakeAioBuffer(uint(readSize))
+				result.length = readSize
+				result.offset = uint64(block.Offset)
+				readArguments := createPreadArguments(&result)
+				if readCommand, err = handle.AioPread(result.buffer, result.offset, readArguments); err != nil {
+					return err
+				}
+			}
+
+			readCommands = append(readCommands, readCommand) // Put pread command cookie on the end of the read queue
+			readResults[readCommand] = &result               // Store a pointer to the pread result to inspect later, during write out
+
+			// Reduce the size of this block by the amount that was read, and adjust the offsets so
+			// the next read starts from the right place. When this adjusted block makes it down to
+			// zero, it has been read completely and can be removed from the list of blocks to read.
+			block.Offset = block.Offset + int64(readSize)
+			block.Length = block.Length - int64(readSize)
+			if block.Length < 1 {
+				b := (*statusResults[statusCommand].blocks)[1:]
+				statusResults[statusCommand].blocks = &b
+			}
+
+			// All blocks from this status request have been consumed, remove it from the status queue
+			if len(*statusResults[statusCommand].blocks) == 0 {
+				statusCommands = statusCommands[1:]
+				delete(statusResults, statusCommand)
+			}
+		}
+
+		// 4. Block Writes
+		// Write out the first ready block, then go back to the loop so AIO queues
+		// don't have to wait for every write to finish before launching.
+		if len(readCommands) > 0 {
+			readCommand := readCommands[0]
+			result := readResults[readCommand]
+			if result.err != nil { // Error reading? Bail out
+				return result.err
+			}
+
+			if result.ready { // One read result is ready! Write it out
+				if (result.flags & (libnbd.STATE_ZERO | libnbd.STATE_HOLE)) != 0 {
+					skip := ""
+					if (result.flags & libnbd.STATE_HOLE) != 0 {
+						skip = "hole"
+					}
+					if (result.flags & libnbd.STATE_ZERO) != 0 {
+						if skip != "" {
+							skip += "/"
+						}
+						skip += "zero block"
+					}
+					klog.Infof("Found a %d-byte %s at offset %d, filling destination with zeroes.", result.length, skip, result.offset)
+					if err := sink.ZeroRange(int64(result.offset), result.length); err != nil {
+						return err
+					}
+					updateProgress(int(result.length))
+				} else {
+					count := int64(0)
+					for count < int64(result.buffer.Size) {
+						buffer := result.buffer.Bytes()[count:]
+						writeOffset := result.offset + uint64(count)
+						written, err := sink.Pwrite(buffer, writeOffset)
+						if err != nil {
+							klog.Errorf("Failed to write data block at offset %d to local file: %v", writeOffset, err)
+							return err
+						}
+						updateProgress(written)
+						count += int64(written)
+					}
+					result.buffer.Free() // Clean up this AioBuffer, all data has been transferred and written out
+				}
+				if int64(result.offset)+result.length >= rangeEnd { // Immediately quit after writing out the last expected byte
+					return nil
+				}
+				readCommands = readCommands[1:] // Pop this read result off the queue
+				delete(readResults, readCommand)
+			}
+		}
+
+		// 5. AIO Poll
+		// Poll for any events from block status or pread, the next loop iteration
+		// will choose the next right action to take.
+		inflight, err := handle.AioInFlight()
 		if err != nil {
-			klog.Errorf("Error reading from source at offset %d: %v", offset, err)
 			return err
 		}
-
-		written, err := sink.Pwrite(buffer, uint64(offset))
-		if err != nil {
-			klog.Errorf("Failed to write data block at offset %d to local file: %v", block.Offset, err)
-			return err
-		}
-
-		updateProgress(written)
-		count += int64(length)
+		if inflight > 0 {
+			result, err := handle.Poll(int((10 * time.Minute).Milliseconds()))
+			if err != nil {
+				return err
+			}
+			if result == 0 {
+				return fmt.Errorf("timed out waiting for poll at status offset %d", statusOffset)
+			}
+		} // Else: no commands in-flight, do not poll. Next loop should create a new command or quit.
 	}
-	return nil
 }
 
 /* Section: Destination file operations */
@@ -896,6 +1077,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		klog.Infof("Connected to vCenter, restricting read request size to %d.", MaxPreadLengthVC)
 		MaxPreadLength = MaxPreadLengthVC
 	}
+	MaxPreadLength = min(MaxPreadLength, MaxPreadLengthNBD) // Don't exceed libnbd maximum
 
 	source := &VDDKDataSource{
 		VMware:           vmware,
@@ -1120,13 +1302,10 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 
 			// Copy actual data from query ranges to destination
 			for _, extent := range changed.ChangedArea {
-				blocks := GetBlockStatus(vs.NbdKit.Handle, extent)
-				for _, block := range blocks {
-					err := CopyRange(vs.NbdKit.Handle, sink, block, updateProgress)
-					if err != nil {
-						klog.Errorf("Unable to copy block at offset %d: %v", block.Offset, err)
-						return ProcessingPhaseError, err
-					}
+				err := CopyRange(vs.NbdKit.Handle, sink, extent.Start, extent.Length, updateProgress)
+				if err != nil {
+					klog.Errorf("Unable to copy block at offset %d: %v", extent.Start, err)
+					return ProcessingPhaseError, err
 				}
 			}
 
@@ -1138,26 +1317,10 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 			}
 		}
 	} else { // Cold migration full copy
-		start := uint64(0)
-		blocksize := uint64(MaxBlockStatusLength)
-		for i := start; i < vs.Size; i += blocksize {
-			if (vs.Size - i) < blocksize {
-				blocksize = vs.Size - i
-			}
-
-			extent := types.DiskChangeExtent{
-				Length: int64(blocksize),
-				Start:  int64(i),
-			}
-
-			blocks := GetBlockStatus(vs.NbdKit.Handle, extent)
-			for _, block := range blocks {
-				err := CopyRange(vs.NbdKit.Handle, sink, block, updateProgress)
-				if err != nil {
-					klog.Errorf("Unable to copy block at offset %d: %v", block.Offset, err)
-					return ProcessingPhaseError, err
-				}
-			}
+		err := CopyRange(vs.NbdKit.Handle, sink, 0, int64(vs.Size), updateProgress)
+		if err != nil {
+			klog.Errorf("Unable to copy disk: %v", err)
+			return ProcessingPhaseError, err
 		}
 	}
 
