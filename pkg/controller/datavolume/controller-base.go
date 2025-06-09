@@ -23,7 +23,9 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -1023,6 +1025,7 @@ func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *cor
 	}
 
 	if pvc != nil {
+		r.updatePVCBoundContion(pvc)
 		anno = pvc.Annotations
 	} else {
 		anno = make(map[string]string)
@@ -1041,6 +1044,59 @@ func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *cor
 	dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, pvc, message, reason)
 	dataVolume.Status.Conditions = UpdateReadyCondition(dataVolume.Status.Conditions, readyStatus, message, reason)
 	dataVolume.Status.Conditions = updateRunningCondition(dataVolume.Status.Conditions, anno)
+}
+
+func (r *ReconcilerBase) updatePVCBoundContion(pvc *corev1.PersistentVolumeClaim) {
+	events := &corev1.EventList{}
+
+	err := r.client.List(context.TODO(), events,
+		client.InNamespace(pvc.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": pvc.GetName(),
+			"involvedObject.uid": string(pvc.GetUID())},
+	)
+
+	if err != nil || len(events.Items) == 0 {
+		return
+	}
+
+	// Sort event lists by most recent
+	sort.Slice(events.Items, func(i, j int) bool {
+		return events.Items[i].FirstTimestamp.Time.After(events.Items[j].FirstTimestamp.Time)
+	})
+
+	boundMessage := ""
+	boundReason := ""
+
+	pvcPrime, exists := pvc.GetAnnotations()[cc.AnnPVCPrimeName]
+	if exists {
+		// if we are using populators get the latest event from prime pvc
+		pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
+		for _, event := range events.Items {
+			if strings.Contains(event.Message, pvcPrime) {
+				// split so we can remove prime name prefix from event message
+				res := strings.Split(event.Message, pvcPrime)
+				boundMessage = res[len(res)-1]
+				boundReason = event.Reason
+			}
+		}
+		if boundMessage == "" {
+			return
+		}
+	} else {
+		// if not using populators just get the latest event
+		boundMessage = events.Items[0].Message
+		boundReason = events.Items[0].Reason
+	}
+
+	anno := pvc.GetAnnotations()
+
+	if pvc.Status.Phase == corev1.ClaimBound {
+		anno[cc.AnnBoundCondition] = "true"
+	} else {
+		anno[cc.AnnBoundCondition] = "false"
+	}
+	anno[cc.AnnBoundConditionMessage] = boundMessage
+	anno[cc.AnnBoundConditionReason] = boundReason
 }
 
 func (r *ReconcilerBase) emitConditionEvent(dataVolume *cdiv1.DataVolume, originalCond []cdiv1.DataVolumeCondition) {
