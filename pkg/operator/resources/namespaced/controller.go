@@ -191,7 +191,11 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, ovi
 			Protocol:      "TCP",
 		},
 	}
-	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{common.PrometheusLabelKey: common.PrometheusLabelValue})
+	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{
+		common.PrometheusLabelKey:            common.PrometheusLabelValue,
+		common.HCOAllowAccessClusterServices: "",
+		common.HCOAllowAccessPrometheus:      "",
+	})
 	//Add label for pod affinity
 	deployment.SetLabels(labels)
 	deployment.Spec.Template.SetLabels(labels)
