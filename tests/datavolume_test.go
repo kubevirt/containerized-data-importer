@@ -1919,6 +1919,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			originalProfileSpec *cdiv1.StorageProfileSpec
 			defaultSc           *storagev1.StorageClass
 			defaultScName       string
+			tempScName          string
 			err                 error
 		)
 
@@ -2006,24 +2007,23 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, time.Second*30, time.Second).Should(Equal(propertySet))
 		}
 
-		findStorageProfileWithoutAccessModes := func(client client.Client) string {
-			storageProfiles := &cdiv1.StorageProfileList{}
-			err := client.List(context.TODO(), storageProfiles)
-			Expect(err).ToNot(HaveOccurred())
-			for _, storageProfile := range storageProfiles.Items {
-				if len(storageProfile.Status.ClaimPropertySets) == 0 {
-					// No access modes set.
-					return *storageProfile.Status.StorageClass
-				}
-				for _, properties := range storageProfile.Status.ClaimPropertySets {
-					if len(properties.AccessModes) == 0 {
-						// No access modes set.
-						return *storageProfile.Status.StorageClass
-					}
-				}
+		createUnknownStorageClass := func(client client.Client) string {
+			sc := &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "unknown-sc",
+				},
+				Provisioner: "unknown-provisioner",
 			}
-			Skip("No storage profiles without access mode found")
-			return ""
+			sc, err := f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			tempScName = sc.Name
+
+			Eventually(func() error {
+				_, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), sc.Name, metav1.GetOptions{})
+				return err
+			}, time.Second*15, time.Second).Should(Succeed())
+
+			return sc.Name
 		}
 
 		BeforeEach(func() {
@@ -2050,6 +2050,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			if originalProfileSpec != nil {
 				By("Restoring the StorageProfile to original state")
 				updateStorageProfileSpec(f.CrClient, defaultScName, *originalProfileSpec)
+			}
+
+			if tempScName != "" {
+				err = f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), tempScName, metav1.DeleteOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				tempScName = ""
 			}
 
 			By("Restoring CDIConfig to original state")
@@ -2152,7 +2158,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		verifyControllerRenderingEvent := func(events string) bool {
-			return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "no accessMode defined DV nor on StorageProfile")
+			return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "no accessMode specified in StorageProfile")
 		}
 
 		verifyControllerRenderingNoDefaultScEvent := func(events string) bool {
@@ -2162,44 +2168,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		verifyWebhookRenderingEvent := func(events string) bool {
 			return strings.Contains(events, controller.NotFound) && strings.Contains(events, "No PVC found")
 		}
-
-		DescribeTable("Import fails creating a PVC from DV without accessModes and volume mode, no profile", func(webhookRenderingLabel string, verifyEvent func(string) bool) {
-			// assumes local is available and has no volumeMode
-			storageProfileName := findStorageProfileWithoutAccessModes(f.CrClient)
-			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
-			requestedSize := resource.MustParse("100Mi")
-			spec := cdiv1.StorageSpec{
-				AccessModes:      nil,
-				VolumeMode:       nil,
-				StorageClassName: &storageProfileName,
-				Resources: v1.VolumeResourceRequirements{
-					Requests: v1.ResourceList{
-						v1.ResourceStorage: requestedSize,
-					},
-				},
-			}
-			dataVolume := createLabeledDataVolumeForImport(f, spec,
-				map[string]string{common.PvcApplyStorageProfileLabel: webhookRenderingLabel})
-
-			By("verifying pvc not created")
-			_, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
-
-			By("verifying event occurred")
-			Eventually(func() bool {
-				// Only find DV events, we know the PVC gets the same events
-				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
-				if err == nil {
-					fmt.Fprintf(GinkgoWriter, "%s", events)
-					return verifyEvent(events)
-				}
-				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
-				return false
-			}, timeout, pollingInterval).Should(BeTrue())
-		},
-			Entry("[test_id:5912] (controller rendering)", "false", verifyControllerRenderingEvent),
-			Entry("[rfe_id:10985][crit:high][test_id:11045] (webhook rendering)", "true", verifyWebhookRenderingEvent),
-		)
 
 		DescribeTable("Import fails when no default storage class, and recovers when default is set", func(webhookRenderingLabel string, verifyEvent func(string) bool) {
 			By("updating to no default storage class")
@@ -2248,9 +2216,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Entry("[rfe_id:10985][crit:high][test_id:11046] (webhook rendering)", "true", verifyWebhookRenderingEvent),
 		)
 
-		DescribeTable("Import recovers when user adds accessModes to profile", func(webhookRenderingLabel string, verifyEvent func(string) bool) {
-			// assumes local is available and has no volumeMode
-			storageProfileName := findStorageProfileWithoutAccessModes(f.CrClient)
+		DescribeTable("Import fails and recovers when accessModes and volumeMode are added to empty StorageProfile", func(webhookRenderingLabel string, verifyEvent func(string) bool) {
+			storageProfileName := createUnknownStorageClass(f.CrClient)
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
 			requestedSize := resource.MustParse("100Mi")
 			spec := cdiv1.StorageSpec{
@@ -2283,7 +2250,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, timeout, pollingInterval).Should(BeTrue())
 
 			By(fmt.Sprintf("configure storage profile %s", storageProfileName))
-			originalProfileSpec := getStorageProfileSpec(f.CrClient, storageProfileName)
 			configureStorageProfile(f.CrClient,
 				storageProfileName,
 				[]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
@@ -2293,9 +2259,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
-
-			By("Restore the profile")
-			updateStorageProfileSpec(f.CrClient, storageProfileName, *originalProfileSpec)
 		},
 			Entry("[test_id:5913] (controller rendering)", "false", verifyControllerRenderingEvent),
 			Entry("[rfe_id:10985][crit:high][test_id:11047] (webhook rendering)", "true", verifyWebhookRenderingEvent),
