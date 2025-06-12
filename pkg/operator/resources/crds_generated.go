@@ -6524,6 +6524,18 @@ spec:
               source:
                 description: Source is the source of the data referenced by the DataSource
                 properties:
+                  dataSource:
+                    properties:
+                      name:
+                        description: The name of the source DataSource
+                        type: string
+                      namespace:
+                        description: The namespace of the source DataSource
+                        type: string
+                    required:
+                    - name
+                    - namespace
+                    type: object
                   pvc:
                     description: DataVolumeSourcePVC provides the parameters to create
                       a Data Volume from an existing PVC
@@ -6590,6 +6602,18 @@ spec:
                 description: Source is the current source of the data referenced by
                   the DataSource
                 properties:
+                  dataSource:
+                    properties:
+                      name:
+                        description: The name of the source DataSource
+                        type: string
+                      namespace:
+                        description: The namespace of the source DataSource
+                        type: string
+                    required:
+                    - name
+                    - namespace
+                    type: object
                   pvc:
                     description: DataVolumeSourcePVC provides the parameters to create
                       a Data Volume from an existing PVC
