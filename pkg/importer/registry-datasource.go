@@ -41,12 +41,13 @@ const (
 // 1. Info -> Transfer
 // 2. Transfer -> Convert
 type RegistryDataSource struct {
-	endpoint    string
-	accessKey   string
-	secKey      string
-	certDir     string
-	insecureTLS bool
-	imageDir    string
+	endpoint          string
+	accessKey         string
+	secKey            string
+	imageArchitecture string
+	certDir           string
+	insecureTLS       bool
+	imageDir          string
 	//The discovered image file in scratch space.
 	url *url.URL
 	//The discovered image info from the registry.
@@ -54,7 +55,7 @@ type RegistryDataSource struct {
 }
 
 // NewRegistryDataSource creates a new instance of the Registry Data Source.
-func NewRegistryDataSource(endpoint, accessKey, secKey, certDir string, insecureTLS bool) *RegistryDataSource {
+func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, certDir string, insecureTLS bool) *RegistryDataSource {
 	allCertDir, err := CreateCertificateDir(certDir)
 	if err != nil {
 		klog.Infof("Error creating allCertDir %v", err)
@@ -67,11 +68,12 @@ func NewRegistryDataSource(endpoint, accessKey, secKey, certDir string, insecure
 		allCertDir = certDir
 	}
 	return &RegistryDataSource{
-		endpoint:    endpoint,
-		accessKey:   accessKey,
-		secKey:      secKey,
-		certDir:     allCertDir,
-		insecureTLS: insecureTLS,
+		endpoint:          endpoint,
+		accessKey:         accessKey,
+		secKey:            secKey,
+		imageArchitecture: imageArchitecture,
+		certDir:           allCertDir,
+		insecureTLS:       insecureTLS,
 	}
 }
 
@@ -97,7 +99,7 @@ func (rd *RegistryDataSource) Transfer(path string, preallocation bool) (Process
 	}
 
 	klog.V(1).Infof("Copying registry image to scratch space.")
-	rd.info, err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.certDir, rd.insecureTLS, preallocation)
+	rd.info, err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.imageArchitecture, rd.certDir, rd.insecureTLS, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, errors.Wrapf(err, "Failed to read registry image")
 	}

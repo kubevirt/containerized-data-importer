@@ -199,6 +199,15 @@ type DataVolumeSourceRegistry struct {
 	//CertConfigMap provides a reference to the Registry certs
 	// +optional
 	CertConfigMap *string `json:"certConfigMap,omitempty"`
+	//Platform describes the minimum runtime requirements of the image
+	// +optional
+	Platform *PlatformOptions `json:"platform,omitempty"`
+}
+
+type PlatformOptions struct {
+	//Architecture specifies the image target CPU architecture
+	// +optional
+	Architecture string `json:"architecture,omitempty"`
 }
 
 const (

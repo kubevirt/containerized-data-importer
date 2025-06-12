@@ -163,6 +163,8 @@ const (
 	ImporterExtraHeader = "IMPORTER_EXTRA_HEADER_"
 	// ImporterSecretExtraHeadersDir is where the secrets containing extra HTTP headers will be mounted
 	ImporterSecretExtraHeadersDir = "/extraheaders"
+	// ImporterRegistryImageArchitecture provides a constant to capture our env variable "IMPORTER_REGISTRY_IMAGE_ARCHITECTURE"
+	ImporterRegistryImageArchitecture = "IMPORTER_REGISTRY_IMAGE_ARCHITECTURE"
 
 	// ImporterGoogleCredentialFileVar provides a constant to capture our env variable "GOOGLE_APPLICATION_CREDENTIALS"
 	//nolint:gosec // This is not a real credential
