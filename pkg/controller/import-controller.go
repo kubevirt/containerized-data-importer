@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"path"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -242,6 +243,8 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 	if err != nil {
 		return reconcile.Result{}, err
 	}
+
+	r.updatePVCBoundContion(pvc)
 
 	if pod == nil {
 		if cc.IsPVCComplete(pvc) {
@@ -801,6 +804,58 @@ func (r *ImportReconciler) getVddkImageName() (*string, error) {
 	}
 
 	return nil, errors.Errorf("found %s ConfigMap in namespace %s, but it does not contain a '%s' entry", common.VddkConfigMap, namespace, common.VddkConfigDataKey)
+}
+
+func (r *ImportReconciler) updatePVCBoundContion(pvc *corev1.PersistentVolumeClaim) {
+	// set bound condition by getting the latest event
+	events := &corev1.EventList{}
+
+	err := r.client.List(context.TODO(), events,
+		client.InNamespace(pvc.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": pvc.GetName(),
+			"involvedObject.uid": string(pvc.GetUID())},
+	)
+
+	if err != nil || len(events.Items) == 0 {
+		return
+	}
+
+	// Sort event lists by most recent
+	sort.Slice(events.Items, func(i, j int) bool {
+		return events.Items[i].FirstTimestamp.Time.After(events.Items[j].FirstTimestamp.Time)
+	})
+
+	boundMessage := ""
+
+	pvcPrime, exists := pvc.GetAnnotations()[cc.AnnPVCPrimeName]
+	if exists {
+		// if we are using populators get the latest event from prime pvc
+		pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
+		for _, event := range events.Items {
+			if strings.Contains(event.Message, pvcPrime) {
+				// split so we can remove prime name prefix from event message
+				res := strings.Split(event.Message, pvcPrime)
+				boundMessage = res[len(res)-1]
+			}
+		}
+		if boundMessage == "" {
+			return
+		}
+	} else {
+		// if not using populators just get the latest event
+		boundMessage = events.Items[0].Message
+	}
+
+	anno := pvc.GetAnnotations()
+
+	if pvc.Status.Phase == corev1.ClaimBound {
+		anno[cc.AnnBoundCondition] = "true"
+		anno[cc.AnnBoundConditionReason] = "Bound"
+	} else {
+		anno[cc.AnnBoundCondition] = "false"
+		anno[cc.AnnBoundConditionReason] = "Pending"
+	}
+	anno[cc.AnnBoundConditionMessage] = boundMessage
 }
 
 // returns the import image part of the endpoint string

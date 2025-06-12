@@ -51,6 +51,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	cloneMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
@@ -884,7 +885,7 @@ func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 		message = event.message
 	}
 	r.updateConditions(dataVolumeCopy, pvc, reason, message)
-	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, &event)
+	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, pvc, &event)
 }
 
 func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPhaseSync, dvc dvController) (reconcile.Result, error) {
@@ -974,7 +975,7 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))
 	copy(currentCond, dataVolumeCopy.Status.Conditions)
 	r.updateConditions(dataVolumeCopy, pvc, "", "")
-	return result, r.emitEvent(dv, dataVolumeCopy, curPhase, currentCond, &event)
+	return result, r.emitEvent(dv, dataVolumeCopy, curPhase, currentCond, pvc, &event)
 }
 
 func (r ReconcilerBase) updateStatusPVCPending(pvc *corev1.PersistentVolumeClaim, dvc dvController, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
@@ -1070,7 +1071,7 @@ func (r *ReconcilerBase) emitFailureConditionEvent(dataVolume *cdiv1.DataVolume,
 	}
 }
 
-func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, originalCond []cdiv1.DataVolumeCondition, event *Event) error {
+func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, originalCond []cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim, event *Event) error {
 	if !reflect.DeepEqual(dataVolume.ObjectMeta, dataVolumeCopy.ObjectMeta) {
 		return fmt.Errorf("meta update is not allowed in updateStatus phase")
 	}
@@ -1084,6 +1085,10 @@ func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy 
 		if event.eventType != "" && curPhase != dataVolumeCopy.Status.Phase {
 			r.recorder.Event(dataVolumeCopy, event.eventType, event.reason, event.message)
 		}
+		if pvc != nil {
+			populators.CopyEvents(pvc, dataVolumeCopy, r.client, r.log, r.recorder)
+		}
+
 		r.emitConditionEvent(dataVolumeCopy, originalCond)
 	}
 	return nil

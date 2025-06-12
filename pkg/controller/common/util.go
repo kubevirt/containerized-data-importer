@@ -347,6 +347,9 @@ const (
 
 	// AnnCreatedForDataVolume stores the UID of the datavolume that the PVC was created for
 	AnnCreatedForDataVolume = AnnAPIGroup + "/createdForDataVolume"
+
+	// AnnPVCPrimeName annotation is the name of the PVC' that is added to the target PVC
+	AnnPVCPrimeName = AnnAPIGroup + "/storage.populator.pvcPrime"
 )
 
 // Size-detection pod error codes

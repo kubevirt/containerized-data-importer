@@ -59,9 +59,9 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 			sa := fmt.Sprintf("system:serviceaccount:%s:cdi-sa", f.CdiInstallNs)
 
 			eventExpectedResult := make(map[string]string)
-			eventExpectedResult["get"] = "no"
-			eventExpectedResult["list"] = "no"
-			eventExpectedResult["watch"] = "no"
+			eventExpectedResult["get"] = "yes"
+			eventExpectedResult["list"] = "yes"
+			eventExpectedResult["watch"] = "yes"
 			eventExpectedResult["delete"] = "no"
 			eventExpectedResult["create"] = "yes"
 			eventExpectedResult["update"] = "no"

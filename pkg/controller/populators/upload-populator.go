@@ -121,26 +121,13 @@ func (r *UploadPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	pvc.Annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, uploadSource.Spec.Preallocation))
 }
 
-func (r *UploadPopulatorReconciler) updatePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim, pvcPrimeName string) (bool, error) {
-	if _, ok := pvc.Annotations[AnnPVCPrimeName]; ok {
-		return false, nil
-	}
-
-	cc.AddAnnotation(pvc, AnnPVCPrimeName, pvcPrimeName)
-	if err := r.client.Update(context.TODO(), pvc); err != nil {
-		return false, err
-	}
-
-	return true, nil
-}
-
 func (r *UploadPopulatorReconciler) updateUploadAnnotations(pvc *corev1.PersistentVolumeClaim, pvcPrime *corev1.PersistentVolumeClaim) {
-	if _, ok := pvc.Annotations[AnnPVCPrimeName]; !ok {
+	if _, ok := pvc.Annotations[cc.AnnPVCPrimeName]; !ok {
 		return
 	}
 	// Delete the PVC Prime annotation once the pod is succeeded
 	if pvcPrime.Annotations[cc.AnnPodPhase] == string(corev1.PodSucceeded) {
-		delete(pvc.Annotations, AnnPVCPrimeName)
+		delete(pvc.Annotations, cc.AnnPVCPrimeName)
 	}
 }
 
