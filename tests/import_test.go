@@ -1856,16 +1856,16 @@ var _ = Describe("Import populator", func() {
 		Expect(reflect.DeepEqual(dataVolume.Spec.Checkpoints, volumeImportSource.Spec.Checkpoints)).To(BeTrue())
 
 		By("Update DataVolume checkpoints")
-		Eventually(func() bool {
-			dataVolume, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+		Eventually(func() error {
+			dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			dataVolume.Spec.Checkpoints = []cdiv1.DataVolumeCheckpoint{
 				{Current: "test", Previous: "foo"},
 				{Current: "foo", Previous: "test"},
 			}
-			_, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Update(context.TODO(), dataVolume, metav1.UpdateOptions{})
-			return err == nil
-		}, timeout, pollingInterval).Should(BeTrue())
+			dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Update(context.TODO(), dataVolume, metav1.UpdateOptions{})
+			return err
+		}, timeout, pollingInterval).Should(Succeed())
 
 		By("Check volumeImportSource is also updated")
 		Eventually(func() bool {
