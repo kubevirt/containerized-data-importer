@@ -312,6 +312,11 @@ const (
 
 	// The restricted SCC and particularly v2 is considered best practice for workloads that can manage without extended privileges
 	RestrictedSCCName = "restricted-v2"
+
+	// Label key that is used by HCO managed network policies that allows access of matched Pods to cluster services such as DNS and API
+	HCOAllowAccessClusterServices = "hco.kubevirt.io/allow-access-cluster-services"
+	// Label key that is used by HCO managed network policies that allows Prometheus access to matched Pods
+	HCOAllowAccessPrometheus = "hco.kubevirt.io/allow-prometheus-access"
 )
 
 // ProxyPaths are all supported paths
