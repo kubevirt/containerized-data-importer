@@ -479,6 +479,25 @@ var _ = Describe("createScratchPersistentVolumeClaim", func() {
 		scratchPVCSize := *res.Spec.Resources.Requests.Storage()
 		Expect(scratchPVCSize.Value()).To(Equal(int64(1078 * 1024 * 1024)))
 	})
+
+	It("Should add skip velero backup label", func() {
+		cdiConfig := createCDIConfigWithStorageClass(common.ConfigName, scratchStorageClassName)
+		cdiConfig.Status.FilesystemOverhead = &cdiv1.FilesystemOverhead{
+			Global: "0.05",
+		}
+		cl := CreateClient(cdiConfig)
+		rec := record.NewFakeRecorder(10)
+		By("Create a 1Gi pvc")
+		testPvc := CreatePvcInStorageClass("testPvc", "default", ptr.To[string](storageClassName), nil, nil, v1.ClaimBound)
+		testPvc.Spec.Resources.Requests[v1.ResourceStorage] = resource.MustParse("1Gi")
+		testPvc.Spec.VolumeMode = ptr.To[v1.PersistentVolumeMode](v1.PersistentVolumeBlock)
+		name := "test-scratchspace-pvc"
+		pod := &v1.Pod{}
+		scratchPVC, err := createScratchPersistentVolumeClaim(cl, testPvc, pod, name, scratchStorageClassName, nil, rec)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(scratchPVC).ToNot(BeNil())
+		Expect(scratchPVC.GetLabels()[LabelExcludeFromVeleroBackup]).To(Equal("true"))
+	})
 })
 
 func createDataVolumeWithStorageClass(name, ns, storageClassName string) *cdiv1.DataVolume {
