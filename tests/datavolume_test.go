@@ -2158,7 +2158,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		verifyControllerRenderingEvent := func(events string) bool {
-			return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "no accessMode specified in StorageProfile")
+			return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "no accessMode specified in status.ClaimPropertySets of StorageProfile")
 		}
 
 		verifyControllerRenderingNoDefaultScEvent := func(events string) bool {

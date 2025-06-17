@@ -173,7 +173,7 @@ func renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client client.Client, 
 		if err != nil {
 			logInfo("Cannot set accessMode and volumeMode for new pvc", "Error", err)
 			recordEventf(v1.EventTypeWarning, cc.ErrClaimNotValid,
-				fmt.Sprintf("Spec is missing accessMode and volumeMode, cannot get access mode from StorageProfile %s", getName(storageClass)))
+				fmt.Sprintf("Data volume spec is missing accessMode and volumeMode, failed to get accessMode from StorageProfile %s, Error: %s", getName(storageClass), err))
 			return err
 		}
 		pvcSpec.AccessModes = append(pvcSpec.AccessModes, accessModes...)
@@ -388,6 +388,10 @@ func getDefaultVolumeAndAccessMode(c client.Client, storageClass *storagev1.Stor
 		return nil, nil, errors.Wrap(err, "cannot get StorageProfile")
 	}
 
+	if len(storageProfile.Status.ClaimPropertySets) == 0 {
+		return nil, nil, errors.Errorf("ClaimPropertySets is unspecified or empty in StorageProfile %s", storageProfile.Name)
+	}
+
 	if len(storageProfile.Status.ClaimPropertySets) > 0 &&
 		len(storageProfile.Status.ClaimPropertySets[0].AccessModes) > 0 {
 		accessModes := storageProfile.Status.ClaimPropertySets[0].AccessModes
@@ -396,7 +400,7 @@ func getDefaultVolumeAndAccessMode(c client.Client, storageClass *storagev1.Stor
 	}
 
 	// no accessMode configured on storageProfile
-	return nil, nil, errors.Errorf("no accessMode specified in StorageProfile %s", storageProfile.Name)
+	return nil, nil, errors.Errorf("no accessMode specified in status.ClaimPropertySets of StorageProfile %s", storageProfile.Name)
 }
 
 // Get the StorageProfile preferred VolumeMode based on the StorageClass and AccessModes
