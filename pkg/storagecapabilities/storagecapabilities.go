@@ -47,8 +47,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"rook-ceph.rbd.csi.ceph.com":         createRbdCapabilities(),
 	"openshift-storage.rbd.csi.ceph.com": createRbdCapabilities(),
 	// ceph-fs
-	"cephfs.csi.ceph.com":                   {{rwx, file}},
-	"openshift-storage.cephfs.csi.ceph.com": {{rwx, file}},
+	"cephfs.csi.ceph.com":                   {{rwx, file}, {rwo, file}},
+	"rook-ceph.cephfs.csi.ceph.com":         {{rwx, file}, {rwo, file}},
+	"openshift-storage.cephfs.csi.ceph.com": {{rwx, file}, {rwo, file}},
 	// LINSTOR
 	"linstor.csi.linbit.com": createAllButRWXFileCapabilities(),
 	// DELL Unity XT
