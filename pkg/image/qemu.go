@@ -158,6 +158,7 @@ func getCacheMode(path string, cacheMode string) (string, error) {
 	if supportDirectIO {
 		return "none", nil
 	}
+	klog.V(1).Info("O_DIRECT not supported on underlying storage")
 
 	return "writeback", nil
 }
