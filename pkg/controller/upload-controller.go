@@ -810,8 +810,6 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 	cc.SetNodeNameIfPopulator(args.PVC, &pod.Spec)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
 
-	pod.Spec.InitContainers = r.makeUploadPodInitContainers(args)
-
 	return pod
 }
 
@@ -912,33 +910,6 @@ func (r *UploadReconciler) makeUploadPodContainers(args UploadPodArgs, resourceR
 	if resourceRequirements != nil {
 		containers[0].Resources = *resourceRequirements
 	}
-	return containers
-}
-
-func (r *UploadReconciler) makeUploadPodInitContainers(args UploadPodArgs) []corev1.Container {
-	if args.PVC == nil || len(args.PVC.Spec.AccessModes) == 0 || args.PVC.Spec.AccessModes[0] != corev1.ReadWriteMany {
-		return nil
-	}
-
-	if cc.GetVolumeMode(args.PVC) == corev1.PersistentVolumeBlock {
-		return nil
-	}
-
-	containers := []corev1.Container{
-		{
-			Name:            "chmod-" + common.UploadServerPodname,
-			Image:           r.image,
-			ImagePullPolicy: corev1.PullPolicy(r.pullPolicy),
-			Command:         []string{"sh", "-c", "chmod 775 " + common.UploadServerDataDir},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					Name:      cc.DataVolName,
-					MountPath: common.UploadServerDataDir,
-				},
-			},
-		},
-	}
-
 	return containers
 }
 
