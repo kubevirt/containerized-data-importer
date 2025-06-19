@@ -36,7 +36,7 @@ var _ = Describe("Registry data source", func() {
 	})
 
 	It("should return transfer after info is called", func() {
-		ds = NewRegistryDataSource("", "", "", "", true)
+		ds = NewRegistryDataSource("", "", "", "", "", true)
 		result, err := ds.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
@@ -46,7 +46,7 @@ var _ = Describe("Registry data source", func() {
 		if scratchPath == "" {
 			scratchPath = tmpDir
 		}
-		ds = NewRegistryDataSource(ep, accKey, secKey, certDir, insecureRegistry)
+		ds = NewRegistryDataSource(ep, accKey, secKey, "", certDir, insecureRegistry)
 
 		// Need to pass in a real path if we don't want scratch space needed error.
 		result, err := ds.Transfer(scratchPath, false)
@@ -66,14 +66,14 @@ var _ = Describe("Registry data source", func() {
 	)
 
 	It("TransferFile should not be called", func() {
-		ds = NewRegistryDataSource("", "", "", "", true)
+		ds = NewRegistryDataSource("", "", "", "", "", true)
 		result, err := ds.TransferFile("file", false)
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
 	})
 
 	It("GetTerminationMessage should contain labels collected from the image", func() {
-		ds = NewRegistryDataSource("", "", "", "", true)
+		ds = NewRegistryDataSource("", "", "", "", "", true)
 		ds.info = &types.ImageInspectInfo{
 			Env: []string{
 				"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE=u1.small",

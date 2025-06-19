@@ -105,6 +105,13 @@ func (DataVolumeSourceRegistry) SwaggerDoc() map[string]string {
 		"pullMethod":    "PullMethod can be either \"pod\" (default import), or \"node\" (node docker cache based import)\n+optional",
 		"secretRef":     "SecretRef provides the secret reference needed to access the Registry source\n+optional",
 		"certConfigMap": "CertConfigMap provides a reference to the Registry certs\n+optional",
+		"platform":      "Platform describes the minimum runtime requirements of the image\n+optional",
+	}
+}
+
+func (PlatformOptions) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"architecture": "Architecture specifies the image target CPU architecture\n+optional",
 	}
 }
 

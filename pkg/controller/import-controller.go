@@ -76,32 +76,33 @@ type ImportReconciler struct {
 }
 
 type importPodEnvVar struct {
-	ep                 string
-	secretName         string
-	source             string
-	contentType        string
-	imageSize          string
-	certConfigMap      string
-	diskID             string
-	uuid               string
-	pullMethod         string
-	readyFile          string
-	doneFile           string
-	backingFile        string
-	thumbprint         string
-	filesystemOverhead string
-	insecureTLS        bool
-	currentCheckpoint  string
-	previousCheckpoint string
-	finalCheckpoint    string
-	preallocation      bool
-	httpProxy          string
-	httpsProxy         string
-	noProxy            string
-	certConfigMapProxy string
-	extraHeaders       []string
-	secretExtraHeaders []string
-	cacheMode          string
+	ep                        string
+	secretName                string
+	source                    string
+	contentType               string
+	imageSize                 string
+	certConfigMap             string
+	diskID                    string
+	uuid                      string
+	pullMethod                string
+	readyFile                 string
+	doneFile                  string
+	backingFile               string
+	thumbprint                string
+	filesystemOverhead        string
+	insecureTLS               bool
+	currentCheckpoint         string
+	previousCheckpoint        string
+	finalCheckpoint           string
+	preallocation             bool
+	httpProxy                 string
+	httpsProxy                string
+	noProxy                   string
+	certConfigMapProxy        string
+	extraHeaders              []string
+	secretExtraHeaders        []string
+	cacheMode                 string
+	registryImageArchitecture string
 }
 
 type importerPodArgs struct {
@@ -405,6 +406,16 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		anno[cc.AnnPodPhase] = string(pod.Status.Phase)
 	}
 
+	anno[cc.AnnPodSchedulable] = "true"
+	if phase, ok := anno[cc.AnnPodPhase]; ok && phase == string(corev1.PodPending) {
+		for _, cond := range pod.Status.Conditions {
+			if cond.Type == corev1.PodScheduled && cond.Reason == corev1.PodReasonUnschedulable {
+				anno[cc.AnnPodSchedulable] = "false"
+				break
+			}
+		}
+	}
+
 	for _, ev := range pod.Spec.Containers[0].Env {
 		if ev.Name == common.CacheMode && ev.Value == common.CacheModeTryNone {
 			anno[cc.AnnRequiresDirectIO] = "false"
@@ -599,6 +610,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.previousCheckpoint = getValueFromAnnotation(pvc, cc.AnnPreviousCheckpoint)
 		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, cc.AnnCurrentCheckpoint)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, cc.AnnFinalCheckpoint)
+		podEnvVar.registryImageArchitecture = getValueFromAnnotation(pvc, cc.AnnRegistryImageArchitecture)
 
 		for annotation, value := range pvc.Annotations {
 			if strings.HasPrefix(annotation, cc.AnnExtraHeaders) {
@@ -873,6 +885,9 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 			return nil, err
 		}
 		setRegistryNodeImportEnvVars(args)
+		if args.podEnvVar.registryImageArchitecture != "" {
+			setRegistryNodeImportNodeSelector(args)
+		}
 	}
 
 	pod := makeImporterPodSpec(args)
@@ -1181,6 +1196,13 @@ func setRegistryNodeImportEnvVars(args *importerPodArgs) {
 	args.podEnvVar.doneFile = "/shared/done"
 }
 
+func setRegistryNodeImportNodeSelector(args *importerPodArgs) {
+	if args.workloadNodePlacement.NodeSelector == nil {
+		args.workloadNodePlacement.NodeSelector = make(map[string]string, 0)
+	}
+	args.workloadNodePlacement.NodeSelector[v1.LabelArchStable] = args.podEnvVar.registryImageArchitecture
+}
+
 func createConfigMapVolume(certVolName, objRef string) corev1.Volume {
 	return corev1.Volume{
 		Name: certVolName,
@@ -1295,6 +1317,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.CacheMode,
 			Value: podEnvVar.cacheMode,
+		},
+		{
+			Name:  common.ImporterRegistryImageArchitecture,
+			Value: podEnvVar.registryImageArchitecture,
 		},
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source != cc.SourceGCS {
