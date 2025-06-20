@@ -46,10 +46,6 @@ const (
 	// messageRetainedPVCPrime provides a const to indicate that the PVC prime has been retained in lost state (message)
 	messageRetainedPVCPrime = "PVC Prime retained in Lost state for debugging purposes"
 
-	// AnnPVCPrimeName annotation is the name of the PVC' that is added to the target PVC
-	// used by the upload-proxy in order to get the service name
-	AnnPVCPrimeName = cc.AnnAPIGroup + "/storage.populator.pvcPrime"
-
 	// annMigratedTo annotation is added to a PVC and PV that is supposed to be
 	// dynamically provisioned/deleted by its corresponding CSI driver
 	// through the CSIMigration feature flags. When this annotation is set the
