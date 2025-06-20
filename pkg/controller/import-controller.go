@@ -119,6 +119,7 @@ type importerPodArgs struct {
 	vddkImageName           *string
 	vddkExtraArgs           *string
 	priorityClassName       string
+	restartPolicy           string
 }
 
 // NewImportController creates a new instance of the import controller.
@@ -879,6 +880,18 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 		return nil, err
 	}
 
+	var restartPolicy corev1.RestartPolicy
+	restartPolicy, err = cc.GetImportPodRestartPolicy(client)
+	if err != nil {
+		return nil, err
+	}
+	if args.restartPolicy == "" && restartPolicy == "" {
+		args.restartPolicy = common.DefaultRestartPolicy
+	}
+	if restartPolicy != "" {
+		args.restartPolicy = string(restartPolicy)
+	}
+
 	if isRegistryNodeImport(args) {
 		args.importImage, err = getRegistryImportImage(args.pvc)
 		if err != nil {
@@ -941,7 +954,7 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			Containers:        makeImporterContainerSpec(args),
 			InitContainers:    makeImporterInitContainersSpec(args),
 			Volumes:           makeImporterVolumeSpec(args),
-			RestartPolicy:     corev1.RestartPolicyOnFailure,
+			RestartPolicy:     v1.RestartPolicy(args.restartPolicy),
 			NodeSelector:      args.workloadNodePlacement.NodeSelector,
 			Tolerations:       args.workloadNodePlacement.Tolerations,
 			Affinity:          args.workloadNodePlacement.Affinity,
