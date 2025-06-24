@@ -841,7 +841,7 @@ func (r *ImportReconciler) updatePVCBoundContion(pvc *corev1.PersistentVolumeCla
 
 	pvcPrime, exists := pvc.GetAnnotations()[cc.AnnPVCPrimeName]
 
-	// Sort event lists by containg primeName substring and most recent timestamp
+	// Sort event lists by containing primeName substring and most recent timestamp
 	sort.Slice(events.Items, func(i, j int) bool {
 		if exists {
 			firstConatinsPrime := strings.Contains(events.Items[i].Message, pvcPrime)
@@ -886,8 +886,7 @@ func (r *ImportReconciler) updatePVCBoundContion(pvc *corev1.PersistentVolumeCla
 		anno[cc.AnnBoundConditionReason] = "Pending"
 	}
 	anno[cc.AnnBoundConditionMessage] = boundMessage
-	r.updatePVC(pvc, r.log)
-	return nil
+	return r.updatePVC(pvc, r.log)
 }
 
 // returns the import image part of the endpoint string
