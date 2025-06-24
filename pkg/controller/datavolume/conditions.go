@@ -66,7 +66,9 @@ func updateCondition(conditions []cdiv1.DataVolumeCondition, conditionType cdiv1
 }
 
 func updateRunningCondition(conditions []cdiv1.DataVolumeCondition, anno map[string]string) []cdiv1.DataVolumeCondition {
-	if val, ok := anno[cc.AnnRunningCondition]; ok {
+	if schedulable, ok := anno[cc.AnnPodSchedulable]; ok && schedulable == "false" {
+		conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, "Importer pod cannot be scheduled", "Unschedulable")
+	} else if val, ok := anno[cc.AnnRunningCondition]; ok {
 		switch strings.ToLower(val) {
 		case "true":
 			conditions = updateWithTargetRunning(conditions, anno)
@@ -75,8 +77,6 @@ func updateRunningCondition(conditions []cdiv1.DataVolumeCondition, anno map[str
 		default:
 			conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionUnknown, anno[cc.AnnRunningConditionMessage], anno[cc.AnnRunningConditionReason])
 		}
-	} else if schedulable, ok := anno[cc.AnnPodSchedulable]; ok && schedulable == "false" {
-		conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, "Importer pod cannot be scheduled", "Unschedulable")
 	} else {
 		conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, anno[cc.AnnRunningConditionMessage], anno[cc.AnnRunningConditionReason])
 	}
