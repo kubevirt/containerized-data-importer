@@ -203,6 +203,11 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 		return reconcile.Result{}, err
 	}
 
+	err := r.updatePVCBoundContion(pvc)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
 	shouldReconcile, err := r.shouldReconcilePVC(pvc, log)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -244,8 +249,6 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-
-	r.updatePVCBoundContion(pvc)
 
 	if pod == nil {
 		if cc.IsPVCComplete(pvc) {
@@ -818,7 +821,7 @@ func (r *ImportReconciler) getVddkImageName() (*string, error) {
 	return nil, errors.Errorf("found %s ConfigMap in namespace %s, but it does not contain a '%s' entry", common.VddkConfigMap, namespace, common.VddkConfigDataKey)
 }
 
-func (r *ImportReconciler) updatePVCBoundContion(pvc *corev1.PersistentVolumeClaim) {
+func (r *ImportReconciler) updatePVCBoundContion(pvc *corev1.PersistentVolumeClaim) error {
 	// set bound condition by getting the latest event
 	events := &corev1.EventList{}
 
@@ -828,30 +831,45 @@ func (r *ImportReconciler) updatePVCBoundContion(pvc *corev1.PersistentVolumeCla
 			"involvedObject.uid": string(pvc.GetUID())},
 	)
 
-	if err != nil || len(events.Items) == 0 {
-		return
+	if err != nil {
+		return err
 	}
 
-	// Sort event lists by most recent
+	if len(events.Items) == 0 {
+		return nil
+	}
+
+	pvcPrime, exists := pvc.GetAnnotations()[cc.AnnPVCPrimeName]
+
+	// Sort event lists by containg primeName substring and most recent timestamp
 	sort.Slice(events.Items, func(i, j int) bool {
+		if exists {
+			firstConatinsPrime := strings.Contains(events.Items[i].Message, pvcPrime)
+			secondConatinsPrime := strings.Contains(events.Items[j].Message, pvcPrime)
+
+			if firstConatinsPrime && !secondConatinsPrime {
+				return true
+			}
+			if !firstConatinsPrime && secondConatinsPrime {
+				return false
+			}
+		}
+		// if both contains primeName substring or neither, just sort on timestamp
 		return events.Items[i].FirstTimestamp.Time.After(events.Items[j].FirstTimestamp.Time)
 	})
 
 	boundMessage := ""
 
-	pvcPrime, exists := pvc.GetAnnotations()[cc.AnnPVCPrimeName]
 	if exists {
 		// if we are using populators get the latest event from prime pvc
 		pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
-		for _, event := range events.Items {
-			if strings.Contains(event.Message, pvcPrime) {
-				// split so we can remove prime name prefix from event message
-				res := strings.Split(event.Message, pvcPrime)
-				boundMessage = res[len(res)-1]
-			}
-		}
+
+		// split so we can remove prime name prefix from event message
+		res := strings.Split(events.Items[0].Message, pvcPrime)
+		boundMessage = res[len(res)-1]
+
 		if boundMessage == "" {
-			return
+			return nil
 		}
 	} else {
 		// if not using populators just get the latest event
@@ -868,6 +886,8 @@ func (r *ImportReconciler) updatePVCBoundContion(pvc *corev1.PersistentVolumeCla
 		anno[cc.AnnBoundConditionReason] = "Pending"
 	}
 	anno[cc.AnnBoundConditionMessage] = boundMessage
+	r.updatePVC(pvc, r.log)
+	return nil
 }
 
 // returns the import image part of the endpoint string
