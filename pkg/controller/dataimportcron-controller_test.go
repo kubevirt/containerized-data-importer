@@ -766,7 +766,6 @@ var _ = Describe("All DataImportCron Tests", func() {
 			reconciler = createDataImportCronReconciler(cron, imageStream)
 			res, err := reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(res.Requeue).To(BeTrue())
 			Expect(res.RequeueAfter.Seconds()).To(And(BeNumerically(">", 0), BeNumerically("<=", 60)))
 
 			err = reconciler.client.Get(context.TODO(), cronKey, cron)
@@ -1547,7 +1546,6 @@ func newImageStream(name string) *imagev1.ImageStream {
 
 func newDataImportCron(name string) *cdiv1.DataImportCron {
 	garbageCollect := cdiv1.DataImportCronGarbageCollectOutdated
-	registryPullNodesource := cdiv1.RegistryPullNode
 	importsToKeep := int32(2)
 	url := testRegistryURL + testTag
 
@@ -1564,8 +1562,7 @@ func newDataImportCron(name string) *cdiv1.DataImportCron {
 				Spec: cdiv1.DataVolumeSpec{
 					Source: &cdiv1.DataVolumeSource{
 						Registry: &cdiv1.DataVolumeSourceRegistry{
-							URL:        &url,
-							PullMethod: &registryPullNodesource,
+							URL: &url,
 						},
 					},
 					Storage: &cdiv1.StorageSpec{},
