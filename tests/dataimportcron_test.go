@@ -283,15 +283,17 @@ var _ = Describe("DataImportCron", Serial, func() {
 		cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Verify cronjob was created")
-		Eventually(func() bool {
-			_, err := f.K8sClient.BatchV1().CronJobs(f.CdiInstallNs).Get(context.TODO(), controller.GetCronJobName(cron), metav1.GetOptions{})
-			if errors.IsNotFound(err) {
-				return false
-			}
-			Expect(err).ToNot(HaveOccurred())
-			return true
-		}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "cronjob was not created")
+		if reg.PullMethod == nil || *reg.PullMethod == cdiv1.RegistryPullPod {
+			By("Verify cronjob was created")
+			Eventually(func() bool {
+				_, err := f.K8sClient.BatchV1().CronJobs(f.CdiInstallNs).Get(context.TODO(), controller.GetCronJobName(cron), metav1.GetOptions{})
+				if errors.IsNotFound(err) {
+					return false
+				}
+				Expect(err).ToNot(HaveOccurred())
+				return true
+			}, dataImportCronTimeout, pollingInterval).Should(BeTrue(), "cronjob was not created")
+		}
 
 		var lastImportDv, currentImportDv string
 		for i := 0; i < repeat; i++ {
@@ -626,6 +628,9 @@ var _ = Describe("DataImportCron", Serial, func() {
 	)
 
 	It("[test_id:8033] should delete jobs on deletion", func() {
+		if reg.PullMethod != nil && *reg.PullMethod == cdiv1.RegistryPullNode {
+			Skip("No cronjobs on pullMethod: node")
+		}
 		noSuchCM := "nosuch"
 		reg.CertConfigMap = &noSuchCM
 		cron = utils.NewDataImportCron("cron-test", "5Gi", scheduleEveryMinute, dataSourceName, importsToKeep, *reg)
