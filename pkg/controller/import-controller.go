@@ -202,9 +202,7 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 		}
 		return reconcile.Result{}, err
 	}
-
-	err := r.updatePVCBoundContion(pvc)
-	if err != nil {
+	if err := r.updatePVCBoundContion(pvc); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -832,7 +830,9 @@ func (r *ImportReconciler) updatePVCBoundContion(pvc *corev1.PersistentVolumeCla
 	)
 
 	if err != nil {
-		return err
+		// Log the error but don't fail the reconciliation
+		r.log.Error(err, "Unable to list events for PVC bound condition update", "pvc", pvc.Name)
+		return nil
 	}
 
 	if len(events.Items) == 0 {
