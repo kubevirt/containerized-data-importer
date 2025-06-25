@@ -51,7 +51,6 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	cloneMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
@@ -1089,9 +1088,6 @@ func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy 
 		// Emit the event only on status phase change
 		if event.eventType != "" && curPhase != dataVolumeCopy.Status.Phase {
 			r.recorder.Event(dataVolumeCopy, event.eventType, event.reason, event.message)
-		}
-		if pvc != nil {
-			populators.CopyEvents(pvc, dataVolumeCopy, r.client, r.log, r.recorder)
 		}
 
 		r.emitConditionEvent(dataVolumeCopy, originalCond)
