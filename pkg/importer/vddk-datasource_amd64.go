@@ -555,7 +555,7 @@ type AioBlockStatusResult struct {
 	blocks  *[]*BlockStatusData
 	err     error
 	ready   bool
-	request BlockStatusData
+	request Extent
 }
 
 type AioReadResult struct {
@@ -572,7 +572,7 @@ type AioReadResult struct {
 func createBlockUpdateCallback() (*[]*BlockStatusData, func(string, uint64, []uint32, *int) int) {
 	blocks := []*BlockStatusData{}
 
-	// Callback for libnbd.BlockStatus. Needs to modify blocks list above.
+	// Callback for libnbd.AioBlockStatus. Needs to modify blocks list above.
 	updateBlocksCallback := func(metacontext string, nbdOffset uint64, extents []uint32, err *int) int {
 		if nbdOffset > math.MaxInt64 {
 			klog.Errorf("Block status offset too big for conversion: 0x%x", nbdOffset)
@@ -670,6 +670,33 @@ func createPreadArguments(result *AioReadResult) *libnbd.AioPreadOptargs {
 	}
 }
 
+// When there is a problem getting block status, patch up the result structure
+// so that it looks like a good block over the whole range, and create a read
+// request for that range. This is a sort of useful fallback to copy the whole
+// range instead of just failing, even if it ends up copying empty data.
+func patchFailedStatusForWholeBlock(statusResult *AioBlockStatusResult, statusCommand uint64, result *AioReadResult, readCommand *uint64, readSize *int64) {
+	*result = AioReadResult{
+		length: statusResult.request.Length,
+		offset: uint64(statusResult.request.Offset),
+		flags:  0,
+		ready:  true,
+	}
+	*readCommand = statusCommand
+	*readSize = statusResult.request.Length
+	// Patch up the last result to make it through write code correctly
+	statusResult.ready = true
+	*statusResult.blocks = []*BlockStatusData{
+		{
+			Extent: Extent{
+				Offset: statusResult.request.Offset,
+				Length: statusResult.request.Length,
+			},
+			Flags: 0,
+		},
+	}
+	statusResult.err = nil
+}
+
 // CopyRange takes one data block, checks if it is a hole or filled with zeroes, and copies it to the sink
 func CopyRange(handle NbdOperations, sink VDDKDataSink, rangeStart, rangeLength int64, updateProgress func(int)) error {
 	size, err := handle.GetSize()
@@ -683,6 +710,7 @@ func CopyRange(handle NbdOperations, sink VDDKDataSink, rangeStart, rangeLength 
 	readCommands := []uint64{}                 // Queue of AIO pread commands
 	readResults := map[uint64]*AioReadResult{} // Map of pread command cookies to read results
 	readDepth := 4                             // Maximum concurrent downloads
+	readOffset := uint64(0)                    // Offset of last written byte
 
 	// Block status tracking
 	statusCommands := []uint64{}                                                           // Queue of block status command cookies. This is only one deep but this way the code looks the same as pread's.
@@ -698,6 +726,10 @@ func CopyRange(handle NbdOperations, sink VDDKDataSink, rangeStart, rangeLength 
 		if len(statusCommands) < 1 && statusOffset < uint64(rangeEnd) { // No status command in-flight, and there's still more to query
 			blocks, updateBlocksCallback := createBlockUpdateCallback()
 			result, blockStatusArguments := createBlockStatusArguments(blocks)
+			result.request = Extent{
+				Offset: int64(statusOffset),
+				Length: int64(statusLength),
+			}
 
 			// Launch one status command
 			command, err := handle.AioBlockStatus(statusLength, statusOffset, updateBlocksCallback, blockStatusArguments)
@@ -722,34 +754,44 @@ func CopyRange(handle NbdOperations, sink VDDKDataSink, rangeStart, rangeLength 
 				statusOffset = uint64(lastBlock.Offset + lastBlock.Length)
 				statusLength = uint64(min(uint64(rangeEnd)-statusOffset, MaxBlockStatusLength)) // Current request length, only changes when it needs to be shrunk for final block
 			}
+
+			if lastStatusResult.err != nil { // Error on the last status result, advance because the whole requested block will be copied
+				statusOffset = uint64(lastStatusResult.request.Offset + lastStatusResult.request.Length)
+				statusLength = uint64(min(uint64(rangeEnd)-statusOffset, MaxBlockStatusLength))
+			}
 		}
 
 		// 3. Block Reads
 		// If the read queue is not full, check if there's a block status command
 		// ready. If so, break it down and fill the read queue with pread commands.
 		for len(readCommands) < readDepth {
-			// Peek at the first block status command and make sure it is ready before continuing
-			if len(statusCommands) < 1 {
-				break
-			} // There's a block status statusCommand going, check if it's done
-			statusCommand := statusCommands[0] // Always take the first one to service them in order
-			if statusResults[statusCommand].err != nil {
-				return statusResults[statusCommand].err // Block status failed! Bail out? Or TODO copy whole block instead?
-			}
-			if !statusResults[statusCommand].ready {
-				break // There's a block status command, but it's not ready yet. Break to continue polling
-			}
-			blocks := (*statusResults[statusCommand].blocks)
-			if len(blocks) < 1 { // Something wrong with block status, should TODO try to copy the whole block
-				return fmt.Errorf("no blocks returned from block status command")
-			}
-
-			// Block status command is ready, check the zero/hole flags to see if it should be copied or fast-forwarded
 			var result AioReadResult
 			var readCommand uint64
 			var readSize int64
 
+			// Peek at the first block status command and make sure it is ready or
+			// tweak it to copy a whole block if there was an error getting status
+			if len(statusCommands) < 1 {
+				break
+			} // There's a block status statusCommand going, check if it's done
+			statusCommand := statusCommands[0] // Always take the first one to service them in order
+			statusResult := statusResults[statusCommand]
+			if statusResult.err != nil { // Block status failed, copy whole block instead
+				klog.Infof("Error getting block status at %d-%d, copying whole block", statusResult.request.Offset, statusResult.request.Offset+statusResult.request.Length)
+				patchFailedStatusForWholeBlock(statusResult, statusCommand, &result, &readCommand, &readSize)
+			}
+			if !statusResult.ready {
+				break // There's a block status command, but it's not ready yet. Break to continue polling
+			}
+			blocks := *statusResult.blocks
+			if len(blocks) < 1 { // Something wrong with block status, should TODO try to copy the whole block
+				klog.Infof("No blocks returned from block status at %d-%d, copying whole block", statusResult.request.Offset, statusResult.request.Offset+statusResult.request.Length)
+				patchFailedStatusForWholeBlock(statusResult, statusCommand, &result, &readCommand, &readSize)
+				blocks = *statusResult.blocks
+			}
+
 			block := blocks[0]
+			// Block status command is ready, check the zero/hole flags to see if it should be copied or fast-forwarded
 			if (block.Flags & (libnbd.STATE_ZERO | libnbd.STATE_HOLE)) != 0 {
 				// The range is empty, create a new read result entry with the
 				// same flags so that the write will know to skip these bytes.
@@ -842,12 +884,13 @@ func CopyRange(handle NbdOperations, sink VDDKDataSink, rangeStart, rangeLength 
 					}
 					result.buffer.Free() // Clean up this AioBuffer, all data has been transferred and written out
 				}
-				if int64(result.offset)+result.length >= rangeEnd { // Immediately quit after writing out the last expected byte
-					return nil
-				}
 				readCommands = readCommands[1:] // Pop this read result off the queue
 				delete(readResults, readCommand)
 			}
+			readOffset = result.offset + uint64(result.length)
+		}
+		if readOffset >= uint64(rangeEnd) { // Immediately quit after writing out the last expected byte
+			return nil
 		}
 
 		// 5. AIO Poll
