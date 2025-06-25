@@ -863,7 +863,9 @@ func CopyRange(handle NbdOperations, sink VDDKDataSink, rangeStart, rangeLength 
 					if err := sink.ZeroRange(int64(result.offset), result.length); err != nil {
 						return err
 					}
-					updateProgress(int(result.length))
+					if updateProgress != nil {
+						updateProgress(int(result.length))
+					}
 				} else {
 					count := int64(0)
 					for count < int64(result.buffer.Size) {
@@ -874,7 +876,9 @@ func CopyRange(handle NbdOperations, sink VDDKDataSink, rangeStart, rangeLength 
 							klog.Errorf("Failed to write data block at offset %d to local file: %v", writeOffset, err)
 							return err
 						}
-						updateProgress(written)
+						if updateProgress != nil {
+							updateProgress(written)
+						}
 						count += int64(written)
 					}
 					result.buffer.Free() // Clean up this AioBuffer, all data has been transferred and written out
