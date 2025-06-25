@@ -524,11 +524,6 @@ const MaxPreadLengthVC = (2 << 20)
 // MaxPreadLengthNBD is the biggest pread length allowed by libnbd.
 const MaxPreadLengthNBD = (64 << 20)
 
-// MaxPreadLength is the maxmimum read size to request from VMware. Default to
-// the larger option, and reduce it in createVddkDataSource when connecting to
-// vCenter endpoints.
-var MaxPreadLength = MaxPreadLengthESX
-
 // NbdOperations provides a mockable interface for the things needed from libnbd.
 type NbdOperations interface {
 	GetSize() (uint64, error)
@@ -698,7 +693,7 @@ func patchFailedStatusForWholeBlock(statusResult *AioBlockStatusResult, statusCo
 }
 
 // CopyRange takes one data block, checks if it is a hole or filled with zeroes, and copies it to the sink
-func CopyRange(handle NbdOperations, sink VDDKDataSink, rangeStart, rangeLength int64, updateProgress func(int)) error {
+func CopyRange(handle NbdOperations, sink VDDKDataSink, rangeStart, rangeLength int64, updateProgress func(int), maxPreadLength int) error {
 	size, err := handle.GetSize()
 	if err != nil {
 		return err
@@ -812,7 +807,7 @@ func CopyRange(handle NbdOperations, sink VDDKDataSink, rangeStart, rangeLength 
 				// removing chunks so that it can continue with this buffer on
 				// the next loop if the read queue is currently too full to handle
 				// all of the returned blocks.
-				readSize = min(block.Length, int64(MaxPreadLength/readDepth), math.MaxUint32) // Validate the uint cast below
+				readSize = min(block.Length, int64(maxPreadLength), math.MaxUint32) // Validate the uint cast below
 				result.buffer = libnbd.MakeAioBuffer(uint(readSize))
 				result.length = readSize
 				result.offset = uint64(block.Offset)
@@ -1044,6 +1039,7 @@ type VDDKDataSource struct {
 	PreviousSnapshot string
 	Size             uint64
 	VolumeMode       v1.PersistentVolumeMode
+	MaxPreadLength   int
 }
 
 func init() {
@@ -1115,12 +1111,14 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		return nil, err
 	}
 
-	MaxPreadLength = MaxPreadLengthESX
+	// maxPreadLength is the maxmimum read size to request from VMware. Default to
+	// the larger option, and reduce it when connecting to vCenter endpoints.
+	var maxPreadLength = MaxPreadLengthESX
 	if vmware.conn.IsVC() {
 		klog.Infof("Connected to vCenter, restricting read request size to %d.", MaxPreadLengthVC)
-		MaxPreadLength = MaxPreadLengthVC
+		maxPreadLength = MaxPreadLengthVC
 	}
-	MaxPreadLength = min(MaxPreadLength, MaxPreadLengthNBD) // Don't exceed libnbd maximum
+	maxPreadLength = min(maxPreadLength, MaxPreadLengthNBD) // Don't exceed libnbd maximum
 
 	source := &VDDKDataSource{
 		VMware:           vmware,
@@ -1130,6 +1128,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		PreviousSnapshot: previousCheckpoint,
 		Size:             size,
 		VolumeMode:       volumeMode,
+		MaxPreadLength:   maxPreadLength,
 	}
 
 	terminationChannel := newTerminationChannel()
@@ -1345,7 +1344,7 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 
 			// Copy actual data from query ranges to destination
 			for _, extent := range changed.ChangedArea {
-				err := CopyRange(vs.NbdKit.Handle, sink, extent.Start, extent.Length, updateProgress)
+				err := CopyRange(vs.NbdKit.Handle, sink, extent.Start, extent.Length, updateProgress, vs.MaxPreadLength)
 				if err != nil {
 					klog.Errorf("Unable to copy block at offset %d: %v", extent.Start, err)
 					return ProcessingPhaseError, err
@@ -1360,7 +1359,7 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 			}
 		}
 	} else { // Cold migration full copy
-		err := CopyRange(vs.NbdKit.Handle, sink, 0, int64(vs.Size), updateProgress)
+		err := CopyRange(vs.NbdKit.Handle, sink, 0, int64(vs.Size), updateProgress, vs.MaxPreadLength)
 		if err != nil {
 			klog.Errorf("Unable to copy disk: %v", err)
 			return ProcessingPhaseError, err
