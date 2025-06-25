@@ -832,13 +832,13 @@ func (r *ImportReconciler) updatePVCBoundContion(pvc *corev1.PersistentVolumeCla
 	// Sort event lists by containing primeName substring and most recent timestamp
 	sort.Slice(events.Items, func(i, j int) bool {
 		if exists {
-			firstConatinsPrime := strings.Contains(events.Items[i].Message, pvcPrime)
-			secondConatinsPrime := strings.Contains(events.Items[j].Message, pvcPrime)
+			firstContainsPrime := strings.Contains(events.Items[i].Message, pvcPrime)
+			secondContainsPrime := strings.Contains(events.Items[j].Message, pvcPrime)
 
-			if firstConatinsPrime && !secondConatinsPrime {
+			if firstContainsPrime && !secondContainsPrime {
 				return true
 			}
-			if !firstConatinsPrime && secondConatinsPrime {
+			if !firstContainsPrime && secondContainsPrime {
 				return false
 			}
 		}

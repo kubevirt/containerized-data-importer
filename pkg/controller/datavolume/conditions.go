@@ -134,16 +134,12 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 				conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			}
 		case corev1.ClaimPending:
-			pvcPrimeName := getPrimeMessage(pvc)
-			if pvcPrimeName != "" {
-				// add space for readability
-				pvcPrimeName = " " + pvcPrimeName
-			}
+			pvcPrimeName := getPrimeName(pvc)
 			if pvcCondition == nil || pvcCondition.Status == corev1.ConditionTrue {
-				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("PVC %s Pending%s", pvc.Name, pvcPrimeName), pvcPending)
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("PVC %s Pending %s", pvc.Name, pvcPrimeName), pvcPending)
 				conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			} else {
-				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC %s Pending%s and %s", pvc.Name, pvcPrimeName, pvcCondition.Message), pvcCondition.Reason)
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC %s Pending %s and %s", pvc.Name, pvcPrimeName, pvcCondition.Message), pvcCondition.Reason)
 				conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			}
 		case corev1.ClaimLost:
@@ -183,11 +179,11 @@ func getPVCCondition(anno map[string]string) *cdiv1.DataVolumeCondition {
 	return nil
 }
 
-func getPrimeMessage(pvc *corev1.PersistentVolumeClaim) string {
+func getPrimeName(pvc *corev1.PersistentVolumeClaim) string {
 	val, exists := pvc.GetAnnotations()[cc.AnnPVCPrimeName]
 	if exists {
-		pvcPrimeMessage := fmt.Sprintf(" [prime PVC %s]", val)
-		return pvcPrimeMessage
+		primeName := fmt.Sprintf(" [prime PVC %s]", val)
+		return primeName
 	}
 	return ""
 }
