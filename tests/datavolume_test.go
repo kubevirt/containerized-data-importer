@@ -2325,8 +2325,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		It("[test_id:6485]Import pod should have size corrected on filesystem", func() {
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
-			// given 50 percent overhead, expected size is 2x requestedSize
-			expectedSize := resource.MustParse("200Mi")
+			// given 50 percent overhead, expected size is 1.5x requestedSize
+			expectedSize := resource.MustParse("150Mi")
 
 			By("creating clone dataVolume")
 			volumeMode := v1.PersistentVolumeFilesystem
@@ -2355,8 +2355,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		It("[test_id:6099]Upload pvc should have size corrected on filesystem volume", func() {
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
-			// given 50 percent overhead, expected size is 2x requestedSize
-			expectedSize := resource.MustParse("200Mi")
+			// given 50 percent overhead, expected size is 1.5x requestedSize
+			expectedSize := resource.MustParse("150Mi")
 
 			By("creating datavolume for upload")
 			volumeMode := v1.PersistentVolumeFilesystem
@@ -2502,8 +2502,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		It("[test_id:6102]Clone pod should have size corrected on filesystem", func() {
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
-			// given 50 percent overhead, expected size is 2x requestedSize
-			expectedSize := resource.MustParse("200Mi")
+			// given 50 percent overhead, expected size is 1.5x requestedSize
+			expectedSize := resource.MustParse("150Mi")
 
 			By("creating clone dataVolume")
 			volumeMode := v1.PersistentVolumeFilesystem
