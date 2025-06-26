@@ -115,7 +115,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			delete(pvc.Annotations, controller.AnnUploadRequest)
 			// We shouldn't make the test fail if there's a conflict with the update request.
 			// These errors are usually transient and should be fixed in subsequent retries.
-			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
+			_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
 			return err
 		}, timeout, pollingInterval).Should(Succeed())
 
@@ -261,7 +261,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				pvc.Annotations[controller.AnnContentType] = XSSAttempt
 				// We shouldn't make the test fail if there's a conflict with the update request.
 				// These errors are usually transient and should be fixed in subsequent retries.
-				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
+				_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
 				return err
 			}, timeout, pollingInterval).Should(Succeed())
 
