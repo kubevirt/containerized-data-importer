@@ -136,11 +136,11 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 				conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			}
 		case corev1.ClaimPending:
-			pvcPrimeName := getPrimeName(pvc)
 			if pvcCondition == nil || pvcCondition.Status == corev1.ConditionTrue {
 				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("PVC %s Pending", pvc.Name), pvcPending)
 				conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			} else {
+				pvcPrimeName := getPrimeName(pvc)
 				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC %s Pending and %s%s", pvc.Name, pvcPrimeName, pvcCondition.Message), pvcCondition.Reason)
 				conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			}
