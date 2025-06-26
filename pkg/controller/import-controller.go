@@ -808,6 +808,23 @@ func (r *ImportReconciler) getVddkImageName() (*string, error) {
 }
 
 func (r *ImportReconciler) updatePVCBoundContion(pvc *corev1.PersistentVolumeClaim) error {
+	anno := pvc.GetAnnotations()
+	if anno == nil {
+		return nil
+	}
+
+	// only update bound condition if pvc is bound or pending
+	if pvc.Status.Phase != corev1.ClaimPending {
+		// if pvc is bound, clear message and reason so old event message don't carry over
+		if pvc.Status.Phase == corev1.ClaimBound {
+			anno[cc.AnnBoundCondition] = "true"
+			anno[cc.AnnBoundConditionReason] = ""
+			anno[cc.AnnBoundConditionMessage] = ""
+			return r.updatePVC(pvc, r.log)
+		}
+		return nil
+	}
+
 	// set bound condition by getting the latest event
 	events := &corev1.EventList{}
 
@@ -827,7 +844,7 @@ func (r *ImportReconciler) updatePVCBoundContion(pvc *corev1.PersistentVolumeCla
 		return nil
 	}
 
-	pvcPrime, exists := pvc.GetAnnotations()[cc.AnnPVCPrimeName]
+	pvcPrime, exists := anno[cc.AnnPVCPrimeName]
 
 	// Sort event lists by containing primeName substring and most recent timestamp
 	sort.Slice(events.Items, func(i, j int) bool {
@@ -864,15 +881,9 @@ func (r *ImportReconciler) updatePVCBoundContion(pvc *corev1.PersistentVolumeCla
 		boundMessage = events.Items[0].Message
 	}
 
-	anno := pvc.GetAnnotations()
-
-	if pvc.Status.Phase == corev1.ClaimBound {
-		anno[cc.AnnBoundCondition] = "true"
-		anno[cc.AnnBoundConditionReason] = "Bound"
-	} else {
-		anno[cc.AnnBoundCondition] = "false"
-		anno[cc.AnnBoundConditionReason] = "Pending"
-	}
+	// since we checked status of phase above, we know this is pending
+	anno[cc.AnnBoundCondition] = "false"
+	anno[cc.AnnBoundConditionReason] = "Pending"
 	anno[cc.AnnBoundConditionMessage] = boundMessage
 	return r.updatePVC(pvc, r.log)
 }
