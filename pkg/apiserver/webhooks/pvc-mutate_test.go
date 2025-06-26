@@ -148,7 +148,7 @@ var _ = Describe("Mutating PVC Webhook", func() {
 			Entry("fail with no default storage classes", false,
 				"PVC spec is missing accessMode and no storageClass to choose profile", &storageClass, &storageProfile),
 			Entry("fail with default storage classes but with partial storage profile", false,
-				fmt.Sprintf("no accessMode specified in StorageProfile %s", testStorageClassName), &defaultStorageClass, &partialStorageProfile),
+				fmt.Sprintf("no accessMode specified in status.ClaimPropertySets of StorageProfile %s", testStorageClassName), &defaultStorageClass, &partialStorageProfile),
 			Entry("succeed with default storage classes and complete storage profile", true, "", &defaultStorageClass, &storageProfile),
 		)
 	})
