@@ -41,6 +41,8 @@ type templateData struct {
 	APIServerImage         string
 	UploadProxyImage       string
 	UploadServerImage      string
+	ExternalImageMinio     string
+	ExternalImageFakeovirt string
 	Verbosity              string
 	PullPolicy             string
 	CrName                 string
@@ -62,6 +64,8 @@ var (
 	apiServerImage         = flag.String("apiserver-image", "", "")
 	uploadProxyImage       = flag.String("uploadproxy-image", "", "")
 	uploadServerImage      = flag.String("uploadserver-image", "", "")
+	externalImageMinio     = flag.String("external-image-minio", "", "")
+	externalImageFakeovirt = flag.String("external-image-fakeovirt", "", "")
 	verbosity              = flag.String("verbosity", "1", "")
 	pullPolicy             = flag.String("pull-policy", "", "")
 	crName                 = flag.String("cr-name", "", "")
@@ -76,6 +80,9 @@ func main() {
 
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
 	klog.InitFlags(klogFlags)
+
+	klog.Info("========Generator", "templFile", templFile)
+
 	flag.CommandLine.VisitAll(func(f1 *flag.Flag) {
 		f2 := klogFlags.Lookup(f1.Name)
 		if f2 != nil {
@@ -108,6 +115,8 @@ func generateFromFile(templFile string) {
 		APIServerImage:         *apiServerImage,
 		UploadProxyImage:       *uploadProxyImage,
 		UploadServerImage:      *uploadServerImage,
+		ExternalImageMinio:     *externalImageMinio,
+		ExternalImageFakeovirt: *externalImageFakeovirt,
 		PullPolicy:             *pullPolicy,
 		CrName:                 *crName,
 		Namespace:              *namespace,
@@ -205,17 +214,19 @@ func getClusterResources(codeGroup string) ([]client.Object, error) {
 
 func getNamespacedResources(codeGroup string) ([]client.Object, error) {
 	args := &cdinamespaced.FactoryArgs{
-		Verbosity:           *verbosity,
-		OperatorVersion:     *operatorVersion,
-		ControllerImage:     *controllerImage,
-		ImporterImage:       *importerImage,
-		ClonerImage:         *clonerImage,
-		OvirtPopulatorImage: *ovirtPopulatorImage,
-		APIServerImage:      *apiServerImage,
-		UploadProxyImage:    *uploadProxyImage,
-		UploadServerImage:   *uploadServerImage,
-		PullPolicy:          *pullPolicy,
-		Namespace:           *namespace,
+		Verbosity:              *verbosity,
+		OperatorVersion:        *operatorVersion,
+		ControllerImage:        *controllerImage,
+		ImporterImage:          *importerImage,
+		ClonerImage:            *clonerImage,
+		OvirtPopulatorImage:    *ovirtPopulatorImage,
+		APIServerImage:         *apiServerImage,
+		UploadProxyImage:       *uploadProxyImage,
+		UploadServerImage:      *uploadServerImage,
+		ExternalImageMinio:     *externalImageMinio,
+		ExternalImageFakeovirt: *externalImageFakeovirt,
+		PullPolicy:             *pullPolicy,
+		Namespace:              *namespace,
 	}
 
 	return cdinamespaced.CreateResourceGroup(codeGroup, args)

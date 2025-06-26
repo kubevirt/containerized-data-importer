@@ -126,7 +126,7 @@ docker-registry-cleanup: ## Clean up all cached images from docker registry. Acc
 publish: manifests push ## Generate a cdi-controller and operator manifests and push the built container images to the registry defined in DOCKER_PREFIX
 
 manifests: ## Generate a cdi-controller and operator manifests in '_out/manifests/'.  Accepts [make variables]\(#make-variables\) DOCKER_TAG, DOCKER_PREFIX, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE
-	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} CR_NAME=${CR_NAME} CDI_NAMESPACE=${CDI_NAMESPACE} ./hack/build/build-manifests.sh"
+	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} CR_NAME=${CR_NAME} CDI_NAMESPACE=${CDI_NAMESPACE} EXTRA_IMAGES=\"${EXTRA_IMAGES}\" ./hack/build/build-manifests.sh"
 
 release-description: ## Generate a release announcement detailing changes between 2 commits (typically tags).  Expects 'RELREF' and 'PREREF' to be set
 	./hack/build/release-description.sh ${RELREF} ${PREREF}
@@ -140,6 +140,7 @@ openshift-ci-image-push: ## Build and push the OpenShift CI build+test container
 ##@ Local cluster management
 cluster-up: ## Start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.18' or 'os-3.11.0' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node.
 	./cluster-up/up.sh
+	./hack/extra-images.sh
 
 cluster-down: ## Stop the cluster, doing a make cluster-down && make cluster-up will basically restart the cluster into an empty fresh state.
 	./cluster-up/down.sh
