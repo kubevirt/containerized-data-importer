@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"path"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -202,8 +201,12 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 		}
 		return reconcile.Result{}, err
 	}
-	if err := r.updatePVCBoundContion(pvc); err != nil {
-		return reconcile.Result{}, err
+
+	// only want to update bound condition for relevant type
+	if checkPVC(pvc, cc.AnnEndpoint, log) || checkPVC(pvc, cc.AnnSource, log) {
+		if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	shouldReconcile, err := r.shouldReconcilePVC(pvc, log)
@@ -817,87 +820,6 @@ func (r *ImportReconciler) getVddkImageName() (*string, error) {
 	}
 
 	return nil, errors.Errorf("found %s ConfigMap in namespace %s, but it does not contain a '%s' entry", common.VddkConfigMap, namespace, common.VddkConfigDataKey)
-}
-
-func (r *ImportReconciler) updatePVCBoundContion(pvc *corev1.PersistentVolumeClaim) error {
-	anno := pvc.GetAnnotations()
-	if anno == nil {
-		return nil
-	}
-
-	// only update bound condition if pvc is bound or pending
-	if pvc.Status.Phase != corev1.ClaimPending {
-		// if pvc is bound, clear message and reason so old event message don't carry over
-		if pvc.Status.Phase == corev1.ClaimBound {
-			anno[cc.AnnBoundCondition] = "true"
-			anno[cc.AnnBoundConditionReason] = ""
-			anno[cc.AnnBoundConditionMessage] = ""
-			return r.updatePVC(pvc, r.log)
-		}
-		return nil
-	}
-
-	// set bound condition by getting the latest event
-	events := &corev1.EventList{}
-
-	err := r.client.List(context.TODO(), events,
-		client.InNamespace(pvc.GetNamespace()),
-		client.MatchingFields{"involvedObject.name": pvc.GetName(),
-			"involvedObject.uid": string(pvc.GetUID())},
-	)
-
-	if err != nil {
-		// Log the error but don't fail the reconciliation
-		r.log.Error(err, "Unable to list events for PVC bound condition update", "pvc", pvc.Name)
-		return nil
-	}
-
-	if len(events.Items) == 0 {
-		return nil
-	}
-
-	pvcPrime, exists := anno[cc.AnnPVCPrimeName]
-
-	// Sort event lists by containing primeName substring and most recent timestamp
-	sort.Slice(events.Items, func(i, j int) bool {
-		if exists {
-			firstContainsPrime := strings.Contains(events.Items[i].Message, pvcPrime)
-			secondContainsPrime := strings.Contains(events.Items[j].Message, pvcPrime)
-
-			if firstContainsPrime && !secondContainsPrime {
-				return true
-			}
-			if !firstContainsPrime && secondContainsPrime {
-				return false
-			}
-		}
-		// if both contains primeName substring or neither, just sort on timestamp
-		return events.Items[i].FirstTimestamp.Time.After(events.Items[j].FirstTimestamp.Time)
-	})
-
-	boundMessage := ""
-
-	if exists {
-		// if we are using populators get the latest event from prime pvc
-		pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
-
-		// split so we can remove prime name prefix from event message
-		res := strings.Split(events.Items[0].Message, pvcPrime)
-		boundMessage = res[len(res)-1]
-
-		if boundMessage == "" {
-			return nil
-		}
-	} else {
-		// if not using populators just get the latest event
-		boundMessage = events.Items[0].Message
-	}
-
-	// since we checked status of phase above, we know this is pending
-	anno[cc.AnnBoundCondition] = "false"
-	anno[cc.AnnBoundConditionReason] = "Pending"
-	anno[cc.AnnBoundConditionMessage] = boundMessage
-	return r.updatePVC(pvc, r.log)
 }
 
 // returns the import image part of the endpoint string

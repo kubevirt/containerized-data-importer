@@ -168,6 +168,11 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	// copy over any new events from pvcPrime to pvc
 	CopyEvents(pvcPrime, pvc, r.client, r.log, r.recorder)
 
+	err = cc.UpdatePVCBoundContionFromEvents(pvcCopy, r.client, r.log)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
 	switch phase {
 	case string(corev1.PodRunning):
 		if err = cc.MaybeSetPvcMultiStageAnnotation(pvcPrime, r.getCheckpointArgs(source)); err != nil {
