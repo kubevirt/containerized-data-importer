@@ -163,7 +163,9 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 	log.V(1).Info("reconciling Clone PVCs")
 
 	if checkPVC(pvc, cc.AnnCloneRequest, log) && !metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnCloneOf) {
-		cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log)
+		if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 	if pvc.DeletionTimestamp != nil || !r.shouldReconcile(pvc, log) {
 		log.V(1).Info("Should not reconcile this PVC",
