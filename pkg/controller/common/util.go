@@ -2077,3 +2077,93 @@ func AllowClaimAdoption(c client.Client, pvc *corev1.PersistentVolumeClaim, dv *
 	}
 	return featuregates.NewFeatureGates(c).ClaimAdoptionEnabled()
 }
+
+// UpdatePVCBoundContionFromEvents updates the bound condition annotations on the PVC based on recent events
+// This function can be used by both controller and populator packages to update PVC bound condition information
+func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client.Client, log logr.Logger) error {
+	currentPvcCopy := pvc.DeepCopyObject()
+
+	anno := pvc.GetAnnotations()
+	if anno == nil {
+		return nil
+	}
+
+	if IsBound(pvc) {
+		anno[AnnBoundCondition] = "true"
+		delete(anno, AnnBoundConditionReason)
+		delete(anno, AnnBoundConditionMessage)
+		if !reflect.DeepEqual(currentPvcCopy, pvc) {
+			if err := c.Update(context.TODO(), pvc); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if pvc.Status.Phase != corev1.ClaimPending {
+		return nil
+	}
+
+	// set bound condition by getting the latest event
+	events := &corev1.EventList{}
+
+	err := c.List(context.TODO(), events,
+		client.InNamespace(pvc.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": pvc.GetName(),
+			"involvedObject.uid": string(pvc.GetUID())},
+	)
+
+	if err != nil {
+		// Log the error but don't fail the reconciliation
+		log.Error(err, "Unable to list events for PVC bound condition update", "pvc", pvc.Name)
+		return nil
+	}
+
+	if len(events.Items) == 0 {
+		return nil
+	}
+
+	pvcPrime, exists := anno[AnnPVCPrimeName]
+
+	// Sort event lists by containing primeName substring and most recent timestamp
+	sort.Slice(events.Items, func(i, j int) bool {
+		if exists {
+			firstContainsPrime := strings.Contains(events.Items[i].Message, pvcPrime)
+			secondContainsPrime := strings.Contains(events.Items[j].Message, pvcPrime)
+
+			if firstContainsPrime && !secondContainsPrime {
+				return true
+			}
+			if !firstContainsPrime && secondContainsPrime {
+				return false
+			}
+		}
+		// if both contains primeName substring or neither, just sort on timestamp
+		return events.Items[i].FirstTimestamp.Time.After(events.Items[j].FirstTimestamp.Time)
+	})
+
+	boundMessage := ""
+
+	if exists {
+		// if we are using populators get the latest event from prime pvc
+		pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
+
+		// split so we can remove prime name prefix from event message
+		res := strings.Split(events.Items[0].Message, pvcPrime)
+		boundMessage = res[len(res)-1]
+
+		if boundMessage == "" {
+			log.V(1).Info("No bound message found, skipping bound condition update")
+			return nil
+		}
+	} else {
+		// if not using populators just get the latest event
+		boundMessage = events.Items[0].Message
+	}
+
+	log.V(1).Info("Bound message found, updating bound condition", "boundMessage", boundMessage)
+	// since we checked status of phase above, we know this is pending
+	anno[AnnBoundCondition] = "false"
+	anno[AnnBoundConditionReason] = "Pending"
+	anno[AnnBoundConditionMessage] = boundMessage
+	return nil
+}

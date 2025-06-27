@@ -259,6 +259,10 @@ func (r *ClonePopulatorReconciler) Reconcile(ctx context.Context, req reconcile.
 		return reconcile.Result{}, err
 	}
 
+	err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, r.log)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 	// don't think this should happen but better safe than sorry
 	if !IsPVCDataSourceRefKind(pvc, cdiv1.VolumeCloneSourceRef) {
 		return reconcile.Result{}, nil
