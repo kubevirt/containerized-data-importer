@@ -142,7 +142,9 @@ func (r *UploadReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 	}
 
 	if isUpload || isCloneTarget {
-		cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log)
+		if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	shouldReconcile, err := r.shouldReconcile(isUpload, isCloneTarget, pvc, log)
