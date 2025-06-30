@@ -19,6 +19,7 @@ package populators
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 
 	"github.com/go-logr/logr"
@@ -141,6 +142,11 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	err := cc.UpdatePVCBoundContionFromEvents(pvcCopy, r.client, r.log)
 	if err != nil {
 		return reconcile.Result{}, err
+	}
+	if !reflect.DeepEqual(pvcCopy, pvc) {
+		if err := r.client.Update(context.TODO(), pvc); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	if phase != string(corev1.PodSucceeded) {

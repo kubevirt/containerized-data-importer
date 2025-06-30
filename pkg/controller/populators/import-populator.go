@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -160,15 +161,20 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		return reconcile.Result{}, err
 	}
 
-	_, err = r.updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
 	// copy over any new events from pvcPrime to pvc
 	CopyEvents(pvcPrime, pvc, r.client, r.log, r.recorder)
 
-	err = cc.UpdatePVCBoundContionFromEvents(pvcCopy, r.client, r.log)
+	err = cc.UpdatePVCBoundContionFromEvents(pvc, r.client, r.log)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+	if !reflect.DeepEqual(pvcCopy, pvc) {
+		if err := r.client.Update(context.TODO(), pvc); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
+	_, err = r.updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
