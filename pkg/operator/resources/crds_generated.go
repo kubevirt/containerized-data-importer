@@ -6533,6 +6533,22 @@ spec:
               source:
                 description: Source is the source of the data referenced by the DataSource
                 properties:
+                  dataSource:
+                    description: |-
+                      DataSourceRefSourceDataSource serves as a reference to another DataSource
+                      Can be resolved into a DataVolumeSourcePVC or a DataVolumeSourceSnapshot
+                      The maximum depth of a reference chain may not exceed 1.
+                    properties:
+                      name:
+                        description: The name of the source DataSource
+                        type: string
+                      namespace:
+                        description: The namespace of the source DataSource
+                        type: string
+                    required:
+                    - name
+                    - namespace
+                    type: object
                   pvc:
                     description: DataVolumeSourcePVC provides the parameters to create
                       a Data Volume from an existing PVC
@@ -6599,6 +6615,22 @@ spec:
                 description: Source is the current source of the data referenced by
                   the DataSource
                 properties:
+                  dataSource:
+                    description: |-
+                      DataSourceRefSourceDataSource serves as a reference to another DataSource
+                      Can be resolved into a DataVolumeSourcePVC or a DataVolumeSourceSnapshot
+                      The maximum depth of a reference chain may not exceed 1.
+                    properties:
+                      name:
+                        description: The name of the source DataSource
+                        type: string
+                      namespace:
+                        description: The namespace of the source DataSource
+                        type: string
+                    required:
+                    - name
+                    - namespace
+                    type: object
                   pvc:
                     description: DataVolumeSourcePVC provides the parameters to create
                       a Data Volume from an existing PVC
