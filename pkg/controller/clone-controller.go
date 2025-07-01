@@ -164,6 +164,7 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 
 	if checkPVC(pvc, cc.AnnCloneRequest, log) && !metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnCloneOf) {
 		if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log); err != nil {
+			log.V(1).Info("DANNY: UpdatePVCBoundContionFromEvents failed")
 			return reconcile.Result{}, err
 		}
 	}
@@ -174,6 +175,10 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 			"isBound", isBound(pvc, log),
 			"has finalizer?", cc.HasFinalizer(pvc, cloneSourcePodFinalizer))
 		if cc.HasFinalizer(pvc, cloneSourcePodFinalizer) || pvc.DeletionTimestamp != nil {
+			log.V(1).Info("DANNY: cleaning up")
+			if pvc.DeletionTimestamp != nil {
+				log.V(1).Info("DANNY: DeletionTimestamp", "pvc.DeletionTimestamp", pvc.DeletionTimestamp)
+			}
 			// Clone completed, remove source pod and/or finalizer
 			if err := r.cleanup(pvc, log); err != nil {
 				return reconcile.Result{}, err
@@ -194,6 +199,7 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 
 	sourcePod, err := r.findCloneSourcePod(pvc)
 	if err != nil {
+		log.V(1).Info("DANNY: findCloneSourcePod failed")
 		return reconcile.Result{}, err
 	}
 
@@ -208,18 +214,22 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 			return reconcile.Result{}, err
 		}
 
+		log.V(1).Info("DANNY: add finalizer")
 		// will reconcile again after PVC update notification
 		return reconcile.Result{}, nil
 	}
 
+	log.V(1).Info("DANNY: reconcileSourcePod")
 	if requeueAfter, err := r.reconcileSourcePod(ctx, sourcePod, pvc, log); requeueAfter != 0 || err != nil {
 		return reconcile.Result{RequeueAfter: requeueAfter}, err
 	}
 
+	log.V(1).Info("DANNY: ensureCertSecret")
 	if err := r.ensureCertSecret(sourcePod, pvc); err != nil {
 		return reconcile.Result{}, err
 	}
 
+	log.V(1).Info("DANNY: updatePvcFromPod")
 	if err := r.updatePvcFromPod(sourcePod, pvc, log); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -341,6 +351,11 @@ func (r *CloneReconciler) updatePvcFromPod(sourcePod *corev1.Pod, pvc *corev1.Pe
 		pvc.Annotations[cc.AnnCloneOf] = "true"
 		r.recorder.Event(pvc, corev1.EventTypeNormal, CloneSucceededPVC, cc.CloneComplete)
 	}
+
+	log.V(1).Info("DANNY: updatePVCFromPod",
+		"podSucceededFromPVC(pvc)", podSucceededFromPVC(pvc),
+		"pvc.Annotations[cc.AnnCloneOf]", pvc.Annotations[cc.AnnCloneOf],
+		"sourcePodFinished(sourcePod)", sourcePodFinished(sourcePod))
 
 	setAnnotationsFromPodWithPrefix(pvc.Annotations, sourcePod, nil, cc.AnnSourceRunningCondition)
 

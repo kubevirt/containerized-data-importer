@@ -2178,9 +2178,12 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 
 	boundMessage := ""
 
+	// check if prime name annotation exists
 	if exists {
 		// if we are using populators get the latest event from prime pvc
 		pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
+
+		// TODO get index after pvcPrime to get message
 
 		// split so we can remove prime name prefix from event message
 		res := strings.Split(events.Items[0].Message, pvcPrime)
@@ -2195,7 +2198,7 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 		boundMessage = events.Items[0].Message
 	}
 
-	log.V(1).Info("Bound message found, updating bound condition", "boundMessage", boundMessage)
+	log.V(1).Info("DANNY: Bound message found, updating bound condition", "boundMessage", boundMessage)
 	// since we checked status of phase above, we know this is pending
 	anno[AnnBoundCondition] = "false"
 	anno[AnnBoundConditionReason] = "Pending"

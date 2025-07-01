@@ -205,6 +205,7 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 	// only want to update bound condition for relevant type
 	if checkPVC(pvc, cc.AnnEndpoint, log) || checkPVC(pvc, cc.AnnSource, log) {
 		if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log); err != nil {
+			log.V(1).Info("DANNY: UpdatePVCBoundContionFromEvents failed")
 			return reconcile.Result{}, err
 		}
 	}
@@ -459,6 +460,10 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		}
 		log.V(1).Info("Updated PVC", "pvc.anno.Phase", anno[cc.AnnPodPhase], "pvc.anno.Restarts", anno[cc.AnnPodRestarts])
 	}
+
+	log.V(1).Info("DANNY: updatePvcFromPod",
+		"cc.IsPVCComplete(pvc)", cc.IsPVCComplete(pvc),
+		"podModificationsNeeded", podModificationsNeeded)
 
 	if cc.IsPVCComplete(pvc) || podModificationsNeeded {
 		if !podModificationsNeeded {

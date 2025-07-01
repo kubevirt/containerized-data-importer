@@ -443,6 +443,7 @@ func (r *CloneReconcilerBase) updateStatusPhaseForPopulator(pvc *corev1.Persiste
 	if dvPhase != cdiv1.Failed {
 		dataVolumeCopy.Status.Phase = dvPhase
 	}
+	r.log.V(1).Info("DANNY: setEventForPhase", "phase", dvPhase)
 	r.setEventForPhase(dataVolumeCopy, dvPhase, event)
 	return nil
 }
@@ -477,6 +478,7 @@ func (r *CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClai
 		return nil
 	}
 
+	r.log.V(1).Info("DANNY: updateStatusPhase", "phase", phase)
 	switch phase {
 	case string(corev1.PodPending):
 		dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled

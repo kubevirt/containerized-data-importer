@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -166,12 +165,8 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 
 	err = cc.UpdatePVCBoundContionFromEvents(pvc, r.client, r.log)
 	if err != nil {
+		r.log.V(1).Info("DANNY: UpdatePVCBoundContionFromEvents failed")
 		return reconcile.Result{}, err
-	}
-	if !reflect.DeepEqual(pvcCopy, pvc) {
-		if err := r.client.Update(context.TODO(), pvc); err != nil {
-			return reconcile.Result{}, err
-		}
 	}
 
 	_, err = r.updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name)
@@ -179,6 +174,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		return reconcile.Result{}, err
 	}
 
+	r.log.V(1).Info("DANNY: reconcileTargetPVC phase", "phase", phase)
 	switch phase {
 	case string(corev1.PodRunning):
 		if err = cc.MaybeSetPvcMultiStageAnnotation(pvcPrime, r.getCheckpointArgs(source)); err != nil {
@@ -201,6 +197,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 			break
 		}
 
+		r.log.V(1).Info("DANNY: IsPVCComplete", "cc.IsPVCComplete(pvcPrime)", cc.IsPVCComplete(pvcPrime), "cc.IsUnbound(pvc)", cc.IsUnbound(pvc))
 		if cc.IsPVCComplete(pvcPrime) && cc.IsUnbound(pvc) {
 			// Once the import is succeeded, we copy annotations and labels and rebind the PV from PVC to target PVC
 			if pvcCopy, err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations); err != nil {
@@ -209,6 +206,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 			if pvcCopy, err = r.updatePVCWithPVCPrimeLabels(pvcCopy, pvcPrime.GetLabels()); err != nil {
 				return reconcile.Result{}, err
 			}
+			r.log.V(1).Info("DANNY: Rebind")
 			if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvcCopy); err != nil {
 				return reconcile.Result{}, err
 			}
@@ -218,6 +216,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	if _, err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateImportAnnotations); err != nil {
 		return reconcile.Result{}, err
 	}
+	r.log.V(1).Info("DANNY: IsPVCComplete", "cc.IsPVCComplete(pvcPrime)", cc.IsPVCComplete(pvcPrime), "cc.IsMultiStageImportInProgress(pvc)", cc.IsMultiStageImportInProgress(pvc))
 	if cc.IsPVCComplete(pvcPrime) && !cc.IsMultiStageImportInProgress(pvc) {
 		r.recorder.Eventf(pvc, corev1.EventTypeNormal, importSucceeded, messageImportSucceeded, pvc.Name)
 	}
@@ -226,6 +225,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 }
 
 func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger, recorder record.EventRecorder) {
+	log.V(1).Info("DANNY: CopyEvents")
 	copyingToDv := false
 	primePrefixMsg := ""
 	if destObj.GetObjectKind().GroupVersionKind().Kind == "DataVolume" {
