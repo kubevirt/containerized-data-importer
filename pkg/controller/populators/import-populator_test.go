@@ -172,6 +172,35 @@ var _ = Describe("Import populator tests", func() {
 			Expect(found).To(BeTrue())
 		})
 
+		It("should error if post rebind target PVC has no storage capacity", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			targetPvc.Status.Capacity = corev1.ResourceList{
+				corev1.ResourceStorage: resource.MustParse("0"),
+			}
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
+			pvcPrime := getPVCPrime(targetPvc, nil)
+			pvcPrime.Annotations = map[string]string{AnnPodPhase: string(corev1.PodSucceeded)}
+			pv := &corev1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "pv",
+				},
+				Spec: corev1.PersistentVolumeSpec{
+					ClaimRef: &corev1.ObjectReference{
+						Namespace: pvcPrime.Namespace,
+						Name:      pvcPrime.Name,
+					},
+				},
+			}
+			pvcPrime.Spec.VolumeName = pv.Name
+
+			By("Reconcile")
+			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, pv, volumeImportSource, sc)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(errCapacityNotUpdated))
+		})
+
 		It("should ignore namespaced dataSourceRefs", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = namespacedDataSourceRef
