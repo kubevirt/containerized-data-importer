@@ -651,7 +651,7 @@ func createPreadArguments(result *AioReadResult) *libnbd.AioPreadOptargs {
 	}
 	completionCallback := func(error *int) int {
 		if *error != 0 {
-			klog.Errorf("error in pread callback: %d", *error)
+			klog.Errorf("error in pread callback at offset %d: %d", result.offset, *error)
 			result.err = syscall.Errno(*error)
 			return -1
 		}
@@ -885,11 +885,8 @@ func CopyRange(handle NbdOperations, sink VDDKDataSink, rangeStart, rangeLength 
 				}
 				readCommands = readCommands[1:] // Pop this read result off the queue
 				delete(readResults, readCommand)
+				readOffset = result.offset + uint64(result.length)
 			}
-			readOffset = result.offset + uint64(result.length)
-		}
-		if readOffset >= uint64(rangeEnd) { // Immediately quit after writing out the last expected byte
-			return nil
 		}
 
 		// 5. AIO Poll
@@ -907,7 +904,11 @@ func CopyRange(handle NbdOperations, sink VDDKDataSink, rangeStart, rangeLength 
 			if result == 0 {
 				return fmt.Errorf("timed out waiting for poll at status offset %d", statusOffset)
 			}
-		} // Else: no commands in-flight, do not poll. Next loop should create a new command or quit.
+		} else {
+			if readOffset >= uint64(rangeEnd) { // Quit after writing out the last expected byte
+				return nil
+			}
+		}
 	}
 }
 
