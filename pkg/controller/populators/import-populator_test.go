@@ -286,7 +286,7 @@ var _ = Describe("Import populator tests", func() {
 
 		It("should trigger appropriate event when using AnnPodRetainAfterCompletion", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name,
-				map[string]string{AnnPodPhase: string(corev1.PodSucceeded)}, nil, corev1.ClaimPending)
+				map[string]string{AnnPodPhase: string(corev1.PodSucceeded), AnnBoundCondition: "true"}, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
 			targetPvc.Spec.VolumeName = "pv"
 			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)

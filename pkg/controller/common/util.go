@@ -2132,6 +2132,11 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 		anno[AnnBoundCondition] = "true"
 		delete(anno, AnnBoundConditionReason)
 		delete(anno, AnnBoundConditionMessage)
+		if !reflect.DeepEqual(currentPvcCopy, pvc) {
+			if err := c.Update(context.TODO(), pvc); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 	if pvc.Status.Phase != corev1.ClaimPending {
