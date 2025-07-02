@@ -47,8 +47,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"rook-ceph.rbd.csi.ceph.com":         createRbdCapabilities(),
 	"openshift-storage.rbd.csi.ceph.com": createRbdCapabilities(),
 	// ceph-fs
-	"cephfs.csi.ceph.com":                   {{rwx, file}},
-	"openshift-storage.cephfs.csi.ceph.com": {{rwx, file}},
+	"cephfs.csi.ceph.com":                   {{rwx, file}, {rwo, file}},
+	"rook-ceph.cephfs.csi.ceph.com":         {{rwx, file}, {rwo, file}},
+	"openshift-storage.cephfs.csi.ceph.com": {{rwx, file}, {rwo, file}},
 	// LINSTOR
 	"linstor.csi.linbit.com": createAllButRWXFileCapabilities(),
 	// DELL Unity XT
@@ -154,9 +155,11 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"csi.hpe.com":                              cdiv1.CloneStrategyCsiClone,
 	"spectrumscale.csi.ibm.com":                cdiv1.CloneStrategyCsiClone,
 	"block.csi.ibm.com":                        cdiv1.CloneStrategyCsiClone,
+	"rbd.csi.ceph.com":                         cdiv1.CloneStrategyCsiClone,
 	"rook-ceph.rbd.csi.ceph.com":               cdiv1.CloneStrategyCsiClone,
 	"openshift-storage.rbd.csi.ceph.com":       cdiv1.CloneStrategyCsiClone,
 	"cephfs.csi.ceph.com":                      cdiv1.CloneStrategyCsiClone,
+	"rook-ceph.cephfs.csi.ceph.com":            cdiv1.CloneStrategyCsiClone,
 	"openshift-storage.cephfs.csi.ceph.com":    cdiv1.CloneStrategyCsiClone,
 	"pxd.portworx.com/nfs":                     cdiv1.CloneStrategyCsiClone,
 	"pxd.portworx.com":                         cdiv1.CloneStrategyCsiClone,

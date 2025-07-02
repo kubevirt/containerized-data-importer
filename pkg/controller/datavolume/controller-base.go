@@ -403,11 +403,16 @@ func getSourceRefOp(ctx context.Context, log logr.Logger, dv *cdiv1.DataVolume, 
 		log.Error(err, "Unable to get DataSource", "namespacedName", nn)
 		return dataVolumeNop
 	}
+	resolved, err := cc.ResolveDataSourceChain(ctx, client, dataSource)
+	if err != nil {
+		log.Error(err, "Unable to resolve DataSource chain", "namespacedName", nn)
+		return dataVolumeNop
+	}
 
 	switch {
-	case dataSource.Spec.Source.PVC != nil:
+	case resolved.Spec.Source.PVC != nil:
 		return dataVolumePvcClone
-	case dataSource.Spec.Source.Snapshot != nil:
+	case resolved.Spec.Source.Snapshot != nil:
 		return dataVolumeSnapshotClone
 	default:
 		return dataVolumeNop

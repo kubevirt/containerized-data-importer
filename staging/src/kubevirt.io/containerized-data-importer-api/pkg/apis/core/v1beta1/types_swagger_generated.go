@@ -68,6 +68,14 @@ func (DataVolumeSourceSnapshot) SwaggerDoc() map[string]string {
 	}
 }
 
+func (DataSourceRefSourceDataSource) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":          "DataSourceRefSourceDataSource serves as a reference to another DataSource\nCan be resolved into a DataVolumeSourcePVC or a DataVolumeSourceSnapshot\nThe maximum depth of a reference chain may not exceed 1.",
+		"namespace": "The namespace of the source DataSource",
+		"name":      "The name of the source DataSource",
+	}
+}
+
 func (DataVolumeBlankImage) SwaggerDoc() map[string]string {
 	return map[string]string{
 		"": "DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC",
@@ -105,6 +113,13 @@ func (DataVolumeSourceRegistry) SwaggerDoc() map[string]string {
 		"pullMethod":    "PullMethod can be either \"pod\" (default import), or \"node\" (node docker cache based import)\n+optional",
 		"secretRef":     "SecretRef provides the secret reference needed to access the Registry source\n+optional",
 		"certConfigMap": "CertConfigMap provides a reference to the Registry certs\n+optional",
+		"platform":      "Platform describes the minimum runtime requirements of the image\n+optional",
+	}
+}
+
+func (PlatformOptions) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"architecture": "Architecture specifies the image target CPU architecture\n+optional",
 	}
 }
 
@@ -231,9 +246,10 @@ func (DataSourceSpec) SwaggerDoc() map[string]string {
 
 func (DataSourceSource) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":         "DataSourceSource represents the source for our DataSource",
-		"pvc":      "+optional",
-		"snapshot": "+optional",
+		"":           "DataSourceSource represents the source for our DataSource",
+		"pvc":        "+optional",
+		"snapshot":   "+optional",
+		"dataSource": "+optional",
 	}
 }
 

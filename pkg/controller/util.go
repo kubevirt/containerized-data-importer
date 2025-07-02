@@ -190,6 +190,7 @@ func createScratchPersistentVolumeClaim(client client.Client, pvc *corev1.Persis
 	scratchPvcSpec.Spec.Resources.Requests[corev1.ResourceStorage] = *resource.NewScaledQuantity(usableSpaceRaw, 0)
 
 	util.SetRecommendedLabels(scratchPvcSpec, installerLabels, "cdi-controller")
+	cc.AddLabel(scratchPvcSpec, cc.LabelExcludeFromVeleroBackup, "true")
 	if err := client.Create(context.TODO(), scratchPvcSpec); err != nil {
 		if cc.ErrQuotaExceeded(err) {
 			recorder.Event(pvc, corev1.EventTypeWarning, cc.ErrExceededQuota, err.Error())

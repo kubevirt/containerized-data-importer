@@ -4533,10 +4533,33 @@
      }
     }
    },
+   "v1beta1.DataSourceRefSourceDataSource": {
+    "description": "DataSourceRefSourceDataSource serves as a reference to another DataSource Can be resolved into a DataVolumeSourcePVC or a DataVolumeSourceSnapshot The maximum depth of a reference chain may not exceed 1.",
+    "type": "object",
+    "required": [
+     "namespace",
+     "name"
+    ],
+    "properties": {
+     "name": {
+      "description": "The name of the source DataSource",
+      "type": "string",
+      "default": ""
+     },
+     "namespace": {
+      "description": "The namespace of the source DataSource",
+      "type": "string",
+      "default": ""
+     }
+    }
+   },
    "v1beta1.DataSourceSource": {
     "description": "DataSourceSource represents the source for our DataSource",
     "type": "object",
     "properties": {
+     "dataSource": {
+      "$ref": "#/definitions/v1beta1.DataSourceRefSourceDataSource"
+     },
      "pvc": {
       "$ref": "#/definitions/v1beta1.DataVolumeSourcePVC"
      },
@@ -4866,6 +4889,10 @@
       "description": "ImageStream is the name of image stream for import",
       "type": "string"
      },
+     "platform": {
+      "description": "Platform describes the minimum runtime requirements of the image",
+      "$ref": "#/definitions/v1beta1.PlatformOptions"
+     },
      "pullMethod": {
       "description": "PullMethod can be either \"pod\" (default import), or \"node\" (node docker cache based import)",
       "type": "string"
@@ -5133,6 +5160,15 @@
    "v1beta1.OldTLSProfile": {
     "description": "OldTLSProfile is a TLS security profile based on: https://wiki.mozilla.org/Security/Server_Side_TLS#Old_backward_compatibility",
     "type": "object"
+   },
+   "v1beta1.PlatformOptions": {
+    "type": "object",
+    "properties": {
+     "architecture": {
+      "description": "Architecture specifies the image target CPU architecture",
+      "type": "string"
+     }
+    }
    },
    "v1beta1.StorageSpec": {
     "description": "StorageSpec defines the Storage type specification",

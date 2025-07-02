@@ -519,6 +519,9 @@ func (r *CloneReconcilerBase) populateSourceIfSourceRef(dv *cdiv1.DataVolume) er
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: dv.Spec.SourceRef.Name, Namespace: ns}, dataSource); err != nil {
 		return err
 	}
+	if dataSource.Spec.Source.DataSource != nil {
+		dataSource.Status.Source.DeepCopyInto(&dataSource.Spec.Source)
+	}
 	if dataSource.Spec.Source.PVC == nil && dataSource.Spec.Source.Snapshot == nil {
 		return errors.Errorf("Empty source field in '%s'. DataSource may not be ready yet", dataSource.Name)
 	}
