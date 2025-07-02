@@ -163,12 +163,6 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	// copy over any new events from pvcPrime to pvc
 	CopyEvents(pvcPrime, pvc, r.client, r.log, r.recorder)
 
-	err = cc.UpdatePVCBoundContionFromEvents(pvc, r.client, r.log)
-	if err != nil {
-		r.log.V(1).Info("DANNY: UpdatePVCBoundContionFromEvents failed")
-		return reconcile.Result{}, err
-	}
-
 	_, err = r.updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name)
 	if err != nil {
 		return reconcile.Result{}, err

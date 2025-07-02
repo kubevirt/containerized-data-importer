@@ -289,12 +289,6 @@ func (r *ClonePopulatorReconciler) reconcilePending(ctx context.Context, log log
 		return reconcile.Result{}, r.updateClonePhaseError(ctx, log, pvc, err)
 	}
 
-	err = cc.UpdatePVCBoundContionFromEvents(pvc, r.client, r.log)
-	if err != nil {
-		r.log.V(1).Info("DANNY: UpdatePVCBoundContionFromEvents failed")
-		return reconcile.Result{}, err
-	}
-
 	if !ready {
 		log.V(3).Info("claim not ready for population, exiting")
 		return reconcile.Result{}, r.updateClonePhasePending(ctx, log, pvc)

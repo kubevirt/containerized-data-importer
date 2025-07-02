@@ -2118,27 +2118,9 @@ func ResolveDataSourceChain(ctx context.Context, client client.Client, dataSourc
 	return resolved, nil
 }
 
-// UpdatePVCBoundContionFromEvents updates the bound condition annotations on the PVC based on recent events
-// This function can be used by both controller and populator packages to update PVC bound condition information
-func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client.Client, log logr.Logger) error {
-	currentPvcCopy := pvc.DeepCopyObject()
-
-	anno := pvc.GetAnnotations()
-	if anno == nil {
-		return nil
-	}
-
-	if IsBound(pvc) {
-		anno[AnnBoundCondition] = "true"
-		delete(anno, AnnBoundConditionReason)
-		delete(anno, AnnBoundConditionMessage)
-		if !reflect.DeepEqual(currentPvcCopy, pvc) {
-			if err := c.Update(context.TODO(), pvc); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
+// GetPVCBoundContionFromEvents gets the bound condition of the PVC based on most recent event prime PVC event
+func GetPVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client.Client, log logr.Logger) *cdiv1.DataVolumeCondition {
+	// only want bound condition when pending
 	if pvc.Status.Phase != corev1.ClaimPending {
 		return nil
 	}
@@ -2162,20 +2144,23 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 		return nil
 	}
 
-	pvcPrime, exists := anno[AnnPVCPrimeName]
+	anno := pvc.GetAnnotations()
+	if anno == nil {
+		return nil
+	}
+
+	pvcPrime := anno[AnnPVCPrimeName]
 
 	// Sort event lists by containing primeName substring and most recent timestamp
 	sort.Slice(events.Items, func(i, j int) bool {
-		if exists {
-			firstContainsPrime := strings.Contains(events.Items[i].Message, pvcPrime)
-			secondContainsPrime := strings.Contains(events.Items[j].Message, pvcPrime)
+		firstContainsPrime := strings.Contains(events.Items[i].Message, pvcPrime)
+		secondContainsPrime := strings.Contains(events.Items[j].Message, pvcPrime)
 
-			if firstContainsPrime && !secondContainsPrime {
-				return true
-			}
-			if !firstContainsPrime && secondContainsPrime {
-				return false
-			}
+		if firstContainsPrime && !secondContainsPrime {
+			return true
+		}
+		if !firstContainsPrime && secondContainsPrime {
+			return false
 		}
 		// if both contains primeName substring or neither, just sort on timestamp
 		return events.Items[i].FirstTimestamp.Time.After(events.Items[j].FirstTimestamp.Time)
@@ -2183,35 +2168,25 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 
 	boundMessage := ""
 
-	// check if prime name annotation exists
-	if exists {
-		// if we are using populators get the latest event from prime pvc
-		pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
+	// get the latest prime pvc event
+	pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
 
-		// TODO get index after pvcPrime to get message
+	// TODO get index after pvcPrime to get message
 
-		// split so we can remove prime name prefix from event message
-		res := strings.Split(events.Items[0].Message, pvcPrime)
-		boundMessage = res[len(res)-1]
+	// split so we can remove prime name prefix from event message
+	res := strings.Split(events.Items[0].Message, pvcPrime)
+	boundMessage = res[len(res)-1]
 
-		if boundMessage == "" {
-			log.V(1).Info("No bound message found, skipping bound condition update")
-			return nil
-		}
-	} else {
-		// if not using populators just get the latest event
-		boundMessage = events.Items[0].Message
+	if boundMessage == "" {
+		log.V(1).Info("No bound message found, skipping bound condition update")
+		return nil
 	}
 
 	log.V(1).Info("DANNY: Bound message found, updating bound condition", "boundMessage", boundMessage)
-	// since we checked status of phase above, we know this is pending
-	anno[AnnBoundCondition] = "false"
-	anno[AnnBoundConditionReason] = "Pending"
-	anno[AnnBoundConditionMessage] = boundMessage
-	if !reflect.DeepEqual(currentPvcCopy, pvc) {
-		if err := c.Update(context.TODO(), pvc); err != nil {
-			return err
-		}
+	return &cdiv1.DataVolumeCondition{
+		Message: boundMessage,
+		Reason:  "Pending",
+		Status:  corev1.ConditionFalse,
 	}
-	return nil
+
 }

@@ -162,12 +162,6 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 	log := r.log.WithValues("PVC", req.NamespacedName)
 	log.V(1).Info("reconciling Clone PVCs")
 
-	if checkPVC(pvc, cc.AnnCloneRequest, log) && !metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnCloneOf) {
-		if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log); err != nil {
-			log.V(1).Info("DANNY: UpdatePVCBoundContionFromEvents failed")
-			return reconcile.Result{}, err
-		}
-	}
 	if pvc.DeletionTimestamp != nil || !r.shouldReconcile(pvc, log) {
 		log.V(1).Info("Should not reconcile this PVC",
 			"checkPVC(AnnCloneRequest)", checkPVC(pvc, cc.AnnCloneRequest, log),
