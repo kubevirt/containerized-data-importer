@@ -189,7 +189,7 @@ var MinimumSupportedPVCSizeByProvisionerKey = map[string]string{
 	"ebs.csi.aws.com/io1": "4Gi",
 	"ebs.csi.aws.com/io2": "4Gi",
 	"ebs.csi.aws.com/gp":  "1Gi",
-	// https://github.com/SynologyOpenSource/synology-csi/blob/main/pkg/driver/controllerserver.go#L55
+	// https://github.com/SynologyOpenSource/synology-csi/blob/e2cc8de2fa555e26ad2377b564fac841e02100ba/pkg/driver/controllerserver.go#L55
 	"csi.san.synology.com/iscsi": "1Gi",
 	"csi.san.synology.com/nfs":   "1Gi",
 	"csi.san.synology.com/smb":   "1Gi",
@@ -417,7 +417,7 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		}
 	},
 	"csi.san.synology.com": func(sc *storagev1.StorageClass) string {
-		// https://github.com/SynologyOpenSource/synology-csi/tree/main/deploy/kubernetes/v1.20
+		// https://github.com/SynologyOpenSource/synology-csi/tree/e2cc8de2fa555e26ad2377b564fac841e02100ba/deploy/kubernetes/v1.20
 		switch sc.Parameters["protocol"] {
 		case "iscsi", "":
 			return "csi.san.synology.com/iscsi"
