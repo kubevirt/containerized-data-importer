@@ -89,7 +89,14 @@ func getAdminPolicyRules() []rbacv1.PolicyRule {
 				"openstackvolumepopulators",
 			},
 			Verbs: []string{
-				"*",
+				"create",
+				"delete",
+				"deletecollection",
+				"get",
+				"list",
+				"patch",
+				"update",
+				"watch",
 			},
 		},
 	}
