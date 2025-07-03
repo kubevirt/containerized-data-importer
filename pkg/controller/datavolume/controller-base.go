@@ -889,7 +889,7 @@ func (r *ReconcilerBase) updateDataVolumeStatusPhaseWithEvent(
 		message = event.message
 	}
 	r.updateConditions(dataVolumeCopy, pvc, reason, message)
-	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, &event)
+	return r.emitEvent(dataVolume, dataVolumeCopy, curPhase, dataVolume.Status.Conditions, pvc, &event)
 }
 
 func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPhaseSync, dvc dvController) (reconcile.Result, error) {
@@ -979,7 +979,7 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 	currentCond := make([]cdiv1.DataVolumeCondition, len(dataVolumeCopy.Status.Conditions))
 	copy(currentCond, dataVolumeCopy.Status.Conditions)
 	r.updateConditions(dataVolumeCopy, pvc, "", "")
-	return result, r.emitEvent(dv, dataVolumeCopy, curPhase, currentCond, &event)
+	return result, r.emitEvent(dv, dataVolumeCopy, curPhase, currentCond, pvc, &event)
 }
 
 func (r ReconcilerBase) updateStatusPVCPending(pvc *corev1.PersistentVolumeClaim, dvc dvController, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
@@ -1037,6 +1037,16 @@ func (r *ReconcilerBase) updateConditions(dataVolume *cdiv1.DataVolume, pvc *cor
 		readyStatus = corev1.ConditionFalse
 	}
 
+	if pvc != nil {
+		// only gets a valid bound condition when the pvc is in pending state
+		boundCondition := cc.GetPVCBoundContionFromEvents(pvc, r.client, r.log)
+		if boundCondition != nil {
+			pvc.Annotations[cc.AnnBoundCondition] = "false"
+			pvc.Annotations[cc.AnnBoundConditionReason] = boundCondition.Reason
+			pvc.Annotations[cc.AnnBoundConditionMessage] = boundCondition.Message
+		}
+	}
+
 	dataVolume.Status.Conditions = updateBoundCondition(dataVolume.Status.Conditions, pvc, message, reason)
 	dataVolume.Status.Conditions = UpdateReadyCondition(dataVolume.Status.Conditions, readyStatus, message, reason)
 	dataVolume.Status.Conditions = updateRunningCondition(dataVolume.Status.Conditions, anno)
@@ -1075,7 +1085,7 @@ func (r *ReconcilerBase) emitFailureConditionEvent(dataVolume *cdiv1.DataVolume,
 	}
 }
 
-func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, originalCond []cdiv1.DataVolumeCondition, event *Event) error {
+func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy *cdiv1.DataVolume, curPhase cdiv1.DataVolumePhase, originalCond []cdiv1.DataVolumeCondition, pvc *corev1.PersistentVolumeClaim, event *Event) error {
 	if !reflect.DeepEqual(dataVolume.ObjectMeta, dataVolumeCopy.ObjectMeta) {
 		return fmt.Errorf("meta update is not allowed in updateStatus phase")
 	}
@@ -1085,10 +1095,11 @@ func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy 
 			r.log.Error(err, "unable to update datavolume status", "name", dataVolumeCopy.Name)
 			return err
 		}
-		// Emit the event only on status phase change
-		if event.eventType != "" && curPhase != dataVolumeCopy.Status.Phase {
+		// Emit the event only on status phase change or if phase is succeeded
+		if event.eventType != "" && (curPhase != dataVolumeCopy.Status.Phase || curPhase == cdiv1.Succeeded) {
 			r.recorder.Event(dataVolumeCopy, event.eventType, event.reason, event.message)
 		}
+
 		r.emitConditionEvent(dataVolumeCopy, originalCond)
 	}
 	return nil

@@ -453,6 +453,10 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		log.V(1).Info("Updated PVC", "pvc.anno.Phase", anno[cc.AnnPodPhase], "pvc.anno.Restarts", anno[cc.AnnPodRestarts])
 	}
 
+	log.V(1).Info("DANNY: updatePvcFromPod",
+		"cc.IsPVCComplete(pvc)", cc.IsPVCComplete(pvc),
+		"podModificationsNeeded", podModificationsNeeded)
+
 	if cc.IsPVCComplete(pvc) || podModificationsNeeded {
 		if !podModificationsNeeded {
 			r.recorder.Event(pvc, corev1.EventTypeNormal, ImportSucceededPVC, "Import Successful")

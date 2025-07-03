@@ -121,32 +121,22 @@ func (r *UploadPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	pvc.Annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, uploadSource.Spec.Preallocation))
 }
 
-func (r *UploadPopulatorReconciler) updatePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim, pvcPrimeName string) (bool, error) {
-	if _, ok := pvc.Annotations[AnnPVCPrimeName]; ok {
-		return false, nil
-	}
-
-	cc.AddAnnotation(pvc, AnnPVCPrimeName, pvcPrimeName)
-	if err := r.client.Update(context.TODO(), pvc); err != nil {
-		return false, err
-	}
-
-	return true, nil
-}
-
 func (r *UploadPopulatorReconciler) updateUploadAnnotations(pvc *corev1.PersistentVolumeClaim, pvcPrime *corev1.PersistentVolumeClaim) {
-	if _, ok := pvc.Annotations[AnnPVCPrimeName]; !ok {
+	if _, ok := pvc.Annotations[cc.AnnPVCPrimeName]; !ok {
 		return
 	}
 	// Delete the PVC Prime annotation once the pod is succeeded
 	if pvcPrime.Annotations[cc.AnnPodPhase] == string(corev1.PodSucceeded) {
-		delete(pvc.Annotations, AnnPVCPrimeName)
+		delete(pvc.Annotations, cc.AnnPVCPrimeName)
 	}
 }
 
 func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.PersistentVolumeClaim) (reconcile.Result, error) {
 	pvcCopy := pvc.DeepCopy()
 	phase := pvcPrime.Annotations[cc.AnnPodPhase]
+
+	// copy over any new events from pvcPrime to pvc
+	CopyEvents(pvcPrime, pvc, r.client, r.log, r.recorder)
 
 	if phase != string(corev1.PodSucceeded) {
 		updated, err := r.updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name)

@@ -350,6 +350,9 @@ const (
 
 	// AnnCreatedForDataVolume stores the UID of the datavolume that the PVC was created for
 	AnnCreatedForDataVolume = AnnAPIGroup + "/createdForDataVolume"
+
+	// AnnPVCPrimeName annotation is the name of the PVC' that is used to populate the PV which is then rebound to the target PVC
+	AnnPVCPrimeName = AnnAPIGroup + "/storage.populator.pvcPrime"
 )
 
 // Size-detection pod error codes
@@ -2100,4 +2103,77 @@ func ResolveDataSourceChain(ctx context.Context, client client.Client, dataSourc
 	}
 
 	return resolved, nil
+}
+
+// GetPVCBoundContionFromEvents gets the bound condition of the PVC based on most recent event prime PVC event
+func GetPVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client.Client, log logr.Logger) *cdiv1.DataVolumeCondition {
+	// only want bound condition when pending
+	if pvc.Status.Phase != corev1.ClaimPending {
+		return nil
+	}
+
+	// set bound condition by getting the latest event
+	events := &corev1.EventList{}
+
+	err := c.List(context.TODO(), events,
+		client.InNamespace(pvc.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": pvc.GetName(),
+			"involvedObject.uid": string(pvc.GetUID())},
+	)
+
+	if err != nil {
+		// Log the error but don't fail the reconciliation
+		log.Error(err, "Unable to list events for PVC bound condition update", "pvc", pvc.Name)
+		return nil
+	}
+
+	if len(events.Items) == 0 {
+		return nil
+	}
+
+	anno := pvc.GetAnnotations()
+	if anno == nil {
+		return nil
+	}
+
+	pvcPrime := anno[AnnPVCPrimeName]
+
+	// Sort event lists by containing primeName substring and most recent timestamp
+	sort.Slice(events.Items, func(i, j int) bool {
+		firstContainsPrime := strings.Contains(events.Items[i].Message, pvcPrime)
+		secondContainsPrime := strings.Contains(events.Items[j].Message, pvcPrime)
+
+		if firstContainsPrime && !secondContainsPrime {
+			return true
+		}
+		if !firstContainsPrime && secondContainsPrime {
+			return false
+		}
+		// if both contains primeName substring or neither, just sort on timestamp
+		return events.Items[i].FirstTimestamp.Time.After(events.Items[j].FirstTimestamp.Time)
+	})
+
+	boundMessage := ""
+
+	// get the latest prime pvc event
+	pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
+
+	// TODO get index after pvcPrime to get message
+
+	// split so we can remove prime name prefix from event message
+	res := strings.Split(events.Items[0].Message, pvcPrime)
+	boundMessage = res[len(res)-1]
+
+	if boundMessage == "" {
+		log.V(1).Info("No bound message found, skipping bound condition update")
+		return nil
+	}
+
+	log.V(1).Info("DANNY: Bound message found, updating bound condition", "boundMessage", boundMessage)
+	return &cdiv1.DataVolumeCondition{
+		Message: boundMessage,
+		Reason:  "Pending",
+		Status:  corev1.ConditionFalse,
+	}
+
 }
