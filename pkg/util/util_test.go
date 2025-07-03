@@ -149,7 +149,7 @@ var _ = Describe("Compare quantities", func() {
 	})
 })
 
-var _ = Describe("Usable Space calculation", func() {
+var _ = Describe("Space calculation", func() {
 
 	const (
 		Mi              = int64(1024 * 1024)
@@ -160,13 +160,45 @@ var _ = Describe("Usable Space calculation", func() {
 	)
 	DescribeTable("getusablespace should return properly aligned sizes,", func(virtualSize int64, overhead float64) {
 		for i := virtualSize - 1024; i < virtualSize+1024; i++ {
-			// Requested space is virtualSize rounded up to 1Mi alignment / (1 - overhead) rounded up
-			requestedSpace := int64(float64(RoundUp(i, DefaultAlignBlockSize)+1) / (1 - overhead))
+			// Requested space is virtualSize rounded up to 1Mi alignment * (1 + overhead) rounded up
+			requestedSpace := int64(float64(RoundUp(i, DefaultAlignBlockSize)+1) * (1 + overhead))
 			if i <= virtualSize {
 				Expect(GetUsableSpace(overhead, requestedSpace)).To(Equal(virtualSize))
 			} else {
 				Expect(GetUsableSpace(overhead, requestedSpace)).To(Equal(virtualSize + Mi))
 			}
+		}
+	},
+		Entry("1Mi virtual size, 0 overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, noOverhead),
+		Entry("1Mi virtual size, default overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, defaultOverhead),
+		Entry("1Mi virtual size, large overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, largeOverhead),
+		Entry("40Mi virtual size, 0 overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, noOverhead),
+		Entry("40Mi virtual size, default overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, defaultOverhead),
+		Entry("40Mi virtual size, large overhead to be 40Mi if <= 40Mi and 41Mi if > 40Mi", 40*Mi, largeOverhead),
+		Entry("1Gi virtual size, 0 overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, noOverhead),
+		Entry("1Gi virtual size, default overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, defaultOverhead),
+		Entry("1Gi virtual size, large overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, largeOverhead),
+		Entry("40Gi virtual size, 0 overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, noOverhead),
+		Entry("40Gi virtual size, default overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, defaultOverhead),
+		Entry("40Gi virtual size, large overhead to be 40Gi if <= 40Gi and 41Gi if > 40Gi", 40*Gi, largeOverhead),
+	)
+
+	DescribeTable("GetRequiredSpace should return properly enlarged sizes,", func(imageSize int64, overhead float64) {
+		for testedSize := imageSize - 1024; testedSize < imageSize+1024; testedSize++ {
+			alignedImageSpace := imageSize
+			if testedSize > imageSize {
+				alignedImageSpace = imageSize + Mi
+			}
+
+			// TEST
+			actualRequiredSpace := GetRequiredSpace(overhead, testedSize)
+
+			// ASSERT results
+			// check that the resulting space includes overhead over the `aligned image size`
+			overheadSpace := actualRequiredSpace - alignedImageSpace
+			actualOverhead := float64(overheadSpace) / float64(alignedImageSpace)
+
+			Expect(actualOverhead).To(BeNumerically("~", overhead, 0.01))
 		}
 	},
 		Entry("1Mi virtual size, 0 overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, noOverhead),
