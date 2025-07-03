@@ -63,7 +63,10 @@ type ImportPopulatorReconciler struct {
 }
 
 // http client to get metrics
-var httpClient *http.Client
+var (
+	httpClient            *http.Client
+	errCapacityNotUpdated = errors.New("target PVC has no storage capacity")
+)
 
 // NewImportPopulator creates a new instance of the import-populator controller
 func NewImportPopulator(
@@ -169,6 +172,10 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 			}
 			if err := cc.Rebind(context.TODO(), r.client, pvcPrime, pvcCopy); err != nil {
 				return reconcile.Result{}, err
+			}
+			if storage := pvcCopy.Status.Capacity.Storage(); storage == nil || storage.IsZero() {
+				r.log.Info("target PVC %s went through rebind but capacity hasn't been updated yet", "pvcName", pvcCopy.Name)
+				return reconcile.Result{}, errCapacityNotUpdated
 			}
 		}
 	}
