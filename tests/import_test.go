@@ -1855,17 +1855,12 @@ var _ = Describe("Import populator", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(reflect.DeepEqual(dataVolume.Spec.Checkpoints, volumeImportSource.Spec.Checkpoints)).To(BeTrue())
 
-		By("Update DataVolume checkpoints")
-		Eventually(func() error {
-			dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			dataVolume.Spec.Checkpoints = []cdiv1.DataVolumeCheckpoint{
-				{Current: "test", Previous: "foo"},
-				{Current: "foo", Previous: "test"},
-			}
-			dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Update(context.TODO(), dataVolume, metav1.UpdateOptions{})
-			return err
-		}, timeout, pollingInterval).Should(Succeed())
+		By("Patch DataVolume checkpoints")
+		dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		patch := `[{"op":"replace","path":"/spec/checkpoints","value":[{"current":"test","previous":"foo"},{"current":"foo","previous":"test"}]}]`
+		dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Patch(context.TODO(), dataVolume.Name, types.JSONPatchType, []byte(patch), metav1.PatchOptions{})
+		Expect(err).ToNot(HaveOccurred())
 
 		By("Check volumeImportSource is also updated")
 		Eventually(func() bool {
