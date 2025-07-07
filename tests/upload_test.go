@@ -30,7 +30,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -1371,8 +1370,6 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		// is insufficient to account for the fs overhead in small images.
 		// This issue is not seen with larger images where the overhead is sufficient.
 		size := "2147483648"
-		fsOverhead := "0.055" // The default value
-		tests.SetFilesystemOverhead(f, fsOverhead, fsOverhead)
 
 		volumeMode := v1.PersistentVolumeFilesystem
 		accessModes := []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
