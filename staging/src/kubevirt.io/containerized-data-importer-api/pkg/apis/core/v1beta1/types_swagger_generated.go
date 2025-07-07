@@ -504,7 +504,7 @@ func (CDIConfigSpec) SwaggerDoc() map[string]string {
 		"scratchSpaceStorageClass": "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
 		"podResourceRequirements":  "ResourceRequirements describes the compute resource requirements.",
 		"featureGates":             "FeatureGates are a list of specific enabled feature gates",
-		"filesystemOverhead":       "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
+		"filesystemOverhead":       "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.06 (6% overhead)",
 		"preallocation":            "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 		"insecureRegistries":       "InsecureRegistries is a list of TLS disabled registries",
 		"dataVolumeTTLSeconds":     "DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. Disabled by default.\nDeprecated: Removed in v1.62.\n+optional",
