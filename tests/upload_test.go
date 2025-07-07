@@ -1391,8 +1391,6 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		// is insufficient to account for the fs overhead in small images.
 		// This issue is not seen with larger images where the overhead is sufficient.
 		size := "2147483648"
-		fsOverhead := "0.055" // The default value
-		tests.SetFilesystemOverhead(f, fsOverhead, fsOverhead)
 
 		volumeMode := v1.PersistentVolumeFilesystem
 		accessModes := []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
