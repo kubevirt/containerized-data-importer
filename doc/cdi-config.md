@@ -19,7 +19,7 @@ CDI configuration in specified by administrators in the `spec.config` of the `CD
 | tlsSecurityProfile       | nil           | Used by operators to apply cluster-wide TLS security settings to operands. |
 
 filesystemOverhead configuration:
- - `global` - default value is `"0.055"` - The amount to reserve for a Filesystem volume unless a per-storageClass value is chosen.                                                                                                                                     
+ - `global` - default value is `"0.06"` - The amount to reserve for a Filesystem volume unless a per-storageClass value is chosen.                                                                                                                                     
  - `storageClass` - default value is `nil` - A value of `local: "0.6"` is understood to mean that the overhead for the local storageClass is 60%.
 
 ### Example
