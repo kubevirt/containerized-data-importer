@@ -129,7 +129,7 @@ spec:
                   filesystemOverhead:
                     description: FilesystemOverhead describes the space reserved for
                       overhead when using Filesystem volumes. A value is between 0
-                      and 1, if not defined it is 0.055 (5.5% overhead)
+                      and 1, if not defined it is 0.06 (6% overhead)
                     properties:
                       global:
                         description: Global is how much space of a Filesystem volume
@@ -2661,7 +2661,7 @@ spec:
                   filesystemOverhead:
                     description: FilesystemOverhead describes the space reserved for
                       overhead when using Filesystem volumes. A value is between 0
-                      and 1, if not defined it is 0.055 (5.5% overhead)
+                      and 1, if not defined it is 0.06 (6% overhead)
                     properties:
                       global:
                         description: Global is how much space of a Filesystem volume
@@ -5147,7 +5147,7 @@ spec:
               filesystemOverhead:
                 description: FilesystemOverhead describes the space reserved for overhead
                   when using Filesystem volumes. A value is between 0 and 1, if not
-                  defined it is 0.055 (5.5% overhead)
+                  defined it is 0.06 (6% overhead)
                 properties:
                   global:
                     description: Global is how much space of a Filesystem volume should
