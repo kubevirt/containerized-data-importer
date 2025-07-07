@@ -511,14 +511,24 @@ var _ = Describe("Controller", func() {
 					}
 				}
 
+				allGroupsExcepted := func(groups []string) bool {
+					for _, group := range groups {
+						if !strings.HasSuffix(group, "cdi.kubevirt.io") {
+							return false
+						}
+					}
+					return true
+				}
+
 				verifyRule := func(rule *rbacv1.PolicyRule) {
 					Expect(rule.Verbs).ToNot(ContainElement("escalate"))
 					Expect(rule.Verbs).ToNot(ContainElement("bind"))
 					Expect(rule.Verbs).ToNot(ContainElement("impersonate"))
 					Expect(rule.APIGroups).ToNot(ContainElement("*"))
-					if len(rule.APIGroups) == 1 && strings.HasSuffix(rule.APIGroups[0], "cdi.kubevirt.io") {
+					if len(rule.APIGroups) > 0 && allGroupsExcepted(rule.APIGroups) {
 						return
 					}
+
 					Expect(rule.Resources).ToNot(ContainElement("*"))
 					Expect(rule.Verbs).ToNot(ContainElement("*"))
 
