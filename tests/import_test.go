@@ -1295,7 +1295,7 @@ var _ = Describe("Preallocation", func() {
 	)
 
 	It("Filesystem overhead is honored with blank volume", Serial, func() {
-		tests.SetFilesystemOverhead(f, "0.055", "0.055")
+		tests.SetFilesystemOverhead(f, "0.06", "0.06")
 
 		dv := utils.NewDataVolumeForBlankRawImage("import-dv", "100Mi")
 		preallocation := true
