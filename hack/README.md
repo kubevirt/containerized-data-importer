@@ -15,6 +15,8 @@
   - [S3-compatible client setup:](#s3-compatible-client-setup)
     - [AWS S3 cli](#aws-s3-cli)
     - [Minio cli](#minio-cli)
+  - [Troubleshooting the build process](#troubleshooting-the-build-process)
+    - [Errors pushing image to private registry](#errors-pushing-image-to-private-registry)
 
 ### Download CDI
 
@@ -226,7 +228,7 @@ not supported, then you can use the following example to run Functional Tests.
    - *host-file-server* is required by the functional tests and provides an
      endpoint server for image files and s3 buckets
    - *registry-server* is required by the functional tests and provides an endpoint server for container images.
-     Note: for this server to run the follwoing setting is required in each cluster node
+     Note: for this server to run the following setting is required in each cluster node
      ``systemctl -w user.max_user_namespaces=1024``
 
    Build and Push to registry
@@ -307,3 +309,13 @@ $HOME/.mc/config.json:
         }
 }
 ```
+
+### Troubleshooting the build process
+
+#### Errors pushing image to private registry
+
+If you run into issues with pushing the container images to a private registry, you will need to ensure that you have a `~/.docker/config.json` file that contains the proper login information for your registry. If you are using `podman` for your container runtime, you can create this file and the appropriate auth information by running the following command:
+
+`podman login --authfile ~/.docker/config.json <registry server>`
+
+Once `~/.docker/config.json` exists, you can re-run the build process and the images should be pushed to your container registry.
