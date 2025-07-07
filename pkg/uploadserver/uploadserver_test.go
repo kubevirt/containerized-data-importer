@@ -51,7 +51,7 @@ func newServer() *uploadServerApp {
 		BindAddress:        "127.0.0.1",
 		BindPort:           0,
 		Destination:        "disk.img",
-		FilesystemOverhead: 0.055,
+		FilesystemOverhead: 0.06,
 		CryptoConfig:       *cryptowatch.DefaultCryptoConfig(),
 	}
 	server := NewUploadServer(config)
@@ -87,7 +87,7 @@ func newTLSServer(clientCertName, expectedName string) (*uploadServerApp, *tripl
 		ServerCertFile:     filepath.Join(dir, "tls.crt"),
 		ClientCertFile:     filepath.Join(dir, "client.crt"),
 		ClientName:         expectedName,
-		FilesystemOverhead: 0.055,
+		FilesystemOverhead: 0.06,
 		CryptoConfig:       *cryptowatch.DefaultCryptoConfig(),
 	}
 
@@ -187,11 +187,11 @@ func (amd *AsyncMockDataSource) GetResumePhase() importer.ProcessingPhase {
 }
 
 func saveAsyncProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (*importer.DataProcessor, error) {
-	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", "", 0.055, false, ""), nil
+	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", "", 0.06, false, ""), nil
 }
 
 func saveAsyncProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (*importer.DataProcessor, error) {
-	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", "", 0.055, false, ""), fmt.Errorf("Error using datastream")
+	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", "", 0.06, false, ""), fmt.Errorf("Error using datastream")
 }
 
 func withAsyncProcessorSuccess(f func()) {
