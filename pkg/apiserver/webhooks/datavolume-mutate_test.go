@@ -358,6 +358,62 @@ var _ = Describe("Mutating DataVolume Webhook", func() {
 			Entry("succeed with same (default) namespace", "default"),
 			Entry("succeed with empty namespace", ""),
 		)
+
+		It("should allow update to DataVolume with sourceRef DataSource reference with clone token", func() {
+			dsRef := &cdicorev1.DataSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "dsRef",
+					Namespace: "testNamespace",
+				},
+				Spec: cdicorev1.DataSourceSpec{
+					Source: cdicorev1.DataSourceSource{
+						DataSource: &cdicorev1.DataSourceRefSourceDataSource{
+							Namespace: "testNamespace",
+							Name:      "ds",
+						},
+					},
+				},
+				Status: cdicorev1.DataSourceStatus{
+					Source: cdicorev1.DataSourceSource{
+						PVC: &cdicorev1.DataVolumeSourcePVC{
+							Namespace: "testNamespace",
+							Name:      "pvc",
+						},
+					},
+				},
+			}
+			sourceRef := cdicorev1.DataVolumeSourceRef{
+				Kind:      cdicorev1.DataVolumeDataSource,
+				Namespace: &dsRef.Namespace,
+				Name:      dsRef.Name,
+			}
+			dv := newDataVolumeWithSourceRef("dsRefDv", nil, &sourceRef, nil)
+			dvBytes, _ := json.Marshal(&dv)
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdicorev1.SchemeGroupVersion.Group,
+						Version:  cdicorev1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: dvBytes,
+					},
+				},
+			}
+
+			resp := mutateDVs(key, ar, true, dsRef)
+			Expect(resp.Allowed).To(BeTrue())
+			Expect(resp.Patch).ToNot(BeNil())
+			var patchObjs []jsonpatch.Operation
+			err := json.Unmarshal(resp.Patch, &patchObjs)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(patchObjs).Should(HaveLen(1))
+			Expect(patchObjs[0].Operation).Should(Equal("add"))
+			Expect(patchObjs[0].Path).Should(Equal("/metadata/annotations"))
+			Expect(patchObjs[0].Value).Should(HaveKey(cc.AnnCloneToken))
+		})
 	})
 })
 
