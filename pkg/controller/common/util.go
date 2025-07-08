@@ -784,21 +784,28 @@ func GetWorkloadNodePlacement(ctx context.Context, c client.Client) (*sdkapi.Nod
 }
 
 // AdjustWorkloadNodePlacement adds tolerations specified in prime pvc annotation.
-func AdjustWorkloadNodePlacement(ctx context.Context, c client.Client, nodePlacement *sdkapi.NodePlacement, primePVC *corev1.PersistentVolumeClaim) (*sdkapi.NodePlacement, error) {
-	targetPVCKey := types.NamespacedName{
-		Namespace: primePVC.Namespace,
-	}
-
-	for _, ref := range primePVC.OwnerReferences {
-		if ref.Kind == "PersistentVolumeClaim" {
-			targetPVCKey.Name = ref.Name
-		}
-	}
-
+// If the PVC is using populator, the target PVC is the same as the source PVC.
+// UsePopulator annotation is set to "false" to indicate that StorageClass does not have a CSI driver.
+func AdjustWorkloadNodePlacement(ctx context.Context, c client.Client, nodePlacement *sdkapi.NodePlacement, pvc *corev1.PersistentVolumeClaim) (*sdkapi.NodePlacement, error) {
 	var targetPVC corev1.PersistentVolumeClaim
-	err := c.Get(ctx, targetPVCKey, &targetPVC)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get target pvc %s: %w", targetPVCKey, err)
+
+	if usePopulator, ok := pvc.Annotations[AnnUsePopulator]; ok && usePopulator == "false" {
+		targetPVC = *pvc
+	} else {
+		targetPVCKey := types.NamespacedName{
+			Namespace: pvc.Namespace,
+		}
+
+		for _, ref := range pvc.OwnerReferences {
+			if ref.Kind == "PersistentVolumeClaim" {
+				targetPVCKey.Name = ref.Name
+			}
+		}
+
+		err := c.Get(ctx, targetPVCKey, &targetPVC)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get target pvc %s: %w", targetPVCKey, err)
+		}
 	}
 
 	provisionerTolerations, err := ExtractProvisionerTolerations(&targetPVC)
