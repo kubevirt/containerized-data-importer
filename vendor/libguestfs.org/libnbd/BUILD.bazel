@@ -12,8 +12,6 @@ go_library(
         "wrappers.h",
     ],
     cgo = True,
-    clinkopts = ["-lnbd"],
-    copts = ["-D_GNU_SOURCE=1"],
     importmap = "kubevirt.io/containerized-data-importer/vendor/libguestfs.org/libnbd",
     importpath = "libguestfs.org/libnbd",
     visibility = ["//visibility:public"],
