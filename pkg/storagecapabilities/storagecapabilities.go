@@ -4,6 +4,7 @@ package storagecapabilities
 
 import (
 	"context"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -103,6 +104,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{rwx, file}, {rwo, file}},
 	"csi.trident.netapp.io/ontap-san": {{rwx, block}},
+	"csi.trident.netapp.io/gcnv-flex": {{rwx, file}, {rwo, file}},
 	// topolvm
 	"topolvm.cybozu.com": createTopoLVMCapabilities(),
 	"topolvm.io":         createTopoLVMCapabilities(),
@@ -140,6 +142,7 @@ var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"openshift-storage.rbd.csi.ceph.com": cdiv1.DataImportCronSourceFormatSnapshot,
 	"csi.trident.netapp.io/ontap-nas":    cdiv1.DataImportCronSourceFormatSnapshot,
 	"csi.trident.netapp.io/ontap-san":    cdiv1.DataImportCronSourceFormatSnapshot,
+	"csi.trident.netapp.io/gcnv-flex":    cdiv1.DataImportCronSourceFormatSnapshot,
 	"pd.csi.storage.gke.io":              cdiv1.DataImportCronSourceFormatSnapshot,
 	"pd.csi.storage.gke.io/hyperdisk":    cdiv1.DataImportCronSourceFormatSnapshot,
 }
@@ -167,6 +170,7 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"infinibox-csi-driver/nfs":                 cdiv1.CloneStrategyCsiClone,
 	"csi.trident.netapp.io/ontap-nas":          cdiv1.CloneStrategySnapshot,
 	"csi.trident.netapp.io/ontap-san":          cdiv1.CloneStrategySnapshot,
+	"csi.trident.netapp.io/gcnv-flex":          cdiv1.CloneStrategySnapshot,
 	"kubesan.gitlab.io":                        cdiv1.CloneStrategyCsiClone,
 	"pd.csi.storage.gke.io":                    cdiv1.CloneStrategySnapshot,
 	"pd.csi.storage.gke.io/hyperdisk":          cdiv1.CloneStrategySnapshot,
@@ -179,6 +183,8 @@ var MinimumSupportedPVCSizeByProvisionerKey = map[string]string{
 	"ebs.csi.aws.com/io1": "4Gi",
 	"ebs.csi.aws.com/io2": "4Gi",
 	"ebs.csi.aws.com/gp":  "1Gi",
+	// https://cloud.google.com/netapp/volumes/docs/discover/service-levels
+	"csi.trident.netapp.io/gcnv-flex": "1Gi",
 }
 
 const (
@@ -299,6 +305,11 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		}
 		if strings.HasPrefix(val, "ontap-san") {
 			return "csi.trident.netapp.io/ontap-san"
+		}
+		regExp := regexp.MustCompile(`\s*[;,]\s*`)
+		selector := regExp.Split(sc.Parameters["selector"], -1)
+		if val == "google-cloud-netapp-volumes" && slices.Contains(selector, "performance=flex") {
+			return "csi.trident.netapp.io/gcnv-flex"
 		}
 		return "UNKNOWN"
 	},
