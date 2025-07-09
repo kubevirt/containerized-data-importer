@@ -107,6 +107,9 @@ var _ = Describe("All DataImportCron Tests", func() {
 			cronJobKey   = func(cron *cdiv1.DataImportCron) types.NamespacedName {
 				return types.NamespacedName{Name: GetCronJobName(cron), Namespace: reconciler.cdiNamespace}
 			}
+			pollerPodKey = func(cron *cdiv1.DataImportCron) types.NamespacedName {
+				return types.NamespacedName{Name: getPollerPodName(cron), Namespace: metav1.NamespaceDefault}
+			}
 			dataSourceKey = func(cron *cdiv1.DataImportCron) types.NamespacedName {
 				return types.NamespacedName{Name: cron.Spec.ManagedDataSource, Namespace: metav1.NamespaceDefault}
 			}
@@ -540,6 +543,47 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Entry("default schedule", defaultSchedule, "should succeed with a default schedule"),
 			Entry("empty schedule", emptySchedule, "should succeed with an empty schedule"),
 		)
+
+		It("Should create a poller Pod, and upon its termination update the DataImportCron DesiredDigest according to the container status ImageID", func() {
+			cron = newDataImportCron(cronName)
+			cron.Spec.Template.Spec.Source.Registry.PullMethod = ptr.To(cdiv1.RegistryPullNode)
+			reconciler = createDataImportCronReconciler(cron)
+
+			res, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(res).To(Equal(reconcile.Result{RequeueAfter: 3 * time.Second}))
+
+			cronjob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+			pollerPod := &corev1.Pod{}
+			err = reconciler.client.Get(context.TODO(), pollerPodKey(cron), pollerPod)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pollerPod.Spec.Containers).To(HaveLen(1))
+			Expect(pollerPod.Status.ContainerStatuses).To(BeEmpty())
+
+			pollerPod.Status.ContainerStatuses = []corev1.ContainerStatus{
+				{
+					State: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{},
+					},
+					ImageID: testDockerRef,
+				},
+			}
+			err = reconciler.client.Status().Update(context.TODO(), pollerPod)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), pollerPodKey(cron), pollerPod)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+			err = reconciler.client.Get(context.TODO(), cronKey, cron)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cron.Annotations[AnnSourceDesiredDigest]).To(Equal(testDigest))
+		})
 
 		It("Should recreate DataVolume if the last import was deleted", func() {
 			cron = newDataImportCron(cronName)
@@ -1545,10 +1589,6 @@ func newImageStream(name string) *imagev1.ImageStream {
 }
 
 func newDataImportCron(name string) *cdiv1.DataImportCron {
-	garbageCollect := cdiv1.DataImportCronGarbageCollectOutdated
-	importsToKeep := int32(2)
-	url := testRegistryURL + testTag
-
 	return &cdiv1.DataImportCron{
 		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -1562,7 +1602,7 @@ func newDataImportCron(name string) *cdiv1.DataImportCron {
 				Spec: cdiv1.DataVolumeSpec{
 					Source: &cdiv1.DataVolumeSource{
 						Registry: &cdiv1.DataVolumeSourceRegistry{
-							URL: &url,
+							URL: ptr.To(testRegistryURL + testTag),
 						},
 					},
 					Storage: &cdiv1.StorageSpec{},
@@ -1570,8 +1610,8 @@ func newDataImportCron(name string) *cdiv1.DataImportCron {
 			},
 			Schedule:          defaultSchedule,
 			ManagedDataSource: dataSourceName,
-			GarbageCollect:    &garbageCollect,
-			ImportsToKeep:     &importsToKeep,
+			GarbageCollect:    ptr.To(cdiv1.DataImportCronGarbageCollectOutdated),
+			ImportsToKeep:     ptr.To[int32](2),
 		},
 	}
 }

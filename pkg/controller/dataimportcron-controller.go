@@ -633,13 +633,13 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 
 func (r *DataImportCronReconciler) updateContainerImageDesiredDigest(ctx context.Context, cron *cdiv1.DataImportCron) (bool, error) {
 	log := r.log.WithValues("name", cron.Name).WithValues("uid", cron.UID)
-	podName := naming.GetResourceName("poller-"+cron.Name, string(cron.UID)[:8])
+	podName := getPollerPodName(cron)
 	ns := cron.Namespace
 	nn := types.NamespacedName{Name: podName, Namespace: ns}
 	pod := &corev1.Pod{}
 
 	if err := r.client.Get(ctx, nn, pod); err == nil {
-		digest, err := r.fetchContainerImageDigest(pod)
+		digest, err := fetchContainerImageDigest(pod)
 		if err != nil || digest == "" {
 			return false, err
 		}
@@ -720,7 +720,7 @@ func (r *DataImportCronReconciler) updateContainerImageDesiredDigest(ctx context
 	return false, r.client.Create(ctx, pod)
 }
 
-func (r *DataImportCronReconciler) fetchContainerImageDigest(pod *corev1.Pod) (string, error) {
+func fetchContainerImageDigest(pod *corev1.Pod) (string, error) {
 	if len(pod.Status.ContainerStatuses) == 0 {
 		return "", nil
 	}
@@ -1732,6 +1732,10 @@ func GetCronJobName(cron *cdiv1.DataImportCron) string {
 // GetInitialJobName get initial job name based on cron name and UID
 func GetInitialJobName(cron *cdiv1.DataImportCron) string {
 	return naming.GetResourceName("initial-job", GetCronJobName(cron))
+}
+
+func getPollerPodName(cron *cdiv1.DataImportCron) string {
+	return naming.GetResourceName("poller-"+cron.Name, string(cron.UID)[:8])
 }
 
 func getSelector(matchLabels map[string]string) (labels.Selector, error) {
