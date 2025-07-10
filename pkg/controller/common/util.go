@@ -2198,16 +2198,13 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 		// if we are using populators get the latest event from prime pvc
 		pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
 
-		// TODO get index after pvcPrime to get message
-
-		// split so we can remove prime name prefix from event message
-		res := strings.Split(events.Items[0].Message, pvcPrime)
-		boundMessage = res[len(res)-1]
-
-		if boundMessage == "" {
-			log.V(1).Info("No bound message found, skipping bound condition update")
+		// if the first event does not contain a prime message, none will so return
+		primeIdx := strings.Index(events.Items[0].Message, pvcPrime)
+		if primeIdx == -1 {
+			log.V(1).Info("No bound message found, skipping bound condition update", "pvc", pvc.Name)
 			return nil
 		}
+		boundMessage = events.Items[0].Message[primeIdx+len(pvcPrime):]
 	} else {
 		// if not using populators just get the latest event
 		boundMessage = events.Items[0].Message
