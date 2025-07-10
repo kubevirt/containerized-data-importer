@@ -165,9 +165,11 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"get",
 			},
 		},
+		// "*" permissions are usually bad, but it makes sense for CDI to have them as it controls everything related
 		{
 			APIGroups: []string{
 				"cdi.kubevirt.io",
+				"forklift.cdi.kubevirt.io",
 			},
 			Resources: []string{
 				"*",
@@ -264,20 +266,6 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 			},
 			Verbs: []string{
 				"update",
-			},
-		},
-		{
-			APIGroups: []string{
-				"forklift.cdi.kubevirt.io",
-			},
-			Resources: []string{
-				"ovirtvolumepopulators",
-				"openstackvolumepopulators",
-			},
-			Verbs: []string{
-				"get",
-				"list",
-				"watch",
 			},
 		},
 	}
