@@ -262,15 +262,23 @@ func (r *DataImportCronReconciler) pollSourceDigest(ctx context.Context, dataImp
 	if nextTime.After(time.Now()) {
 		return r.setNextCronTime(dataImportCron)
 	}
-	if isImageStreamSource(dataImportCron) {
+	switch {
+	case isImageStreamSource(dataImportCron):
 		if err := r.updateImageStreamDesiredDigest(ctx, dataImportCron); err != nil {
 			return reconcile.Result{}, err
 		}
-	} else if isPvcSource(dataImportCron) {
+	case isPvcSource(dataImportCron):
 		if err := r.updatePvcDesiredDigest(ctx, dataImportCron); err != nil {
 			return reconcile.Result{}, err
 		}
+	case isNodePull(dataImportCron):
+		if done, err := r.updateContainerImageDesiredDigest(ctx, dataImportCron); !done {
+			return reconcile.Result{RequeueAfter: 3 * time.Second}, err
+		} else if err != nil {
+			return reconcile.Result{}, err
+		}
 	}
+
 	return r.setNextCronTime(dataImportCron)
 }
 
@@ -282,7 +290,7 @@ func (r *DataImportCronReconciler) setNextCronTime(dataImportCron *cdiv1.DataImp
 	}
 	nextTime := expr.Next(now)
 	requeueAfter := nextTime.Sub(now)
-	res := reconcile.Result{Requeue: true, RequeueAfter: requeueAfter}
+	res := reconcile.Result{RequeueAfter: requeueAfter}
 	cc.AddAnnotation(dataImportCron, AnnNextCronTime, nextTime.Format(time.RFC3339))
 	return res, err
 }
@@ -295,6 +303,12 @@ func isImageStreamSource(dataImportCron *cdiv1.DataImportCron) bool {
 func isURLSource(dataImportCron *cdiv1.DataImportCron) bool {
 	regSource, err := getCronRegistrySource(dataImportCron)
 	return err == nil && regSource.URL != nil
+}
+
+func isNodePull(cron *cdiv1.DataImportCron) bool {
+	regSource, err := getCronRegistrySource(cron)
+	return err == nil && regSource != nil && regSource.PullMethod != nil &&
+		*regSource.PullMethod == cdiv1.RegistryPullNode
 }
 
 func getCronRegistrySource(cron *cdiv1.DataImportCron) (*cdiv1.DataVolumeSourceRegistry, error) {
@@ -322,7 +336,7 @@ func isPvcSource(cron *cdiv1.DataImportCron) bool {
 }
 
 func isControllerPolledSource(cron *cdiv1.DataImportCron) bool {
-	return isImageStreamSource(cron) || isPvcSource(cron)
+	return isImageStreamSource(cron) || isPvcSource(cron) || isNodePull(cron)
 }
 
 func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *cdiv1.DataImportCron) (reconcile.Result, error) {
@@ -615,6 +629,126 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 		cc.AddAnnotation(dataImportCron, AnnImageStreamDockerRef, dockerRef)
 	}
 	return nil
+}
+
+func (r *DataImportCronReconciler) updateContainerImageDesiredDigest(ctx context.Context, cron *cdiv1.DataImportCron) (bool, error) {
+	log := r.log.WithValues("name", cron.Name).WithValues("uid", cron.UID)
+	podName := getPollerPodName(cron)
+	ns := cron.Namespace
+	nn := types.NamespacedName{Name: podName, Namespace: ns}
+	pod := &corev1.Pod{}
+
+	if err := r.client.Get(ctx, nn, pod); err == nil {
+		digest, err := fetchContainerImageDigest(pod)
+		if err != nil || digest == "" {
+			return false, err
+		}
+		cc.AddAnnotation(cron, AnnLastCronTime, time.Now().Format(time.RFC3339))
+		if cron.Annotations[AnnSourceDesiredDigest] != digest {
+			log.Info("Updating DataImportCron", "digest", digest)
+			cc.AddAnnotation(cron, AnnSourceDesiredDigest, digest)
+		}
+		return true, r.client.Delete(ctx, pod)
+	} else if cc.IgnoreNotFound(err) != nil {
+		return false, err
+	}
+
+	workloadNodePlacement, err := cc.GetWorkloadNodePlacement(ctx, r.client)
+	if err != nil {
+		return false, err
+	}
+
+	containerImage := strings.TrimPrefix(*cron.Spec.Template.Spec.Source.Registry.URL, "docker://")
+
+	pod = &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: ns,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         cron.APIVersion,
+					Kind:               cron.Kind,
+					Name:               cron.Name,
+					UID:                cron.UID,
+					BlockOwnerDeletion: ptr.To[bool](true),
+					Controller:         ptr.To[bool](true),
+				},
+			},
+		},
+		Spec: corev1.PodSpec{
+			TerminationGracePeriodSeconds: ptr.To[int64](0),
+			RestartPolicy:                 corev1.RestartPolicyNever,
+			NodeSelector:                  workloadNodePlacement.NodeSelector,
+			Tolerations:                   workloadNodePlacement.Tolerations,
+			Affinity:                      workloadNodePlacement.Affinity,
+			Volumes: []corev1.Volume{
+				{
+					Name: "shared-volume",
+					VolumeSource: corev1.VolumeSource{
+						EmptyDir: &corev1.EmptyDirVolumeSource{},
+					},
+				},
+			},
+			InitContainers: []corev1.Container{
+				{
+					Name:                     "init",
+					Image:                    r.image,
+					ImagePullPolicy:          corev1.PullPolicy(r.pullPolicy),
+					Command:                  []string{"sh", "-c", "cp /usr/bin/cdi-containerimage-server /shared/server"},
+					VolumeMounts:             []corev1.VolumeMount{{Name: "shared-volume", MountPath: "/shared"}},
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+				},
+			},
+			Containers: []corev1.Container{
+				{
+					Name:                     "image-container",
+					Image:                    containerImage,
+					ImagePullPolicy:          corev1.PullAlways,
+					Command:                  []string{"/shared/server", "-h"},
+					VolumeMounts:             []corev1.VolumeMount{{Name: "shared-volume", MountPath: "/shared"}},
+					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+				},
+			},
+		},
+	}
+
+	cc.SetRestrictedSecurityContext(&pod.Spec)
+	if pod.Spec.SecurityContext != nil {
+		pod.Spec.SecurityContext.FSGroup = nil
+	}
+
+	return false, r.client.Create(ctx, pod)
+}
+
+func fetchContainerImageDigest(pod *corev1.Pod) (string, error) {
+	if len(pod.Status.ContainerStatuses) == 0 {
+		return "", nil
+	}
+
+	status := pod.Status.ContainerStatuses[0]
+	if status.State.Waiting != nil {
+		reason := status.State.Waiting.Reason
+		switch reason {
+		case "ImagePullBackOff", "ErrImagePull", "InvalidImageName":
+			return "", errors.Errorf("%s %s: %s", common.ImagePullFailureText, status.Image, reason)
+		}
+		return "", nil
+	}
+
+	if status.State.Terminated == nil {
+		return "", nil
+	}
+
+	imageID := status.ImageID
+	if imageID == "" {
+		return "", errors.Errorf("Container has no imageID")
+	}
+	idx := strings.Index(imageID, digestSha256Prefix)
+	if idx < 0 {
+		return "", errors.Errorf("Container image %s ID has no digest: %s", status.Image, imageID)
+	}
+
+	return imageID[idx:], nil
 }
 
 func (r *DataImportCronReconciler) updatePvcDesiredDigest(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
@@ -1598,6 +1732,10 @@ func GetCronJobName(cron *cdiv1.DataImportCron) string {
 // GetInitialJobName get initial job name based on cron name and UID
 func GetInitialJobName(cron *cdiv1.DataImportCron) string {
 	return naming.GetResourceName("initial-job", GetCronJobName(cron))
+}
+
+func getPollerPodName(cron *cdiv1.DataImportCron) string {
+	return naming.GetResourceName("poller-"+cron.Name, string(cron.UID)[:8])
 }
 
 func getSelector(matchLabels map[string]string) (labels.Selector, error) {
