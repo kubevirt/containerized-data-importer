@@ -3477,6 +3477,65 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume.Spec.Source.VDDK.ExtraArgs = "vddk-extras"
 		}),
 	)
+
+	Describe("Events and Conditions from PVC Prime", func() {
+
+		It("should have PVC Prime events and name populated in bound condition while pending", func() {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", tinyCoreIsoURL())
+
+			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			// verify PVC was created
+			By("verifying pvc was created")
+			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			usePopulator, err := dvc.CheckPVCUsingPopulators(pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			// if we are using populators check that we get prime events in DV
+			if usePopulator {
+				By("Checking pvc prime annotation was set")
+				primeName := pvc.GetAnnotations()[controller.AnnAPIGroup+"/storage.populator.pvcPrime"]
+				if primeName == "" {
+					primeName = populators.PVCPrimeName(pvc)
+				}
+
+				By("Verifying event occurred")
+				Eventually(func() bool {
+					events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+					primeEvent := fmt.Sprintf("[%s]", primeName)
+					if err == nil {
+						fmt.Fprintf(GinkgoWriter, "%s", events)
+						// make sure we get events from pvcPrime
+						return strings.Contains(events, primeEvent)
+					}
+					fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+					return false
+				}, timeout, pollingInterval).Should(BeTrue())
+			} else {
+				// if we aren't using populators, just check that pvc was bound and dv was imported
+				boundCondition := &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC test-dv Bound",
+					Reason:  "Bound",
+				}
+				runningCondition := &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}
+				utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, runningCondition)
+			}
+		})
+
+	})
+
 })
 
 func SetFilesystemOverhead(f *framework.Framework, globalOverhead, scOverhead string) {
