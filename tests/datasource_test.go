@@ -230,6 +230,15 @@ var _ = Describe("DataSource", func() {
 		return waitForReadyCondition(ds, corev1.ConditionTrue, "Ready")
 	}
 
+	createDsRef := func(dsName, dsRef string) *cdiv1.DataSource {
+		By(fmt.Sprintf("creating DataSource %s -> %s", dsName, dsRef))
+		ds := newDataSource(dsName)
+		ds.Spec.Source.DataSource = &cdiv1.DataSourceRefSourceDataSource{Namespace: f.Namespace.Name, Name: dsRef}
+		ds, err := f.CdiClient.CdiV1beta1().DataSources(ds.Namespace).Create(context.TODO(), ds, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		return waitForReadyCondition(ds, corev1.ConditionTrue, "Ready")
+	}
+
 	updateDsPvc := func(ds *cdiv1.DataSource, pvcName string) {
 		By(fmt.Sprintf("updating DataSource %s -> %s", ds.Name, pvcName))
 		ds.Spec.Source.PVC = &cdiv1.DataVolumeSourcePVC{Namespace: "", Name: pvcName}
@@ -356,6 +365,31 @@ var _ = Describe("DataSource", func() {
 			Expect(err).ToNot(HaveOccurred())
 			_ = waitForReadyCondition(ds1, corev1.ConditionFalse, "NotFound")
 			_ = waitForReadyCondition(ds2, corev1.ConditionFalse, "NotFound")
+		})
+	})
+
+	Context("DataSource references", func() {
+		It("should succeed utilizing resolved reference source for data volume import in another namespace", func() {
+			targetNs, err := f.CreateNamespace(f.NsPrefix, map[string]string{
+				framework.NsPrefixLabel: f.NsPrefix,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			f.AddNamespaceToDelete(targetNs)
+			createDv(pvc1Name, testURL(), nil)
+			createDs(ds1Name, pvc1Name)
+			ds2 := createDsRef(ds2Name, ds1Name)
+
+			dv := utils.NewDataVolumeWithSourceRef("dv-datasource-ref", "1Gi", ds2.Namespace, ds2.Name)
+			dv.Annotations[cc.AnnImmediateBinding] = "true"
+			dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, dv)
+			Expect(err).ToNot(HaveOccurred())
+			pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
+			err = utils.WaitForDataVolumePhase(f, dv.Namespace, cdiv1.Succeeded, dv.Name)
+			Expect(err).ToNot(HaveOccurred())
 		})
 	})
 })
