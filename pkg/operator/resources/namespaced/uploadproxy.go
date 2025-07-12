@@ -29,6 +29,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
@@ -95,6 +96,12 @@ func createUploadProxyDeployment(image, verbosity, pullPolicy string, imagePullS
 	if replicas > 1 {
 		deployment.Spec.Replicas = &replicas
 	}
+	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{
+		common.HCOAllowAccessClusterServices: "",
+	})
+	deployment.SetLabels(labels)
+	deployment.Spec.Template.SetLabels(labels)
+
 	container := utils.CreateContainer(common.CDIUploadProxyResourceName, image, verbosity, pullPolicy)
 	container.Env = []corev1.EnvVar{
 		{
