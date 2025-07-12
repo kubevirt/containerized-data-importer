@@ -155,7 +155,7 @@ var _ = Describe("Space calculation", func() {
 		Mi              = int64(1024 * 1024)
 		Gi              = 1024 * Mi
 		noOverhead      = float64(0)
-		defaultOverhead = float64(0.055)
+		defaultOverhead = float64(0.06)
 		largeOverhead   = float64(0.75)
 	)
 	DescribeTable("getusablespace should return properly aligned sizes,", func(virtualSize int64, overhead float64) {
