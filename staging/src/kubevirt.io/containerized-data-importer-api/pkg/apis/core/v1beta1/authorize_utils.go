@@ -29,6 +29,7 @@ import (
 func newCloneSourceHandler(dataVolume *DataVolume, dsGet dsGetFunc) (CloneSourceHandler, error) {
 	var pvcSource *DataVolumeSourcePVC
 	var snapshotSource *DataVolumeSourceSnapshot
+	var intermediateDSNamespace, intermediateDSName string
 
 	if dataVolume.Spec.Source != nil {
 		if dataVolume.Spec.Source.PVC != nil {
@@ -50,27 +51,33 @@ func newCloneSourceHandler(dataVolume *DataVolume, dsGet dsGetFunc) (CloneSource
 		if dataSource.Spec.Source.DataSource != nil {
 			pvcSource = dataSource.Status.Source.PVC
 			snapshotSource = dataSource.Status.Source.Snapshot
-		} 
+			intermediateDSNamespace = dataSource.Spec.Source.DataSource.Namespace
+			intermediateDSName = dataSource.Spec.Source.DataSource.Name
+		}
 	}
 
 	switch {
 	case pvcSource != nil:
 		return CloneSourceHandler{
-			CloneType:         pvcClone,
-			TokenResource:     tokenResourcePvc,
-			UserCloneAuthFunc: CanUserClonePVC,
-			SACloneAuthFunc:   CanServiceAccountClonePVC,
-			SourceName:        pvcSource.Name,
-			SourceNamespace:   pvcSource.Namespace,
+			CloneType:               pvcClone,
+			TokenResource:           tokenResourcePvc,
+			UserCloneAuthFunc:       CanUserClonePVC,
+			SACloneAuthFunc:         CanServiceAccountClonePVC,
+			SourceName:              pvcSource.Name,
+			SourceNamespace:         pvcSource.Namespace,
+			IntermediateDSName:      intermediateDSName,
+			IntermediateDSNamespace: intermediateDSNamespace,
 		}, nil
 	case snapshotSource != nil:
 		return CloneSourceHandler{
-			CloneType:         snapshotClone,
-			TokenResource:     tokenResourceSnapshot,
-			UserCloneAuthFunc: CanUserCloneSnapshot,
-			SACloneAuthFunc:   CanServiceAccountCloneSnapshot,
-			SourceName:        snapshotSource.Name,
-			SourceNamespace:   snapshotSource.Namespace,
+			CloneType:               snapshotClone,
+			TokenResource:           tokenResourceSnapshot,
+			UserCloneAuthFunc:       CanUserCloneSnapshot,
+			SACloneAuthFunc:         CanServiceAccountCloneSnapshot,
+			SourceName:              snapshotSource.Name,
+			SourceNamespace:         snapshotSource.Namespace,
+			IntermediateDSName:      intermediateDSName,
+			IntermediateDSNamespace: intermediateDSNamespace,
 		}, nil
 	default:
 		return CloneSourceHandler{
@@ -106,12 +113,14 @@ const (
 // +k8s:deepcopy-gen=false
 // +k8s:openapi-gen=false
 type CloneSourceHandler struct {
-	CloneType         cloneType
-	TokenResource     metav1.GroupVersionResource
-	UserCloneAuthFunc UserCloneAuthFunc
-	SACloneAuthFunc   ServiceAccountCloneAuthFunc
-	SourceName        string
-	SourceNamespace   string
+	CloneType               cloneType
+	TokenResource           metav1.GroupVersionResource
+	UserCloneAuthFunc       UserCloneAuthFunc
+	SACloneAuthFunc         ServiceAccountCloneAuthFunc
+	SourceName              string
+	SourceNamespace         string
+	IntermediateDSName      string
+	IntermediateDSNamespace string
 }
 
 // CloneAuthResponse contains various response details
@@ -135,13 +144,13 @@ type AuthorizationHelperProxy interface {
 }
 
 // UserCloneAuthFunc represents a user clone auth func
-type UserCloneAuthFunc func(createSar createSarFunc, sourceNamespace, pvcName, targetNamespace string, userInfo authentication.UserInfo) (bool, string, error)
+type UserCloneAuthFunc func(createSar createSarFunc, sourceNamespace, pvcName, targetNamespace, intermediateDSName, intermediateDSNamespace string, userInfo authentication.UserInfo) (bool, string, error)
 
 // ServiceAccountCloneAuthFunc represents a serviceaccount clone auth func
-type ServiceAccountCloneAuthFunc func(createSar createSarFunc, pvcNamespace, pvcName, saNamespace, saName string) (bool, string, error)
+type ServiceAccountCloneAuthFunc func(createSar createSarFunc, pvcNamespace, pvcName, saNamespace, saName, intermediateDSName, intermediateDSNamespace string) (bool, string, error)
 
 // CanUserClonePVC checks if a user has "appropriate" permission to clone from the given PVC
-func CanUserClonePVC(createSar createSarFunc, sourceNamespace, pvcName, targetNamespace string,
+func CanUserClonePVC(createSar createSarFunc, sourceNamespace, pvcName, targetNamespace, intermediateDSName, intermediateDSNamespace string,
 	userInfo authentication.UserInfo) (bool, string, error) {
 	if sourceNamespace == targetNamespace {
 		return true, "", nil
@@ -159,13 +168,20 @@ func CanUserClonePVC(createSar createSarFunc, sourceNamespace, pvcName, targetNa
 		User:   userInfo.Username,
 		Groups: userInfo.Groups,
 		Extra:  newExtra,
+	}
+
+	if intermediateDSNamespace != "" && intermediateDSName != "" {
+		ok, reason, err := sendSubjectAccessReviewsDataSource(createSar, intermediateDSNamespace, intermediateDSName, sarSpec)
+		if !ok || err != nil {
+			return ok, reason, err
+		}
 	}
 
 	return sendSubjectAccessReviewsPvc(createSar, sourceNamespace, pvcName, sarSpec)
 }
 
 // CanServiceAccountClonePVC checks if a ServiceAccount has "appropriate" permission to clone from the given PVC
-func CanServiceAccountClonePVC(createSar createSarFunc, pvcNamespace, pvcName, saNamespace, saName string) (bool, string, error) {
+func CanServiceAccountClonePVC(createSar createSarFunc, pvcNamespace, pvcName, saNamespace, saName, intermediateDSName, intermediateDSNamespace string) (bool, string, error) {
 	if pvcNamespace == saNamespace {
 		return true, "", nil
 	}
@@ -181,11 +197,18 @@ func CanServiceAccountClonePVC(createSar createSarFunc, pvcNamespace, pvcName, s
 		},
 	}
 
+	if intermediateDSNamespace != "" && intermediateDSName != "" {
+		ok, reason, err := sendSubjectAccessReviewsDataSource(createSar, intermediateDSNamespace, intermediateDSName, sarSpec)
+		if !ok || err != nil {
+			return ok, reason, err
+		}
+	}
+
 	return sendSubjectAccessReviewsPvc(createSar, pvcNamespace, pvcName, sarSpec)
 }
 
 // CanUserCloneSnapshot checks if a user has "appropriate" permission to clone from the given snapshot
-func CanUserCloneSnapshot(createSar createSarFunc, sourceNamespace, pvcName, targetNamespace string,
+func CanUserCloneSnapshot(createSar createSarFunc, sourceNamespace, pvcName, targetNamespace, intermediateDSName, intermediateDSNamespace string,
 	userInfo authentication.UserInfo) (bool, string, error) {
 	if sourceNamespace == targetNamespace {
 		return true, "", nil
@@ -205,11 +228,18 @@ func CanUserCloneSnapshot(createSar createSarFunc, sourceNamespace, pvcName, tar
 		Extra:  newExtra,
 	}
 
+	if intermediateDSNamespace != "" && intermediateDSName != "" {
+		ok, reason, err := sendSubjectAccessReviewsDataSource(createSar, intermediateDSNamespace, intermediateDSName, sarSpec)
+		if !ok || err != nil {
+			return ok, reason, err
+		}
+	}
+
 	return sendSubjectAccessReviewsSnapshot(createSar, sourceNamespace, pvcName, sarSpec)
 }
 
 // CanServiceAccountCloneSnapshot checks if a ServiceAccount has "appropriate" permission to clone from the given snapshot
-func CanServiceAccountCloneSnapshot(createSar createSarFunc, pvcNamespace, pvcName, saNamespace, saName string) (bool, string, error) {
+func CanServiceAccountCloneSnapshot(createSar createSarFunc, pvcNamespace, pvcName, saNamespace, saName, intermediateDSName, intermediateDSNamespace string) (bool, string, error) {
 	if pvcNamespace == saNamespace {
 		return true, "", nil
 	}
@@ -223,6 +253,13 @@ func CanServiceAccountCloneSnapshot(createSar createSarFunc, pvcNamespace, pvcNa
 			"system:serviceaccounts:" + saNamespace,
 			"system:authenticated",
 		},
+	}
+
+	if intermediateDSNamespace != "" && intermediateDSName != "" {
+		ok, reason, err := sendSubjectAccessReviewsDataSource(createSar, intermediateDSNamespace, intermediateDSName, sarSpec)
+		if !ok || err != nil {
+			return ok, reason, err
+		}
 	}
 
 	return sendSubjectAccessReviewsSnapshot(createSar, pvcNamespace, pvcName, sarSpec)
@@ -304,6 +341,29 @@ func sendSubjectAccessReviewsSnapshot(createSar createSarFunc, namespace, name s
 	return true, "", nil
 }
 
+func sendSubjectAccessReviewsDataSource(createSar createSarFunc, namespace, name string, sarSpec authorization.SubjectAccessReviewSpec) (bool, string, error) {
+	sar := &authorization.SubjectAccessReview{
+		Spec: sarSpec,
+	}
+	explicitResourceAttr := getExplicitResourceAttributeDataSource(namespace, name)
+	sar.Spec.ResourceAttributes = &explicitResourceAttr
+
+	klog.V(3).Infof("Sending SubjectAccessReview %+v", sar)
+
+	response, err := createSar(sar)
+	if err != nil {
+		return false, "", err
+	}
+
+	klog.V(3).Infof("SubjectAccessReview response %+v", response)
+
+	if !response.Status.Allowed {
+		return false, fmt.Sprintf("User %s has insufficient permissions in intermediate datasource namespace %s", sarSpec.User, namespace), nil
+	}
+
+	return true, "", nil
+}
+
 func getResourceAttributesPvc(namespace, name string) []authorization.ResourceAttributes {
 	return []authorization.ResourceAttributes{
 		{
@@ -348,5 +408,15 @@ func getImplicitResourceAttributesSnapshot(namespace, name string) []authorizati
 			Resource:  "pvcs",
 			Name:      name,
 		},
+	}
+}
+
+func getExplicitResourceAttributeDataSource(namespace, name string) authorization.ResourceAttributes {
+	return authorization.ResourceAttributes{
+		Namespace: namespace,
+		Verb:      "get",
+		Group:     SchemeGroupVersion.Group,
+		Resource:  "datasources",
+		Name:      name,
 	}
 }
