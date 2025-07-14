@@ -270,6 +270,10 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, ovi
 			Name:      "uploadserver-client-ca-bundle",
 			MountPath: "/var/run/ca-bundle/cdi-uploadserver-client-signer-bundle",
 		},
+		{
+			Name:      "tmp",
+			MountPath: "/tmp",
+		},
 	}
 	container.Resources = corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
@@ -369,6 +373,12 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, ovi
 					},
 					DefaultMode: &defaultMode,
 				},
+			},
+		},
+		{
+			Name: "tmp",
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
 			},
 		},
 	}

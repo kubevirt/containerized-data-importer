@@ -974,6 +974,12 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 					Protocol:      corev1.ProtocolTCP,
 				},
 			},
+			VolumeMounts: []v1.VolumeMount{
+				{
+					Name:      "tmp",
+					MountPath: "/tmp",
+				},
+			},
 		},
 	}
 	if cc.GetVolumeMode(args.pvc) == corev1.PersistentVolumeBlock {
@@ -1045,6 +1051,10 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 
 func makeImporterVolumeSpec(args *importerPodArgs) []corev1.Volume {
 	volumes := []corev1.Volume{
+		{
+			Name:         "tmp",
+			VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+		},
 		{
 			Name: cc.DataVolName,
 			VolumeSource: corev1.VolumeSource{
