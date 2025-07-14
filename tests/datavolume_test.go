@@ -3480,7 +3480,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	Describe("Events and Conditions from PVC Prime", func() {
 
-		It("should have PVC Prime events and name populated in bound condition while pending", func() {
+		It("should have Prime PVC events populated in target PVC", func() {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", tinyCoreIsoURL())
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
@@ -3499,14 +3499,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			// if we are using populators check that we get prime events in DV
 			if usePopulator {
 				By("Checking pvc prime annotation was set")
-				primeName := pvc.GetAnnotations()[controller.AnnAPIGroup+"/storage.populator.pvcPrime"]
-				if primeName == "" {
-					primeName = populators.PVCPrimeName(pvc)
-				}
+				primeName := pvc.GetAnnotations()[controller.AnnPVCPrimeName]
+				Expect(primeName).ToNot(BeEmpty())
 
 				By("Verifying event occurred")
 				Eventually(func() bool {
-					events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+					events, err := f.RunKubectlCommand("get", "events", "-n", pvc.Namespace, "--field-selector=involvedObject.kind=PersistentVolumeClaim")
 					primeEvent := fmt.Sprintf("[%s]", primeName)
 					if err == nil {
 						fmt.Fprintf(GinkgoWriter, "%s", events)

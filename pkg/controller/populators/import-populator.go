@@ -219,37 +219,30 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	return reconcile.Result{}, nil
 }
 
-func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger, recorder record.EventRecorder) {
-	copyingToDv := false
-	primePrefixMsg := ""
-	if destObj.GetObjectKind().GroupVersionKind().Kind == "DataVolume" {
-		copyingToDv = true
-		primeName := srcObj.GetAnnotations()[cc.AnnPVCPrimeName]
-		primePrefixMsg = fmt.Sprintf("[%s] : ", primeName)
-	} else {
-		primePrefixMsg = fmt.Sprintf("[%s] : ", srcObj.GetName())
-	}
+// CopyEvents gets primePVC events and re-emits them on the target PVC with the prime name prefix
+func CopyEvents(primePVC, targetPVC client.Object, c client.Client, log logr.Logger, recorder record.EventRecorder) {
+	primePrefixMsg := fmt.Sprintf("[%s] : ", primePVC.GetName())
 
 	newEvents := &corev1.EventList{}
 	err := c.List(context.TODO(), newEvents,
-		client.InNamespace(srcObj.GetNamespace()),
-		client.MatchingFields{"involvedObject.name": srcObj.GetName(),
-			"involvedObject.uid": string(srcObj.GetUID())},
+		client.InNamespace(primePVC.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": primePVC.GetName(),
+			"involvedObject.uid": string(primePVC.GetUID())},
 	)
 
 	if err != nil {
-		log.Error(err, "Could not retrieve srcObj list of Events")
+		log.Error(err, "Could not retrieve primePVC list of Events")
 	}
 
 	currEvents := &corev1.EventList{}
 	err = c.List(context.TODO(), currEvents,
-		client.InNamespace(destObj.GetNamespace()),
-		client.MatchingFields{"involvedObject.name": destObj.GetName(),
-			"involvedObject.uid": string(destObj.GetUID())},
+		client.InNamespace(targetPVC.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": targetPVC.GetName(),
+			"involvedObject.uid": string(targetPVC.GetUID())},
 	)
 
 	if err != nil {
-		log.Error(err, "Could not retrieve destObj list of Events")
+		log.Error(err, "Could not retrieve targetPVC list of Events")
 	}
 
 	// use this to hash each message for quick lookup, value is unused
@@ -261,28 +254,18 @@ func CopyEvents(srcObj, destObj client.Object, c client.Client, log logr.Logger,
 
 	for _, newEvent := range newEvents.Items {
 		msg := newEvent.Message
-		// only want to copy events to DV that originated from the prime pvc
-		if copyingToDv && !strings.Contains(msg, "prime") {
-			continue
-		} else if !copyingToDv {
-			// if we copying from prime PVC to PVC, don't reemit duplicates
-			if strings.Contains(msg, primePrefixMsg) {
-				continue
-			}
-		}
-		// check if new message exists in our map
-		_, exists := eventMap[msg]
-		if exists {
+
+		// check if target PVC already has this equivalent event
+		if _, exists := eventMap[msg]; exists {
 			continue
 		}
-		outMessage := ""
-		if copyingToDv {
-			outMessage = msg
-		} else {
-			// only want to add pvcPrime prefix if we are copying to another PVC
-			outMessage = "[" + srcObj.GetName() + "] : " + msg
+
+		formattedMsg := primePrefixMsg + msg
+		// check if we already emitted this event with the prime prefix
+		if _, exists := eventMap[formattedMsg]; exists {
+			continue
 		}
-		recorder.Event(destObj, newEvent.Type, newEvent.Reason, outMessage)
+		recorder.Event(targetPVC, newEvent.Type, newEvent.Reason, formattedMsg)
 	}
 }
 
