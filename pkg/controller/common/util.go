@@ -2135,7 +2135,8 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 		delete(anno, AnnBoundConditionMessage)
 
 		if !reflect.DeepEqual(currentPvcCopy, pvc) {
-			if err := c.Update(context.TODO(), pvc); err != nil {
+			patch := client.MergeFrom(currentPvcCopy.(*corev1.PersistentVolumeClaim))
+			if err := c.Patch(context.TODO(), pvc, patch); err != nil {
 				return err
 			}
 		}
@@ -2214,6 +2215,11 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 	anno[AnnBoundCondition] = "false"
 	anno[AnnBoundConditionReason] = "Pending"
 	anno[AnnBoundConditionMessage] = boundMessage
+
+	patch := client.MergeFrom(currentPvcCopy.(*corev1.PersistentVolumeClaim))
+	if err := c.Patch(context.TODO(), pvc, patch); err != nil {
+		return err
+	}
 
 	return nil
 }

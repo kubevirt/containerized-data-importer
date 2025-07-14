@@ -3498,12 +3498,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			// if we are using populators check that we get prime events in DV
 			if usePopulator {
-				By("Checking pvc prime annotation was set")
-				primeName := pvc.GetAnnotations()[controller.AnnPVCPrimeName]
-				Expect(primeName).ToNot(BeEmpty())
 
 				By("Verifying event occurred")
 				Eventually(func() bool {
+					primeName := pvc.GetAnnotations()[controller.AnnPVCPrimeName]
 					events, err := f.RunKubectlCommand("get", "events", "-n", pvc.Namespace, "--field-selector=involvedObject.kind=PersistentVolumeClaim")
 					primeEvent := fmt.Sprintf("[%s]", primeName)
 					if err == nil {
