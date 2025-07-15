@@ -11,9 +11,9 @@ source ./cluster-up/hack/common.sh
 source ./cluster-up/cluster/${KUBEVIRT_PROVIDER}/provider.sh
 
 if [ "${KUBEVIRT_PROVIDER}" = "external" ]; then
-   CDI_SYNC_PROVIDER="external"
+  CDI_SYNC_PROVIDER="external"
 else
-   CDI_SYNC_PROVIDER="kubevirtci"
+  CDI_SYNC_PROVIDER="kubevirtci"
 fi
 
 source ./cluster-sync/${CDI_SYNC_PROVIDER}/provider.sh
@@ -68,8 +68,8 @@ function kill_running_operator {
   out=$(_kubectl get pods -n $CDI_NAMESPACE)
   out=($out)
   length=${#out[@]}
-  for ((idx=0; idx<${#out[@]}; idx=idx+5)); do
-    if [[ ${out[idx]} == cdi-operator-* ]] && [[ ${out[idx+2]} == "Running" ]]; then
+  for ((idx = 0; idx < ${#out[@]}; idx = idx + 5)); do
+    if [[ ${out[idx]} == cdi-operator-* ]] && [[ ${out[idx + 2]} == "Running" ]]; then
       _kubectl delete pod ${out[idx]} -n $CDI_NAMESPACE --grace-period=0 --force
       return
     fi
@@ -132,17 +132,17 @@ NEW_CDI_VER_PODS="./_out/tests/new_cdi_ver_pods"
 # Note it will fail update to the same version
 function wait_cdi_pods_updated {
   echo "Waiting $CDI_PODS_UPDATE_TIMEOUT seconds for all CDI pods to update"
-  if [ -f $NEW_CDI_VER_PODS ] ; then
+  if [ -f $NEW_CDI_VER_PODS ]; then
     mv $NEW_CDI_VER_PODS $OLD_CDI_VER_PODS
   fi
   wait_time=0
   ret=0
   while [[ $ret -eq 0 ]] && [[ $wait_time -lt ${CDI_PODS_UPDATE_TIMEOUT} ]]; do
     wait_time=$((wait_time + 5))
-    _kubectl get pods -n $CDI_NAMESPACE -l '!cdi.kubevirt.io/testing' -o=jsonpath='{range .items[*]}{.metadata.name}{"\n"}{.metadata.uid}{"\n"}{.spec.containers[*].image}{"\n"}{end}' > $NEW_CDI_VER_PODS
-    if [ -f $OLD_CDI_VER_PODS ] ; then
+    _kubectl get pods -n $CDI_NAMESPACE -l '!cdi.kubevirt.io/testing' -o=jsonpath='{range .items[*]}{.metadata.name}{"\n"}{.metadata.uid}{"\n"}{.spec.containers[*].image}{"\n"}{end}' >$NEW_CDI_VER_PODS
+    if [ -f $OLD_CDI_VER_PODS ]; then
       grep -qFxf $OLD_CDI_VER_PODS $NEW_CDI_VER_PODS || ret=$?
-      if [ $ret -eq 0 ] ; then
+      if [ $ret -eq 0 ]; then
         sleep 5
       fi
     else
@@ -150,7 +150,7 @@ function wait_cdi_pods_updated {
     fi
   done
   echo "Waited $wait_time seconds"
-  if [ $ret -eq 0 ] ; then
+  if [ $ret -eq 0 ]; then
     echo "Not all pods updated"
     exit 1
   fi
@@ -168,7 +168,7 @@ function dump_upgrade_info {
 # Setup some datavolumes in older version for testing upgrades
 # Done unconditionally to make it easier to write tests.
 function setup_for_upgrade_testing {
-  if _kubectl get namespace cdi-testing-old-version-artifacts ; then
+  if _kubectl get namespace cdi-testing-old-version-artifacts; then
     echo "Old version testing environment already setup"
     return
   fi
@@ -227,7 +227,7 @@ if [ "${CDI_SYNC}" == "test-infra" ]; then
     # vCenter (VDDK) test service:
     _kubectl apply -f "./_out/manifests/vcenter.yaml"
   fi
- 
+
   if _kubectl get crd securitycontextconstraints.security.openshift.io >/dev/null 2>&1; then
     _kubectl apply -f "./_out/manifests/cdi-testing-scc.yaml"
   fi
@@ -249,7 +249,7 @@ wait_cdi_crd_installed $CDI_INSTALL_TIMEOUT
 
 # If we are upgrading, verify our current value.
 if [[ ! -z "$UPGRADE_FROM" ]]; then
-  UPGRADE_FROM_LIST=( $UPGRADE_FROM )
+  UPGRADE_FROM_LIST=($UPGRADE_FROM)
   for VERSION in ${UPGRADE_FROM_LIST[@]}; do
     echo $VERSION
     if [ "$VERSION" != "${UPGRADE_FROM_LIST[0]}" ]; then
@@ -265,10 +265,10 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
     retry_counter=0
     kill_count=0
     while [[ $retry_counter -lt $CDI_UPGRADE_RETRY_COUNT ]] && [ "$operator_version" != "$VERSION" ]; do
-      cdi_cr_phase=`_kubectl get CDI -o=jsonpath='{.items[*].status.phase}{"\n"}'`
-      observed_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.observedVersion}{"\n"}'`
-      target_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.targetVersion}{"\n"}'`
-      operator_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.operatorVersion}{"\n"}'`
+      cdi_cr_phase=$(_kubectl get CDI -o=jsonpath='{.items[*].status.phase}{"\n"}')
+      observed_version=$(_kubectl get CDI -o=jsonpath='{.items[*].status.observedVersion}{"\n"}')
+      target_version=$(_kubectl get CDI -o=jsonpath='{.items[*].status.targetVersion}{"\n"}')
+      operator_version=$(_kubectl get CDI -o=jsonpath='{.items[*].status.operatorVersion}{"\n"}')
       echo "Phase: $cdi_cr_phase, observedVersion: $observed_version, operatorVersion: $operator_version, targetVersion: $target_version"
       retry_counter=$((retry_counter + 1))
       if [[ $kill_count -lt 1 ]]; then
@@ -292,20 +292,20 @@ if [[ ! -z "$UPGRADE_FROM" ]]; then
   retry_counter=0
   _kubectl apply -f "./_out/manifests/release/cdi-operator.yaml"
   while [[ $retry_counter -lt $CDI_UPGRADE_RETRY_COUNT ]] && [ "$observed_version" != "latest" ]; do
-    cdi_cr_phase=`_kubectl get CDI -o=jsonpath='{.items[*].status.phase}{"\n"}'`
-    observed_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.observedVersion}{"\n"}'`
-    target_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.targetVersion}{"\n"}'`
-    operator_version=`_kubectl get CDI -o=jsonpath='{.items[*].status.operatorVersion}{"\n"}'`
+    cdi_cr_phase=$(_kubectl get CDI -o=jsonpath='{.items[*].status.phase}{"\n"}')
+    observed_version=$(_kubectl get CDI -o=jsonpath='{.items[*].status.observedVersion}{"\n"}')
+    target_version=$(_kubectl get CDI -o=jsonpath='{.items[*].status.targetVersion}{"\n"}')
+    operator_version=$(_kubectl get CDI -o=jsonpath='{.items[*].status.operatorVersion}{"\n"}')
     echo "Phase: $cdi_cr_phase, observedVersion: $observed_version, operatorVersion: $operator_version, targetVersion: $target_version"
     retry_counter=$((retry_counter + 1))
     _kubectl get pods -n $CDI_NAMESPACE
     sleep 5
   done
   if [ $retry_counter -eq $CDI_UPGRADE_RETRY_COUNT ]; then
-	  echo "Unable to deploy to latest version"
-	  cdi_obj=$(_kubectl get CDI -o yaml)
-	  echo $cdi_obj
-	  exit 1
+    echo "Unable to deploy to latest version"
+    cdi_obj=$(_kubectl get CDI -o yaml)
+    echo $cdi_obj
+    exit 1
   fi
   wait_cdi_available
   wait_cdi_pods_updated
@@ -329,3 +329,6 @@ crds=($cdi_crds)
 operator_crds=$(_kubectl get crd -l operator.cdi.kubevirt.io -o jsonpath={.items[*].metadata.name})
 crds+=($operator_crds)
 check_structural_schema "${crds[@]}"
+
+# apply network-policies
+_kubectl apply -n ${CDI_NAMESPACE} -f "./cluster-sync/network-policies.yaml"

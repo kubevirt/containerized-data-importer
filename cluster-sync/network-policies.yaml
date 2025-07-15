@@ -1,0 +1,254 @@
+# default deny CDI
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# default allow CDI
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cdi-allow-egress-to-api-server
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 6443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cdi-allow-egress-to-dns
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: TCP
+          port: dns-tcp
+        - protocol: UDP
+          port: dns
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cdi-allow-ingress-to-metrics
+spec:
+  podSelector:
+    matchLabels:
+      prometheus.cdi.kubevirt.io: "true"
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8443
+---
+# allow egress from cdi-uploadproxy to cdi-upload-server and ingress to cdi-uploadproxy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cdi-allow-upload
+spec:
+  podSelector:
+    matchLabels:
+      cdi.kubevirt.io: cdi-uploadproxy
+  policyTypes:
+    - Egress
+    - Ingress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              cdi.kubevirt.io: cdi-upload-server
+          namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8443
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8443
+---
+# allow registry access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cdi-allow-registry-communications
+spec:
+  podSelector:
+    matchLabels:
+      name: cdi-docker-registry-host
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 1443
+  egress:
+    - {}
+---
+# allow file-host access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cdi-allow-file-host-communications
+spec:
+  podSelector:
+    matchLabels:
+      name: cdi-file-host
+  policyTypes:
+    - Egress
+    - Ingress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              name: cdi-docker-registry-host
+      ports:
+        - protocol: TCP
+          port: 443
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 81
+        - protocol: TCP
+          port: 82
+        - protocol: TCP
+          port: 83
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 444
+        - protocol: TCP
+          port: 9000
+---
+# allow ingress to cdi webhook server
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cdi-allow-ingress-to-cdi-webhook-server
+spec:
+  podSelector:
+    matchLabels:
+      cdi.kubevirt.io: cdi-apiserver
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8443
+---
+# allow ingress to bad-webserver
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cdi-allow-bad-webserver
+spec:
+  podSelector:
+    matchLabels:
+      name: cdi-bad-webserver
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 9090
+---
+# allow ingress to cdi-test-proxy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cdi-allow-test-proxy
+spec:
+  podSelector:
+    matchLabels:
+      name: cdi-test-proxy
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 444
+---
+# allow ingress to vcenter
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cdi-allow-vcenter
+spec:
+  podSelector:
+    matchLabels:
+      app: vcenter
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8989
+---
+# allow ingress to cdi-test-proxy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cdi-allow-imageio
+spec:
+  podSelector:
+    matchLabels:
+      app: imageio
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 12345
+        - protocol: TCP
+          port: 12346
+---
+# allow cdi-deployment to access metrics port
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cdi-allow-deployment-egress-to-metrics
+spec:
+  podSelector:
+    matchLabels:
+      cdi.kubevirt.io: cdi-deployment
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: TCP
+          port: 8443
+      to:
+        - podSelector:
+            matchLabels:
+              prometheus.cdi.kubevirt.io: "true"
+          namespaceSelector: {}
