@@ -2118,6 +2118,31 @@ func ResolveDataSourceChain(ctx context.Context, client client.Client, dataSourc
 	return resolved, nil
 }
 
+func sortEvents(events *corev1.EventList, usingPopulator bool, pvcPrimeName string) {
+	// Sort event lists by containing primeName substring and most recent timestamp
+	sort.Slice(events.Items, func(i, j int) bool {
+		if usingPopulator {
+			firstContainsPrime := strings.Contains(events.Items[i].Message, pvcPrimeName)
+			secondContainsPrime := strings.Contains(events.Items[j].Message, pvcPrimeName)
+
+			if firstContainsPrime && !secondContainsPrime {
+				return true
+			}
+			if !firstContainsPrime && secondContainsPrime {
+				return false
+			}
+		}
+
+		// if the timestamps are the same, prioritze longer messages to make sure our sorting is deterministic
+		if events.Items[i].LastTimestamp.Time.Equal(events.Items[j].LastTimestamp.Time) {
+			return len(events.Items[i].Message) > len(events.Items[j].Message)
+		}
+
+		// if both contains primeName substring or neither, just sort on timestamp
+		return events.Items[i].LastTimestamp.Time.After(events.Items[j].LastTimestamp.Time)
+	})
+}
+
 // UpdatePVCBoundContionFromEvents updates the bound condition annotations on the PVC based on recent events
 // This function can be used by both controller and populator packages to update PVC bound condition information
 func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client.Client, log logr.Logger) error {
@@ -2167,35 +2192,14 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 		return nil
 	}
 
-	pvcPrime, exists := anno[AnnPVCPrimeName]
+	pvcPrime, usingPopulator := anno[AnnPVCPrimeName]
 
 	// Sort event lists by containing primeName substring and most recent timestamp
-	sort.Slice(events.Items, func(i, j int) bool {
-		if exists {
-			firstContainsPrime := strings.Contains(events.Items[i].Message, pvcPrime)
-			secondContainsPrime := strings.Contains(events.Items[j].Message, pvcPrime)
-
-			if firstContainsPrime && !secondContainsPrime {
-				return true
-			}
-			if !firstContainsPrime && secondContainsPrime {
-				return false
-			}
-		}
-
-		// if the timestamps are the same just make sure our sorting is deterministic
-		if events.Items[i].LastTimestamp.Time.Equal(events.Items[j].LastTimestamp.Time) {
-			return events.Items[i].Message < events.Items[j].Message
-		}
-
-		// if both contains primeName substring or neither, just sort on timestamp
-		return events.Items[i].LastTimestamp.Time.After(events.Items[j].LastTimestamp.Time)
-	})
+	sortEvents(events, usingPopulator, pvcPrime)
 
 	boundMessage := ""
-
 	// check if prime name annotation exists
-	if exists {
+	if usingPopulator {
 		// if we are using populators get the latest event from prime pvc
 		pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
 

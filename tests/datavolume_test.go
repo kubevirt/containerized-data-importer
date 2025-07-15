@@ -3490,14 +3490,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		By("verifying pvc was created")
 		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
-		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimPending, pvc.Name)
-		Expect(err).ToNot(HaveOccurred())
 
 		usePopulator, err := dvc.CheckPVCUsingPopulators(pvc)
 		Expect(err).ToNot(HaveOccurred())
 		if !usePopulator {
 			Skip("Skipping test for non-populator PVCs")
 		}
+
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimPending, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
 
 		By("Verifying PVC has Prime Name annotation")
 		primeName := pvc.GetAnnotations()[controller.AnnPVCPrimeName]
