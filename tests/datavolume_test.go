@@ -3478,60 +3478,71 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}),
 	)
 
-	Describe("Events and Conditions from PVC Prime", func() {
+	DescribeTable("Events and Conditions from Prime PVC", func(url func() string, containsPrimeEvent bool) {
+		// create a DV that will never be able to be imported
+		dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url())
 
-		It("should have Prime PVC events populated in target PVC", func() {
-			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", tinyCoreIsoURL())
+		By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
-			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
-			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+		By("verifying pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimPending, pvc.Name)
+		Expect(err).ToNot(HaveOccurred())
 
-			// verify PVC was created
-			By("verifying pvc was created")
-			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
+		usePopulator, err := dvc.CheckPVCUsingPopulators(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		if !usePopulator {
+			Skip("Skipping test for non-populator PVCs")
+		}
 
-			usePopulator, err := dvc.CheckPVCUsingPopulators(pvc)
-			Expect(err).ToNot(HaveOccurred())
+		By("Verifying PVC has Prime Name annotation")
+		primeName := pvc.GetAnnotations()[controller.AnnPVCPrimeName]
+		Expect(primeName).ToNot(BeEmpty())
+		primeEvent := fmt.Sprintf("[%s]", primeName)
 
-			// if we are using populators check that we get prime events in DV
-			if usePopulator {
-
-				By("Verifying event occurred")
-				Eventually(func() bool {
-					primeName := pvc.GetAnnotations()[controller.AnnPVCPrimeName]
-					events, err := f.RunKubectlCommand("get", "events", "-n", pvc.Namespace, "--field-selector=involvedObject.kind=PersistentVolumeClaim")
-					primeEvent := fmt.Sprintf("[%s]", primeName)
-					if err == nil {
-						fmt.Fprintf(GinkgoWriter, "%s", events)
-						// make sure we get events from pvcPrime
-						return strings.Contains(events, primeEvent)
-					}
-					fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
-					return false
-				}, timeout, pollingInterval).Should(BeTrue())
-			} else {
-				// if we aren't using populators, just check that pvc was bound and dv was imported
-				boundCondition := &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeBound,
-					Status:  v1.ConditionTrue,
-					Message: "PVC test-dv Bound",
-					Reason:  "Bound",
-				}
-				runningCondition := &cdiv1.DataVolumeCondition{
-					Type:    cdiv1.DataVolumeRunning,
-					Status:  v1.ConditionFalse,
-					Message: "Import Complete",
-					Reason:  "Completed",
-				}
-				utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, runningCondition)
+		By("Verifying DV contains events from Prime PVC ")
+		Eventually(func() bool {
+			events, err := f.RunKubectlCommand("get", "events", "-n", pvc.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+			if err == nil {
+				fmt.Fprintf(GinkgoWriter, "%s", events)
+				// make sure we get events from pvcPrime
+				return strings.Contains(events, primeEvent)
 			}
-		})
+			fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+			return false
+		}, timeout, pollingInterval).Should(BeTrue())
 
-	})
+		By("Verifying DV bound condition")
+		var boundCondition *cdiv1.DataVolumeCondition
+		if containsPrimeEvent {
+			boundMessage := fmt.Sprintf("PVC %s Pending and %s", dataVolume.Name, primeEvent)
+			boundCondition = &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeBound,
+				Status:  v1.ConditionFalse,
+				Message: boundMessage,
+				Reason:  "Pending",
+			}
+		} else {
+			boundMessage := fmt.Sprintf("PVC %s Bound", dataVolume.Name)
+			boundCondition = &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeBound,
+				Status:  v1.ConditionTrue,
+				Message: boundMessage,
+				Reason:  "Bound",
+			}
+		}
 
+		utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition)
+	},
+		Entry("DV bound condition should be a Prime PVC event while DV is stuck in pending",
+			func() string { return "http://i-made-this-up.kube-system/tinyCore.iso" }, true),
+		Entry("DV bound condition should be correctly set without Prime PVC event when DV is bound",
+			tinyCoreIsoURL, false),
+	)
 })
 
 func SetFilesystemOverhead(f *framework.Framework, globalOverhead, scOverhead string) {
