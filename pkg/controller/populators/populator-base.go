@@ -18,6 +18,7 @@ package populators
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/go-logr/logr"
@@ -295,6 +296,56 @@ func (r *ReconcilerBase) updatePVCWithPVCPrimeLabels(pvc *corev1.PersistentVolum
 		}
 	}
 	return pvcCopy, nil
+}
+
+// CopyEvents gets primePVC events and re-emits them on the target PVC with the prime name prefix
+func (r *ReconcilerBase) copyEvents(primePVC, targetPVC client.Object) {
+	primePrefixMsg := fmt.Sprintf("[%s] : ", primePVC.GetName())
+
+	newEvents := &corev1.EventList{}
+	err := r.client.List(context.TODO(), newEvents,
+		client.InNamespace(primePVC.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": primePVC.GetName(),
+			"involvedObject.uid": string(primePVC.GetUID())},
+	)
+
+	if err != nil {
+		r.log.Error(err, "Could not retrieve primePVC list of Events")
+	}
+
+	currEvents := &corev1.EventList{}
+	err = r.client.List(context.TODO(), currEvents,
+		client.InNamespace(targetPVC.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": targetPVC.GetName(),
+			"involvedObject.uid": string(targetPVC.GetUID())},
+	)
+
+	if err != nil {
+		r.log.Error(err, "Could not retrieve targetPVC list of Events")
+	}
+
+	// use this to hash each message for quick lookup, value is unused
+	eventMap := make(map[string]bool)
+
+	for _, event := range currEvents.Items {
+		eventMap[event.Message] = true
+	}
+
+	for _, newEvent := range newEvents.Items {
+		msg := newEvent.Message
+
+		// check if target PVC already has this equivalent event
+		if _, exists := eventMap[msg]; exists {
+			continue
+		}
+
+		formattedMsg := primePrefixMsg + msg
+		// check if we already emitted this event with the prime prefix
+		if _, exists := eventMap[formattedMsg]; exists {
+			continue
+		}
+		r.recorder.Event(targetPVC, newEvent.Type, newEvent.Reason, formattedMsg)
+	}
 }
 
 // reconcile functions

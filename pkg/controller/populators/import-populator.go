@@ -31,7 +31,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -166,7 +165,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	}
 
 	// copy over any new events from pvcPrime to pvc
-	CopyEvents(pvcPrime, pvcCopy, r.client, r.log, r.recorder)
+	r.copyEvents(pvcPrime, pvcCopy)
 
 	err = cc.UpdatePVCBoundContionFromEvents(pvcCopy, r.client, r.log)
 	if err != nil {
@@ -217,56 +216,6 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	}
 
 	return reconcile.Result{}, nil
-}
-
-// CopyEvents gets primePVC events and re-emits them on the target PVC with the prime name prefix
-func CopyEvents(primePVC, targetPVC client.Object, c client.Client, log logr.Logger, recorder record.EventRecorder) {
-	primePrefixMsg := fmt.Sprintf("[%s] : ", primePVC.GetName())
-
-	newEvents := &corev1.EventList{}
-	err := c.List(context.TODO(), newEvents,
-		client.InNamespace(primePVC.GetNamespace()),
-		client.MatchingFields{"involvedObject.name": primePVC.GetName(),
-			"involvedObject.uid": string(primePVC.GetUID())},
-	)
-
-	if err != nil {
-		log.Error(err, "Could not retrieve primePVC list of Events")
-	}
-
-	currEvents := &corev1.EventList{}
-	err = c.List(context.TODO(), currEvents,
-		client.InNamespace(targetPVC.GetNamespace()),
-		client.MatchingFields{"involvedObject.name": targetPVC.GetName(),
-			"involvedObject.uid": string(targetPVC.GetUID())},
-	)
-
-	if err != nil {
-		log.Error(err, "Could not retrieve targetPVC list of Events")
-	}
-
-	// use this to hash each message for quick lookup, value is unused
-	eventMap := make(map[string]bool)
-
-	for _, event := range currEvents.Items {
-		eventMap[event.Message] = true
-	}
-
-	for _, newEvent := range newEvents.Items {
-		msg := newEvent.Message
-
-		// check if target PVC already has this equivalent event
-		if _, exists := eventMap[msg]; exists {
-			continue
-		}
-
-		formattedMsg := primePrefixMsg + msg
-		// check if we already emitted this event with the prime prefix
-		if _, exists := eventMap[formattedMsg]; exists {
-			continue
-		}
-		recorder.Event(targetPVC, newEvent.Type, newEvent.Reason, formattedMsg)
-	}
 }
 
 // Import-specific implementation of updatePVCForPopulation

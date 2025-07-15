@@ -3497,17 +3497,28 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Skip("Skipping test for non-populator PVCs")
 		}
 
-		err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimPending, pvc.Name)
-		Expect(err).ToNot(HaveOccurred())
+		// We only want to check events from the object type that is relevant to the test
+		// this is because when the DV is intended to be bound, we can't guarantee PVC prime events
+		var objectType string
+		if containsPrimeEvent {
+			objectType = "DataVolume"
+			err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimPending, pvc.Name)
+			Expect(err).ToNot(HaveOccurred())
+		} else {
+			objectType = "PersistentVolumeClaim"
+			err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
+			Expect(err).ToNot(HaveOccurred())
+		}
 
 		By("Verifying PVC has Prime Name annotation")
 		primeName := pvc.GetAnnotations()[controller.AnnPVCPrimeName]
 		Expect(primeName).ToNot(BeEmpty())
 		primeEvent := fmt.Sprintf("[%s]", primeName)
 
-		By("Verifying DV contains events from Prime PVC ")
+		fieldSelector := fmt.Sprintf("--field-selector=involvedObject.kind=%s", objectType)
+		By(fmt.Sprintf("Verifying %s contains events from Prime PVC ", objectType))
 		Eventually(func() bool {
-			events, err := f.RunKubectlCommand("get", "events", "-n", pvc.Namespace, "--field-selector=involvedObject.kind=DataVolume")
+			events, err := f.RunKubectlCommand("get", "events", "-n", pvc.Namespace, fieldSelector)
 			if err == nil {
 				fmt.Fprintf(GinkgoWriter, "%s", events)
 				// make sure we get events from pvcPrime

@@ -2146,7 +2146,7 @@ func sortEvents(events *corev1.EventList, usingPopulator bool, pvcPrimeName stri
 // UpdatePVCBoundContionFromEvents updates the bound condition annotations on the PVC based on recent events
 // This function can be used by both controller and populator packages to update PVC bound condition information
 func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client.Client, log logr.Logger) error {
-	currentPvcCopy := pvc.DeepCopyObject()
+	currentPvcCopy := pvc.DeepCopy()
 
 	anno := pvc.GetAnnotations()
 	if anno == nil {
@@ -2160,7 +2160,7 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 		delete(anno, AnnBoundConditionMessage)
 
 		if !reflect.DeepEqual(currentPvcCopy, pvc) {
-			patch := client.MergeFrom(currentPvcCopy.(*corev1.PersistentVolumeClaim))
+			patch := client.MergeFrom(currentPvcCopy)
 			if err := c.Patch(context.TODO(), pvc, patch); err != nil {
 				return err
 			}
@@ -2220,7 +2220,7 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 	anno[AnnBoundConditionReason] = "Pending"
 	anno[AnnBoundConditionMessage] = boundMessage
 
-	patch := client.MergeFrom(currentPvcCopy.(*corev1.PersistentVolumeClaim))
+	patch := client.MergeFrom(currentPvcCopy)
 	if err := c.Patch(context.TODO(), pvc, patch); err != nil {
 		return err
 	}
