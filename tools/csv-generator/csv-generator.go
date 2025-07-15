@@ -40,6 +40,13 @@ var (
 	uploadServerImage   = flag.String("uploadserver-image", "", "")
 	ovirtPopulatorImage = flag.String("ovirt-populator-image", "", "")
 	dumpCRDs            = flag.Bool("dump-crds", false, "optional - dumps cdi-operator related crd manifests to stdout")
+	dumpNetworkPolicies = flag.Bool("dump-network-policies", false, "optional - dumps cdi-operator related network-policy manifests to stdout")
+	dnsNamespace        = flag.String("dns-namespace", "kube-system", "optional - DNS namespace for the DNS network policy. Only used in conjunction with the dump-network-policies option")
+	dnsLabelKey         = flag.String("dns-pod-selector-label", "k8s-app", "optional - DNS pod selector label key for the DNS network policy. Only used in conjunction with the dump-network-policies option")
+	dnsLabelValue       = flag.String("dns-pod-selector-value", "kube-dns", "optional - DNS pod selector label value for the DNS network policy. Only used in conjunction with the dump-network-policies option")
+	apiNamespace        = flag.String("api-namespace", "kube-system", "optional - kube-apiserver namespace for the api network policy. Only used in conjunction with the dump-network-policies option")
+	apiLabelKey         = flag.String("api-pod-selector-label", "component", "optional - kube-apiserver pod selector label key for the api network policy. Only used in conjunction with the dump-network-policies option")
+	apiLabelValue       = flag.String("api-pod-selector-value", "kube-apiserver", "optional - kube-apiserver pod selector label value for the api network policy. Only used in conjunction with the dump-network-policies option")
 )
 
 func main() {
@@ -77,6 +84,15 @@ func main() {
 		cidCrd := cdioperator.NewCdiCrd()
 		if err = util.MarshallObject(cidCrd, os.Stdout); err != nil {
 			panic(err)
+		}
+	}
+
+	if *dumpNetworkPolicies {
+		cdiNPs := cdioperator.NewCdiNetworkPolicies(data.Namespace, *dnsNamespace, *dnsLabelKey, *dnsLabelValue, *apiNamespace, *apiLabelKey, *apiLabelValue)
+		for _, v := range cdiNPs {
+			if err = util.MarshallObject(v, os.Stdout); err != nil {
+				panic(err)
+			}
 		}
 	}
 }
