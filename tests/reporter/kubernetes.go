@@ -77,6 +77,7 @@ func (r *KubernetesReporter) Dump(kubeCli *kubernetes.Clientset, cdiClient *cdiC
 	r.logPVCs(kubeCli)
 	r.logPVs(kubeCli)
 	r.logStorageClasses(kubeCli)
+	r.logStorageProfiles(cdiClient)
 	r.logPods(kubeCli)
 	r.logServices(kubeCli)
 	r.logEndpoints(kubeCli)
@@ -183,6 +184,16 @@ func (r *KubernetesReporter) logStorageClasses(kubeCli *kubernetes.Clientset) {
 	}
 
 	r.logObjects(scs, "storageclasses")
+}
+
+func (r *KubernetesReporter) logStorageProfiles(cdiClientset *cdiClientset.Clientset) {
+	sps, err := cdiClientset.CdiV1beta1().StorageProfiles().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to fetch storage profiles: %v\n", err)
+		return
+	}
+
+	r.logObjects(sps, "storageprofiles")
 }
 
 func (r *KubernetesReporter) logDVs(cdiClientset *cdiClientset.Clientset) {
