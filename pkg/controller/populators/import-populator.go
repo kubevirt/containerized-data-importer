@@ -34,8 +34,10 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
@@ -97,7 +99,27 @@ func NewImportPopulator(
 		return nil, err
 	}
 
+	if err := addEventWatcher(mgr, importPopulator); err != nil {
+		return nil, err
+	}
+
 	return importPopulator, nil
+}
+
+func addEventWatcher(mgr manager.Manager, c controller.Controller) error {
+	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.Event{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.Event](
+		func(_ context.Context, e *corev1.Event) []reconcile.Request {
+			if e.InvolvedObject.Kind == "PersistentVolumeClaim" && strings.Contains(e.InvolvedObject.Name, "prime") && e.InvolvedObject.GroupVersionKind().Group == "" {
+				return []reconcile.Request{{
+					NamespacedName: types.NamespacedName{Name: e.InvolvedObject.Name, Namespace: e.InvolvedObject.Namespace},
+				}}
+			}
+			return nil
+		}),
+	)); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Reconcile the reconcile loop for the PVC with DataSourceRef of VolumeImportSource kind
@@ -133,6 +155,19 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	pvcCopy := pvc.DeepCopy()
 	phase := pvcPrime.Annotations[cc.AnnPodPhase]
 	source, err := r.getPopulationSource(pvc)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	_, err = r.updatePVCPrimeNameAnnotation(pvcCopy, pvcPrime.Name)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	// copy over any new events from pvcPrime to pvc
+	r.copyEvents(pvcPrime, pvcCopy)
+
+	err = cc.UpdatePVCBoundContionFromEvents(pvcCopy, r.client, r.log)
 	if err != nil {
 		return reconcile.Result{}, err
 	}

@@ -140,6 +140,13 @@ func (r *UploadReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 		log.V(1).Info("PVC has both clone and upload annotations")
 		return reconcile.Result{}, errors.New("PVC has both clone and upload annotations")
 	}
+
+	if isUpload || isCloneTarget {
+		if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
 	shouldReconcile, err := r.shouldReconcile(isUpload, isCloneTarget, pvc, log)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -478,7 +485,6 @@ func (r *UploadReconciler) getOrCreateScratchPvc(pvc *corev1.PersistentVolumeCla
 		if !metav1.IsControlledBy(scratchPvc, pod) {
 			return nil, errors.Errorf("%s scratch PVC not controlled by pod %s", scratchPvc.Name, pod.Name)
 		}
-		setBoundConditionFromPVC(anno, cc.AnnBoundCondition, scratchPvc)
 	}
 
 	return scratchPvc, nil

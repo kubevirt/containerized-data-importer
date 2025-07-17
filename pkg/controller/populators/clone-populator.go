@@ -264,6 +264,10 @@ func (r *ClonePopulatorReconciler) Reconcile(ctx context.Context, req reconcile.
 		return reconcile.Result{}, nil
 	}
 
+	if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, r.log); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	hasFinalizer := cc.HasFinalizer(pvc, cloneFinalizer)
 	isBound := cc.IsBound(pvc)
 	isDeleted := !pvc.DeletionTimestamp.IsZero()
