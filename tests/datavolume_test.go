@@ -3511,7 +3511,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		By("Verifying PVC has Prime Name annotation")
-		primeName := pvc.GetAnnotations()[controller.AnnPVCPrimeName]
+		primeName, status, err := utils.WaitForPVCAnnotation(f.K8sClient, pvc.Namespace, pvc, controller.AnnPVCPrimeName)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(status).To(BeTrue())
 		Expect(primeName).ToNot(BeEmpty())
 		primeEvent := fmt.Sprintf("[%s]", primeName)
 
