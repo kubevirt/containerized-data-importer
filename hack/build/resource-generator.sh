@@ -131,6 +131,8 @@ function populateResourceManifest() {
             -uploadproxy-image="${DOCKER_PREFIX}/${UPLOADPROXY_IMAGE_NAME}:${DOCKER_TAG}" \
             -uploadserver-image="${DOCKER_PREFIX}/${UPLOADSERVER_IMAGE_NAME}:${DOCKER_TAG}" \
             -ovirt-populator-image="${OVIRT_POPULATOR_IMAGE_NAME}" \
+            -external-image-minio="${EXTERNAL_IMAGE_MINIO}" \
+            -external-image-fakeovirt="${EXTERNAL_IMAGE_FAKEOVIRT}" \
             -verbosity="${VERBOSITY}" \
             -pull-policy="${PULL_POLICY}" \
             -cr-name="${CR_NAME}" \
@@ -152,6 +154,8 @@ function populateResourceManifest() {
             -apiserver-image="{{ apiserver_image }}" \
             -uploadproxy-image="{{ uploadproxy_image }}" \
             -uploadserver-image="{{ uploadserver_image }}" \
+            -external-image-minio="{{ external_image_minio }}" \
+            -external-image-fakeovirt="{{ external_image_fakeovirt }}" \
             -verbosity="${VERBOSITY}" \
             -pull-policy="{{ pull_policy }}" \
             -namespace="{{ cdi_namespace }}" \
