@@ -1067,6 +1067,62 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Entry("DV with specific SC, Pending PVC with DIC-label and outdated SC - is not deleted", &newScName, oldScName, nil, corev1.ClaimPending, false),
 		)
 
+		DescribeTable("should propagate allowed labels from the DIC to its managed DataSource", func(label string, propagated bool) {
+			By("creating DIC with new managed DataSource")
+			cron = newDataImportCron(cronName)
+			cron.SetLabels(map[string]string{label: ""})
+			reconciler = createDataImportCronReconciler(cron)
+
+			shouldReconcile, err := reconciler.shouldReconcileCron(context.TODO(), cron)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(shouldReconcile).To(BeTrue())
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			dataSource = &cdiv1.DataSource{}
+			err = reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(dataSource.Labels[common.DataImportCronLabel]).To(Equal(cron.Name))
+			if propagated {
+				Expect(dataSource.Labels).To(HaveKey(label))
+			} else {
+				Expect(dataSource.Labels).ToNot(HaveKey(label))
+			}
+
+			By("changing managed DataSource to a different, pre-existing one")
+			newDataSource := dataSource.DeepCopy()
+			newDataSource.SetName(fmt.Sprintf("new-%s", dataSource.Name))
+			newDataSource.SetResourceVersion("")
+			newDataSource.SetLabels(map[string]string{common.DataImportCronLabel: cron.Name})
+			newDataSource.Status = cdiv1.DataSourceStatus{}
+
+			err = reconciler.client.Create(context.TODO(), newDataSource)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), cronKey, cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			cron.Spec.ManagedDataSource = newDataSource.Name
+			err = reconciler.client.Update(context.TODO(), cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), dataSourceKey(cron), newDataSource)
+			Expect(err).ToNot(HaveOccurred())
+			if propagated {
+				Expect(newDataSource.Labels).To(HaveKey(label))
+			} else {
+				Expect(newDataSource.Labels).ToNot(HaveKey(label))
+			}
+		},
+			Entry("DIC with allowed label", "template.kubevirt.io/architecture", true),
+			Entry("DIC with unallowed label", "invalid", false),
+		)
+
 		Context("Snapshot source format", func() {
 			snapFormat := cdiv1.DataImportCronSourceFormatSnapshot
 			var sc *storagev1.StorageClass

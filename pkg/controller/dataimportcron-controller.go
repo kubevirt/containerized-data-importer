@@ -1660,6 +1660,7 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 
 func (r *DataImportCronReconciler) setDataImportCronResourceLabels(cron *cdiv1.DataImportCron, obj metav1.Object) {
 	util.SetRecommendedLabels(obj, r.installerLabels, common.CDIControllerName)
+	cc.CopyAllowedLabels(cron.GetLabels(), obj, true)
 	labels := obj.GetLabels()
 	labels[common.DataImportCronLabel] = cron.Name
 	if cron.Spec.RetentionPolicy != nil && *cron.Spec.RetentionPolicy == cdiv1.DataImportCronRetainNone {
@@ -1703,6 +1704,7 @@ func (r *DataImportCronReconciler) newDataSource(cron *cdiv1.DataImportCron) *cd
 	}
 	util.SetRecommendedLabels(dataSource, r.installerLabels, common.CDIControllerName)
 	dataSource.Labels[common.DataImportCronLabel] = cron.Name
+	cc.CopyAllowedLabels(cron.GetLabels(), dataSource, true)
 	return dataSource
 }
 
