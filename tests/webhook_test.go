@@ -350,5 +350,133 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				Entry("when using implicit insufficient pvc clone suitable CDI permissions", implicitRole, serviceAccountName, "", true),
 			)
 		})
+
+		Context("Intermediate namespace authorization checks", func() {
+			var err error
+			var targetNamespace, intermediateNamespace *corev1.Namespace
+			var proxy *authProxy
+			var explicitRoleDataSource = &rbacv1.Role{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "explicit-role-datasource",
+				},
+				Rules: []rbacv1.PolicyRule{
+					{
+						APIGroups: []string{
+							"cdi.kubevirt.io",
+						},
+						Resources: []string{
+							"datasources",
+						},
+						Verbs: []string{
+							"get",
+						},
+					},
+				},
+			}
+
+			BeforeEach(func() {
+				targetNamespace, err = f.CreateNamespace("cdi-auth-webhook-test", nil)
+				Expect(err).ToNot(HaveOccurred())
+				intermediateNamespace, err = f.CreateNamespace("cdi-intermediate-namespace", nil)
+				Expect(err).ToNot(HaveOccurred())
+
+				createServiceAccount(f.K8sClient, targetNamespace.Name, serviceAccountName)
+
+				addPermissionToNamespace(f.K8sClient, cdiRole, targetNamespace.Name, serviceAccountName, "", targetNamespace.Name)
+
+				proxy = &authProxy{k8sClient: f.K8sClient, cdiClient: f.CdiClient}
+			})
+
+			AfterEach(func() {
+				if targetNamespace != nil {
+					err = f.K8sClient.CoreV1().Namespaces().Delete(context.TODO(), targetNamespace.Name, metav1.DeleteOptions{})
+					Expect(err).ToNot(HaveOccurred())
+				}
+				if intermediateNamespace != nil {
+					err = f.K8sClient.CoreV1().Namespaces().Delete(context.TODO(), intermediateNamespace.Name, metav1.DeleteOptions{})
+					Expect(err).ToNot(HaveOccurred())
+				}
+			})
+
+			DescribeTable("should deny/allow user when creating dataSourceRef data volume with intermediate datasource reference", func(role, dataSourceRole *rbacv1.Role, saName, groupName string) {
+				srcPVCDef := utils.NewPVCDefinition("source-pvc", "1Gi", nil, nil)
+				srcPVCDef.Namespace = f.Namespace.Name
+				f.CreateAndPopulateSourcePVC(srcPVCDef, "fill-source", fmt.Sprintf("echo \"hello world\" > %s/data.txt", utils.DefaultPvcMountPath))
+
+				By("creating intermediate datasource")
+				intermediateDS := utils.NewPvcDataSource("intermediate-datasource", intermediateNamespace.Name, srcPVCDef.Name, srcPVCDef.Namespace)
+				intermediateDS, err = f.CdiClient.CdiV1beta1().DataSources(intermediateDS.Namespace).Create(context.TODO(), intermediateDS, metav1.CreateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("creating target datasource")
+				targetDS := utils.NewRefDataSource("target-datasource", targetNamespace.Name, intermediateDS.Name, intermediateDS.Namespace)
+				targetDS, err = f.CdiClient.CdiV1beta1().DataSources(targetDS.Namespace).Create(context.TODO(), targetDS, metav1.CreateOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("creating target datavolume")
+				targetDV := utils.NewDataVolumeWithSourceRef("target-dv", "1G", targetDS.Namespace, targetDS.Name)
+
+				client, err := f.GetCdiClientForServiceAccount(targetNamespace.Name, serviceAccountName)
+				Expect(err).ToNot(HaveOccurred())
+
+				// can't list dvs in source
+				_, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
+				Expect(err).To(HaveOccurred())
+
+				// can list dvs in dest
+				_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).List(context.TODO(), metav1.ListOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				// can't create clone of dv in source
+				_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).Create(context.TODO(), targetDV, metav1.CreateOptions{})
+				Expect(err).To(HaveOccurred())
+
+				// let's do manual check as well
+				response, err := targetDV.AuthorizeSA(targetNamespace.Name, targetDV.Name, proxy, targetNamespace.Name, serviceAccountName)
+				fmt.Fprintf(GinkgoWriter, "response: %+v", response)
+				Expect(response.Allowed).To(BeFalse())
+				Expect(response.Reason).ToNot(BeEmpty())
+				Expect(err).ToNot(HaveOccurred())
+
+				addPermissionToNamespace(f.K8sClient, role, targetNamespace.Name, saName, groupName, f.Namespace.Name)
+				if dataSourceRole != nil {
+					By("adding permissions on intermediate datasource")
+					addPermissionToNamespace(f.K8sClient, dataSourceRole, targetNamespace.Name, saName, groupName, intermediateNamespace.Name)
+				}
+
+				// now can list dvs in source
+				Eventually(func() error {
+					_, err = client.CdiV1beta1().DataVolumes(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
+					return err
+				}, 60*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
+
+				if dataSourceRole == nil {
+					// not sufficient
+					By("checking for insufficient permissions on intermediate datasource")
+					Consistently(func() error {
+						_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).Create(context.TODO(), targetDV, metav1.CreateOptions{})
+						return err
+					}, 10*time.Second, 2*time.Second).Should(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("insufficient permissions in intermediate datasource"))
+
+					return
+				}
+
+				By("checking sufficient permissions for pvc clone via intermediate datasource")
+				Eventually(func() error {
+					_, err = client.CdiV1beta1().DataVolumes(targetNamespace.Name).Create(context.TODO(), targetDV, metav1.CreateOptions{})
+					return err
+				}, 60*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
+
+				// let's do another manual check as well
+				response, err = targetDV.AuthorizeSA(targetNamespace.Name, targetDV.Name, proxy, targetNamespace.Name, serviceAccountName)
+				Expect(response.Allowed).To(BeTrue())
+				Expect(response.Reason).To(BeEmpty())
+				Expect(err).ToNot(HaveOccurred())
+			},
+				Entry("when using explicit CDI permissions", explicitRole, explicitRoleDataSource, serviceAccountName, ""),
+				Entry("when using explicit CDI permissions without permissions on intermediate datasource", explicitRole, nil, serviceAccountName, ""),
+			)
+		})
 	})
 })

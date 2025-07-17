@@ -72,6 +72,7 @@ func (dv *DataVolume) AuthorizeUser(requestNamespace, requestName string, proxy 
 	if sourceNamespace == "" {
 		sourceNamespace = targetNamespace
 	}
+	intermediateDSName, intermediateDSNamespace := cloneSourceHandler.IntermediateDSName, cloneSourceHandler.IntermediateDSNamespace
 
 	_, err = proxy.GetNamespace(sourceNamespace)
 	if err != nil {
@@ -83,7 +84,7 @@ func (dv *DataVolume) AuthorizeUser(requestNamespace, requestName string, proxy 
 		return CloneAuthResponse{Allowed: false, Reason: "", Handler: cloneSourceHandler}, err
 	}
 
-	ok, reason, err := cloneSourceHandler.UserCloneAuthFunc(proxy.CreateSar, sourceNamespace, sourceName, targetNamespace, userInfo)
+	ok, reason, err := cloneSourceHandler.UserCloneAuthFunc(proxy.CreateSar, sourceNamespace, sourceName, targetNamespace, intermediateDSName, intermediateDSNamespace, userInfo)
 	if err != nil {
 		return CloneAuthResponse{Allowed: false, Reason: reason, Handler: cloneSourceHandler}, err
 	}
@@ -135,6 +136,7 @@ func (dv *DataVolume) AuthorizeSA(requestNamespace, requestName string, proxy Au
 	if sourceNamespace == "" {
 		sourceNamespace = targetNamespace
 	}
+	intermediateDSName, intermediateDSNamespace := cloneSourceHandler.IntermediateDSName, cloneSourceHandler.IntermediateDSNamespace
 
 	_, err = proxy.GetNamespace(sourceNamespace)
 	if err != nil {
@@ -146,7 +148,7 @@ func (dv *DataVolume) AuthorizeSA(requestNamespace, requestName string, proxy Au
 		return CloneAuthResponse{Allowed: false, Reason: "", Handler: cloneSourceHandler}, err
 	}
 
-	ok, reason, err := cloneSourceHandler.SACloneAuthFunc(proxy.CreateSar, sourceNamespace, sourceName, saNamespace, saName)
+	ok, reason, err := cloneSourceHandler.SACloneAuthFunc(proxy.CreateSar, sourceNamespace, sourceName, saNamespace, saName, intermediateDSName, intermediateDSNamespace)
 	if err != nil {
 		return CloneAuthResponse{Allowed: false, Reason: reason, Handler: cloneSourceHandler}, err
 	}
