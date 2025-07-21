@@ -597,6 +597,7 @@ func makePopulatePodSpec(pvcPrimeName, secretName string) corev1.PodSpec {
 				Name:  populatorContainerName,
 				Ports: []corev1.ContainerPort{{Name: "metrics", ContainerPort: 8443}},
 				SecurityContext: &corev1.SecurityContext{
+					ReadOnlyRootFilesystem:   ptr.To(true),
 					AllowPrivilegeEscalation: ptr.To(false),
 					RunAsNonRoot:             ptr.To(true),
 					RunAsUser:                ptr.To[int64](107),

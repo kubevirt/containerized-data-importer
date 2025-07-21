@@ -1200,6 +1200,7 @@ func SetRestrictedSecurityContext(podSpec *corev1.PodSpec) {
 				Type: corev1.SeccompProfileTypeRuntimeDefault,
 			}
 			container.SecurityContext.AllowPrivilegeEscalation = ptr.To[bool](false)
+			container.SecurityContext.ReadOnlyRootFilesystem = ptr.To[bool](true)
 			container.SecurityContext.RunAsNonRoot = ptr.To[bool](true)
 			container.SecurityContext.RunAsUser = ptr.To[int64](common.QemuSubGid)
 			if len(container.VolumeMounts) > 0 {
