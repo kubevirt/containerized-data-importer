@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"net/http"
 	"reflect"
@@ -351,6 +350,9 @@ const (
 
 	// AnnCreatedForDataVolume stores the UID of the datavolume that the PVC was created for
 	AnnCreatedForDataVolume = AnnAPIGroup + "/createdForDataVolume"
+
+	// AnnPVCPrimeName annotation is the name of the PVC' that is used to populate the PV which is then rebound to the target PVC
+	AnnPVCPrimeName = AnnAPIGroup + "/storage.populator.pvcPrime"
 )
 
 // Size-detection pod error codes
@@ -1492,18 +1494,6 @@ func AddImmediateBindingAnnotationIfWFFCDisabled(obj metav1.Object, gates featur
 	return nil
 }
 
-// GetRequiredSpace calculates space required taking file system overhead into account
-func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
-	// the `image` has to be aligned correctly, so the space requested has to be aligned to
-	// next value that is a multiple of a block size
-	alignedSize := util.RoundUp(requestedSpace, util.DefaultAlignBlockSize)
-
-	// count overhead as a percentage of the whole/new size, including aligned image
-	// and the space required by filesystem metadata
-	spaceWithOverhead := int64(math.Ceil(float64(alignedSize) / (1 - filesystemOverhead)))
-	return spaceWithOverhead
-}
-
 // InflateSizeWithOverhead inflates a storage size with proper overhead calculations
 func InflateSizeWithOverhead(ctx context.Context, c client.Client, imgSize int64, pvcSpec *corev1.PersistentVolumeClaimSpec) (resource.Quantity, error) {
 	var returnSize resource.Quantity
@@ -1517,7 +1507,7 @@ func InflateSizeWithOverhead(ctx context.Context, c client.Client, imgSize int64
 		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
 
 		// Merge the previous values into a 'resource.Quantity' struct
-		requiredSpace := GetRequiredSpace(fsOverheadFloat, imgSize)
+		requiredSpace := util.GetRequiredSpace(fsOverheadFloat, imgSize)
 		returnSize = *resource.NewScaledQuantity(requiredSpace, 0)
 	} else {
 		// Inflation is not needed with 'Block' mode
@@ -2113,4 +2103,114 @@ func ResolveDataSourceChain(ctx context.Context, client client.Client, dataSourc
 	}
 
 	return resolved, nil
+}
+
+func sortEvents(events *corev1.EventList, usingPopulator bool, pvcPrimeName string) {
+	// Sort event lists by containing primeName substring and most recent timestamp
+	sort.Slice(events.Items, func(i, j int) bool {
+		if usingPopulator {
+			firstContainsPrime := strings.Contains(events.Items[i].Message, pvcPrimeName)
+			secondContainsPrime := strings.Contains(events.Items[j].Message, pvcPrimeName)
+
+			if firstContainsPrime && !secondContainsPrime {
+				return true
+			}
+			if !firstContainsPrime && secondContainsPrime {
+				return false
+			}
+		}
+
+		// if the timestamps are the same, prioritze longer messages to make sure our sorting is deterministic
+		if events.Items[i].LastTimestamp.Time.Equal(events.Items[j].LastTimestamp.Time) {
+			return len(events.Items[i].Message) > len(events.Items[j].Message)
+		}
+
+		// if both contains primeName substring or neither, just sort on timestamp
+		return events.Items[i].LastTimestamp.Time.After(events.Items[j].LastTimestamp.Time)
+	})
+}
+
+// UpdatePVCBoundContionFromEvents updates the bound condition annotations on the PVC based on recent events
+// This function can be used by both controller and populator packages to update PVC bound condition information
+func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client.Client, log logr.Logger) error {
+	currentPvcCopy := pvc.DeepCopy()
+
+	anno := pvc.GetAnnotations()
+	if anno == nil {
+		return nil
+	}
+
+	if IsBound(pvc) {
+		anno := pvc.GetAnnotations()
+		delete(anno, AnnBoundCondition)
+		delete(anno, AnnBoundConditionReason)
+		delete(anno, AnnBoundConditionMessage)
+
+		if !reflect.DeepEqual(currentPvcCopy, pvc) {
+			patch := client.MergeFrom(currentPvcCopy)
+			if err := c.Patch(context.TODO(), pvc, patch); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	if pvc.Status.Phase != corev1.ClaimPending {
+		return nil
+	}
+
+	// set bound condition by getting the latest event
+	events := &corev1.EventList{}
+
+	err := c.List(context.TODO(), events,
+		client.InNamespace(pvc.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": pvc.GetName(),
+			"involvedObject.uid": string(pvc.GetUID())},
+	)
+
+	if err != nil {
+		// Log the error but don't fail the reconciliation
+		log.Error(err, "Unable to list events for PVC bound condition update", "pvc", pvc.Name)
+		return nil
+	}
+
+	if len(events.Items) == 0 {
+		return nil
+	}
+
+	pvcPrime, usingPopulator := anno[AnnPVCPrimeName]
+
+	// Sort event lists by containing primeName substring and most recent timestamp
+	sortEvents(events, usingPopulator, pvcPrime)
+
+	boundMessage := ""
+	// check if prime name annotation exists
+	if usingPopulator {
+		// if we are using populators get the latest event from prime pvc
+		pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
+
+		// if the first event does not contain a prime message, none will so return
+		primeIdx := strings.Index(events.Items[0].Message, pvcPrime)
+		if primeIdx == -1 {
+			log.V(1).Info("No bound message found, skipping bound condition update", "pvc", pvc.Name)
+			return nil
+		}
+		boundMessage = events.Items[0].Message[primeIdx+len(pvcPrime):]
+	} else {
+		// if not using populators just get the latest event
+		boundMessage = events.Items[0].Message
+	}
+
+	// since we checked status of phase above, we know this is pending
+	anno[AnnBoundCondition] = "false"
+	anno[AnnBoundConditionReason] = "Pending"
+	anno[AnnBoundConditionMessage] = boundMessage
+
+	patch := client.MergeFrom(currentPvcCopy)
+	if err := c.Patch(context.TODO(), pvc, patch); err != nil {
+		return err
+	}
+
+	return nil
 }

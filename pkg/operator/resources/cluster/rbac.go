@@ -75,6 +75,18 @@ func getAdminPolicyRules() []rbacv1.PolicyRule {
 				"*",
 			},
 		},
+		{
+			APIGroups: []string{
+				"forklift.cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"ovirtvolumepopulators",
+				"openstackvolumepopulators",
+			},
+			Verbs: []string{
+				"*",
+			},
+		},
 	}
 }
 
@@ -100,6 +112,20 @@ func getViewPolicyRules() []rbacv1.PolicyRule {
 				"volumeimportsources",
 				"volumeuploadsources",
 				"volumeclonesources",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"forklift.cdi.kubevirt.io",
+			},
+			Resources: []string{
+				"ovirtvolumepopulators",
+				"openstackvolumepopulators",
 			},
 			Verbs: []string{
 				"get",

@@ -4,6 +4,7 @@ package storagecapabilities
 
 import (
 	"context"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -104,6 +105,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{rwx, file}, {rwo, file}},
 	"csi.trident.netapp.io/ontap-san": {{rwx, block}},
+	"csi.trident.netapp.io/gcnv-flex": {{rwx, file}, {rwo, file}},
 	// topolvm
 	"topolvm.cybozu.com": createTopoLVMCapabilities(),
 	"topolvm.io":         createTopoLVMCapabilities(),
@@ -132,6 +134,10 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"driver.longhorn.io/fs":         {{rwo, file}},
 	// Oracle cloud
 	"blockvolume.csi.oraclecloud.com": {{rwx, block}, {rwo, block}, {rwo, file}},
+	// Synology
+	"csi.san.synology.com/iscsi": {{rwx, block}, {rwo, block}, {rwo, file}},
+	"csi.san.synology.com/nfs":   {{rwx, file}, {rwo, file}},
+	"csi.san.synology.com/smb":   {{rwx, file}, {rwo, file}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
@@ -141,6 +147,7 @@ var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"openshift-storage.rbd.csi.ceph.com": cdiv1.DataImportCronSourceFormatSnapshot,
 	"csi.trident.netapp.io/ontap-nas":    cdiv1.DataImportCronSourceFormatSnapshot,
 	"csi.trident.netapp.io/ontap-san":    cdiv1.DataImportCronSourceFormatSnapshot,
+	"csi.trident.netapp.io/gcnv-flex":    cdiv1.DataImportCronSourceFormatSnapshot,
 	"pd.csi.storage.gke.io":              cdiv1.DataImportCronSourceFormatSnapshot,
 	"pd.csi.storage.gke.io/hyperdisk":    cdiv1.DataImportCronSourceFormatSnapshot,
 }
@@ -170,9 +177,13 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"infinibox-csi-driver/nfs":                 cdiv1.CloneStrategyCsiClone,
 	"csi.trident.netapp.io/ontap-nas":          cdiv1.CloneStrategySnapshot,
 	"csi.trident.netapp.io/ontap-san":          cdiv1.CloneStrategySnapshot,
+	"csi.trident.netapp.io/gcnv-flex":          cdiv1.CloneStrategySnapshot,
 	"kubesan.gitlab.io":                        cdiv1.CloneStrategyCsiClone,
 	"pd.csi.storage.gke.io":                    cdiv1.CloneStrategySnapshot,
 	"pd.csi.storage.gke.io/hyperdisk":          cdiv1.CloneStrategySnapshot,
+	"csi.san.synology.com/iscsi":               cdiv1.CloneStrategyCsiClone,
+	"csi.san.synology.com/nfs":                 cdiv1.CloneStrategyCsiClone,
+	"csi.san.synology.com/smb":                 cdiv1.CloneStrategyCsiClone,
 }
 
 // MinimumSupportedPVCSizeByProvisionerKey defines the minimum supported PVC size for a provisioner
@@ -182,6 +193,12 @@ var MinimumSupportedPVCSizeByProvisionerKey = map[string]string{
 	"ebs.csi.aws.com/io1": "4Gi",
 	"ebs.csi.aws.com/io2": "4Gi",
 	"ebs.csi.aws.com/gp":  "1Gi",
+	// https://github.com/SynologyOpenSource/synology-csi/blob/e2cc8de2fa555e26ad2377b564fac841e02100ba/pkg/driver/controllerserver.go#L55
+	"csi.san.synology.com/iscsi": "1Gi",
+	"csi.san.synology.com/nfs":   "1Gi",
+	"csi.san.synology.com/smb":   "1Gi",
+	// https://cloud.google.com/netapp/volumes/docs/discover/service-levels
+	"csi.trident.netapp.io/gcnv-flex": "1Gi",
 }
 
 const (
@@ -303,6 +320,11 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		if strings.HasPrefix(val, "ontap-san") {
 			return "csi.trident.netapp.io/ontap-san"
 		}
+		regExp := regexp.MustCompile(`\s*[;,]\s*`)
+		selector := regExp.Split(sc.Parameters["selector"], -1)
+		if val == "google-cloud-netapp-volumes" && slices.Contains(selector, "performance=flex") {
+			return "csi.trident.netapp.io/gcnv-flex"
+		}
 		return "UNKNOWN"
 	},
 	"infinibox-csi-driver": func(sc *storagev1.StorageClass) string {
@@ -403,6 +425,19 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 			return "pd.csi.storage.gke.io/hyperdisk"
 		default:
 			return "pd.csi.storage.gke.io"
+		}
+	},
+	"csi.san.synology.com": func(sc *storagev1.StorageClass) string {
+		// https://github.com/SynologyOpenSource/synology-csi/tree/e2cc8de2fa555e26ad2377b564fac841e02100ba/deploy/kubernetes/v1.20
+		switch sc.Parameters["protocol"] {
+		case "iscsi", "":
+			return "csi.san.synology.com/iscsi"
+		case "smb":
+			return "csi.san.synology.com/smb"
+		case "nfs", "nfs_treeq":
+			return "csi.san.synology.com/nfs"
+		default:
+			return "UNKNOWN"
 		}
 	},
 }

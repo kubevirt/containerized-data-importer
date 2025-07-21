@@ -187,7 +187,7 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, ovi
 	container.Ports = []corev1.ContainerPort{
 		{
 			Name:          "metrics",
-			ContainerPort: 8080,
+			ContainerPort: 8443,
 			Protocol:      "TCP",
 		},
 	}
@@ -386,7 +386,7 @@ func createPrometheusService() *corev1.Service {
 	service.Spec.Ports = []corev1.ServicePort{
 		{
 			Name: "metrics",
-			Port: 8080,
+			Port: 8443,
 			TargetPort: intstr.IntOrString{
 				Type:   intstr.String,
 				StrVal: "metrics",

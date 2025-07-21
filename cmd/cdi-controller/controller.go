@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rsa"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"os"
@@ -36,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	forklift "kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
@@ -198,6 +200,15 @@ func start() {
 		LeaderElectionResourceLock: "leases",
 		Cache:                      getCacheOptions(apiClient, namespace),
 		Scheme:                     scheme,
+		Metrics: server.Options{
+			BindAddress:   ":8443",
+			SecureServing: true,
+			// Disable HTTP/2 to prevent rapid reset vulnerability
+			// See CVE-2023-44487, CVE-2023-39325
+			TLSOpts: []func(*tls.Config){func(c *tls.Config) {
+				c.NextProtos = []string{"http/1.1"}
+			}},
+		},
 	}
 
 	mgr, err := manager.New(config.GetConfigOrDie(), opts)

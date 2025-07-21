@@ -22,6 +22,7 @@ go_library(
         "//vendor/sigs.k8s.io/controller-runtime/pkg/log/zap:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/manager:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/manager/signals:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/metrics/server:go_default_library",
     ],
 )
 

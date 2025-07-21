@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"os"
@@ -38,6 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/operator/controller"
@@ -96,6 +98,15 @@ func main() {
 		LeaderElectionNamespace:    namespace,
 		LeaderElectionID:           "cdi-operator-leader-election-helper",
 		LeaderElectionResourceLock: "leases",
+		Metrics: server.Options{
+			BindAddress:   ":8443",
+			SecureServing: true,
+			// Disable HTTP/2 to prevent rapid reset vulnerability
+			// See CVE-2023-44487, CVE-2023-39325
+			TLSOpts: []func(*tls.Config){func(c *tls.Config) {
+				c.NextProtos = []string{"http/1.1"}
+			}},
+		},
 	}
 
 	// Create a new Manager to provide shared dependencies and start components
