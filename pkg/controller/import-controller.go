@@ -974,12 +974,6 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 					Protocol:      corev1.ProtocolTCP,
 				},
 			},
-			VolumeMounts: []v1.VolumeMount{
-				{
-					Name:      "tmp",
-					MountPath: "/tmp",
-				},
-			},
 		},
 	}
 	if cc.GetVolumeMode(args.pvc) == corev1.PersistentVolumeBlock {
@@ -993,12 +987,6 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 			Image:           args.importImage,
 			ImagePullPolicy: corev1.PullPolicy(args.pullPolicy),
 			Command:         []string{"/shared/server", "-p", "8100", "-image-dir", "/disk", "-ready-file", "/shared/ready", "-done-file", "/shared/done"},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					MountPath: "/shared",
-					Name:      "shared-volume",
-				},
-			},
 		})
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
 			MountPath: "/shared",
@@ -1046,6 +1034,10 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 			containers[i].Resources = *args.podResourceRequirements
 		}
 	}
+	containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
+		MountPath: "/tmp",
+		Name:      "tmp",
+	})
 	return containers
 }
 
