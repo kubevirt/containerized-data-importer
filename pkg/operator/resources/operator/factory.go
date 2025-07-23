@@ -22,6 +22,7 @@ import (
 	csvv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
+	networkv1 "k8s.io/api/networking/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -113,4 +114,16 @@ func NewCdiCrd() *extv1.CustomResourceDefinition {
 // NewClusterServiceVersion - generates CSV for CDI
 func NewClusterServiceVersion(data *ClusterServiceVersionData) (*csvv1.ClusterServiceVersion, error) {
 	return createClusterServiceVersion(data)
+}
+
+// NewCdiNetworkPolicies - provides CDI NetworkPolicies
+func NewCdiNetworkPolicies(namespace, dnsNamespace, dnsLabelKey, dnsLabelValue, apiNamespace, apiLabelKey, apiLabelValue string) []*networkv1.NetworkPolicy {
+	return []*networkv1.NetworkPolicy{
+		newIngressToAPIServerNP(namespace, apiNamespace, apiLabelKey, apiLabelValue),
+		newIngressToDNSNP(namespace, dnsNamespace, dnsLabelKey, dnsLabelValue),
+		newIngressToMetricsNP(namespace),
+		newUploadProxyCommunicationsNP(namespace),
+		newIngressToCdiAPIWebhookNP(namespace),
+		newCdiDeploymentToImporterMetricsNP(namespace),
+	}
 }

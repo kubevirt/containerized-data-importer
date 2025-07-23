@@ -25,11 +25,14 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkv1 "k8s.io/api/networking/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -40,9 +43,15 @@ import (
 )
 
 const (
-	serviceAccountName = "cdi-operator"
-	roleName           = "cdi-operator"
-	clusterRoleName    = roleName + "-cluster"
+	serviceAccountName             = "cdi-operator"
+	roleName                       = "cdi-operator"
+	clusterRoleName                = roleName + "-cluster"
+	allowEgressToAPIServer         = "cdi-allow-egress-to-api-server"
+	allowEgressToDNS               = "cdi-allow-egress-to-dns"
+	allowIngressToMetrics          = "cdi-allow-ingress-to-metrics"
+	allowUploadProxyCommunications = "cdi-allow-uploadproxy-communications"
+	allowIngressToCdiAPIWebhook    = "cdi-allow-cdi-api-webhook-server"
+	allowEgressToImporterMetrics   = "cdi-allow-cdi-deployment-importer-metrics"
 )
 
 func getClusterPolicyRules() []rbacv1.PolicyRule {
@@ -678,4 +687,216 @@ _The CDI Operator does not support updates yet._
 			},
 		},
 	}, nil
+}
+
+func newNetworkPolicy(namespace, name string, spec *networkv1.NetworkPolicySpec) *networkv1.NetworkPolicy {
+	return &networkv1.NetworkPolicy{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "networking.k8s.io/v1",
+			Kind:       "NetworkPolicy",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: *spec,
+	}
+}
+
+func newIngressToAPIServerNP(namespace, apiNamespace, apiLabelKey, apiLabelValue string) *networkv1.NetworkPolicy {
+	return newNetworkPolicy(
+		namespace,
+		allowEgressToAPIServer,
+		&networkv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "cdi.kubevirt.io",
+						Operator: metav1.LabelSelectorOpExists,
+					},
+				},
+			},
+			PolicyTypes: []networkv1.PolicyType{networkv1.PolicyTypeEgress},
+			Egress: []networkv1.NetworkPolicyEgressRule{
+				{
+					To: []networkv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"kubernetes.io/metadata.name": apiNamespace},
+							},
+							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{apiLabelKey: apiLabelValue},
+							},
+						},
+					},
+					Ports: []networkv1.NetworkPolicyPort{
+						{
+							Protocol: ptr.To(corev1.ProtocolTCP),
+						},
+					},
+				},
+			},
+		},
+	)
+}
+
+func newIngressToDNSNP(namespace, dnsNamespace, dnsLabelKey, dnsLabelValue string) *networkv1.NetworkPolicy {
+	return newNetworkPolicy(
+		namespace,
+		allowEgressToDNS,
+		&networkv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "cdi.kubevirt.io",
+						Operator: metav1.LabelSelectorOpExists,
+					},
+				},
+			},
+			PolicyTypes: []networkv1.PolicyType{networkv1.PolicyTypeEgress},
+			Egress: []networkv1.NetworkPolicyEgressRule{
+				{
+					To: []networkv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"kubernetes.io/metadata.name": dnsNamespace},
+							},
+							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{dnsLabelKey: dnsLabelValue},
+							},
+						},
+					},
+					Ports: []networkv1.NetworkPolicyPort{
+						{
+							Protocol: ptr.To(corev1.ProtocolTCP),
+						},
+						{
+							Protocol: ptr.To(corev1.ProtocolUDP),
+						},
+					},
+				},
+			},
+		},
+	)
+}
+
+func newIngressToMetricsNP(namespace string) *networkv1.NetworkPolicy {
+	return newNetworkPolicy(
+		namespace,
+		allowIngressToMetrics,
+		&networkv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{"prometheus.cdi.kubevirt.io": "true"},
+			},
+			PolicyTypes: []networkv1.PolicyType{networkv1.PolicyTypeIngress},
+			Ingress: []networkv1.NetworkPolicyIngressRule{
+				{
+					Ports: []networkv1.NetworkPolicyPort{
+						{
+							Port:     ptr.To(intstr.FromInt32(8443)),
+							Protocol: ptr.To(corev1.ProtocolTCP),
+						},
+					},
+				},
+			},
+		},
+	)
+}
+
+func newUploadProxyCommunicationsNP(namespace string) *networkv1.NetworkPolicy {
+	return newNetworkPolicy(
+		namespace,
+		allowUploadProxyCommunications,
+		&networkv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{"cdi.kubevirt.io": "cdi-upload-proxy"},
+			},
+			PolicyTypes: []networkv1.PolicyType{
+				networkv1.PolicyTypeIngress,
+				networkv1.PolicyTypeEgress,
+			},
+			Egress: []networkv1.NetworkPolicyEgressRule{
+				{
+					To: []networkv1.NetworkPolicyPeer{
+						{
+							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"cdi.kubevirt.io": "cdi-upload-server"},
+							},
+							NamespaceSelector: &metav1.LabelSelector{},
+						},
+					},
+					Ports: []networkv1.NetworkPolicyPort{
+						{
+							Port:     ptr.To(intstr.FromInt32(8443)),
+							Protocol: ptr.To(corev1.ProtocolTCP),
+						},
+					},
+				},
+			},
+			Ingress: []networkv1.NetworkPolicyIngressRule{
+				{
+					Ports: []networkv1.NetworkPolicyPort{
+						{
+							Port:     ptr.To(intstr.FromInt32(8443)),
+							Protocol: ptr.To(corev1.ProtocolTCP),
+						},
+					},
+				},
+			},
+		},
+	)
+}
+
+func newIngressToCdiAPIWebhookNP(namespace string) *networkv1.NetworkPolicy {
+	return newNetworkPolicy(
+		namespace,
+		allowIngressToCdiAPIWebhook,
+		&networkv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{"cdi.kubevirt.io": "cdi-apiserver"},
+			},
+			PolicyTypes: []networkv1.PolicyType{networkv1.PolicyTypeIngress},
+			Ingress: []networkv1.NetworkPolicyIngressRule{
+				{
+					Ports: []networkv1.NetworkPolicyPort{
+						{
+							Port:     ptr.To(intstr.FromInt32(8443)),
+							Protocol: ptr.To(corev1.ProtocolTCP),
+						},
+					},
+				},
+			},
+		},
+	)
+}
+
+func newCdiDeploymentToImporterMetricsNP(namespace string) *networkv1.NetworkPolicy {
+	return newNetworkPolicy(
+		namespace,
+		allowEgressToImporterMetrics,
+		&networkv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{"cdi.kubevirt.io": "cdi-deployment"},
+			},
+			PolicyTypes: []networkv1.PolicyType{networkv1.PolicyTypeEgress},
+			Egress: []networkv1.NetworkPolicyEgressRule{
+				{
+					To: []networkv1.NetworkPolicyPeer{
+						{
+							PodSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{"prometheus.cdi.kubevirt.io": "true"},
+							},
+							NamespaceSelector: &metav1.LabelSelector{},
+						},
+					},
+					Ports: []networkv1.NetworkPolicyPort{
+						{
+							Port:     ptr.To(intstr.FromInt32(8443)),
+							Protocol: ptr.To(corev1.ProtocolTCP),
+						},
+					},
+				},
+			},
+		},
+	)
 }
