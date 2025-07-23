@@ -48,7 +48,7 @@ spec:
           add-ticket myticket.json && tail -n+1 -f /var/log/ovirt-imageio/daemon.log
       - name: fakeovirt
         # Docker file: https://github.com/machacekondra/fakeovirt
-        image: quay.io/kubevirt/fakeovirt:v1.38.0
+        image: {{ .ExternalImageFakeovirt }}
         imagePullPolicy: {{ .PullPolicy }}
         ports:
         - containerPort: 12346
