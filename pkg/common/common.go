@@ -213,7 +213,7 @@ const (
 	// FilesystemOverheadVar provides a constant to capture our env variable "FILESYSTEM_OVERHEAD"
 	FilesystemOverheadVar = "FILESYSTEM_OVERHEAD"
 	// DefaultGlobalOverhead is the amount of space reserved on Filesystem volumes by default
-	DefaultGlobalOverhead = "0.055"
+	DefaultGlobalOverhead = "0.06"
 
 	// ConfigName is the name of default CDI Config
 	ConfigName = "config"
