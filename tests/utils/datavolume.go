@@ -248,6 +248,24 @@ func NewSnapshotDataSource(dataSourceName, dataSourceNamespace, snapshotName, sn
 	}
 }
 
+// NewRefDataSource initializes a DataSource struct with datasource source
+func NewRefDataSource(dataSourceName, dataSourceNamespace, refDataSourceName, refDataSourceNamespace string) *cdiv1.DataSource {
+	return &cdiv1.DataSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dataSourceName,
+			Namespace: dataSourceNamespace,
+		},
+		Spec: cdiv1.DataSourceSpec{
+			Source: cdiv1.DataSourceSource{
+				DataSource: &cdiv1.DataSourceRefSourceDataSource{
+					Name:      refDataSourceName,
+					Namespace: refDataSourceNamespace,
+				},
+			},
+		},
+	}
+}
+
 // NewDataVolumeWithHTTPImport initializes a DataVolume struct with HTTP annotations
 func NewDataVolumeWithHTTPImport(dataVolumeName string, size string, httpURL string) *cdiv1.DataVolume {
 	claimSpec := &k8sv1.PersistentVolumeClaimSpec{
