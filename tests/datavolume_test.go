@@ -2535,8 +2535,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			testSc *storagev1.StorageClass
 			pvName string
 		)
-
-		testScName := "test-sc"
+		const (
+			testScName  = "test-sc"
+			blankDVName = "blank-source"
+		)
 
 		updatePV := func(updateFunc func(*v1.PersistentVolume)) {
 			Eventually(func() error {
@@ -2551,7 +2553,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		createPV := func(scName string) {
-			dv := utils.NewDataVolumeForBlankRawImage("blank-source", "106Mi")
+			dv := utils.NewDataVolumeForBlankRawImage(blankDVName, "106Mi")
 			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
@@ -2579,17 +2581,27 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			var err error
 			By(fmt.Sprintf("creating storage class %s", scName))
 			sc := utils.DefaultStorageClass.DeepCopy()
-			sc.Name = scName
-			sc.ResourceVersion = ""
 			sc.Annotations[controller.AnnDefaultStorageClass] = "false"
+			sc.ObjectMeta = metav1.ObjectMeta{
+				Name: scName,
+				Labels: map[string]string{
+					"cdi.kubevirt.io/testing": "",
+				},
+				ResourceVersion: "",
+				Annotations:     sc.Annotations,
+			}
 			testSc, err = f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 		}
 
 		AfterEach(func() {
 			if testSc != nil {
-				err := f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), testScName, metav1.DeleteOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				By(fmt.Sprintf("deleting storage class %s", testSc.Name))
+				err := f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), testSc.Name, metav1.DeleteOptions{})
+				Expect(err).To(Or(
+					Not(HaveOccurred()),
+					MatchError(k8serrors.IsNotFound, "k8serrors.IsNotFound"),
+				))
 				testSc = nil
 			}
 
@@ -2644,9 +2656,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Skip("Default storage class has no provisioner. The new storage class won't work")
 			}
 
-			By(fmt.Sprintf("verifying no storage class %s", testScName))
-			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
-			Expect(err).To(HaveOccurred())
+			var err error
+			if scName != "" {
+				By(fmt.Sprintf("verifying no storage class %s", scName))
+				_, err = f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
+				Expect(err).To(MatchError(k8serrors.IsNotFound, "k8serrors.IsNotFound"))
+			}
 
 			By(fmt.Sprintf("creating new datavolume %s with StorageClassName %s", dataVolumeName, scName))
 			dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
@@ -2702,9 +2717,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Skip("Default storage class has no provisioner. The new storage class won't work")
 			}
 
-			By(fmt.Sprintf("verifying no storage class %s", testScName))
-			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
-			Expect(err).To(HaveOccurred())
+			if scName != "" {
+				By(fmt.Sprintf("verifying no storage class %s", scName))
+				_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
+				Expect(err).To(MatchError(k8serrors.IsNotFound, "k8serrors.IsNotFound"))
+			}
 
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dvFunc(scName))
 			Expect(err).ToNot(HaveOccurred())
