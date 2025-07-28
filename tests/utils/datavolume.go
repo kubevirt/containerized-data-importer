@@ -600,7 +600,7 @@ func NewDataVolumeForImageCloning(dataVolumeName, size, namespace, pvcName strin
 					Name:      pvcName,
 				},
 			},
-			PVC: &k8sv1.PersistentVolumeClaimSpec{
+			Storage: &cdiv1.StorageSpec{
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.VolumeResourceRequirements{
 					Requests: k8sv1.ResourceList{
@@ -611,10 +611,10 @@ func NewDataVolumeForImageCloning(dataVolumeName, size, namespace, pvcName strin
 		},
 	}
 	if volumeMode != nil {
-		dv.Spec.PVC.VolumeMode = volumeMode
+		dv.Spec.Storage.VolumeMode = volumeMode
 	}
 	if storageClassName != nil {
-		dv.Spec.PVC.StorageClassName = storageClassName
+		dv.Spec.Storage.StorageClassName = storageClassName
 	}
 	return dv
 }
