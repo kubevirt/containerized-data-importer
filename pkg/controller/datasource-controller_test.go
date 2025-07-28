@@ -243,6 +243,16 @@ var _ = Describe("All DataSource Tests", func() {
 				Expect(dsPointer.Spec.Source.DataSource.Name).To(Equal(dsPointer.Name))
 				Expect(dsPointer.Status.Source.DataSource).To(BeNil())
 			})
+			It("DataSource pointer should fail to resolve cross-namespace DataSource", func() {
+				dsPointer := createDataSource(dsName + "-pointer")
+				dsPointer.Spec.Source = cdiv1.DataSourceSource{DataSource: &cdiv1.DataSourceRefSourceDataSource{Namespace: "differentNamespace", Name: dsPointer.Name}}
+				reconciler := createDataSourceReconciler(dsPointer)
+				dsPointerKey := types.NamespacedName{Name: dsPointer.Name, Namespace: metav1.NamespaceDefault}
+				verifyConditions("DataSource cross-namespace reference", false, crossNamespaceReference, dsPointer, reconciler)
+				Expect(reconciler.client.Get(context.TODO(), dsPointerKey, dsPointer)).To(Succeed())
+				Expect(dsPointer.Spec.Source.DataSource.Name).To(Equal(dsPointer.Name))
+				Expect(dsPointer.Status.Source.DataSource).To(BeNil())
+			})
 		})
 
 	})

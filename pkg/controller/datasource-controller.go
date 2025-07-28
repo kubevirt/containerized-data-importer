@@ -60,6 +60,7 @@ const (
 	dataSourceControllerName = "datasource-controller"
 	maxReferenceDepthReached = "MaxReferenceDepthReached"
 	selfReference            = "SelfReference"
+	crossNamespaceReference  = "CrossNamespaceReference"
 )
 
 // Reconcile loop for DataSourceReconciler
@@ -181,6 +182,8 @@ func handleDataSourceRefError(dataSource *cdiv1.DataSource, err error) error {
 		reason = maxReferenceDepthReached
 	case errors.Is(err, cc.ErrDataSourceSelfReference):
 		reason = selfReference
+	case errors.Is(err, cc.ErrDataSourceCrossNamespace):
+		reason = crossNamespaceReference
 	case k8serrors.IsNotFound(err):
 		reason = cc.NotFound
 	default:
