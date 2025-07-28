@@ -1099,6 +1099,42 @@ func AddImportVolumeMounts() []corev1.VolumeMount {
 	return volumeMounts
 }
 
+// GetEffectiveStorageResources returns the maximum of the passed storageResources and the storageProfile minimumSupportedPVCSize.
+// If the passed storageResources has no size, it is returned as-is.
+func GetEffectiveStorageResources(ctx context.Context, client client.Client, storageResources corev1.VolumeResourceRequirements,
+	storageClassName *string, contentType cdiv1.DataVolumeContentType, log logr.Logger) (corev1.VolumeResourceRequirements, error) {
+	sc, err := GetStorageClassByNameWithVirtFallback(ctx, client, storageClassName, contentType)
+	if err != nil || sc == nil {
+		return storageResources, err
+	}
+
+	storageProfile := &cdiv1.StorageProfile{}
+	if err := client.Get(ctx, types.NamespacedName{Name: sc.Name}, storageProfile); err != nil {
+		return storageResources, IgnoreNotFound(err)
+	}
+
+	requestedSize, hasSize := storageResources.Requests[corev1.ResourceStorage]
+	if !hasSize {
+		return storageResources, nil
+	}
+
+	if val, exists := storageProfile.Annotations[AnnMinimumSupportedPVCSize]; exists {
+		if minSize, err := resource.ParseQuantity(val); err == nil {
+			if requestedSize.Cmp(minSize) == -1 {
+				return corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: requestedSize,
+					},
+				}, nil
+			}
+		} else {
+			log.V(1).Info("Invalid minimum PVC size in annotation", "value", val, "error", err)
+		}
+	}
+
+	return storageResources, nil
+}
+
 // ValidateRequestedCloneSize validates the clone size requirements on block
 func ValidateRequestedCloneSize(sourceResources, targetResources corev1.VolumeResourceRequirements) error {
 	sourceRequest, hasSource := sourceResources.Requests[corev1.ResourceStorage]
