@@ -396,6 +396,7 @@ var (
 
 	ErrDataSourceMaxDepthReached = errors.New("DataSource reference chain exceeds maximum depth of 1")
 	ErrDataSourceSelfReference   = errors.New("DataSource cannot self-reference")
+	ErrDataSourceCrossNamespace  = errors.New("DataSource cannot reference a DataSource in another namespace")
 )
 
 // FakeValidator is a fake token validator
@@ -2090,9 +2091,13 @@ func ResolveDataSourceChain(ctx context.Context, client client.Client, dataSourc
 
 	ref := dataSource.Spec.Source.DataSource
 	refNs := GetNamespace(ref.Namespace, dataSource.Namespace)
+	if dataSource.Namespace != refNs {
+		return dataSource, ErrDataSourceCrossNamespace
+	}
 	if ref.Name == dataSource.Name && refNs == dataSource.Namespace {
 		return nil, ErrDataSourceSelfReference
 	}
+
 	resolved := &cdiv1.DataSource{}
 	if err := client.Get(ctx, types.NamespacedName{Name: ref.Name, Namespace: refNs}, resolved); err != nil {
 		return nil, err
