@@ -461,7 +461,13 @@ func (p *Planner) validateSourcePVC(args *ChooseStrategyArgs, sourceClaim *corev
 		return nil
 	}
 
-	if err := cc.ValidateRequestedCloneSize(sourceClaim.Spec.Resources, args.TargetClaim.Spec.Resources); err != nil {
+	targetResources, err := cc.GetEffectiveStorageResources(context.TODO(), p.Client, args.TargetClaim.Spec.Resources,
+		args.TargetClaim.Spec.StorageClassName, cc.GetPVCContentType(args.TargetClaim), args.Log)
+	if err != nil {
+		return err
+	}
+
+	if err := cc.ValidateRequestedCloneSize(sourceClaim.Spec.Resources, *targetResources); err != nil {
 		p.Recorder.Eventf(args.TargetClaim, corev1.EventTypeWarning, cc.ErrIncompatiblePVC, err.Error())
 		return err
 	}

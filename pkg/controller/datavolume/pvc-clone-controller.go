@@ -445,7 +445,7 @@ func (r *PvcCloneReconciler) validateCloneAndSourcePVC(syncState *dvSyncState, l
 		return false, err
 	}
 
-	err = validateClone(sourcePvc, &datavolume.Spec)
+	err = r.validateClone(sourcePvc, &datavolume.Spec)
 	if err != nil {
 		syncErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, datavolume.Status.Phase, nil,
 			Event{
@@ -463,7 +463,7 @@ func (r *PvcCloneReconciler) validateCloneAndSourcePVC(syncState *dvSyncState, l
 }
 
 // validateClone compares a clone spec against its source PVC to validate its creation
-func validateClone(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) error {
+func (r *PvcCloneReconciler) validateClone(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) error {
 	var targetResources corev1.VolumeResourceRequirements
 
 	valid, sourceContentType, targetContentType := validateContentTypes(sourcePVC, spec)
@@ -477,12 +477,17 @@ func validateClone(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolu
 	if explicitPvcRequest {
 		targetResources = spec.PVC.Resources
 	} else {
-		targetResources = spec.Storage.Resources
 		// The storage size in the target DV can be empty
 		// when cloning using the 'Storage' API
-		if _, ok := targetResources.Requests[corev1.ResourceStorage]; !ok {
+		if _, ok := spec.Storage.Resources.Requests[corev1.ResourceStorage]; !ok {
 			isSizelessClone = true
 		}
+
+		res, err := cc.GetEffectiveStorageResources(context.TODO(), r.client, spec.Storage.Resources, spec.Storage.StorageClassName, spec.ContentType, r.log)
+		if err != nil {
+			return err
+		}
+		targetResources = *res
 	}
 
 	// TODO: Spec.Storage API needs a better more complex check to validate clone size - to account for fsOverhead

@@ -340,7 +340,7 @@ func (r *SnapshotCloneReconciler) validateCloneAndSourceSnapshot(syncState *dvSy
 	}
 	syncState.snapshot = snapshot
 
-	err = validateSnapshotClone(snapshot, &datavolume.Spec)
+	err = r.validateSnapshotClone(snapshot, &datavolume.Spec)
 	if err != nil {
 		syncEventErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, datavolume.Status.Phase, nil,
 			Event{
@@ -358,7 +358,7 @@ func (r *SnapshotCloneReconciler) validateCloneAndSourceSnapshot(syncState *dvSy
 }
 
 // validateSnapshotClone compares a snapshot clone spec against its source snapshot to validate its creation
-func validateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv1.DataVolumeSpec) error {
+func (r *SnapshotCloneReconciler) validateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv1.DataVolumeSpec) error {
 	err := cc.IsSnapshotValidForClone(sourceSnapshot)
 	if err != nil {
 		return err
@@ -380,10 +380,14 @@ func validateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv
 	if explicitPvcRequest {
 		targetResources = spec.PVC.Resources
 	} else {
-		targetResources = spec.Storage.Resources
-		if _, ok := targetResources.Requests["storage"]; !ok {
+		if _, ok := spec.Storage.Resources.Requests[corev1.ResourceStorage]; !ok {
 			isSizelessClone = true
 		}
+		res, err := cc.GetEffectiveStorageResources(context.TODO(), r.client, spec.Storage.Resources, spec.Storage.StorageClassName, spec.ContentType, r.log)
+		if err != nil {
+			return err
+		}
+		targetResources = *res
 	}
 
 	if !isSizelessClone && restoreSizeAvailable {

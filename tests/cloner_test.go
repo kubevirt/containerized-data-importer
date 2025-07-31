@@ -2215,6 +2215,41 @@ var _ = Describe("all clone tests", func() {
 
 		})
 
+		DescribeTable("Clone target datavolume smaller than the source, using storgeProfile with minPvcSize annotation", func(minSize string, shouldSucceed bool) {
+			By(fmt.Sprintf("Create source PVC %s", sourcePVCName))
+			ns := f.Namespace.Name
+			sc := createStorageWithMinimumSupportedPVCSize(f, minSize)
+			pvcDef := utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
+			pvcDef.Namespace = ns
+			pvcDef.Spec.StorageClassName = &sc
+			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
+
+			targetDvName := "small-target-dv"
+			By(fmt.Sprintf("Create small target DV %s", targetDvName))
+
+			targetDV := utils.NewCloningDataVolume(targetDvName, "512Mi", pvcDef)
+			targetDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, targetDV)
+			Expect(err).ToNot(HaveOccurred())
+
+			if !shouldSucceed {
+				By("The clone should fail")
+				f.ExpectEvent(ns).Should(ContainSubstring(dvc.CloneValidationFailed))
+				return
+			}
+
+			targetPvc, err = utils.WaitForPVC(f.K8sClient, targetDV.Namespace, targetDV.Name)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(targetPvc)
+
+			By("Wait for target DV succeeded")
+			err = utils.WaitForDataVolumePhase(f, ns, cdiv1.Succeeded, targetPvc.Name)
+			Expect(err).ToNot(HaveOccurred())
+		},
+			Entry("[test_id:XXXX] large enough", "1Gi", true),
+			Entry("[test_id:XXXX] too small", "256Mi", false),
+			Entry("[test_id:XXXX] empty", "", false),
+		)
+
 		It("[test_id:4276] Clone datavolume with short name", Serial, func() {
 			shortDvName := "import-long-name-dv"
 
@@ -3057,4 +3092,22 @@ func validateCloneType(f *framework.Framework, dv *cdiv1.DataVolume) {
 	}
 
 	Expect(utils.GetCloneType(f.CdiClient, dv)).To(Equal(cloneType))
+}
+
+func createStorageWithMinimumSupportedPVCSize(f *framework.Framework, minSize string) string {
+	sc, err := f.CreateNonDefaultVariationOfStorageClass(utils.DefaultStorageClass,
+		func(sc *storagev1.StorageClass) { sc.UID = "" })
+	Expect(err).ToNot(HaveOccurred())
+
+	var sp *cdiv1.StorageProfile
+	Eventually(func() error {
+		sp, err = f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), sc.Name, metav1.GetOptions{})
+		return err
+	}, time.Minute, time.Second).Should(Succeed())
+
+	sp.Annotations = map[string]string{controller.AnnMinimumSupportedPVCSize: minSize}
+	_, err = f.CdiClient.CdiV1beta1().StorageProfiles().Update(context.TODO(), sp, metav1.UpdateOptions{})
+	Expect(err).ToNot(HaveOccurred())
+
+	return sc.Name
 }
