@@ -853,7 +853,7 @@ var _ = Describe("Create Importer Pod", func() {
 			imageSize:          "1G",
 			certConfigMap:      "",
 			diskID:             "",
-			filesystemOverhead: "0.055",
+			filesystemOverhead: "0.06",
 			insecureTLS:        false,
 		}
 		podArgs := &importerPodArgs{
@@ -1012,7 +1012,7 @@ var _ = Describe("Import test env", func() {
 			doneFile:                  "",
 			backingFile:               "",
 			thumbprint:                "",
-			filesystemOverhead:        "0.055",
+			filesystemOverhead:        "0.06",
 			insecureTLS:               false,
 			currentCheckpoint:         "",
 			previousCheckpoint:        "",
