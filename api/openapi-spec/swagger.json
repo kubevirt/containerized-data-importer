@@ -3955,7 +3955,7 @@
       }
      },
      "filesystemOverhead": {
-      "description": "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)",
+      "description": "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.06 (6% overhead)",
       "$ref": "#/definitions/v1beta1.FilesystemOverhead"
      },
      "imagePullSecrets": {
