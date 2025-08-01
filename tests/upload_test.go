@@ -1387,12 +1387,10 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	})
 
 	It("Upload an image exactly the same size as DV request (bz#2064936)", func() {
-		// This image size and filesystem overhead combination was experimentally determined
-		// to reproduce bz#2064936 in CI when using ceph/rbd with a Filesystem mode PV since
-		// the filesystem capacity will be constrained by the PVC request size.
-		size := "858993459"
-		fsOverhead := "0.055" // The default value
-		tests.SetFilesystemOverhead(f, fsOverhead, fsOverhead)
+		// Using a large image to avoid a known issue where the default overhead inflation
+		// is insufficient to account for the fs overhead in small images.
+		// This issue is not seen with larger images where the overhead is sufficient.
+		size := "2147483648"
 
 		volumeMode := v1.PersistentVolumeFilesystem
 		accessModes := []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
@@ -1427,7 +1425,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 		By("Do upload")
 		Eventually(func() error {
-			return uploadFileNameToPath(binaryRequestFunc, utils.FsOverheadFile, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+			return uploadFileNameToPath(binaryRequestFunc, utils.UploadFileLargeVirtualDiskQcow, uploadProxyURL, syncUploadPath, token, http.StatusOK)
 		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		phase = cdiv1.Succeeded
