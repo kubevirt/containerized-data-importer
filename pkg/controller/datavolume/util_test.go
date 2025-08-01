@@ -23,6 +23,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 var _ = Describe("renderPvcSpecVolumeSize", func() {
@@ -104,7 +105,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
-		requiredSpace := GetRequiredSpace(fsOverheadFloat, volumeSize.Value())
+		requiredSpace := util.GetRequiredSpace(fsOverheadFloat, volumeSize.Value())
 		expectedResult := resource.NewScaledQuantity(requiredSpace, 0)
 
 		Expect(requestedVolumeSize.Value()).To(BeNumerically(">", volumeSize.Value()))
