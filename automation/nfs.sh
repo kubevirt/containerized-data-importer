@@ -18,7 +18,7 @@
 #
 
 set -ex
-export TARGET=k8s-1.32
+export TARGET=k8s-1.33
 export KUBEVIRT_DEPLOY_NFS_CSI=true
 export KUBEVIRT_STORAGE=nfs
 export KUBEVIRT_NFS_DIR=${KUBEVIRT_NFS_DIR:-/var/lib/containers/nfs-data}
