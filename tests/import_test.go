@@ -1955,7 +1955,7 @@ var _ = Describe("Import populator", func() {
 
 		By("Update DataVolume checkpoints")
 		Eventually(func() bool {
-			dataVolume, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			dataVolume.Spec.Checkpoints = []cdiv1.DataVolumeCheckpoint{
 				{Current: "test", Previous: "foo"},
