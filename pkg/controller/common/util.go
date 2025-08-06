@@ -1108,31 +1108,40 @@ func GetEffectiveStorageResources(ctx context.Context, client client.Client, sto
 		return storageResources, err
 	}
 
-	storageProfile := &cdiv1.StorageProfile{}
-	if err := client.Get(ctx, types.NamespacedName{Name: sc.Name}, storageProfile); err != nil {
-		return storageResources, IgnoreNotFound(err)
-	}
-
 	requestedSize, hasSize := storageResources.Requests[corev1.ResourceStorage]
 	if !hasSize {
 		return storageResources, nil
 	}
 
+	if requestedSize, err = GetEffectiveVolumeSize(ctx, client, requestedSize, sc.Name, log); err != nil {
+		return storageResources, err
+	}
+
+	return corev1.VolumeResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceStorage: requestedSize,
+		},
+	}, nil
+}
+
+// GetEffectiveVolumeSize returns the maximum of the passed requestedSize and the storageProfile minimumSupportedPVCSize.
+func GetEffectiveVolumeSize(ctx context.Context, client client.Client, requestedSize resource.Quantity, storageClassName string, log logr.Logger) (resource.Quantity, error) {
+	storageProfile := &cdiv1.StorageProfile{}
+	if err := client.Get(ctx, types.NamespacedName{Name: storageClassName}, storageProfile); err != nil {
+		return requestedSize, IgnoreNotFound(err)
+	}
+
 	if val, exists := storageProfile.Annotations[AnnMinimumSupportedPVCSize]; exists {
 		if minSize, err := resource.ParseQuantity(val); err == nil {
 			if requestedSize.Cmp(minSize) == -1 {
-				return corev1.VolumeResourceRequirements{
-					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: requestedSize,
-					},
-				}, nil
+				return minSize, nil
 			}
 		} else {
 			log.V(1).Info("Invalid minimum PVC size in annotation", "value", val, "error", err)
 		}
 	}
 
-	return storageResources, nil
+	return requestedSize, nil
 }
 
 // ValidateRequestedCloneSize validates the clone size requirements on block

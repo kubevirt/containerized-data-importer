@@ -2217,33 +2217,38 @@ var _ = Describe("all clone tests", func() {
 
 		DescribeTable("Clone target datavolume smaller than the source, using storgeProfile with minPvcSize annotation", func(minSize string, shouldSucceed bool) {
 			By(fmt.Sprintf("Create source PVC %s", sourcePVCName))
-			ns := f.Namespace.Name
 			sc := createStorageWithMinimumSupportedPVCSize(f, minSize)
 
-			sourcePvc = utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
-			sourcePvc.Namespace = ns
-			sourcePvc.Spec.StorageClassName = &sc
-			sourcePvc = f.CreateAndPopulateSourcePVC(sourcePvc, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
+			if f.IsBlockVolumeStorageClassAvailable() {
+				sourcePvc = utils.NewBlockPVCDefinition(sourcePVCName, "1Gi", nil, nil, sc)
+				sourcePvc.Namespace = f.Namespace.Name
+				sourcePvc = f.CreateAndPopulateSourcePVC(sourcePvc, "fill-source-block-pod", blockFillCommand)
+			} else {
+				sourcePvc = utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
+				sourcePvc.Namespace = f.Namespace.Name
+				sourcePvc.Spec.StorageClassName = &sc
+				sourcePvc = f.CreateAndPopulateSourcePVC(sourcePvc, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
+			}
 
 			targetDvName := "small-target-dv"
 			By(fmt.Sprintf("Create small target DV %s", targetDvName))
 
 			targetDV := utils.NewDataVolumeForImageCloningAndStorageSpec(targetDvName, "512Mi", sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
-			targetDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, ns, targetDV)
+			targetDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, sourcePvc.Namespace, targetDV)
 			Expect(err).ToNot(HaveOccurred())
+
+			if !shouldSucceed {
+				By("The clone should fail")
+				f.ExpectEvent(targetDV.Namespace).Should(ContainSubstring(dvc.CloneValidationFailed))
+				return
+			}
 
 			targetPvc, err = utils.WaitForPVC(f.K8sClient, targetDV.Namespace, targetDV.Name)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(targetPvc)
 
-			if !shouldSucceed {
-				By("The clone should fail")
-				f.ExpectEvent(ns).Should(ContainSubstring(controller.ErrIncompatiblePVC))
-				return
-			}
-
 			By("Wait for target DV succeeded")
-			err = utils.WaitForDataVolumePhase(f, ns, cdiv1.Succeeded, targetPvc.Name)
+			err = utils.WaitForDataVolumePhase(f, targetDV.Namespace, cdiv1.Succeeded, targetDV.Name)
 			Expect(err).ToNot(HaveOccurred())
 		},
 			Entry("[test_id:XXXX] large enough", "1Gi", true),
