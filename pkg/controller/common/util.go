@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"net/http"
 	"reflect"
@@ -1481,18 +1480,6 @@ func AddImmediateBindingAnnotationIfWFFCDisabled(obj metav1.Object, gates featur
 	return nil
 }
 
-// GetRequiredSpace calculates space required taking file system overhead into account
-func GetRequiredSpace(filesystemOverhead float64, requestedSpace int64) int64 {
-	// the `image` has to be aligned correctly, so the space requested has to be aligned to
-	// next value that is a multiple of a block size
-	alignedSize := util.RoundUp(requestedSpace, util.DefaultAlignBlockSize)
-
-	// count overhead as a percentage of the whole/new size, including aligned image
-	// and the space required by filesystem metadata
-	spaceWithOverhead := int64(math.Ceil(float64(alignedSize) / (1 - filesystemOverhead)))
-	return spaceWithOverhead
-}
-
 // InflateSizeWithOverhead inflates a storage size with proper overhead calculations
 func InflateSizeWithOverhead(ctx context.Context, c client.Client, imgSize int64, pvcSpec *corev1.PersistentVolumeClaimSpec) (resource.Quantity, error) {
 	var returnSize resource.Quantity
@@ -1506,7 +1493,7 @@ func InflateSizeWithOverhead(ctx context.Context, c client.Client, imgSize int64
 		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
 
 		// Merge the previous values into a 'resource.Quantity' struct
-		requiredSpace := GetRequiredSpace(fsOverheadFloat, imgSize)
+		requiredSpace := util.GetRequiredSpace(fsOverheadFloat, imgSize)
 		returnSize = *resource.NewScaledQuantity(requiredSpace, 0)
 	} else {
 		// Inflation is not needed with 'Block' mode
