@@ -340,7 +340,7 @@ func (r *SnapshotCloneReconciler) validateCloneAndSourceSnapshot(syncState *dvSy
 	}
 	syncState.snapshot = snapshot
 
-	err = validateSnapshotClone(snapshot, &datavolume.Spec)
+	err = r.validateSnapshotClone(snapshot, syncState)
 	if err != nil {
 		syncEventErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, datavolume.Status.Phase, nil,
 			Event{
@@ -358,13 +358,14 @@ func (r *SnapshotCloneReconciler) validateCloneAndSourceSnapshot(syncState *dvSy
 }
 
 // validateSnapshotClone compares a snapshot clone spec against its source snapshot to validate its creation
-func validateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv1.DataVolumeSpec) error {
+func (r *SnapshotCloneReconciler) validateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, syncState *dvSyncState) error {
+	spec := &syncState.dvMutated.Spec
 	err := cc.IsSnapshotValidForClone(sourceSnapshot)
 	if err != nil {
 		return err
 	}
 
-	var sourceResources, targetResources corev1.VolumeResourceRequirements
+	var sourceResources corev1.VolumeResourceRequirements
 	size := sourceSnapshot.Status.RestoreSize
 	if size == nil || size.Sign() < 0 {
 		return fmt.Errorf("snapshot has no restore size")
@@ -375,23 +376,17 @@ func validateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv
 		sourceResources.Requests = corev1.ResourceList{corev1.ResourceStorage: *size}
 	}
 
-	isSizelessClone := false
-	explicitPvcRequest := spec.PVC != nil
-	if explicitPvcRequest {
-		targetResources = spec.PVC.Resources
-	} else {
-		targetResources = spec.Storage.Resources
-		if _, ok := targetResources.Requests["storage"]; !ok {
-			isSizelessClone = true
-		}
+	isTargetStorageWithSize := false
+	if spec.Storage != nil {
+		_, isTargetStorageWithSize = spec.Storage.Resources.Requests[corev1.ResourceStorage]
 	}
 
-	if !isSizelessClone && restoreSizeAvailable {
+	if isTargetStorageWithSize && restoreSizeAvailable {
 		// Sizes available, make sure user picked something bigger than minimal
-		if err := cc.ValidateRequestedCloneSize(sourceResources, targetResources); err != nil {
+		if err := cc.ValidateRequestedCloneSize(sourceResources, syncState.pvcSpec.Resources); err != nil {
 			return err
 		}
-	} else if isSizelessClone && !restoreSizeAvailable {
+	} else if !isTargetStorageWithSize && !restoreSizeAvailable {
 		return fmt.Errorf("size not specified by user/provisioner, can't tell how much needed for restore")
 	}
 
