@@ -164,7 +164,6 @@ type DataSourceRefSourceDataSource struct {
 	Namespace string `json:"namespace"`
 	// The name of the source DataSource
 	Name string `json:"name"`
-
 }
 
 // DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC
@@ -429,6 +428,7 @@ const DataVolumeCloneSourceSubresource = "source"
 // +kubebuilder:object:root=true
 // +kubebuilder:storageversion
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:subresource:status
 type StorageProfile struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -517,7 +517,7 @@ type DataSourceSource struct {
 	// +optional
 	Snapshot *DataVolumeSourceSnapshot `json:"snapshot,omitempty"`
 	// +optional
-	DataSource *DataSourceRefSourceDataSource `json:"dataSource,omitempty"` 
+	DataSource *DataSourceRefSourceDataSource `json:"dataSource,omitempty"`
 }
 
 // DataSourceStatus provides the most recently observed status of the DataSource
