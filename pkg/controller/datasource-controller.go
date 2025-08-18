@@ -392,6 +392,9 @@ func sameSourceSpec(objOld, objNew client.Object) bool {
 	if dsOld.Spec.Source.Snapshot != nil {
 		return reflect.DeepEqual(dsOld.Spec.Source.Snapshot, dsNew.Spec.Source.Snapshot)
 	}
+	if dsOld.Spec.Source.DataSource != nil {
+		return reflect.DeepEqual(dsOld.Spec.Source.DataSource, dsNew.Spec.Source.DataSource)
+	}
 
 	return false
 }
