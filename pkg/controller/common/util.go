@@ -389,7 +389,7 @@ var (
 		AnnPodMultusDefaultNetwork:    "",
 	}
 
-	validLabelsMatch = regexp.MustCompile(`^([\w.]+\.kubevirt.io|kubevirt.io)/[\w-]+$`)
+	validLabelsMatch = regexp.MustCompile(`^([\w.]+\.kubevirt.io|kubevirt.io)/[\w.-]+$`)
 
 	ErrDataSourceMaxDepthReached = errors.New("DataSource reference chain exceeds maximum depth of 1")
 	ErrDataSourceSelfReference   = errors.New("DataSource cannot self-reference")
