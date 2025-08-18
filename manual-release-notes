@@ -2,4 +2,36 @@ v1.63.0-alpha.0
 release candidate 0
 
 v1.63.0
---to be filled--
+Enhancement: Reduce memory usage for multi-stage VDDK imports when the source snapshot has many changes
+Enhancement: VDDK: add CRD field for extra configuration arguments
+BugFix: Add clone source watches in clone populator
+BugFix: decrease timeout trying to derive progress from a completed pod to avoid delaying progress updates
+BugFix: selected-node annotation prevents non topology constrained temp restores from binding
+BugFix: Fix Longhorn Filesystem capabilities
+BugFix: cdi-deployment Deployment selector changed to "cdi.kubevirt.io":"cdi-deployment"
+Enhancement: Allow increasing PVC size to the minimum supported by its storage class
+BugFix: CDI pods rejected when mutated with CSI inline volume due to it's SCC not allowing consensus volume plugins
+BugFix: Fix StorageProfile PVC rendering when there is no AccessMode or VolumeMode match
+BugFix: Remove RWX for filesystem PVC capability from default profile of IBM Block Storage CSI driver
+Enhancement: Termination message now gets reported correctly for CDI infra Pods.
+Enhancement: Labels on DataVolumes are now copied to the importer pod
+Enhancement: Enable WebhookPvcRendering feature gate by default
+Enhancement: Conditionally add ReadWriteMany Block to Portworx capabilities
+Enhancement: Annotate StorageProfiles with provisioner minimum supported PVC size
+BugFix: Event hotloop over SCC volume order changes
+BugFix: IBM Block Storage CSI driver storageprofile will use 'csi-clone' as the default cloneStrategy
+BugFix: Exclude scratch pvcs from velero backup
+Enhancement: Introduce support for architecture specific image import with registry datasource
+Enhancement: Allow DataSources to reference the source of another DataSource using new Source.DataSource option
+BugFix: Wrong clone strategy for upstream cephfs
+Bugfix: Fix math in overhead size calculations:
+- When using the storage API, PVC disk size is now correctly inflated to account for filesystem overhead.
+- When using the PVC API, usable disk space is now calculated more accurately with "allocatedSize / (1 + overhead)".
+    This may result in changes in usable size compared to the previous behavior.
+Enhancement: Increase default filesystem overhead to 6%
+Enhancement: Defined storagecapabilities for the synology-csi driver, fully populating the storageprofile for related synology storage classes
+Enhancement: Add Google Cloud NetApp Volumes Flex storage capabilities
+BugFix: Add missing RBAC for ovirt and openstack volume populator CRDs
+Enhancement: Support DataImportCron update polling for DataVolume node pullMethod
+Enhancement: Metrics port for cdi-prometheus-metrics service changed from 8080 to 8443.
+Enhancement: DataImportCrons now propagate kubevirt-specific labels to their managed DataSource
