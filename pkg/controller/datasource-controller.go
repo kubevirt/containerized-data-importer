@@ -237,20 +237,9 @@ func NewDataSourceController(mgr manager.Manager, log logr.Logger, installerLabe
 }
 
 func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
-	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{}, &handler.TypedEnqueueRequestForObject[*cdiv1.DataSource]{},
-		predicate.TypedFuncs[*cdiv1.DataSource]{
-			CreateFunc: func(e event.TypedCreateEvent[*cdiv1.DataSource]) bool { return true },
-			DeleteFunc: func(e event.TypedDeleteEvent[*cdiv1.DataSource]) bool { return true },
-			UpdateFunc: func(e event.TypedUpdateEvent[*cdiv1.DataSource]) bool {
-				return !sameSourceSpec(e.ObjectOld, e.ObjectNew)
-			},
-		},
-	)); err != nil {
-		return err
-	}
-
 	const dataSourcePvcField = "spec.source.pvc"
 	const dataSourceSnapshotField = "spec.source.snapshot"
+	const dataSourceDataSourceField = "spec.source.dataSource"
 
 	getKey := func(namespace, name string) string {
 		return namespace + "/" + name
@@ -269,6 +258,30 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 		return reqs
 	}
 
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{},
+		handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.DataSource](func(ctx context.Context, obj *cdiv1.DataSource) []reconcile.Request {
+			reqs := []reconcile.Request{
+				{
+					NamespacedName: types.NamespacedName{
+						Name:      obj.Name,
+						Namespace: obj.Namespace,
+					},
+				},
+			}
+			return appendMatchingDataSourceRequests(ctx, dataSourceDataSourceField, obj, reqs)
+		}),
+		predicate.TypedFuncs[*cdiv1.DataSource]{
+			CreateFunc: func(e event.TypedCreateEvent[*cdiv1.DataSource]) bool { return true },
+			DeleteFunc: func(e event.TypedDeleteEvent[*cdiv1.DataSource]) bool { return true },
+			UpdateFunc: func(e event.TypedUpdateEvent[*cdiv1.DataSource]) bool {
+				return !sameSourceSpec(e.ObjectOld, e.ObjectNew) ||
+					!sameConditions(e.ObjectOld, e.ObjectNew)
+			},
+		},
+	)); err != nil {
+		return err
+	}
+
 	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourcePvcField, func(obj client.Object) []string {
 		if pvc := obj.(*cdiv1.DataSource).Spec.Source.PVC; pvc != nil {
 			ns := cc.GetNamespace(pvc.Namespace, obj.GetNamespace())
@@ -278,10 +291,22 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 	}); err != nil {
 		return err
 	}
+
 	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourceSnapshotField, func(obj client.Object) []string {
 		if snapshot := obj.(*cdiv1.DataSource).Spec.Source.Snapshot; snapshot != nil {
 			ns := cc.GetNamespace(snapshot.Namespace, obj.GetNamespace())
 			return []string{getKey(ns, snapshot.Name)}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourceDataSourceField, func(obj client.Object) []string {
+		ds := obj.(*cdiv1.DataSource)
+		if sourceDS := ds.Spec.Source.DataSource; sourceDS != nil {
+			ns := cc.GetNamespace(sourceDS.Namespace, ds.GetNamespace())
+			return []string{getKey(ns, sourceDS.Name)}
 		}
 		return nil
 	}); err != nil {
@@ -369,4 +394,36 @@ func sameSourceSpec(objOld, objNew client.Object) bool {
 	}
 
 	return false
+}
+
+func sameConditions(objOld, objNew client.Object) bool {
+	dsOld, okOld := objOld.(*cdiv1.DataSource)
+	dsNew, okNew := objNew.(*cdiv1.DataSource)
+
+	if !okOld || !okNew {
+		return false
+	}
+
+	oldConditions := dsOld.Status.Conditions
+	newConditions := dsNew.Status.Conditions
+
+	if len(oldConditions) != len(newConditions) {
+		return false
+	}
+
+	condMap := make(map[cdiv1.DataSourceConditionType]cdiv1.DataSourceCondition, len(oldConditions))
+	for _, c := range oldConditions {
+		condMap[c.Type] = c
+	}
+
+	for _, c := range newConditions {
+		if oldC, ok := condMap[c.Type]; !ok ||
+			oldC.Reason != c.Reason ||
+			oldC.Message != c.Message ||
+			oldC.Status != c.Status {
+			return false
+		}
+	}
+
+	return true
 }
