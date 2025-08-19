@@ -11,7 +11,9 @@ go_library(
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/storage/pkg/lockfile",
     importpath = "github.com/containers/storage/pkg/lockfile",
     visibility = ["//visibility:public"],
-    deps = select({
+    deps = [
+        "//vendor/github.com/containers/storage/internal/rawfilelock:go_default_library",
+    ] + select({
         "@io_bazel_rules_go//go/platform:aix": [
             "//vendor/github.com/containers/storage/pkg/system:go_default_library",
             "//vendor/golang.org/x/sys/unix:go_default_library",

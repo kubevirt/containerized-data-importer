@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "directories.go",
+        "index.go",
+        "lookup.go",
+        "modindex.go",
+        "symbols.go",
+        "types.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/golang.org/x/tools/internal/modindex",
+    importpath = "golang.org/x/tools/internal/modindex",
+    visibility = ["//vendor/golang.org/x/tools:__subpackages__"],
+    deps = [
+        "//vendor/golang.org/x/mod/semver:go_default_library",
+        "//vendor/golang.org/x/sync/errgroup:go_default_library",
+        "//vendor/golang.org/x/tools/internal/gopathwalk:go_default_library",
+    ],
+)

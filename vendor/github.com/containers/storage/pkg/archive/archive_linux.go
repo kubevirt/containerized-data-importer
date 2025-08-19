@@ -16,7 +16,7 @@ func getOverlayOpaqueXattrName() string {
 	return GetOverlayXattrName("opaque")
 }
 
-func GetWhiteoutConverter(format WhiteoutFormat, data interface{}) TarWhiteoutConverter {
+func GetWhiteoutConverter(format WhiteoutFormat, data any) TarWhiteoutConverter {
 	if format == OverlayWhiteoutFormat {
 		if rolayers, ok := data.([]string); ok && len(rolayers) > 0 {
 			return overlayWhiteoutConverter{rolayers: rolayers}
@@ -124,8 +124,7 @@ func (overlayWhiteoutConverter) ConvertReadWithHandler(hdr *tar.Header, path str
 	}
 
 	// if a file was deleted and we are using overlay, we need to create a character device
-	if strings.HasPrefix(base, WhiteoutPrefix) {
-		originalBase := base[len(WhiteoutPrefix):]
+	if originalBase, ok := strings.CutPrefix(base, WhiteoutPrefix); ok {
 		originalPath := filepath.Join(dir, originalBase)
 
 		if err := handler.Mknod(originalPath, unix.S_IFCHR, 0); err != nil {
@@ -174,7 +173,7 @@ func (o overlayWhiteoutConverter) ConvertRead(hdr *tar.Header, path string) (boo
 
 func isWhiteOut(stat os.FileInfo) bool {
 	s := stat.Sys().(*syscall.Stat_t)
-	return major(uint64(s.Rdev)) == 0 && minor(uint64(s.Rdev)) == 0
+	return major(uint64(s.Rdev)) == 0 && minor(uint64(s.Rdev)) == 0 //nolint:unconvert
 }
 
 func GetFileOwner(path string) (uint32, uint32, uint32, error) {
