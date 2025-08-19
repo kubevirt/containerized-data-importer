@@ -17,6 +17,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//vendor/github.com/klauspost/compress/fse:go_default_library",
+        "//vendor/github.com/klauspost/compress/internal/le:go_default_library",
     ] + select({
         "@io_bazel_rules_go//go/platform:amd64": [
             "//vendor/github.com/klauspost/compress/internal/cpuinfo:go_default_library",
