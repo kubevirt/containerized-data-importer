@@ -2325,3 +2325,58 @@ func CopyEvents(srcPVC, targetPVC client.Object, c client.Client, recorder recor
 		recorder.Event(targetPVC, newEvent.Type, newEvent.Reason, formattedMsg)
 	}
 }
+
+func GetPVCDataSourceKind(pvc *corev1.PersistentVolumeClaim) string {
+	pvcDataSource := pvc.Spec.DataSource
+	pvcDataSourceRef := pvc.Spec.DataSourceRef
+	if pvcDataSourceRef != nil {
+		return pvcDataSourceRef.Kind
+	}
+	if pvcDataSource != nil {
+		return pvcDataSource.Kind
+	}
+	return ""
+}
+
+// In host clone the source PVC comes from 2 sources
+// 1. snaphot clone - in this case there is no DV associated with the sourcePVC
+// 2. direct PVC clone - in this case there may be a DV associated with the sourcePVC
+func GetDVFromHostCloneSourcePVC(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (*cdiv1.DataVolume, error) {
+	pvcDataSourceKind := GetPVCDataSourceKind(pvc)
+
+	if pvcDataSourceKind != "PersistentVolumeClaim" {
+		return nil, nil
+	}
+
+	dvName := ""
+	for _, ownerRef := range pvc.GetOwnerReferences() {
+		if ownerRef.Kind == "DataVolume" && ownerRef.APIVersion == "cdi.kubevirt.io/v1beta1" {
+			dvName = ownerRef.Name
+			break
+		}
+	}
+	if dvName != "" {
+		dv := &cdiv1.DataVolume{}
+		if err := c.Get(ctx, types.NamespacedName{Namespace: pvc.Namespace, Name: dvName}, dv); err != nil {
+			if k8serrors.IsNotFound(err) {
+				return nil, nil
+			}
+			return nil, err
+		}
+		return dv, nil
+	}
+	return nil, nil
+}
+
+func GetHostCloneOriginalSourceDVSize(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (resource.Quantity, error) {
+	// Get the datavolume associate with the source
+	dv, err := GetDVFromHostCloneSourcePVC(ctx, c, pvc)
+	if err != nil {
+		return resource.Quantity{}, err
+	}
+	size := resource.Quantity{}
+	if dv != nil {
+		size = dv.Spec.PVC.Resources.Requests[corev1.ResourceStorage]
+	}
+	return size, nil
+}
