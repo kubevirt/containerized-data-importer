@@ -548,6 +548,9 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState) (bool, erro
 		return true, nil
 	}
 
+	// size required
+	// or size is not required but target is block, source is filesys, and source is kubvirt
+
 	var targetSize int64
 	sourceCapacity := sourcePvc.Status.Capacity.Storage()
 

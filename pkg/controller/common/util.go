@@ -2319,3 +2319,58 @@ func CopyEvents(srcPVC, targetPVC client.Object, c client.Client, recorder recor
 		recorder.Event(targetPVC, newEvent.Type, newEvent.Reason, formattedMsg)
 	}
 }
+
+func GetUsableSpace(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (resource.Quantity, error) {
+	sizeRequest := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+	volumeMode := util.ResolveVolumeMode(pvc.Spec.VolumeMode)
+
+	if volumeMode == corev1.PersistentVolumeFilesystem {
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(ctx, c, pvc.Spec.StorageClassName)
+		if err != nil {
+			return resource.Quantity{}, err
+		}
+		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
+		usableSpaceRaw := util.GetUsableSpace(fsOverheadFloat, sizeRequest.Value())
+
+		return *resource.NewScaledQuantity(usableSpaceRaw, 0), nil
+	}
+
+	return sizeRequest, nil
+}
+
+func GetDVFromPVC(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (*cdiv1.DataVolume, error) {
+	dv := &cdiv1.DataVolume{}
+	if err := c.Get(ctx, types.NamespacedName{Namespace: pvc.Namespace, Name: pvc.Name}, dv); err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return nil, err
+		}
+		return nil, nil
+	}
+	return dv, nil
+}
+
+func GetDVCloneSize(ctx context.Context, c client.Client, dv *cdiv1.DataVolume) (*resource.Quantity, error) {
+	if dv.Spec.Source != nil {
+		snapshot := &snapshotv1.VolumeSnapshot{}
+		if snapshotKey := dv.Spec.Source.Snapshot; snapshotKey != nil {
+			if err := c.Get(ctx, types.NamespacedName{Namespace: snapshotKey.Namespace, Name: snapshotKey.Name}, snapshot); err != nil {
+				return nil, err
+			}
+			if snapshot.Status != nil && snapshot.Status.ReadyToUse != nil && *snapshot.Status.ReadyToUse {
+				if snapshot.Status.RestoreSize != nil {
+					return snapshot.Status.RestoreSize, nil
+				}
+				return nil, fmt.Errorf("snapshot %s doesn't have a restore size specified in its status", snapshot.Name)
+			}
+			return nil, fmt.Errorf("snapshot %s is not ready", snapshot.Name)
+		}
+		if pvcKey := dv.Spec.Source.PVC; pvcKey != nil {
+			pvc := &corev1.PersistentVolumeClaim{}
+			if err := c.Get(ctx, types.NamespacedName{Namespace: pvcKey.Namespace, Name: pvcKey.Name}, pvc); err != nil {
+				return nil, err
+			}
+			return pvc.Status.Capacity.Storage(), nil
+		}
+	}
+	return nil, fmt.Errorf("dataVolume %s does not have a clone source", dv.Name)
+}
