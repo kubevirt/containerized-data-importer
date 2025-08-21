@@ -14,7 +14,7 @@ go_library(
         "//pkg/monitoring/metrics/ovirt-populator:go_default_library",
         "//pkg/monitoring/rules:go_default_library",
         "//vendor/github.com/kubevirt/monitoring/pkg/metrics/parser:go_default_library",
-        "//vendor/github.com/machadovilaca/operator-observability/pkg/operatormetrics:go_default_library",
+        "//vendor/github.com/rhobs/operator-observability-toolkit/pkg/operatormetrics:go_default_library",
     ],
 )
 
