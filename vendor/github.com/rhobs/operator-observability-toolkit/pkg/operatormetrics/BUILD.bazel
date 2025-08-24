@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "collector.go",
+        "collector_result.go",
         "counter.go",
         "counter_vec.go",
         "gauge.go",
@@ -16,8 +17,8 @@ go_library(
         "summary_vec.go",
         "wrapper_registry.go",
     ],
-    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/machadovilaca/operator-observability/pkg/operatormetrics",
-    importpath = "github.com/machadovilaca/operator-observability/pkg/operatormetrics",
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/rhobs/operator-observability-toolkit/pkg/operatormetrics",
+    importpath = "github.com/rhobs/operator-observability-toolkit/pkg/operatormetrics",
     visibility = ["//visibility:public"],
     deps = ["//vendor/github.com/prometheus/client_golang/prometheus:go_default_library"],
 )

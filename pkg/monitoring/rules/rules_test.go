@@ -4,7 +4,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/machadovilaca/operator-observability/pkg/testutil"
+	"github.com/rhobs/operator-observability-toolkit/pkg/testutil"
 
 	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules"
 )

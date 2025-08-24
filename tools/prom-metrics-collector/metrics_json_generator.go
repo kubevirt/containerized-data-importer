@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/kubevirt/monitoring/pkg/metrics/parser"
-	om "github.com/machadovilaca/operator-observability/pkg/operatormetrics"
+	om "github.com/rhobs/operator-observability-toolkit/pkg/operatormetrics"
 
 	cdiClonerMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	cdiMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
