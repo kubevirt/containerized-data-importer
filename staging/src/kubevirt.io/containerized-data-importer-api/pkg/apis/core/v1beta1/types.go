@@ -164,7 +164,6 @@ type DataSourceRefSourceDataSource struct {
 	Namespace string `json:"namespace"`
 	// The name of the source DataSource
 	Name string `json:"name"`
-
 }
 
 // DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC
@@ -517,7 +516,7 @@ type DataSourceSource struct {
 	// +optional
 	Snapshot *DataVolumeSourceSnapshot `json:"snapshot,omitempty"`
 	// +optional
-	DataSource *DataSourceRefSourceDataSource `json:"dataSource,omitempty"` 
+	DataSource *DataSourceRefSourceDataSource `json:"dataSource,omitempty"`
 }
 
 // DataSourceStatus provides the most recently observed status of the DataSource
@@ -755,7 +754,7 @@ type VolumeUploadSourceList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	// Items provides a list of DataSources
-	Items []VolumeImportSource `json:"items"`
+	Items []VolumeUploadSource `json:"items"`
 }
 
 const (
