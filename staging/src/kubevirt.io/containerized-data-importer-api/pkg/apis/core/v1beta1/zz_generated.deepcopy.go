@@ -2196,7 +2196,7 @@ func (in *VolumeUploadSourceList) DeepCopyInto(out *VolumeUploadSourceList) {
 	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
-		*out = make([]VolumeImportSource, len(*in))
+		*out = make([]VolumeUploadSource, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
