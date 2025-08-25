@@ -19955,7 +19955,7 @@ func schema_pkg_apis_core_v1beta1_VolumeUploadSourceList(ref common.ReferenceCal
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.VolumeImportSource"),
+										Ref:     ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.VolumeUploadSource"),
 									},
 								},
 							},
@@ -19966,7 +19966,7 @@ func schema_pkg_apis_core_v1beta1_VolumeUploadSourceList(ref common.ReferenceCal
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.VolumeImportSource"},
+			"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.VolumeUploadSource"},
 	}
 }
 
