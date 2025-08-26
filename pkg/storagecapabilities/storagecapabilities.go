@@ -172,6 +172,7 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"kubesan.gitlab.io":                        cdiv1.CloneStrategyCsiClone,
 	"pd.csi.storage.gke.io":                    cdiv1.CloneStrategySnapshot,
 	"pd.csi.storage.gke.io/hyperdisk":          cdiv1.CloneStrategySnapshot,
+	"blockvolume.csi.oraclecloud.com":          cdiv1.CloneStrategyCsiClone,
 }
 
 // MinimumSupportedPVCSizeByProvisionerKey defines the minimum supported PVC size for a provisioner
