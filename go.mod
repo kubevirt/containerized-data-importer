@@ -23,7 +23,6 @@ require (
 	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.1
 	github.com/kubernetes-csi/lib-volume-populator v1.2.1-0.20230316163120-b62a0eee2c56
 	github.com/kubevirt/monitoring/pkg/metrics/parser v0.0.0-20230627123556-81a891d4462a
-	github.com/machadovilaca/operator-observability v0.0.20
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
 	github.com/openshift/api v0.0.0-20241107155230-d37bb9f7e380
@@ -38,6 +37,7 @@ require (
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.74.0
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
+	github.com/rhobs/operator-observability-toolkit v0.0.29
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/cors v1.7.0
 	github.com/ulikunitz/xz v0.5.12

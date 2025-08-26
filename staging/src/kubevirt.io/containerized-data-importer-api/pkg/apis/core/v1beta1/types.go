@@ -164,7 +164,6 @@ type DataSourceRefSourceDataSource struct {
 	Namespace string `json:"namespace"`
 	// The name of the source DataSource
 	Name string `json:"name"`
-
 }
 
 // DataVolumeBlankImage provides the parameters to create a new raw blank image for the PVC
@@ -517,7 +516,7 @@ type DataSourceSource struct {
 	// +optional
 	Snapshot *DataVolumeSourceSnapshot `json:"snapshot,omitempty"`
 	// +optional
-	DataSource *DataSourceRefSourceDataSource `json:"dataSource,omitempty"` 
+	DataSource *DataSourceRefSourceDataSource `json:"dataSource,omitempty"`
 }
 
 // DataSourceStatus provides the most recently observed status of the DataSource
@@ -755,7 +754,7 @@ type VolumeUploadSourceList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	// Items provides a list of DataSources
-	Items []VolumeImportSource `json:"items"`
+	Items []VolumeUploadSource `json:"items"`
 }
 
 const (
@@ -1027,7 +1026,7 @@ type CDIConfigSpec struct {
 	PodResourceRequirements *corev1.ResourceRequirements `json:"podResourceRequirements,omitempty"`
 	// FeatureGates are a list of specific enabled feature gates
 	FeatureGates []string `json:"featureGates,omitempty"`
-	// FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.055 (5.5% overhead)
+	// FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.06 (6% overhead)
 	FilesystemOverhead *FilesystemOverhead `json:"filesystemOverhead,omitempty"`
 	// Preallocation controls whether storage for DataVolumes should be allocated in advance.
 	Preallocation *bool `json:"preallocation,omitempty"`

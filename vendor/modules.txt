@@ -388,12 +388,6 @@ github.com/kubernetes-csi/lib-volume-populator/populator-machinery
 # github.com/kubevirt/monitoring/pkg/metrics/parser v0.0.0-20230627123556-81a891d4462a
 ## explicit; go 1.20
 github.com/kubevirt/monitoring/pkg/metrics/parser
-# github.com/machadovilaca/operator-observability v0.0.20
-## explicit; go 1.21
-github.com/machadovilaca/operator-observability/pkg/docs
-github.com/machadovilaca/operator-observability/pkg/operatormetrics
-github.com/machadovilaca/operator-observability/pkg/operatorrules
-github.com/machadovilaca/operator-observability/pkg/testutil
 # github.com/mailru/easyjson v0.7.7
 ## explicit; go 1.12
 github.com/mailru/easyjson/buffer
@@ -620,6 +614,12 @@ github.com/prometheus/common/model
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
+# github.com/rhobs/operator-observability-toolkit v0.0.29
+## explicit; go 1.21
+github.com/rhobs/operator-observability-toolkit/pkg/docs
+github.com/rhobs/operator-observability-toolkit/pkg/operatormetrics
+github.com/rhobs/operator-observability-toolkit/pkg/operatorrules
+github.com/rhobs/operator-observability-toolkit/pkg/testutil
 # github.com/robfig/cron v1.2.0
 ## explicit
 github.com/robfig/cron

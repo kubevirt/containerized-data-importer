@@ -9,8 +9,8 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/ovirt-populator",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/machadovilaca/operator-observability/pkg/operatormetrics:go_default_library",
         "//vendor/github.com/prometheus/client_model/go:go_default_library",
+        "//vendor/github.com/rhobs/operator-observability-toolkit/pkg/operatormetrics:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/metrics:go_default_library",
     ],
 )

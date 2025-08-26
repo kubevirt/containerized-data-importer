@@ -2,6 +2,7 @@ package operatormetrics
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -19,13 +20,6 @@ type Collector struct {
 	CollectCallback func() []CollectorResult
 }
 
-type CollectorResult struct {
-	Metric      Metric
-	Labels      []string
-	ConstLabels map[string]string
-	Value       float64
-}
-
 func (c Collector) hash() string {
 	var sb strings.Builder
 
@@ -38,7 +32,7 @@ func (c Collector) hash() string {
 
 func (c Collector) Describe(ch chan<- *prometheus.Desc) {
 	for _, cm := range c.Metrics {
-		cm.getCollector().Describe(ch)
+		cm.GetCollector().Describe(ch)
 	}
 }
 
@@ -48,12 +42,12 @@ func (c Collector) Collect(ch chan<- prometheus.Metric) {
 	for _, cr := range collectedMetrics {
 		metric, ok := operatorRegistry.registeredCollectorMetrics[cr.Metric.GetOpts().Name]
 		if !ok {
-			fmt.Printf("metric %s not found in registry", cr.Metric.GetOpts().Name)
+			log.Printf("metric %s not found in registry", cr.Metric.GetOpts().Name)
 			continue
 		}
 
 		if err := collectValue(ch, metric, cr); err != nil {
-			fmt.Printf("error collecting metric %s: %v", cr.Metric.GetOpts().Name, err)
+			log.Printf("error collecting metric %s: %v", cr.Metric.GetOpts().Name, err)
 		}
 	}
 }
@@ -75,11 +69,17 @@ func collectValue(ch chan<- prometheus.Metric, metric Metric, cr CollectorResult
 	}
 
 	labels := map[string]string{}
+
 	for k, v := range cr.ConstLabels {
-		labels[k] = v
+		if v != "" {
+			labels[k] = v
+		}
 	}
+
 	for k, v := range metric.GetOpts().ConstLabels {
-		labels[k] = v
+		if v != "" {
+			labels[k] = v
+		}
 	}
 
 	desc := prometheus.NewDesc(
@@ -93,7 +93,12 @@ func collectValue(ch chan<- prometheus.Metric, metric Metric, cr CollectorResult
 	if err != nil {
 		return err
 	}
-	ch <- cm
+
+	if cr.Timestamp.IsZero() {
+		ch <- cm
+	} else {
+		ch <- prometheus.NewMetricWithTimestamp(cr.Timestamp, cm)
+	}
 
 	return nil
 }

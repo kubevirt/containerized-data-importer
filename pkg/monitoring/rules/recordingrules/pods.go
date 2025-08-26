@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/machadovilaca/operator-observability/pkg/operatormetrics"
-	"github.com/machadovilaca/operator-observability/pkg/operatorrules"
+	"github.com/rhobs/operator-observability-toolkit/pkg/operatormetrics"
+	"github.com/rhobs/operator-observability-toolkit/pkg/operatorrules"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
 

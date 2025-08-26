@@ -328,6 +328,8 @@ var _ = Describe("CopyAllowedLabels", func() {
 		testKubevirtIoValueExisting     = "existing"
 		testKubevirtIoNewValueExisting  = "newvalue"
 		testUndesiredKey                = "undesired.key"
+		testCdiDatasourceKey            = "cdi.kubevirt.io/storage.import.datasource-name"
+		testCdiDatasourceKeyValue       = "testdatasource"
 	)
 
 	It("Should copy desired labels", func() {
@@ -335,11 +337,13 @@ var _ = Describe("CopyAllowedLabels", func() {
 			testKubevirtIoKey:             testKubevirtIoValue,
 			testInstancetypeKubevirtIoKey: testInstancetypeKubevirtIoValue,
 			testUndesiredKey:              "undesired.key",
+			testCdiDatasourceKey:          testCdiDatasourceKeyValue,
 		}
 		ds := &cdiv1.DataSource{}
 		CopyAllowedLabels(srcLabels, ds, false)
 		Expect(ds.Labels).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
 		Expect(ds.Labels).To(HaveKeyWithValue(testInstancetypeKubevirtIoKey, testInstancetypeKubevirtIoValue))
+		Expect(ds.Labels).To(HaveKeyWithValue(testCdiDatasourceKey, testCdiDatasourceKeyValue))
 		Expect(ds.Labels).ToNot(HaveKey(testUndesiredKey))
 	})
 

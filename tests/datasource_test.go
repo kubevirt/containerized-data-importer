@@ -358,6 +358,38 @@ var _ = Describe("DataSource", func() {
 			_ = waitForReadyCondition(ds2, corev1.ConditionFalse, "NotFound")
 		})
 	})
+
+	Context("datasource source", func() {
+		createDsNoVerify := func(dsName, pvcName string) *cdiv1.DataSource {
+			By(fmt.Sprintf("creating DataSource %s -> %s", dsName, pvcName))
+			ds := newDataSource(dsName)
+			ds.Spec.Source.PVC = &cdiv1.DataVolumeSourcePVC{Namespace: f.Namespace.Name, Name: pvcName}
+			ds, err := f.CdiClient.CdiV1beta1().DataSources(ds.Namespace).Create(context.TODO(), ds, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return ds
+		}
+
+		createDsPointer := func(dsName, dsRefName string) *cdiv1.DataSource {
+			By(fmt.Sprintf("creating DataSource %s -> DataSource %s", dsName, dsRefName))
+			ds := newDataSource(dsName)
+			ds.Spec.Source.DataSource = &cdiv1.DataSourceRefSourceDataSource{Namespace: f.Namespace.Name, Name: dsRefName}
+			ds, err := f.CdiClient.CdiV1beta1().DataSources(ds.Namespace).Create(context.TODO(), ds, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			return ds
+		}
+
+		It("should update datasource status when referenced datasource updates", func() {
+			ds := createDsNoVerify(ds1Name, pvc1Name)
+			_ = waitForReadyCondition(ds, corev1.ConditionFalse, "NotFound")
+
+			dsPointer := createDsPointer(ds2Name, ds.Name)
+			_ = waitForReadyCondition(dsPointer, corev1.ConditionFalse, "NotFound")
+
+			createDv(pvc1Name, testURL(), nil)
+			_ = waitForReadyCondition(ds, corev1.ConditionTrue, "Ready")
+			_ = waitForReadyCondition(dsPointer, corev1.ConditionTrue, "Ready")
+		})
+	})
 })
 
 func deleteDvPvc(f *framework.Framework, pvcName string) {
