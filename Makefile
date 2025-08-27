@@ -106,7 +106,7 @@ build-functest: ## Build the functional tests (content of tests/ subdirectory)
 test: test-unit test-functional test-lint ## execute all tests (_NOTE:_ 'WHAT' is expected to match the go cli pattern for paths e.g. './pkg/...'.  This differs slightly from rest of the 'make' targets)
 
 test-unit: WHAT = ./pkg/... ./cmd/...
-test-unit: ## Run unit tests.
+test-unit: prom-rules-verify ## Run unit tests.
 	${DO} "ACK_GINKGO_DEPRECATIONS=${ACK_GINKGO_DEPRECATIONS} ./hack/build/run-unit-tests.sh ${WHAT}"
 
 test-functional: WHAT = ./tests/...
@@ -136,6 +136,20 @@ builder-push: ## Build and push the builder container image, declared in docker/
 
 openshift-ci-image-push: ## Build and push the OpenShift CI build+test container image, declared in hack/ci/Dockerfile.ci
 	./hack/build/osci-image-builder.sh
+
+rule-spec-dumper-executable := "rule-spec-dumper"
+
+build-prom-spec-dumper:
+	${DO} "go build -o ./hack/${rule-spec-dumper-executable} ./hack/prom-rule-ci/rule-spec-dumper.go"
+
+clean-prom-spec-dumper:
+	rm -f ./hack/${rule-spec-dumper-executable}
+
+prom-rules-verify: build-prom-spec-dumper
+	./hack/prom-rule-ci/verify-rules.sh \
+		"./hack/${rule-spec-dumper-executable}" \
+		"./hack/prom-rule-ci/prom-rules-tests.yaml"
+	rm ./hack/${rule-spec-dumper-executable}
 
 ##@ Local cluster management
 cluster-up: ## Start a default Kubernetes or Open Shift cluster. set KUBEVIRT_PROVIDER environment variable to either 'k8s-1.18' or 'os-3.11.0' to select the type of cluster. set KUBEVIRT_NUM_NODES to something higher than 1 to have more than one node.
