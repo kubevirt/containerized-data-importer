@@ -96,6 +96,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"spectrumscale.csi.ibm.com": {{rwx, file}, {rwo, file}},
 	// IBM block arrays (FlashSystem)
 	"block.csi.ibm.com": {{rwx, block}, {rwo, block}, {rwo, file}},
+	// IBM VPC Block CSI
+	"vpc.block.csi.ibm.io": {{rwo, block}, {rwo, file}},
 	// Portworx in-tree CSI
 	"kubernetes.io/portworx-volume/nfs": {{rwx, file}, {rwo, file}},
 	"kubernetes.io/portworx-volume":     {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
@@ -162,6 +164,7 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"csi.hpe.com":                              cdiv1.CloneStrategyCsiClone,
 	"spectrumscale.csi.ibm.com":                cdiv1.CloneStrategyCsiClone,
 	"block.csi.ibm.com":                        cdiv1.CloneStrategyCsiClone,
+	"vpc.block.csi.ibm.io":                     cdiv1.CloneStrategyHostAssisted,
 	"rbd.csi.ceph.com":                         cdiv1.CloneStrategyCsiClone,
 	"rook-ceph.rbd.csi.ceph.com":               cdiv1.CloneStrategyCsiClone,
 	"openshift-storage.rbd.csi.ceph.com":       cdiv1.CloneStrategyCsiClone,
