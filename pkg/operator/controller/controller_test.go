@@ -362,7 +362,7 @@ var _ = Describe("Controller", func() {
 				obj, err := getObject(args.client, rule)
 				Expect(err).ToNot(HaveOccurred())
 				rule = obj.(*promv1.PrometheusRule)
-				duration := promv1.Duration("5m")
+				duration := promv1.Duration("10m")
 				cdiDownAlert := promv1.Rule{
 					Alert: "CDIOperatorDown",
 					Expr:  intstr.FromString("kubevirt_cdi_operator_up == 0"),
@@ -372,7 +372,7 @@ var _ = Describe("Controller", func() {
 						"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIOperatorDown"),
 					},
 					Labels: map[string]string{
-						"severity":                      "warning",
+						"severity":                      "critical",
 						"operator_health_impact":        "critical",
 						"kubernetes_operator_part_of":   "kubevirt",
 						"kubernetes_operator_component": "containerized-data-importer",
