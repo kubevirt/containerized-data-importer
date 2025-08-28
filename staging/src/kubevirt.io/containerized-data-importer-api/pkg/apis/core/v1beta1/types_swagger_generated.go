@@ -190,7 +190,7 @@ func (DataVolumeCondition) SwaggerDoc() map[string]string {
 
 func (StorageProfile) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "StorageProfile provides a CDI specific recommendation for storage parameters\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion\n+kubebuilder:resource:scope=Cluster",
+		"": "StorageProfile provides a CDI specific recommendation for storage parameters\n+genclient\n+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object\n+kubebuilder:object:root=true\n+kubebuilder:storageversion\n+kubebuilder:resource:scope=Cluster\n+kubebuilder:subresource:status",
 	}
 }
 

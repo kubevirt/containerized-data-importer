@@ -605,7 +605,7 @@ func createStorageProfileReconciler(objects ...runtime.Object) *StorageProfileRe
 	_ = ocpconfigv1.Install(s)
 
 	// Create a fake client to mock API calls.
-	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
+	cl := fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).WithStatusSubresource(&cdiv1.StorageProfile{}).Build()
 
 	rec := record.NewFakeRecorder(10)
 	// Create a ReconcileMemcached object with the scheme and fake client.
