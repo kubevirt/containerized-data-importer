@@ -64,6 +64,9 @@ CDI_LOGO_PATH=${CDI_LOGO_PATH:-"assets/cdi_logo.png"}
 # oVirt populator image, by default it is the same as the importer image
 OVIRT_POPULATOR_IMAGE_NAME=${OVIRT_POPULATOR_IMAGE_NAME:-cdi-importer}
 
+EXTERNAL_IMAGE_MINIO=${EXTERNAL_IMAGE_MINIO:-quay.io/kubevirt/minio:RELEASE.2024-10-02T17-50-41Z}
+EXTERNAL_IMAGE_FAKEOVIRT=${EXTERNAL_IMAGE_FAKEOVIRT:-quay.io/kubevirt/fakeovirt:v1.38.0}
+
 function allPkgs() {
     ret=$(sed "s,kubevirt.io/containerized-data-importer,${CDI_DIR},g" <(go list ./pkg/... ./tools/... ./tests/... ./cmd/... | grep -v "pkg/client" | sort -u))
     echo "$ret"
