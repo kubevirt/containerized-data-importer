@@ -7,22 +7,22 @@ group_eval_order:
   - alerts.rules
 #information about this format can be found in: https://prometheus.io/docs/prometheus/latest/configuration/unit_testing_rules/
 tests:
-  # CDINotReady should fire when kubevirt_cdi_cr_ready == 0 for 5m
+  # CDINotReady should fire when kubevirt_cdi_cr_ready == 0 for 10m
   - interval: 1m
     input_series:
       - series: 'kubevirt_cdi_cr_ready'
-        values: "0 0 0 0 0 0 0 1 1"
+        values: "0 0 0 0 0 0 0 0 0 0 0 0 1 1"
     alert_rule_test:
-      # must not trigger before the 5m for-window
-      - eval_time: 4m
+      # must not trigger before the 10m for-window
+      - eval_time: 9m
         alertname: CDINotReady
         exp_alerts: []
       # must trigger after the for-window elapses with continuous zeros
-      - eval_time: 6m
+      - eval_time: 11m
         alertname: CDINotReady
         exp_alerts:
           - exp_labels:
-              severity: warning
+              severity: critical
               operator_health_impact: critical
               kubernetes_operator_part_of: kubevirt
               kubernetes_operator_component: containerized-data-importer
@@ -30,7 +30,7 @@ tests:
               summary: CDI is not available to use
               runbook_url: https://kubevirt.io/monitoring/runbooks/CDINotReady
       # must not trigger when healthy (value 1)
-      - eval_time: 8m
+      - eval_time: 13m
         alertname: CDINotReady
         exp_alerts: []
 
@@ -39,7 +39,7 @@ tests:
   # CDIDataImportCronOutdated should fire when any cron is outdated (pending="false") for 15 minutes
   - interval: 1m
     input_series:
-      - series: 'kubevirt_cdi_dataimportcron_outdated{pending="false", ns="user-ns", cron_name="cron-a"}'
+      - series: 'kubevirt_cdi_dataimportcron_outdated{pending="false", namespace="user-ns", cron_name="cron-a"}'
         values:  "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1"
     alert_rule_test:
       # Must not trigger before the 15m for-window elapses
@@ -51,11 +51,11 @@ tests:
         alertname: CDIDataImportCronOutdated
         exp_alerts:
           - exp_labels:
-              severity: info
-              operator_health_impact: warning
+              severity: warning
+              operator_health_impact: none
               kubernetes_operator_part_of: kubevirt
               kubernetes_operator_component: containerized-data-importer
-              ns: user-ns
+              namespace: user-ns
               cron_name: cron-a
             exp_annotations:
               summary: DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule
@@ -64,24 +64,24 @@ tests:
   # CDIDataImportCronOutdated must NOT fire for pending="true"
   - interval: 1m
     input_series:
-      - series: 'kubevirt_cdi_dataimportcron_outdated{pending="true", ns="user-ns", cron_name="cron-b"}'
+      - series: 'kubevirt_cdi_dataimportcron_outdated{pending="true", namespace="user-ns", cron_name="cron-b"}'
         values:  "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1"
     alert_rule_test:
       - eval_time: 20m
         alertname: CDIDataImportCronOutdated
         exp_alerts: []
 
-  # CDIOperatorDown should fire when kubevirt_cdi_operator_up == 0 for 5m
+  # CDIOperatorDown should fire when kubevirt_cdi_operator_up == 0 for 10m
   - interval: 1m
     input_series:
       - series: 'kubevirt_cdi_operator_up'
-        values: "0 0 0 0 0 0 0"
+        values: "0 0 0 0 0 0 0 0 0 0 0 0"
     alert_rule_test:
-      - eval_time: 6m
+      - eval_time: 11m
         alertname: CDIOperatorDown
         exp_alerts:
           - exp_labels:
-              severity: warning
+              severity: critical
               operator_health_impact: critical
               kubernetes_operator_part_of: kubevirt
               kubernetes_operator_component: containerized-data-importer

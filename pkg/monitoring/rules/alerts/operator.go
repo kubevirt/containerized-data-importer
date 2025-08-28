@@ -11,24 +11,24 @@ var operatorAlerts = []promv1.Rule{
 	{
 		Alert: "CDIOperatorDown",
 		Expr:  intstr.FromString("kubevirt_cdi_operator_up == 0"),
-		For:   (*promv1.Duration)(ptr.To("5m")),
+		For:   (*promv1.Duration)(ptr.To("10m")),
 		Annotations: map[string]string{
 			"summary": "CDI operator is down",
 		},
 		Labels: map[string]string{
-			severityAlertLabelKey:        "warning",
+			severityAlertLabelKey:        "critical",
 			operatorHealthImpactLabelKey: "critical",
 		},
 	},
 	{
 		Alert: "CDINotReady",
 		Expr:  intstr.FromString("kubevirt_cdi_cr_ready == 0"),
-		For:   (*promv1.Duration)(ptr.To("5m")),
+		For:   (*promv1.Duration)(ptr.To("10m")),
 		Annotations: map[string]string{
 			"summary": "CDI is not available to use",
 		},
 		Labels: map[string]string{
-			severityAlertLabelKey:        "warning",
+			severityAlertLabelKey:        "critical",
 			operatorHealthImpactLabelKey: "critical",
 		},
 	},
@@ -58,14 +58,14 @@ var operatorAlerts = []promv1.Rule{
 	},
 	{
 		Alert: "CDIDataImportCronOutdated",
-		Expr:  intstr.FromString(`sum by(ns,cron_name) (kubevirt_cdi_dataimportcron_outdated{pending="false"}) > 0`),
+		Expr:  intstr.FromString(`sum by(namespace,cron_name) (kubevirt_cdi_dataimportcron_outdated{pending="false"}) > 0`),
 		For:   (*promv1.Duration)(ptr.To("15m")),
 		Annotations: map[string]string{
 			"summary": "DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule",
 		},
 		Labels: map[string]string{
-			severityAlertLabelKey:        "info",
-			operatorHealthImpactLabelKey: "warning",
+			severityAlertLabelKey:        "warning",
+			operatorHealthImpactLabelKey: "none",
 		},
 	},
 	{
