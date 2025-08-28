@@ -427,7 +427,7 @@ func createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage
 
 func createOperatorDeployment(operatorVersion, namespace, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, ovirtPopulatorImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference) *appsv1.Deployment {
 	deployment := utils.CreateOperatorDeployment("cdi-operator", namespace, "name", "cdi-operator", serviceAccountName, imagePullSecrets, int32(1))
-	container := utils.CreatePortsContainer("cdi-operator", operatorImage, pullPolicy, createPrometheusPorts())
+	container := utils.CreatePortsContainer("cdi-operator", operatorImage, pullPolicy, createOperatorPorts())
 	container.Resources = corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceCPU:    resource.MustParse("100m"),
@@ -437,12 +437,12 @@ func createOperatorDeployment(operatorVersion, namespace, deployClusterResources
 	container.LivenessProbe = &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
-				Scheme: corev1.URISchemeHTTPS,
+				Scheme: corev1.URISchemeHTTP,
 				Port: intstr.IntOrString{
 					Type:   intstr.Int,
-					IntVal: 8443,
+					IntVal: 8444,
 				},
-				Path: "/metrics",
+				Path: "/healthz",
 			},
 		},
 		InitialDelaySeconds: 5,
@@ -451,12 +451,12 @@ func createOperatorDeployment(operatorVersion, namespace, deployClusterResources
 	container.ReadinessProbe = &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{
-				Scheme: corev1.URISchemeHTTPS,
+				Scheme: corev1.URISchemeHTTP,
 				Port: intstr.IntOrString{
 					Type:   intstr.Int,
-					IntVal: 8443,
+					IntVal: 8444,
 				},
-				Path: "/metrics",
+				Path: "/readyz",
 			},
 		},
 		InitialDelaySeconds: 5,
@@ -467,11 +467,16 @@ func createOperatorDeployment(operatorVersion, namespace, deployClusterResources
 	return deployment
 }
 
-func createPrometheusPorts() []corev1.ContainerPort {
+func createOperatorPorts() []corev1.ContainerPort {
 	return []corev1.ContainerPort{
 		{
 			Name:          "metrics",
 			ContainerPort: 8443,
+			Protocol:      "TCP",
+		},
+		{
+			Name:          "health",
+			ContainerPort: 8444,
 			Protocol:      "TCP",
 		},
 	}
