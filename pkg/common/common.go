@@ -67,6 +67,8 @@ const (
 
 	// PvcApplyStorageProfileLabel tells whether the PVC should be rendered by the mutating webhook based on StorageProfiles
 	PvcApplyStorageProfileLabel = CDIComponentLabel + "/applyStorageProfile"
+	// PvcApplyStorageProfileMinimumSize tells whether the PVC mutating webhook rendering should apply only the StorageProfile minimum volume size if exists
+	PvcApplyStorageProfileMinimumSize = "minimumSize"
 
 	// ImporterVolumePath provides a constant for the directory where the PV is mounted.
 	ImporterVolumePath = "/data"
