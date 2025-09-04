@@ -102,8 +102,10 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"kubernetes.io/portworx-volume/nfs": {{rwx, file}, {rwo, file}},
 	"kubernetes.io/portworx-volume":     {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
 	// Portworx CSI
-	"pxd.portworx.com/nfs": {{rwx, file}, {rwo, file}},
-	"pxd.portworx.com":     {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
+	"pxd.portworx.com/nfs":          {{rwx, file}, {rwo, file}},
+	"pxd.portworx.com":              {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
+	"pxd.portworx.com/pure_block":   {{rwx, block}, {rwo, block}, {rwo, file}},
+	"pxd.portworx.com/pure_fa_file": {{rwx, file}, {rwo, file}},
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{rwx, file}, {rwo, file}},
 	"csi.trident.netapp.io/ontap-san": {{rwx, block}},
@@ -308,9 +310,17 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 	},
 	"pxd.portworx.com": func(sc *storagev1.StorageClass) string {
 		// https://docs.portworx.com/portworx-enterprise/operations/operate-kubernetes/storage-operations/manage-kubevirt-vms.html#create-a-storageclass
-		opts := strings.Split(sc.Parameters["sharedv4_mount_options"], ",")
-		if slices.Contains(opts, "vers=3.0") && slices.Contains(opts, "nolock") {
-			return "pxd.portworx.com/nfs"
+		if val, exists := sc.Parameters["backend"]; exists {
+			if val == "pure_block" {
+				return "pxd.portworx.com/pure_block"
+			} else if val == "pure_fa_file" {
+				return "pxd.portworx.com/pure_fa_file"
+			}
+		} else {
+			opts := strings.Split(sc.Parameters["sharedv4_mount_options"], ",")
+			if slices.Contains(opts, "vers=3.0") && slices.Contains(opts, "nolock") {
+				return "pxd.portworx.com/nfs"
+			}
 		}
 		return "pxd.portworx.com"
 	},
