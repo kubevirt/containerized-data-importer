@@ -528,7 +528,7 @@ var _ = Describe("CDI route config tests", Serial, func() {
 	})
 })
 
-var _ = Describe("CDIConfig instance management", Label("Destructive"), Serial, func() {
+var _ = Describe("[Destructive] CDIConfig instance management", Label("Destructive"), Serial, func() {
 	f := framework.NewFramework("cdiconfig-test")
 
 	It("[test_id:4952]Should re-create the object if deleted", func() {

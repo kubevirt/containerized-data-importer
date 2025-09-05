@@ -41,7 +41,7 @@ import (
 	"kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
 )
 
-var _ = Describe("ALL Operator tests", Label("Destructive"), Serial, func() {
+var _ = Describe("[Destructive] ALL Operator tests", Label("Destructive"), Serial, func() {
 	var _ = Describe("Operator tests", func() {
 		f := framework.NewFramework("operator-test")
 
@@ -401,10 +401,10 @@ var _ = Describe("ALL Operator tests", Label("Destructive"), Serial, func() {
 			ensureCDI(f, cr, cdiPods)
 		}
 
-				By("Cannot delete CDI")
-				err = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{DryRun: []string{"All"}})
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("there are still 1 DataVolumes present"))
+		By("Cannot delete CDI")
+		err = f.CdiClient.CdiV1beta1().CDIs().Delete(context.TODO(), cr.Name, metav1.DeleteOptions{DryRun: []string{"All"}})
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("there are still 1 DataVolumes present"))
 
 		It("[test_id:4986]should remove/install CDI a number of times successfully", func() {
 			for i := 0; i < 5; i++ {
