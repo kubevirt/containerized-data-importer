@@ -1,14 +1,14 @@
 package cdicontroller
 
 import (
-	"github.com/machadovilaca/operator-observability/pkg/operatormetrics"
 	"github.com/prometheus/client_golang/prometheus"
 	ioprometheusclient "github.com/prometheus/client_model/go"
+	"github.com/rhobs/operator-observability-toolkit/pkg/operatormetrics"
 )
 
 const (
 	// PrometheusCronNsLabel labels the DataImportCron namespace
-	PrometheusCronNsLabel = "ns"
+	PrometheusCronNsLabel = "namespace"
 	// PrometheusCronNameLabel labels the DataImportCron name
 	PrometheusCronNameLabel = "cron_name"
 	// PrometheusCronPendingLabel labels whether the DataImportCron import DataVolume is pending for default storage class

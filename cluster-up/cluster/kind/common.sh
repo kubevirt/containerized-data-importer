@@ -3,14 +3,27 @@
 set -e
 
 function detect_cri() {
-    if podman ps >/dev/null 2>&1; then echo podman; elif docker ps >/dev/null 2>&1; then echo docker; fi
+    if podman ps >/dev/null 2>&1; then
+        echo podman
+    elif docker ps >/dev/null 2>&1; then
+        echo docker
+    else
+        echo "Error: no container runtime detected. Please install Podman or Docker." >&2
+        exit 1
+    fi
 }
 
 export CRI_BIN=${CRI_BIN:-$(detect_cri)}
+export KIND_EXPERIMENTAL_PROVIDER=${CRI_BIN}
 CONFIG_WORKER_CPU_MANAGER=${CONFIG_WORKER_CPU_MANAGER:-false}
 # only setup ipFamily when the environmental variable is not empty
 # avaliable value: ipv4, ipv6, dual
 IPFAMILY=${IPFAMILY}
+
+# setup the port mapping for kind cluster, this is needed for some e2e tests
+# KIND_PORT_MAPPING=cluster_port:host_port e.g. KIND_PORT_MAPPING=30001:30002
+# only one port mapping allowed
+KIND_PORT_MAPPING=${KIND_PORT_MAPPING}
 
 # check CPU arch
 PLATFORM=$(uname -m)
@@ -18,14 +31,11 @@ case ${PLATFORM} in
 x86_64* | i?86_64* | amd64*)
     ARCH="amd64"
     ;;
-ppc64le)
-    ARCH="ppc64le"
-    ;;
 aarch64* | arm64*)
     ARCH="arm64"
     ;;
 *)
-    echo "invalid Arch, only support x86_64, ppc64le, aarch64"
+    echo "invalid Arch, only support x86_64 and aarch64"
     exit 1
     ;;
 esac
@@ -93,7 +103,11 @@ function _insecure-registry-config-cmd() {
 
 # this works since the nodes use the same names as containers
 function _ssh_into_node() {
-    ${CRI_BIN} exec -it "$1" bash
+    if [[ $2 != "" ]]; then
+        ${CRI_BIN} exec "$@"
+    else
+        ${CRI_BIN} exec -it "$1" bash
+    fi    
 }
 
 function _run_registry() {
@@ -184,11 +198,9 @@ function _fix_node_labels() {
 }
 
 function setup_kind() {
-    $KIND --loglevel debug create cluster --retain --name=${CLUSTER_NAME} --config=${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml --image=$KIND_NODE_IMAGE \
-        || ( $KIND --loglevel debug delete cluster --name=${CLUSTER_NAME} \
-        && $KIND --loglevel debug create cluster --retain --name=${CLUSTER_NAME} --config=${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml --image=$KIND_NODE_IMAGE )
-
-    $KIND get kubeconfig --name=${CLUSTER_NAME} > ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubeconfig
+    $KIND -v 9 create cluster --retain --name=${CLUSTER_NAME} --config=${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml --image=$KIND_NODE_IMAGE --kubeconfig=${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubeconfig \
+        || ( $KIND -v 9 delete cluster --name=${CLUSTER_NAME} \
+        && $KIND -v 9 create cluster --retain --name=${CLUSTER_NAME} --config=${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml --image=$KIND_NODE_IMAGE --kubeconfig=${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubeconfig )
 
     if ${CRI_BIN} exec ${CLUSTER_NAME}-control-plane ls /usr/bin/kubectl > /dev/null; then
         kubectl_path=/usr/bin/kubectl
@@ -259,6 +271,22 @@ EOF
   fi
 }
 
+function _add_extra_portmapping() {
+  if [[ "$KIND_PORT_MAPPING" != "" ]]; then
+    container_port=$(echo "$KIND_PORT_MAPPING" | awk -F: '{print $1}')
+    host_port=$(echo "$KIND_PORT_MAPPING" | awk -F: '{print $2}')
+    if [[ -z "$container_port" || -z "$host_port" ]]; then
+      echo "Invalid KIND_PORT_MAPPING format. Expected 'container_port:host_port'."
+      exit 1
+    fi
+    cat <<EOF >> ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
+  extraPortMappings:
+  - containerPort: $container_port
+    hostPort: $host_port
+EOF
+  fi
+}
+
 function _add_kubeadm_cpu_manager_config_patch() {
     cat << EOF >> ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
   kubeadmConfigPatches:
@@ -266,7 +294,6 @@ function _add_kubeadm_cpu_manager_config_patch() {
     kind: JoinConfiguration
     nodeRegistration:
       kubeletExtraArgs:
-        "feature-gates": "CPUManager=true"
         "cpu-manager-policy": "static"
         "kube-reserved": "cpu=500m"
         "system-reserved": "cpu=500m"
@@ -286,11 +313,17 @@ EOF
     done
 }
 
-function _add_kubeadm_config_patches() {
-    if [ $KUBEVIRT_WITH_KIND_ETCD_IN_MEMORY == "true" ]; then
-        cat <<EOF >> ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
+function _add_kubeadm_config_patches_header() {
+   cat <<EOF >> ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
 kubeadmConfigPatches:
 - |
+EOF
+}
+
+function _add_kubeadm_config_patches() {
+  _add_kubeadm_config_patches_header
+  if [ $KUBEVIRT_WITH_KIND_ETCD_IN_MEMORY == "true" ]; then
+    cat <<EOF >> ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
   kind: ClusterConfiguration
   metadata:
     name: config
@@ -298,23 +331,31 @@ kubeadmConfigPatches:
     local:
       dataDir: $ETCD_IN_MEMORY_DATA_DIR
 EOF
-        echo "KIND cluster etcd data will be mounted to RAM on kind nodes: $ETCD_IN_MEMORY_DATA_DIR"
-    fi
+    echo "KIND cluster etcd data will be mounted to RAM on kind nodes: $ETCD_IN_MEMORY_DATA_DIR"
+  fi
+  if [[ -n "$CONFIG_TOPOLOGY_MANAGER_POLICY" ]]; then
+     cat <<EOF >> ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
+  ---
+  kind: KubeletConfiguration
+  topologyManagerPolicy: ${CONFIG_TOPOLOGY_MANAGER_POLICY}
+  ---
+EOF
+  fi
 }
 
 function _setup_ipfamily() {
     if [ "$IPFAMILY" != "" ]; then
-        cat <<EOF >> ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
-networking:
-  ipFamily: $IPFAMILY
-EOF
+        IPFAMILY_REPLACE="networking:\n  ipFamily: $IPFAMILY"
+        sed -i "s/networking:/$IPFAMILY_REPLACE/" ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
         echo "KIND cluster ip family has been set to $IPFAMILY"
     fi
 }
 
 function _prepare_kind_config() {
     _add_workers
-    _add_kubeadm_config_patches
+    if [[ "$KUBEVIRT_WITH_KIND_ETCD_IN_MEMORY" == "true" ||  -n "$CONFIG_TOPOLOGY_MANAGER_POLICY" ]]; then
+      _add_kubeadm_config_patches
+    fi
     _setup_ipfamily
     echo "Final KIND config:"
     cat ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml

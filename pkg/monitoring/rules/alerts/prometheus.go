@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/machadovilaca/operator-observability/pkg/operatorrules"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+	"github.com/rhobs/operator-observability-toolkit/pkg/operatorrules"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
@@ -27,7 +27,7 @@ const (
 )
 
 // Register sets up alert rules in the given namespace.
-func Register(namespace string) error {
+func Register(namespace string, registry *operatorrules.Registry) error {
 	alerts := [][]promv1.Rule{
 		operatorAlerts,
 	}
@@ -41,7 +41,7 @@ func Register(namespace string) error {
 		}
 	}
 
-	return operatorrules.RegisterAlerts(alerts...)
+	return registry.RegisterAlerts(alerts...)
 }
 
 // GetRunbookURLTemplate fetches or defaults the runbook URL template.

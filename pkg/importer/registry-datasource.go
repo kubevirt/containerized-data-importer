@@ -28,7 +28,6 @@ import (
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -42,12 +41,13 @@ const (
 // 1. Info -> Transfer
 // 2. Transfer -> Convert
 type RegistryDataSource struct {
-	endpoint    string
-	accessKey   string
-	secKey      string
-	certDir     string
-	insecureTLS bool
-	imageDir    string
+	endpoint          string
+	accessKey         string
+	secKey            string
+	imageArchitecture string
+	certDir           string
+	insecureTLS       bool
+	imageDir          string
 	//The discovered image file in scratch space.
 	url *url.URL
 	//The discovered image info from the registry.
@@ -55,7 +55,7 @@ type RegistryDataSource struct {
 }
 
 // NewRegistryDataSource creates a new instance of the Registry Data Source.
-func NewRegistryDataSource(endpoint, accessKey, secKey, certDir string, insecureTLS bool) *RegistryDataSource {
+func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, certDir string, insecureTLS bool) *RegistryDataSource {
 	allCertDir, err := CreateCertificateDir(certDir)
 	if err != nil {
 		klog.Infof("Error creating allCertDir %v", err)
@@ -68,11 +68,12 @@ func NewRegistryDataSource(endpoint, accessKey, secKey, certDir string, insecure
 		allCertDir = certDir
 	}
 	return &RegistryDataSource{
-		endpoint:    endpoint,
-		accessKey:   accessKey,
-		secKey:      secKey,
-		certDir:     allCertDir,
-		insecureTLS: insecureTLS,
+		endpoint:          endpoint,
+		accessKey:         accessKey,
+		secKey:            secKey,
+		imageArchitecture: imageArchitecture,
+		certDir:           allCertDir,
+		insecureTLS:       insecureTLS,
 	}
 }
 
@@ -82,13 +83,13 @@ func (rd *RegistryDataSource) Info() (ProcessingPhase, error) {
 }
 
 // Transfer is called to transfer the data from the source registry to a temporary location.
-func (rd *RegistryDataSource) Transfer(path string) (ProcessingPhase, error) {
+func (rd *RegistryDataSource) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
 	rd.imageDir = filepath.Join(path, containerDiskImageDir)
 	if err := CleanAll(rd.imageDir); err != nil {
 		return ProcessingPhaseError, err
 	}
 
-	size, err := util.GetAvailableSpace(path)
+	size, err := GetAvailableSpace(path)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -98,7 +99,7 @@ func (rd *RegistryDataSource) Transfer(path string) (ProcessingPhase, error) {
 	}
 
 	klog.V(1).Infof("Copying registry image to scratch space.")
-	rd.info, err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.certDir, rd.insecureTLS)
+	rd.info, err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.imageArchitecture, rd.certDir, rd.insecureTLS, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, errors.Wrapf(err, "Failed to read registry image")
 	}
@@ -115,7 +116,7 @@ func (rd *RegistryDataSource) Transfer(path string) (ProcessingPhase, error) {
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
-func (rd *RegistryDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+func (rd *RegistryDataSource) TransferFile(fileName string, preallocation bool) (ProcessingPhase, error) {
 	return ProcessingPhaseError, errors.New("Transferfile should not be called")
 }
 
@@ -191,6 +192,12 @@ func CreateCertificateDir(registryCertDir string) (string, error) {
 	if err := collectCerts(common.ImporterProxyCertDir, allCerts, "proxy-"); err != nil {
 		return allCerts, err
 	}
+
+	if registryCertDir == "" {
+		klog.Info("Registry certs directory not configured")
+		return allCerts, nil
+	}
+
 	klog.Info("Copying registry certs")
 	if err := collectCerts(registryCertDir, allCerts, ""); err != nil {
 		return allCerts, err
@@ -211,7 +218,7 @@ func collectCerts(certDir, targetDir, targetPrefix string) error {
 		if !strings.HasSuffix(obj.Name(), ".crt") {
 			continue
 		}
-		if err := util.LinkFile(filepath.Join(certDir, obj.Name()), filepath.Join(targetDir, targetPrefix+obj.Name())); err != nil {
+		if err := LinkFile(filepath.Join(certDir, obj.Name()), filepath.Join(targetDir, targetPrefix+obj.Name())); err != nil {
 			return err
 		}
 	}

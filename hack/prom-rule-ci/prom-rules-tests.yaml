@@ -1,0 +1,184 @@
+---
+rule_files:
+  - /tmp/rules.verify
+
+group_eval_order:
+  - recordingRules.rules
+  - alerts.rules
+#information about this format can be found in: https://prometheus.io/docs/prometheus/latest/configuration/unit_testing_rules/
+tests:
+  # CDINotReady should fire when kubevirt_cdi_cr_ready == 0 for 10m
+  - interval: 1m
+    input_series:
+      - series: 'kubevirt_cdi_cr_ready'
+        values: "0 0 0 0 0 0 0 0 0 0 0 0 1 1"
+    alert_rule_test:
+      # must not trigger before the 10m for-window
+      - eval_time: 9m
+        alertname: CDINotReady
+        exp_alerts: []
+      # must trigger after the for-window elapses with continuous zeros
+      - eval_time: 11m
+        alertname: CDINotReady
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              operator_health_impact: critical
+              kubernetes_operator_part_of: kubevirt
+              kubernetes_operator_component: containerized-data-importer
+            exp_annotations:
+              summary: CDI is not available to use
+              runbook_url: https://kubevirt.io/monitoring/runbooks/CDINotReady
+      # must not trigger when healthy (value 1)
+      - eval_time: 13m
+        alertname: CDINotReady
+        exp_alerts: []
+
+
+
+  # CDIDataImportCronOutdated should fire when any cron is outdated (pending="false") for 15 minutes
+  - interval: 1m
+    input_series:
+      - series: 'kubevirt_cdi_dataimportcron_outdated{pending="false", namespace="user-ns", cron_name="cron-a"}'
+        values:  "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      # Must not trigger before the 15m for-window elapses
+      - eval_time: 14m
+        alertname: CDIDataImportCronOutdated
+        exp_alerts: []
+      # Must trigger after the for-window elapses
+      - eval_time: 16m
+        alertname: CDIDataImportCronOutdated
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              operator_health_impact: none
+              kubernetes_operator_part_of: kubevirt
+              kubernetes_operator_component: containerized-data-importer
+              namespace: user-ns
+              cron_name: cron-a
+            exp_annotations:
+              summary: DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule
+              runbook_url: https://kubevirt.io/monitoring/runbooks/CDIDataImportCronOutdated
+
+  # CDIDataImportCronOutdated must NOT fire for pending="true"
+  - interval: 1m
+    input_series:
+      - series: 'kubevirt_cdi_dataimportcron_outdated{pending="true", namespace="user-ns", cron_name="cron-b"}'
+        values:  "1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: CDIDataImportCronOutdated
+        exp_alerts: []
+
+  # CDIOperatorDown should fire when kubevirt_cdi_operator_up == 0 for 10m
+  - interval: 1m
+    input_series:
+      - series: 'kubevirt_cdi_operator_up'
+        values: "0 0 0 0 0 0 0 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: CDIOperatorDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              operator_health_impact: critical
+              kubernetes_operator_part_of: kubevirt
+              kubernetes_operator_component: containerized-data-importer
+            exp_annotations:
+              summary: CDI operator is down
+              runbook_url: https://kubevirt.io/monitoring/runbooks/CDIOperatorDown
+
+  # CDIDataVolumeUnusualRestartCount should fire when any population restart metric > 0 for 5m
+  - interval: 1m
+    input_series:
+      - series: 'kube_pod_container_status_restarts_total{pod="importer-1",container="importer"}'
+        values: "4 4 4 4 4 4"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: CDIDataVolumeUnusualRestartCount
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              operator_health_impact: none
+              kubernetes_operator_part_of: kubevirt
+              kubernetes_operator_component: containerized-data-importer
+            exp_annotations:
+              summary: Some CDI population workloads have an unusual restart count, meaning they are probably failing and need to be investigated
+              runbook_url: https://kubevirt.io/monitoring/runbooks/CDIDataVolumeUnusualRestartCount
+
+  # CDIStorageProfilesIncomplete should fire when any storageprofile is incomplete for 5m
+  - interval: 1m
+    input_series:
+      - series: 'kubevirt_cdi_storageprofile_info{complete="false",storageclass="sc1",provisioner="prov"}'
+        values: "1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: CDIStorageProfilesIncomplete
+        exp_alerts:
+          - exp_labels:
+              severity: info
+              operator_health_impact: none
+              kubernetes_operator_part_of: kubevirt
+              kubernetes_operator_component: containerized-data-importer
+              storageclass: sc1
+              provisioner: prov
+            exp_annotations:
+              summary: Incomplete StorageProfile sc1, accessMode/volumeMode cannot be inferred by CDI for PVC population request
+              runbook_url: https://kubevirt.io/monitoring/runbooks/CDIStorageProfilesIncomplete
+
+  # CDINoDefaultStorageClass should fire when there is no default or virtdefault and a DV pending for one (simulated with no series)
+  - interval: 1m
+    input_series:
+      - series: 'kubevirt_cdi_datavolume_pending'
+        values: "1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: CDINoDefaultStorageClass
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              operator_health_impact: none
+              kubernetes_operator_part_of: kubevirt
+              kubernetes_operator_component: containerized-data-importer
+            exp_annotations:
+              summary: No default StorageClass or virtualization StorageClass, and a DataVolume is pending for one
+              runbook_url: https://kubevirt.io/monitoring/runbooks/CDINoDefaultStorageClass
+
+  # CDIMultipleDefaultVirtStorageClasses should fire when more than one virtdefault=true exists for 5m
+  - interval: 1m
+    input_series:
+      - series: 'kubevirt_cdi_storageprofile_info{virtdefault="true",storageclass="sc-a"}'
+        values: "1 1 1 1 1 1"
+      - series: 'kubevirt_cdi_storageprofile_info{virtdefault="true",storageclass="sc-b"}'
+        values: "1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: CDIMultipleDefaultVirtStorageClasses
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              operator_health_impact: none
+              kubernetes_operator_part_of: kubevirt
+              kubernetes_operator_component: containerized-data-importer
+            exp_annotations:
+              summary: More than one default virtualization StorageClass detected
+              runbook_url: https://kubevirt.io/monitoring/runbooks/CDIMultipleDefaultVirtStorageClasses
+
+  # CDIDefaultStorageClassDegraded should fire when default/virtdefault degraded or missing (simulated with no series)
+  - interval: 1m
+    input_series:
+      - series: 'kubevirt_cdi_storageprofile_info{default="true"}'
+        values: "1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: CDIDefaultStorageClassDegraded
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              operator_health_impact: none
+              kubernetes_operator_part_of: kubevirt
+              kubernetes_operator_component: containerized-data-importer
+            exp_annotations:
+              summary: Default storage class has no smart clone or ReadWriteMany
+              runbook_url: https://kubevirt.io/monitoring/runbooks/CDIDefaultStorageClassDegraded

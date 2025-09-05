@@ -1,7 +1,7 @@
 package openstackpopulator
 
 import (
-	"github.com/machadovilaca/operator-observability/pkg/operatormetrics"
+	"github.com/rhobs/operator-observability-toolkit/pkg/operatormetrics"
 
 	runtimemetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 )

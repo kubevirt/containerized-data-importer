@@ -328,6 +328,8 @@ var _ = Describe("CopyAllowedLabels", func() {
 		testKubevirtIoValueExisting     = "existing"
 		testKubevirtIoNewValueExisting  = "newvalue"
 		testUndesiredKey                = "undesired.key"
+		testCdiDatasourceKey            = "cdi.kubevirt.io/storage.import.datasource-name"
+		testCdiDatasourceKeyValue       = "testdatasource"
 	)
 
 	It("Should copy desired labels", func() {
@@ -335,11 +337,13 @@ var _ = Describe("CopyAllowedLabels", func() {
 			testKubevirtIoKey:             testKubevirtIoValue,
 			testInstancetypeKubevirtIoKey: testInstancetypeKubevirtIoValue,
 			testUndesiredKey:              "undesired.key",
+			testCdiDatasourceKey:          testCdiDatasourceKeyValue,
 		}
 		ds := &cdiv1.DataSource{}
 		CopyAllowedLabels(srcLabels, ds, false)
 		Expect(ds.Labels).To(HaveKeyWithValue(testKubevirtIoKey, testKubevirtIoValue))
 		Expect(ds.Labels).To(HaveKeyWithValue(testInstancetypeKubevirtIoKey, testInstancetypeKubevirtIoValue))
+		Expect(ds.Labels).To(HaveKeyWithValue(testCdiDatasourceKey, testCdiDatasourceKeyValue))
 		Expect(ds.Labels).ToNot(HaveKey(testUndesiredKey))
 	})
 
@@ -364,6 +368,43 @@ var _ = Describe("CopyAllowedLabels", func() {
 		Entry("when override enabled", true),
 		Entry("not when override disabled", false),
 	)
+})
+
+var _ = Describe("sortEvents", func() {
+	It("Should sort events by timestamp but prioritize longer messages", func() {
+		events := &v1.EventList{
+			Items: []v1.Event{
+				{LastTimestamp: metav1.NewTime(time.Now().Add(-3 * time.Second)), Message: "third"},
+				{LastTimestamp: metav1.NewTime(time.Now().Add(-2 * time.Second)), Message: "second"},
+				{LastTimestamp: metav1.NewTime(time.Now().Add(-1 * time.Second)), Message: "first"},
+				{LastTimestamp: metav1.NewTime(time.Now().Add(-1 * time.Second)), Message: "first long message"},
+			},
+		}
+		sortEvents(events, false, "")
+		Expect(events.Items[0].Message).To(Equal("first long message"))
+		Expect(events.Items[1].Message).To(Equal("first"))
+		Expect(events.Items[2].Message).To(Equal("second"))
+		Expect(events.Items[3].Message).To(Equal("third"))
+
+	})
+
+	It("Should sort events by timestamp but prioritize prime messages", func() {
+		events := &v1.EventList{
+			Items: []v1.Event{
+				{LastTimestamp: metav1.NewTime(time.Now().Add(-4 * time.Second)), Message: "[primeName] second prime"},
+				{LastTimestamp: metav1.NewTime(time.Now().Add(-3 * time.Second)), Message: "second"},
+				{LastTimestamp: metav1.NewTime(time.Now().Add(-2 * time.Second)), Message: "[primeName] first prime"},
+				{LastTimestamp: metav1.NewTime(time.Now().Add(-2 * time.Second)), Message: "[primeName] first prime but more interesting"},
+				{LastTimestamp: metav1.NewTime(time.Now().Add(-1 * time.Second)), Message: "first"},
+			},
+		}
+		sortEvents(events, true, "primeName")
+		Expect(events.Items[0].Message).To(Equal("[primeName] first prime but more interesting"))
+		Expect(events.Items[1].Message).To(Equal("[primeName] first prime"))
+		Expect(events.Items[2].Message).To(Equal("[primeName] second prime"))
+		Expect(events.Items[3].Message).To(Equal("first"))
+		Expect(events.Items[4].Message).To(Equal("second"))
+	})
 })
 
 func createPvcNoSize(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {

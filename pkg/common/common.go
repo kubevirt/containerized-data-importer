@@ -163,6 +163,8 @@ const (
 	ImporterExtraHeader = "IMPORTER_EXTRA_HEADER_"
 	// ImporterSecretExtraHeadersDir is where the secrets containing extra HTTP headers will be mounted
 	ImporterSecretExtraHeadersDir = "/extraheaders"
+	// ImporterRegistryImageArchitecture provides a constant to capture our env variable "IMPORTER_REGISTRY_IMAGE_ARCHITECTURE"
+	ImporterRegistryImageArchitecture = "IMPORTER_REGISTRY_IMAGE_ARCHITECTURE"
 
 	// ImporterGoogleCredentialFileVar provides a constant to capture our env variable "GOOGLE_APPLICATION_CREDENTIALS"
 	//nolint:gosec // This is not a real credential
@@ -211,7 +213,7 @@ const (
 	// FilesystemOverheadVar provides a constant to capture our env variable "FILESYSTEM_OVERHEAD"
 	FilesystemOverheadVar = "FILESYSTEM_OVERHEAD"
 	// DefaultGlobalOverhead is the amount of space reserved on Filesystem volumes by default
-	DefaultGlobalOverhead = "0.055"
+	DefaultGlobalOverhead = "0.06"
 
 	// ConfigName is the name of default CDI Config
 	ConfigName = "config"

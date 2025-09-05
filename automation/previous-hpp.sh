@@ -18,7 +18,7 @@
 #
 
 set -ex
-export TARGET=k8s-1.30
+export TARGET=k8s-1.32
 export KUBEVIRT_STORAGE=hpp
 export KUBEVIRT_DEPLOY_PROMETHEUS=true
 automation/test.sh

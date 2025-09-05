@@ -70,6 +70,7 @@ function generateResourceManifest() {
             -pull-policy="{{ pull_policy }}" \
             -namespace="{{ cdi_namespace }}"
     ) 1>>"${targetDir}/"$manifestNamej2
+    sync "${targetDir}/"$manifestNamej2
 
     # Remove empty lines at the end of files which are added by go templating
     find ${targetDir}/ -type f -exec sed -i {} -e '${/^$/d;}' \;
@@ -156,6 +157,7 @@ function populateResourceManifest() {
             -namespace="{{ cdi_namespace }}" \
             -generated-manifests-path=${generatedManifests}
     ) 1>>"${tmplTargetDir}/"$outfile".j2"
+    sync "${tmplTargetDir}/"$outfile".j2"
 
     # Remove empty lines at the end of files which are added by go templating
     find ${targetDir}/ -type f -exec sed -i {} -e '${/^$/d;}' \;

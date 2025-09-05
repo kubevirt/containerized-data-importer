@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 
-	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	core "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -213,12 +212,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			parent = checkpoint
 		}
 		return utils.NewDataVolumeWithImageioWarmImport(dataVolumeName, size, url, s.Name, cm, diskID, checkpoints, true)
-	}
-
-	updateWebhookPvcRendering := func(webhookRenderingLabel string) {
-		if webhookRenderingLabel == "true" {
-			EnableWebhookPvcRendering(f.CrClient)
-		}
 	}
 
 	AfterEach(func() {
@@ -1926,6 +1919,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			originalProfileSpec *cdiv1.StorageProfileSpec
 			defaultSc           *storagev1.StorageClass
 			defaultScName       string
+			tempScName          string
 			err                 error
 		)
 
@@ -2013,24 +2007,23 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, time.Second*30, time.Second).Should(Equal(propertySet))
 		}
 
-		findStorageProfileWithoutAccessModes := func(client client.Client) string {
-			storageProfiles := &cdiv1.StorageProfileList{}
-			err := client.List(context.TODO(), storageProfiles)
-			Expect(err).ToNot(HaveOccurred())
-			for _, storageProfile := range storageProfiles.Items {
-				if len(storageProfile.Status.ClaimPropertySets) == 0 {
-					// No access modes set.
-					return *storageProfile.Status.StorageClass
-				}
-				for _, properties := range storageProfile.Status.ClaimPropertySets {
-					if len(properties.AccessModes) == 0 {
-						// No access modes set.
-						return *storageProfile.Status.StorageClass
-					}
-				}
+		createUnknownStorageClass := func(client client.Client) string {
+			sc := &storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "unknown-sc",
+				},
+				Provisioner: "unknown-provisioner",
 			}
-			Skip("No storage profiles without access mode found")
-			return ""
+			sc, err := f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			tempScName = sc.Name
+
+			Eventually(func() error {
+				_, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), sc.Name, metav1.GetOptions{})
+				return err
+			}, time.Second*15, time.Second).Should(Succeed())
+
+			return sc.Name
 		}
 
 		BeforeEach(func() {
@@ -2059,12 +2052,16 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				updateStorageProfileSpec(f.CrClient, defaultScName, *originalProfileSpec)
 			}
 
+			if tempScName != "" {
+				err = f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), tempScName, metav1.DeleteOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				tempScName = ""
+			}
+
 			By("Restoring CDIConfig to original state")
 			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 				origSpec.DeepCopyInto(config)
 			})
-
-			DisableWebhookPvcRendering(f.CrClient)
 
 			Eventually(func() bool {
 				config, err = f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -2138,7 +2135,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				v1.PersistentVolumeFilesystem)
 			requestedSize := resource.MustParse("100Mi")
 
-			expectedVolumeMode := v1.PersistentVolumeBlock
+			expectedVolumeMode := v1.PersistentVolumeFilesystem
 			spec := cdiv1.StorageSpec{
 				AccessModes: nil,
 				VolumeMode:  &expectedVolumeMode,
@@ -2161,7 +2158,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		})
 
 		verifyControllerRenderingEvent := func(events string) bool {
-			return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "no accessMode defined DV nor on StorageProfile")
+			return strings.Contains(events, controller.ErrClaimNotValid) && strings.Contains(events, "no accessMode specified in StorageProfile")
 		}
 
 		verifyControllerRenderingNoDefaultScEvent := func(events string) bool {
@@ -2172,49 +2169,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return strings.Contains(events, controller.NotFound) && strings.Contains(events, "No PVC found")
 		}
 
-		DescribeTable("Import fails creating a PVC from DV without accessModes and volume mode, no profile", func(webhookRenderingLabel string, verifyEvent func(string) bool) {
-			updateWebhookPvcRendering(webhookRenderingLabel)
-
-			// assumes local is available and has no volumeMode
-			storageProfileName := findStorageProfileWithoutAccessModes(f.CrClient)
-			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
-			requestedSize := resource.MustParse("100Mi")
-			spec := cdiv1.StorageSpec{
-				AccessModes:      nil,
-				VolumeMode:       nil,
-				StorageClassName: &storageProfileName,
-				Resources: v1.VolumeResourceRequirements{
-					Requests: v1.ResourceList{
-						v1.ResourceStorage: requestedSize,
-					},
-				},
-			}
-			dataVolume := createLabeledDataVolumeForImport(f, spec,
-				map[string]string{common.PvcApplyStorageProfileLabel: webhookRenderingLabel})
-
-			By("verifying pvc not created")
-			_, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
-
-			By("verifying event occurred")
-			Eventually(func() bool {
-				// Only find DV events, we know the PVC gets the same events
-				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace, "--field-selector=involvedObject.kind=DataVolume")
-				if err == nil {
-					fmt.Fprintf(GinkgoWriter, "%s", events)
-					return verifyEvent(events)
-				}
-				fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
-				return false
-			}, timeout, pollingInterval).Should(BeTrue())
-		},
-			Entry("[test_id:5912] (controller rendering)", "false", verifyControllerRenderingEvent),
-			Entry("[rfe_id:10985][crit:high][test_id:11045] (webhook rendering)", Serial, "true", verifyWebhookRenderingEvent),
-		)
-
 		DescribeTable("Import fails when no default storage class, and recovers when default is set", func(webhookRenderingLabel string, verifyEvent func(string) bool) {
-			updateWebhookPvcRendering(webhookRenderingLabel)
-
 			By("updating to no default storage class")
 			defaultSc.Annotations[controller.AnnDefaultStorageClass] = "false"
 			defaultSc, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), defaultSc, metav1.UpdateOptions{})
@@ -2258,14 +2213,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 		},
 			Entry("[test_id:8383] (controller rendering)", "false", verifyControllerRenderingNoDefaultScEvent),
-			Entry("[rfe_id:10985][crit:high][test_id:11046] (webhook rendering)", Serial, "true", verifyWebhookRenderingEvent),
+			Entry("[rfe_id:10985][crit:high][test_id:11046] (webhook rendering)", "true", verifyWebhookRenderingEvent),
 		)
 
-		DescribeTable("Import recovers when user adds accessModes to profile", func(webhookRenderingLabel string, verifyEvent func(string) bool) {
-			updateWebhookPvcRendering(webhookRenderingLabel)
-
-			// assumes local is available and has no volumeMode
-			storageProfileName := findStorageProfileWithoutAccessModes(f.CrClient)
+		DescribeTable("Import fails and recovers when accessModes and volumeMode are added to empty StorageProfile", func(webhookRenderingLabel string, verifyEvent func(string) bool) {
+			storageProfileName := createUnknownStorageClass(f.CrClient)
 			By(fmt.Sprintf("creating new datavolume %s without accessModes", dataVolumeName))
 			requestedSize := resource.MustParse("100Mi")
 			spec := cdiv1.StorageSpec{
@@ -2298,7 +2250,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}, timeout, pollingInterval).Should(BeTrue())
 
 			By(fmt.Sprintf("configure storage profile %s", storageProfileName))
-			originalProfileSpec := getStorageProfileSpec(f.CrClient, storageProfileName)
 			configureStorageProfile(f.CrClient,
 				storageProfileName,
 				[]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
@@ -2308,12 +2259,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
-
-			By("Restore the profile")
-			updateStorageProfileSpec(f.CrClient, storageProfileName, *originalProfileSpec)
 		},
 			Entry("[test_id:5913] (controller rendering)", "false", verifyControllerRenderingEvent),
-			Entry("[rfe_id:10985][crit:high][test_id:11047] (webhook rendering)", Serial, "true", verifyWebhookRenderingEvent),
+			Entry("[rfe_id:10985][crit:high][test_id:11047] (webhook rendering)", "true", verifyWebhookRenderingEvent),
 		)
 
 		It("[test_id:6483]Import pod should not have size corrected on block", func() {
@@ -2377,8 +2325,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		It("[test_id:6485]Import pod should have size corrected on filesystem", func() {
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
-			// given 50 percent overhead, expected size is 2x requestedSize
-			expectedSize := resource.MustParse("200Mi")
+			// given 50 percent overhead, expected size is 1.5x requestedSize
+			expectedSize := resource.MustParse("150Mi")
 
 			By("creating clone dataVolume")
 			volumeMode := v1.PersistentVolumeFilesystem
@@ -2407,8 +2355,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		It("[test_id:6099]Upload pvc should have size corrected on filesystem volume", func() {
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
-			// given 50 percent overhead, expected size is 2x requestedSize
-			expectedSize := resource.MustParse("200Mi")
+			// given 50 percent overhead, expected size is 1.5x requestedSize
+			expectedSize := resource.MustParse("150Mi")
 
 			By("creating datavolume for upload")
 			volumeMode := v1.PersistentVolumeFilesystem
@@ -2554,8 +2502,8 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		It("[test_id:6102]Clone pod should have size corrected on filesystem", func() {
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
-			// given 50 percent overhead, expected size is 2x requestedSize
-			expectedSize := resource.MustParse("200Mi")
+			// given 50 percent overhead, expected size is 1.5x requestedSize
+			expectedSize := resource.MustParse("150Mi")
 
 			By("creating clone dataVolume")
 			volumeMode := v1.PersistentVolumeFilesystem
@@ -2587,8 +2535,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			testSc *storagev1.StorageClass
 			pvName string
 		)
-
-		testScName := "test-sc"
+		const (
+			testScName  = "test-sc"
+			blankDVName = "blank-source"
+		)
 
 		updatePV := func(updateFunc func(*v1.PersistentVolume)) {
 			Eventually(func() error {
@@ -2603,7 +2553,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		}
 
 		createPV := func(scName string) {
-			dv := utils.NewDataVolumeForBlankRawImage("blank-source", "106Mi")
+			dv := utils.NewDataVolumeForBlankRawImage(blankDVName, "106Mi")
 			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
@@ -2631,17 +2581,27 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			var err error
 			By(fmt.Sprintf("creating storage class %s", scName))
 			sc := utils.DefaultStorageClass.DeepCopy()
-			sc.Name = scName
-			sc.ResourceVersion = ""
 			sc.Annotations[controller.AnnDefaultStorageClass] = "false"
+			sc.ObjectMeta = metav1.ObjectMeta{
+				Name: scName,
+				Labels: map[string]string{
+					"cdi.kubevirt.io/testing": "",
+				},
+				ResourceVersion: "",
+				Annotations:     sc.Annotations,
+			}
 			testSc, err = f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 		}
 
 		AfterEach(func() {
 			if testSc != nil {
-				err := f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), testScName, metav1.DeleteOptions{})
-				Expect(err).ToNot(HaveOccurred())
+				By(fmt.Sprintf("deleting storage class %s", testSc.Name))
+				err := f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), testSc.Name, metav1.DeleteOptions{})
+				Expect(err).To(Or(
+					Not(HaveOccurred()),
+					MatchError(k8serrors.IsNotFound, "k8serrors.IsNotFound"),
+				))
 				testSc = nil
 			}
 
@@ -2651,8 +2611,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				})
 				pvName = ""
 			}
-
-			DisableWebhookPvcRendering(f.CrClient)
 		})
 
 		verifyControllerRenderingEventAndConditions := func(dv *cdiv1.DataVolume) {
@@ -2698,11 +2656,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Skip("Default storage class has no provisioner. The new storage class won't work")
 			}
 
-			updateWebhookPvcRendering(webhookRenderingLabel)
-
-			By(fmt.Sprintf("verifying no storage class %s", testScName))
-			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
-			Expect(err).To(HaveOccurred())
+			var err error
+			if scName != "" {
+				By(fmt.Sprintf("verifying no storage class %s", scName))
+				_, err = f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
+				Expect(err).To(MatchError(k8serrors.IsNotFound, "k8serrors.IsNotFound"))
+			}
 
 			By(fmt.Sprintf("creating new datavolume %s with StorageClassName %s", dataVolumeName, scName))
 			dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
@@ -2735,9 +2694,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Entry("[test_id:9922]the storage class is created (controller rendering)", "false", testScName, verifyControllerRenderingEventAndConditions, createStorageClass),
 			Entry("[test_id:9924]PV with the SC name is created (controller rendering)", "false", testScName, verifyControllerRenderingEventAndConditions, createPV),
 			Entry("[test_id:9925]PV with the SC name (\"\" blank) is created (controller rendering)", "false", "", verifyControllerRenderingEventAndConditions, createPV),
-			Entry("[rfe_id:10985][crit:high][test_id:11049]the storage class is created (webhook rendering)", Serial, "true", testScName, verifyWebhookRenderingEventAndConditions, createStorageClass),
-			Entry("[rfe_id:10985][crit:high][test_id:11050]PV with the SC name is created (webhook rendering)", Serial, "true", testScName, verifyWebhookRenderingEventAndConditions, createPV),
-			Entry("[rfe_id:10985][crit:high][test_id:11051]PV with the SC name (\"\" blank) is created (webhook rendering)", Serial, "true", "", verifyWebhookRenderingEventAndConditions, createPV),
+			Entry("[rfe_id:10985][crit:high][test_id:11049]the storage class is created (webhook rendering)", "true", testScName, verifyWebhookRenderingEventAndConditions, createStorageClass),
+			Entry("[rfe_id:10985][crit:high][test_id:11050]PV with the SC name is created (webhook rendering)", "true", testScName, verifyWebhookRenderingEventAndConditions, createPV),
+			Entry("[rfe_id:10985][crit:high][test_id:11051]PV with the SC name (\"\" blank) is created (webhook rendering)", "true", "", verifyWebhookRenderingEventAndConditions, createPV),
 		)
 
 		newDataVolumeWithStorageSpec := func(scName string) *cdiv1.DataVolume {
@@ -2758,9 +2717,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Skip("Default storage class has no provisioner. The new storage class won't work")
 			}
 
-			By(fmt.Sprintf("verifying no storage class %s", testScName))
-			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
-			Expect(err).To(HaveOccurred())
+			if scName != "" {
+				By(fmt.Sprintf("verifying no storage class %s", scName))
+				_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), scName, metav1.GetOptions{})
+				Expect(err).To(MatchError(k8serrors.IsNotFound, "k8serrors.IsNotFound"))
+			}
 
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dvFunc(scName))
 			Expect(err).ToNot(HaveOccurred())
@@ -2890,10 +2851,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Skip("Not HPP")
 			}
 			size := "1Gi"
-			By("Verify No FeatureGates")
+			By("Verify no WaitForFirstConsumer FeatureGate")
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(config.Spec.FeatureGates).To(BeNil())
+			Expect(config.Spec.FeatureGates).ShouldNot(ContainElements(featuregates.HonorWaitForFirstConsumer))
 
 			dataVolume := dvFunc(dvName, size, url())
 
@@ -3466,68 +3427,153 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		)
 	})
 
-	Describe("extra configuration options for VDDK imports", func() {
-		It("[test_id:XXXX]succeed importing VDDK data volume with extra arguments ConfigMap set", Label("VDDK"), func() {
-			vddkConfigOptions := []string{
-				"VixDiskLib.nfcAio.Session.BufSizeIn64KB=16",
-				"vixDiskLib.nfcAio.Session.BufCount=4",
-			}
+	DescribeTable("extra configuration options for VDDK imports", Label("VDDK"), func(tweakDataVolume func(*cdiv1.DataVolume)) {
+		vddkConfigOptions := []string{
+			"VixDiskLib.nfcAio.Session.BufSizeIn64KB=16",
+			"vixDiskLib.nfcAio.Session.BufCount=4",
+		}
 
-			vddkConfigMap := &v1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "vddk-extras",
-				},
-				Data: map[string]string{
-					common.VddkArgsKeyName: strings.Join(vddkConfigOptions, "\n"),
-				},
-			}
+		vddkConfigMap := &v1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "vddk-extras",
+			},
+			Data: map[string]string{
+				common.VddkArgsKeyName: strings.Join(vddkConfigOptions, "\n"),
+			},
+		}
 
-			_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Create(context.TODO(), vddkConfigMap, metav1.CreateOptions{})
-			if !k8serrors.IsAlreadyExists(err) {
-				Expect(err).ToNot(HaveOccurred())
-			}
+		_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Create(context.TODO(), vddkConfigMap, metav1.CreateOptions{})
+		if !k8serrors.IsAlreadyExists(err) {
+			Expect(err).ToNot(HaveOccurred())
+		}
 
-			vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
-			dataVolume := createVddkDataVolume("import-pod-vddk-config-test", "100Mi", vcenterURL)
+		vcenterURL := fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs)
 
-			By(fmt.Sprintf("Create new DataVolume %s", dataVolume.Name))
-			controller.AddAnnotation(dataVolume, controller.AnnPodRetainAfterCompletion, "true")
+		dataVolume := createVddkDataVolume("import-pod-vddk-config-test", "100Mi", vcenterURL)
+		By(fmt.Sprintf("Create new DataVolume %s", dataVolume.Name))
+		tweakDataVolume(dataVolume)
+		controller.AddAnnotation(dataVolume, controller.AnnPodRetainAfterCompletion, "true")
+		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify PVC was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindIfWaitForFirstConsumer(pvc)
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred(), "DataVolume not in phase succeeded in time")
+
+		By("Find importer pods after completion")
+		pvcName := dataVolume.Name
+		// When using populators, the PVC Prime name is used to build the importer pod
+		if usePopulator, _ := dvc.CheckPVCUsingPopulators(pvc); usePopulator {
+			pvcName = populators.PVCPrimeName(pvc)
+		}
+		By("Find importer pod " + pvcName)
+		importer, err := utils.FindPodByPrefixOnce(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(importer.DeletionTimestamp).To(BeNil())
+
+		Eventually(func() (string, error) {
+			out, err := f.K8sClient.CoreV1().
+				Pods(importer.Namespace).
+				GetLogs(importer.Name, &core.PodLogOptions{SinceTime: &meta.Time{Time: CurrentSpecReport().StartTime}}).
+				DoRaw(context.Background())
+			return string(out), err
+		}, time.Minute, pollingInterval).Should(And(
+			ContainSubstring(vddkConfigOptions[0]),
+			ContainSubstring(vddkConfigOptions[1]),
+		))
+	},
+		Entry("[test_id:XXXX]succeed importing VDDK data volume with extra arguments ConfigMap annotation set", func(dataVolume *cdiv1.DataVolume) {
 			controller.AddAnnotation(dataVolume, controller.AnnVddkExtraArgs, "vddk-extras")
-			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		}),
+		Entry("[test_id:XXXX]succeed importing VDDK data volume with extra arguments ConfigMap field set", func(dataVolume *cdiv1.DataVolume) {
+			dataVolume.Spec.Source.VDDK.ExtraArgs = "vddk-extras"
+		}),
+	)
+
+	DescribeTable("Events and Conditions from Prime PVC", func(url func() string, containsPrimeEvent bool) {
+		// create a DV that will never be able to be imported
+		dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url())
+
+		By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+		By("verifying pvc was created")
+		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		usePopulator, err := dvc.CheckPVCUsingPopulators(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		if !usePopulator {
+			Skip("Skipping test for non-populator PVCs")
+		}
+
+		// We only want to check events from the object type that is relevant to the test
+		// this is because when the DV is intended to be bound, we can't guarantee PVC prime events
+		var objectType string
+		if containsPrimeEvent {
+			objectType = "DataVolume"
+			err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimPending, pvc.Name)
 			Expect(err).ToNot(HaveOccurred())
-
-			By("Verify PVC was created")
-			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		} else {
+			objectType = "PersistentVolumeClaim"
+			err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, pvc.Namespace, v1.ClaimBound, pvc.Name)
 			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
+		}
 
-			By("Wait for import to be completed")
-			err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred(), "DataVolume not in phase succeeded in time")
+		By("Verifying PVC has Prime Name annotation")
+		primeName, status, err := utils.WaitForPVCAnnotation(f.K8sClient, pvc.Namespace, pvc, controller.AnnPVCPrimeName)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(status).To(BeTrue())
+		Expect(primeName).ToNot(BeEmpty())
+		primeEvent := fmt.Sprintf("[%s]", primeName)
 
-			By("Find importer pods after completion")
-			pvcName := dataVolume.Name
-			// When using populators, the PVC Prime name is used to build the importer pod
-			if usePopulator, _ := dvc.CheckPVCUsingPopulators(pvc); usePopulator {
-				pvcName = populators.PVCPrimeName(pvc)
+		fieldSelector := fmt.Sprintf("--field-selector=involvedObject.kind=%s", objectType)
+		By(fmt.Sprintf("Verifying %s contains events from Prime PVC ", objectType))
+		Eventually(func() bool {
+			events, err := f.RunKubectlCommand("get", "events", "-n", pvc.Namespace, fieldSelector)
+			if err == nil {
+				fmt.Fprintf(GinkgoWriter, "%s", events)
+				// make sure we get events from pvcPrime
+				return strings.Contains(events, primeEvent)
 			}
-			By("Find importer pod " + pvcName)
-			importer, err := utils.FindPodByPrefixOnce(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(importer.DeletionTimestamp).To(BeNil())
+			fmt.Fprintf(GinkgoWriter, "ERROR: %s\n", err.Error())
+			return false
+		}, timeout, pollingInterval).Should(BeTrue())
 
-			Eventually(func() (string, error) {
-				out, err := f.K8sClient.CoreV1().
-					Pods(importer.Namespace).
-					GetLogs(importer.Name, &core.PodLogOptions{SinceTime: &meta.Time{Time: CurrentSpecReport().StartTime}}).
-					DoRaw(context.Background())
-				return string(out), err
-			}, time.Minute, pollingInterval).Should(And(
-				ContainSubstring(vddkConfigOptions[0]),
-				ContainSubstring(vddkConfigOptions[1]),
-			))
-		})
-	})
+		By("Verifying DV bound condition")
+		var boundCondition *cdiv1.DataVolumeCondition
+		if containsPrimeEvent {
+			boundMessage := fmt.Sprintf("PVC %s Pending and %s", dataVolume.Name, primeEvent)
+			boundCondition = &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeBound,
+				Status:  v1.ConditionFalse,
+				Message: boundMessage,
+				Reason:  "Pending",
+			}
+		} else {
+			boundMessage := fmt.Sprintf("PVC %s Bound", dataVolume.Name)
+			boundCondition = &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeBound,
+				Status:  v1.ConditionTrue,
+				Message: boundMessage,
+				Reason:  "Bound",
+			}
+		}
+
+		utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition)
+	},
+		Entry("DV bound condition should be a Prime PVC event while DV is stuck in pending",
+			func() string { return "http://i-made-this-up.kube-system/tinyCore.iso" }, true),
+		Entry("DV bound condition should be correctly set without Prime PVC event when DV is bound",
+			tinyCoreIsoURL, false),
+	)
 })
 
 func SetFilesystemOverhead(f *framework.Framework, globalOverhead, scOverhead string) {
@@ -3554,29 +3600,4 @@ func SetFilesystemOverhead(f *framework.Framework, globalOverhead, scOverhead st
 		}
 		return config.Status.FilesystemOverhead.StorageClass[defaultSCName] == cdiv1.Percent(globalOverhead)
 	}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig filesystem overhead wasn't set")
-}
-
-func EnableWebhookPvcRendering(c client.Client) {
-	By("enabling WebhookPvcRendering feature gate")
-	_, err := utils.EnableFeatureGate(c, featuregates.WebhookPvcRendering)
-	Expect(err).ToNot(HaveOccurred())
-	Eventually(func() error {
-		whc := &admissionregistrationv1.MutatingWebhookConfiguration{}
-		return c.Get(context.TODO(), types.NamespacedName{Name: "cdi-api-pvc-mutate"}, whc)
-	}, timeout, pollingInterval).ShouldNot(HaveOccurred())
-}
-
-func DisableWebhookPvcRendering(c client.Client) {
-	enabled, err := featuregates.IsWebhookPvcRenderingEnabled(c)
-	Expect(err).ToNot(HaveOccurred())
-	if enabled {
-		By("disabling WebhookPvcRendering feature gate")
-		_, err := utils.DisableFeatureGate(c, featuregates.WebhookPvcRendering)
-		Expect(err).ToNot(HaveOccurred())
-	}
-	Eventually(func() bool {
-		whc := &admissionregistrationv1.MutatingWebhookConfiguration{}
-		err := c.Get(context.TODO(), types.NamespacedName{Name: "cdi-api-pvc-mutate"}, whc)
-		return err != nil && k8serrors.IsNotFound(err)
-	}, timeout, pollingInterval).Should(BeTrue())
 }

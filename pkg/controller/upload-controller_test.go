@@ -482,6 +482,7 @@ var _ = Describe("reconcilePVC loop", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, uploadPod)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(uploadPod.Name).To(Equal(uploadResourceName))
+			Expect(uploadPod.Spec.Containers[0].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
 			expectDeadline(uploadPod)
 
 			uploadService = &corev1.Service{}

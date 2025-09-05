@@ -12,6 +12,51 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
+const (
+	TestImagesDir = "../../tests/images"
+	pattern       = "^[a-zA-Z0-9]+$"
+)
+
+var (
+	fileDir, _ = filepath.Abs(TestImagesDir)
+)
+
+var _ = Describe("Copy files", func() {
+	var destTmp string
+	var err error
+
+	BeforeEach(func() {
+		destTmp, err = os.MkdirTemp("", "dest")
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		err = os.RemoveAll(destTmp)
+		Expect(err).NotTo(HaveOccurred())
+		os.Remove("test.txt")
+	})
+
+	It("Should copy file from source to dest, with valid source and dest", func() {
+		err = CopyFile(filepath.Join(TestImagesDir, "content.tar"), filepath.Join(destTmp, "target.tar"))
+		Expect(err).ToNot(HaveOccurred())
+		sourceMd5, err := Md5sum(filepath.Join(TestImagesDir, "content.tar"))
+		Expect(err).ToNot(HaveOccurred())
+		targetMd5, err := Md5sum(filepath.Join(destTmp, "target.tar"))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(sourceMd5).Should(Equal(targetMd5))
+	})
+
+	It("Should not copy file from source to dest, with invalid source", func() {
+		err = CopyFile(filepath.Join(TestImagesDir, "content.tar22"), filepath.Join(destTmp, "target.tar"))
+		Expect(err).To(HaveOccurred())
+	})
+
+	It("Should not copy file from source to dest, with invalid target", func() {
+		err = CopyFile(filepath.Join(TestImagesDir, "content.tar"), filepath.Join("/invalidpath", "target.tar"))
+		Expect(err).To(HaveOccurred())
+	})
+})
+
 var _ = Describe("Util", func() {
 	It("Should match RandAlphaNum", func() {
 		got := RandAlphaNum(8)
@@ -104,19 +149,19 @@ var _ = Describe("Compare quantities", func() {
 	})
 })
 
-var _ = Describe("Usable Space calculation", func() {
+var _ = Describe("Space calculation", func() {
 
 	const (
 		Mi              = int64(1024 * 1024)
 		Gi              = 1024 * Mi
 		noOverhead      = float64(0)
-		defaultOverhead = float64(0.055)
+		defaultOverhead = float64(0.06)
 		largeOverhead   = float64(0.75)
 	)
 	DescribeTable("getusablespace should return properly aligned sizes,", func(virtualSize int64, overhead float64) {
 		for i := virtualSize - 1024; i < virtualSize+1024; i++ {
-			// Requested space is virtualSize rounded up to 1Mi alignment / (1 - overhead) rounded up
-			requestedSpace := int64(float64(RoundUp(i, DefaultAlignBlockSize)+1) / (1 - overhead))
+			// Requested space is virtualSize rounded up to 1Mi alignment * (1 + overhead) rounded up
+			requestedSpace := int64(float64(RoundUp(i, DefaultAlignBlockSize)+1) * (1 + overhead))
 			if i <= virtualSize {
 				Expect(GetUsableSpace(overhead, requestedSpace)).To(Equal(virtualSize))
 			} else {
@@ -137,4 +182,78 @@ var _ = Describe("Usable Space calculation", func() {
 		Entry("40Gi virtual size, default overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, defaultOverhead),
 		Entry("40Gi virtual size, large overhead to be 40Gi if <= 40Gi and 41Gi if > 40Gi", 40*Gi, largeOverhead),
 	)
+
+	DescribeTable("GetRequiredSpace should return properly enlarged sizes,", func(imageSize int64, overhead float64) {
+		for testedSize := imageSize - 1024; testedSize < imageSize+1024; testedSize++ {
+			alignedImageSpace := imageSize
+			if testedSize > imageSize {
+				alignedImageSpace = imageSize + Mi
+			}
+
+			// TEST
+			actualRequiredSpace := GetRequiredSpace(overhead, testedSize)
+
+			// ASSERT results
+			// check that the resulting space includes overhead over the `aligned image size`
+			overheadSpace := actualRequiredSpace - alignedImageSpace
+			actualOverhead := float64(overheadSpace) / float64(alignedImageSpace)
+
+			Expect(actualOverhead).To(BeNumerically("~", overhead, 0.01))
+		}
+	},
+		Entry("1Mi virtual size, 0 overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, noOverhead),
+		Entry("1Mi virtual size, default overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, defaultOverhead),
+		Entry("1Mi virtual size, large overhead to be 1Mi if <= 1Mi and 2Mi if > 1Mi", Mi, largeOverhead),
+		Entry("40Mi virtual size, 0 overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, noOverhead),
+		Entry("40Mi virtual size, default overhead to be 40Mi if <= 1Mi and 41Mi if > 40Mi", 40*Mi, defaultOverhead),
+		Entry("40Mi virtual size, large overhead to be 40Mi if <= 40Mi and 41Mi if > 40Mi", 40*Mi, largeOverhead),
+		Entry("1Gi virtual size, 0 overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, noOverhead),
+		Entry("1Gi virtual size, default overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, defaultOverhead),
+		Entry("1Gi virtual size, large overhead to be 1Gi if <= 1Gi and 2Gi if > 1Gi", Gi, largeOverhead),
+		Entry("40Gi virtual size, 0 overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, noOverhead),
+		Entry("40Gi virtual size, default overhead to be 40Gi if <= 1Gi and 41Gi if > 40Gi", 40*Gi, defaultOverhead),
+		Entry("40Gi virtual size, large overhead to be 40Gi if <= 40Gi and 41Gi if > 40Gi", 40*Gi, largeOverhead),
+	)
+})
+
+var _ = Describe("Merge Labels", func() {
+
+	var (
+		someLabels, emptyLabels, existingLabels, expectedMergedLabels map[string]string
+	)
+
+	BeforeEach(func() {
+		someLabels = map[string]string{
+			"label1": "val1",
+			"label2": "val2",
+			"label3": "val3",
+		}
+		emptyLabels = make(map[string]string)
+		existingLabels = map[string]string{
+			"label4": "val4",
+			"label5": "val5",
+		}
+		expectedMergedLabels = map[string]string{
+			"label1": "val1",
+			"label2": "val2",
+			"label3": "val3",
+			"label4": "val4",
+			"label5": "val5",
+		}
+	})
+
+	DescribeTable("Should properly merge labels", func(original, merged, expected map[string]string) {
+		// copies entries from original to merged
+		MergeLabels(original, merged)
+		Expect(merged).To(HaveLen(len(expected)))
+		for key, val := range merged {
+			Expect(val).To(Equal(expected[key]))
+		}
+	},
+		Entry("original is empty", emptyLabels, someLabels, someLabels),
+		Entry("original has values", someLabels, existingLabels, expectedMergedLabels),
+		Entry("original empty, adding empty", emptyLabels, emptyLabels, emptyLabels),
+		Entry("original has values, adding empty", someLabels, emptyLabels, someLabels),
+	)
+
 })

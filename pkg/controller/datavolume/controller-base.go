@@ -403,11 +403,16 @@ func getSourceRefOp(ctx context.Context, log logr.Logger, dv *cdiv1.DataVolume, 
 		log.Error(err, "Unable to get DataSource", "namespacedName", nn)
 		return dataVolumeNop
 	}
+	resolved, err := cc.ResolveDataSourceChain(ctx, client, dataSource)
+	if err != nil {
+		log.Error(err, "Unable to resolve DataSource chain", "namespacedName", nn)
+		return dataVolumeNop
+	}
 
 	switch {
-	case dataSource.Spec.Source.PVC != nil:
+	case resolved.Spec.Source.PVC != nil:
 		return dataVolumePvcClone
-	case dataSource.Spec.Source.Snapshot != nil:
+	case resolved.Spec.Source.Snapshot != nil:
 		return dataVolumeSnapshotClone
 	default:
 		return dataVolumeNop
@@ -1084,6 +1089,7 @@ func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy 
 		if event.eventType != "" && curPhase != dataVolumeCopy.Status.Phase {
 			r.recorder.Event(dataVolumeCopy, event.eventType, event.reason, event.message)
 		}
+
 		r.emitConditionEvent(dataVolumeCopy, originalCond)
 	}
 	return nil
@@ -1108,7 +1114,7 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 	}
 
 	// Used for both import and clone, so it should match both metric names
-	progressReport, err := cc.GetProgressReportFromURL(url, httpClient,
+	progressReport, err := cc.GetProgressReportFromURL(context.TODO(), url, httpClient,
 		fmt.Sprintf("%s|%s", importMetrics.ImportProgressMetricName, cloneMetrics.CloneProgressMetricName),
 		string(dataVolumeCopy.UID))
 	if err != nil {

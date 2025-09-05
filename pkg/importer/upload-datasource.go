@@ -59,13 +59,13 @@ func (ud *UploadDataSource) Info() (ProcessingPhase, error) {
 }
 
 // Transfer is called to transfer the data from the source to the passed in path.
-func (ud *UploadDataSource) Transfer(path string) (ProcessingPhase, error) {
+func (ud *UploadDataSource) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
 	if ud.contentType == cdiv1.DataVolumeKubeVirt {
 		file := filepath.Join(path, tempFile)
 		if err := CleanAll(file); err != nil {
 			return ProcessingPhaseError, err
 		}
-		size, err := util.GetAvailableSpace(path)
+		size, err := GetAvailableSpace(path)
 		if err != nil {
 			return ProcessingPhaseError, err
 		}
@@ -73,7 +73,7 @@ func (ud *UploadDataSource) Transfer(path string) (ProcessingPhase, error) {
 			//Path provided is invalid.
 			return ProcessingPhaseError, ErrInvalidPath
 		}
-		err = streamDataToFile(ud.readers.TopReader(), file)
+		_, _, err = StreamDataToFile(ud.readers.TopReader(), file, preallocation)
 		if err != nil {
 			return ProcessingPhaseError, err
 		}
@@ -91,11 +91,11 @@ func (ud *UploadDataSource) Transfer(path string) (ProcessingPhase, error) {
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
-func (ud *UploadDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+func (ud *UploadDataSource) TransferFile(fileName string, preallocation bool) (ProcessingPhase, error) {
 	if err := CleanAll(fileName); err != nil {
 		return ProcessingPhaseError, err
 	}
-	err := streamDataToFile(ud.readers.TopReader(), fileName)
+	_, _, err := StreamDataToFile(ud.readers.TopReader(), fileName, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -146,12 +146,12 @@ func (aud *AsyncUploadDataSource) Info() (ProcessingPhase, error) {
 }
 
 // Transfer is called to transfer the data from the source to the passed in path.
-func (aud *AsyncUploadDataSource) Transfer(path string) (ProcessingPhase, error) {
+func (aud *AsyncUploadDataSource) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
 	file := filepath.Join(path, tempFile)
 	if err := CleanAll(file); err != nil {
 		return ProcessingPhaseError, err
 	}
-	size, err := util.GetAvailableSpace(path)
+	size, err := GetAvailableSpace(path)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -159,7 +159,7 @@ func (aud *AsyncUploadDataSource) Transfer(path string) (ProcessingPhase, error)
 		//Path provided is invalid.
 		return ProcessingPhaseError, ErrInvalidPath
 	}
-	err = streamDataToFile(aud.uploadDataSource.readers.TopReader(), file)
+	_, _, err = StreamDataToFile(aud.uploadDataSource.readers.TopReader(), file, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -170,11 +170,11 @@ func (aud *AsyncUploadDataSource) Transfer(path string) (ProcessingPhase, error)
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
-func (aud *AsyncUploadDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+func (aud *AsyncUploadDataSource) TransferFile(fileName string, preallocation bool) (ProcessingPhase, error) {
 	if err := CleanAll(fileName); err != nil {
 		return ProcessingPhaseError, err
 	}
-	err := streamDataToFile(aud.uploadDataSource.readers.TopReader(), fileName)
+	_, _, err := StreamDataToFile(aud.uploadDataSource.readers.TopReader(), fileName, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}

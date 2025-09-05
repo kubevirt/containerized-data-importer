@@ -55,11 +55,13 @@ const (
 
 // HTTPDataSource is the data provider for http(s) endpoints.
 // Sequence of phases:
-// 1a. Info -> Convert (In Info phase the format readers are configured), if the source Reader image is not archived, and no custom CA is used, and can be converted by QEMU-IMG (RAW/QCOW2)
-// 1b. Info -> TransferArchive if the content type is archive
-// 1c. Info -> Transfer in all other cases.
-// 2a. Transfer -> Convert if content type is kube virt
-// 2b. Transfer -> Complete if content type is archive (Transfer is called with the target instead of the scratch space). Non block PVCs only.
+// 1a. Info -> Convert (In Info phase the format readers are configured), if the source Reader image is not archived, and no custom CA is used, and can be converted by QEMU-IMG (RAW/QCOW2).
+// 1b. Info -> TransferArchive if the content type is archive.
+// 1c. Info -> ValidatePreScratch if image size validation using nbdkit prior to Transfer is possible.
+// 1d. Info -> Transfer in all other cases.
+// 2.  ValidatePreScratch -> TransferScratch.
+// 3a. Transfer -> Convert if content type is kubevirt
+// 3b. Transfer -> Complete if content type is archive (Transfer is called with the target instead of the scratch space). Non block PVCs only.
 type HTTPDataSource struct {
 	httpReader io.ReadCloser
 	ctx        context.Context
@@ -138,28 +140,43 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 		return ProcessingPhaseTransferDataDir, nil
 	}
 	if pullMethod, _ := util.ParseEnvVar(common.ImporterPullMethod, false); pullMethod == string(cdiv1.RegistryPullNode) {
-		hs.url, _ = url.Parse(fmt.Sprintf("nbd+unix:///?socket=%s", nbdkitSocket))
-		if err = hs.n.StartNbdkit(hs.endpoint.String()); err != nil {
+		if err := hs.startNbdKit(); err != nil {
 			return ProcessingPhaseError, err
 		}
 		return ProcessingPhaseConvert, nil
 	}
+	if err := hs.startNbdKit(); err == nil && !hs.brokenForQemuImg {
+		// Validate that target volume size is sufficient early.
+		return ProcessingPhaseValidatePreScratch, nil
+	}
+	hs.url = nil
 	return ProcessingPhaseTransferScratch, nil
 }
 
 // Transfer is called to transfer the data from the source to a scratch location.
-func (hs *HTTPDataSource) Transfer(path string) (ProcessingPhase, error) {
+func (hs *HTTPDataSource) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
 	if hs.contentType == cdiv1.DataVolumeKubeVirt {
 		file := filepath.Join(path, tempFile)
 		if err := CleanAll(file); err != nil {
 			return ProcessingPhaseError, err
 		}
-		size, err := util.GetAvailableSpace(path)
+		size, err := GetAvailableSpace(path)
 		if err != nil || size <= 0 {
 			return ProcessingPhaseError, ErrInvalidPath
 		}
+		// Validate that scratch space size is sufficient early.
+		// This check is best effort as qemu-img info can't parse compressed images properly.
+		if hs.url != nil {
+			// Other errors such as qemu-img or nbdkit-curl failures are irrelevant as this
+			// is a best effort attempt and should not fail the import.
+			// HTTPs Proxy CA is currently unsupported until nbdkit adds support for the relevant flags
+			// https://gitlab.com/nbdkit/nbdkit/-/merge_requests/87
+			if err = qemuOperations.Validate(hs.url, size); errors.Is(err, image.ErrLargerPVCRequired) {
+				return ProcessingPhaseError, err
+			}
+		}
 		hs.readers.StartProgressUpdate()
-		err = streamDataToFile(hs.readers.TopReader(), file)
+		_, _, err = StreamDataToFile(hs.readers.TopReader(), file, preallocation)
 		if err != nil {
 			return ProcessingPhaseError, err
 		}
@@ -177,12 +194,12 @@ func (hs *HTTPDataSource) Transfer(path string) (ProcessingPhase, error) {
 }
 
 // TransferFile is called to transfer the data from the source to the passed in file.
-func (hs *HTTPDataSource) TransferFile(fileName string) (ProcessingPhase, error) {
+func (hs *HTTPDataSource) TransferFile(fileName string, preallocation bool) (ProcessingPhase, error) {
 	if err := CleanAll(fileName); err != nil {
 		return ProcessingPhaseError, err
 	}
 	hs.readers.StartProgressUpdate()
-	err := streamDataToFile(hs.readers.TopReader(), fileName)
+	_, _, err := StreamDataToFile(hs.readers.TopReader(), fileName, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
@@ -544,4 +561,12 @@ func getServerInfo(ctx context.Context, infoURL string) (*common.ServerInfo, err
 	}
 
 	return info, nil
+}
+
+func (hs *HTTPDataSource) startNbdKit() error {
+	hs.url, _ = url.Parse(fmt.Sprintf("nbd+unix:///?socket=%s", nbdkitSocket))
+	if err := hs.n.StartNbdkit(hs.endpoint.String()); err != nil {
+		return err
+	}
+	return nil
 }

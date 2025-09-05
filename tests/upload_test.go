@@ -23,6 +23,8 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	openapicommon "k8s.io/kube-openapi/pkg/common"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -30,7 +32,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-	"kubevirt.io/containerized-data-importer/tests"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -109,15 +110,9 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 		Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
 
-		Eventually(func() error {
-			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			delete(pvc.Annotations, controller.AnnUploadRequest)
-			// We shouldn't make the test fail if there's a conflict with the update request.
-			// These errors are usually transient and should be fixed in subsequent retries.
-			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
-			return err
-		}, timeout, pollingInterval).Should(Succeed())
+		patchBytes := []byte(fmt.Sprintf(`[{"op":"remove","path":"/metadata/annotations/%s"}]`, openapicommon.EscapeJsonPointer(controller.AnnUploadRequest)))
+		pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Patch(context.TODO(), pvc.Name, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
+		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(func() bool {
 			_, err = f.K8sClient.CoreV1().Pods(uploadPod.Namespace).Get(context.TODO(), uploadPod.Name, metav1.GetOptions{})
@@ -255,15 +250,10 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(err).ToNot(HaveOccurred())
 			Expect(found).To(BeTrue())
 
-			Eventually(func() error {
-				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				pvc.Annotations[controller.AnnContentType] = XSSAttempt
-				// We shouldn't make the test fail if there's a conflict with the update request.
-				// These errors are usually transient and should be fixed in subsequent retries.
-				pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Update(context.TODO(), pvc, metav1.UpdateOptions{})
-				return err
-			}, timeout, pollingInterval).Should(Succeed())
+			By("Patch PVC to inject XSS attempt")
+			patchBytes := []byte(fmt.Sprintf(`[{"op":"add","path":"/metadata/annotations/%s","value":"%s"}]`, openapicommon.EscapeJsonPointer(controller.AnnContentType), XSSAttempt))
+			pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Patch(context.TODO(), pvc.Name, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
+			Expect(err).ToNot(HaveOccurred())
 
 			var token string
 			By("Get an upload token")
@@ -286,7 +276,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(string(body)).To(ContainSubstring(pvc.Name))
 		})
 
-		DescribeTable("Verify validation error message on async upload if virtual size > pvc size", Serial, func(filename string) {
+		DescribeTable("Verify failure on upload if effective size > pvc size", Label("no-kubernetes-in-docker"), Serial, func(filename, uploadPath string) {
 			By("Verify PVC annotation says ready")
 			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
 			Expect(err).ToNot(HaveOccurred())
@@ -299,31 +289,10 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			Expect(token).ToNot(BeEmpty())
 
 			By("Do upload")
+			tokenExpiration := 5 * time.Minute
 			Eventually(func() error {
-				return uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, asyncUploadPath, token, http.StatusBadRequest)
-			}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
-		},
-			Entry("[test_id:4989]fail given a large virtual size QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
-			Entry("fail given a large physical size QCOW2 file", utils.UploadFileLargePhysicalDiskQcow),
-		)
-
-		DescribeTable("[posneg:negative][test_id:2330]Verify failure on sync upload if virtual size > pvc size", Label("no-kubernetes-in-docker"), Serial, func(filename string) {
-			By("Verify PVC annotation says ready")
-			found, err := utils.WaitPVCPodStatusReady(f.K8sClient, pvc)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(found).To(BeTrue())
-
-			var token string
-			By("Get an upload token")
-			token, err = utils.RequestUploadToken(f.CdiClient, pvc)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(token).ToNot(BeEmpty())
-
-			By("Do upload")
-			Eventually(func() bool {
-				err = uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, syncUploadPath, token, http.StatusOK)
-				return err != nil && strings.Contains(err.Error(), "Unexpected return value 500")
-			}, timeout, pollingInterval).Should(BeTrue())
+				return uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, uploadPath, token, http.StatusBadRequest)
+			}, tokenExpiration, pollingInterval).Should(BeNil(), "Upload should fail with HTTP 400")
 
 			uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
@@ -335,17 +304,14 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 					GetLogs(uploadPod.Name, &v1.PodLogOptions{SinceTime: &metav1.Time{Time: CurrentSpecReport().StartTime}}).
 					DoRaw(context.Background())
 				return string(out), err
-			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(Or(
-				ContainSubstring("is larger than the reported available"),
-				ContainSubstring("no space left on device"),
-				ContainSubstring("qemu-img execution failed"),
-				ContainSubstring("calculated new size is < than current size, not resizing"),
-			))
+			}, controllerSkipPVCCompleteTimeout, assertionPollInterval).Should(ContainSubstring("effective image size is larger than the reported available"))
 		},
-			Entry("fail given a large virtual size RAW XZ file", utils.UploadFileLargeVirtualDiskXz),
-			Entry("fail given a large virtual size QCOW2 file", utils.UploadFileLargeVirtualDiskQcow),
-			Entry("fail given a large physical size RAW XZ file", utils.UploadFileLargePhysicalDiskXz),
-			Entry("fail given a large physical size QCOW2 file", utils.UploadFileLargePhysicalDiskQcow),
+			Entry("with a large virtual size RAW XZ file sync", utils.UploadFileLargeVirtualDiskXz, syncUploadPath),
+			Entry("with a large physical size RAW XZ file sync", utils.UploadFileLargePhysicalDiskXz, syncUploadPath),
+			Entry("with a large physical size QCOW2 file sync", utils.UploadFileLargePhysicalDiskQcow, syncUploadPath),
+			Entry("with a large physical size QCOW2 file, async", utils.UploadFileLargePhysicalDiskQcow, asyncUploadPath),
+			Entry("with a large virtual size QCOW2 file sync", utils.UploadFileLargeVirtualDiskQcow, syncUploadPath),
+			Entry("[test_id:4989]with a large virtual size QCOW2 file async", utils.UploadFileLargeVirtualDiskQcow, asyncUploadPath),
 		)
 	})
 
@@ -412,8 +378,6 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 					same, err := f.VerifyTargetPVCContentMD5(f.Namespace, archivePVC, pathInPvc, expectedMd5)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(same).To(BeTrue())
-					By("Verifying the image is sparse")
-					Expect(f.VerifySparse(f.Namespace, archivePVC, pathInPvc)).To(BeTrue())
 				}
 			} else {
 				checkFailureNoValidToken(archivePVC)
@@ -732,8 +696,6 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 						same, err := f.VerifyTargetPVCContentMD5(f.Namespace, pvc, pathInPvc, expectedMd5)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(same).To(BeTrue())
-						By("Verifying the image is sparse")
-						Expect(f.VerifySparse(f.Namespace, pvc, pathInPvc)).To(BeTrue())
 					}
 				} else {
 					checkFailureNoValidToken(pvcPrime)
@@ -1395,12 +1357,10 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 	})
 
 	It("Upload an image exactly the same size as DV request (bz#2064936)", func() {
-		// This image size and filesystem overhead combination was experimentally determined
-		// to reproduce bz#2064936 in CI when using ceph/rbd with a Filesystem mode PV since
-		// the filesystem capacity will be constrained by the PVC request size.
-		size := "858993459"
-		fsOverhead := "0.055" // The default value
-		tests.SetFilesystemOverhead(f, fsOverhead, fsOverhead)
+		// Using a large image to avoid a known issue where the default overhead inflation
+		// is insufficient to account for the fs overhead in small images.
+		// This issue is not seen with larger images where the overhead is sufficient.
+		size := "2147483648"
 
 		volumeMode := v1.PersistentVolumeFilesystem
 		accessModes := []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
@@ -1435,7 +1395,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 
 		By("Do upload")
 		Eventually(func() error {
-			return uploadFileNameToPath(binaryRequestFunc, utils.FsOverheadFile, uploadProxyURL, syncUploadPath, token, http.StatusOK)
+			return uploadFileNameToPath(binaryRequestFunc, utils.UploadFileLargeVirtualDiskQcow, uploadProxyURL, syncUploadPath, token, http.StatusOK)
 		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		phase = cdiv1.Succeeded

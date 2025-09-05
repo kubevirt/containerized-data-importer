@@ -18,7 +18,7 @@
 #
 
 set -ex
-export TARGET=k8s-1.31
+export TARGET=k8s-1.33
 export KUBEVIRT_STORAGE=hpp
 export MULTI_UPGRADE=true
 automation/test.sh

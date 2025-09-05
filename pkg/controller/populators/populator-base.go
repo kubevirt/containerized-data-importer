@@ -18,6 +18,7 @@ package populators
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/go-logr/logr"
@@ -60,6 +61,9 @@ const (
 	dataSourceRefField = "spec.dataSourceRef"
 
 	uidField = "metadata.uid"
+
+	involvedNameField = "involvedObject.name"
+	involvedUIDField  = "involvedObject.uid"
 )
 
 // Interface to store populator-specific methods
@@ -99,6 +103,22 @@ func getIndexArgs() []indexArgs {
 			field: uidField,
 			extractValue: func(obj client.Object) []string {
 				return []string{string(obj.GetUID())}
+			},
+		},
+		{
+			obj:   &corev1.Event{},
+			field: involvedNameField,
+			extractValue: func(obj client.Object) []string {
+				event := obj.(*corev1.Event)
+				return []string{event.InvolvedObject.Name}
+			},
+		},
+		{
+			obj:   &corev1.Event{},
+			field: involvedUIDField,
+			extractValue: func(obj client.Object) []string {
+				event := obj.(*corev1.Event)
+				return []string{string(event.InvolvedObject.UID)}
 			},
 		},
 	}
@@ -209,6 +229,7 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	}
 	cc.CopyAllowedAnnotations(pvc, pvcPrime)
 	util.SetRecommendedLabels(pvcPrime, r.installerLabels, "cdi-controller")
+	util.MergeLabels(pvc.Labels, pvcPrime.Labels)
 
 	// We use the populator-specific pvcModifierFunc to add required annotations
 	if updatePVCForPopulation != nil {
@@ -226,7 +247,7 @@ type updatePVCAnnotationsFunc func(pvc, pvcPrime *corev1.PersistentVolumeClaim)
 
 var desiredAnnotations = []string{cc.AnnPodPhase, cc.AnnPodReady, cc.AnnPodRestarts,
 	cc.AnnPreallocationRequested, cc.AnnPreallocationApplied, cc.AnnCurrentCheckpoint, cc.AnnMultiStageImportDone,
-	cc.AnnRunningCondition, cc.AnnRunningConditionMessage, cc.AnnRunningConditionReason}
+	cc.AnnRunningCondition, cc.AnnRunningConditionMessage, cc.AnnRunningConditionReason, cc.AnnPodSchedulable}
 
 func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim, updateFunc updatePVCAnnotationsFunc) (*corev1.PersistentVolumeClaim, error) {
 	pvcCopy := pvc.DeepCopy()
@@ -253,6 +274,19 @@ func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.
 	return pvcCopy, nil
 }
 
+func (r *ReconcilerBase) updatePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim, pvcPrimeName string) (bool, error) {
+	if _, ok := pvc.Annotations[cc.AnnPVCPrimeName]; ok {
+		return false, nil
+	}
+
+	cc.AddAnnotation(pvc, cc.AnnPVCPrimeName, pvcPrimeName)
+	if err := r.client.Update(context.TODO(), pvc); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 func (r *ReconcilerBase) updatePVCWithPVCPrimeLabels(pvc *corev1.PersistentVolumeClaim, pvcPrimeLabels map[string]string) (*corev1.PersistentVolumeClaim, error) {
 	pvcCopy := pvc.DeepCopy()
 	cc.CopyAllowedLabels(pvcPrimeLabels, pvcCopy, false)
@@ -262,6 +296,56 @@ func (r *ReconcilerBase) updatePVCWithPVCPrimeLabels(pvc *corev1.PersistentVolum
 		}
 	}
 	return pvcCopy, nil
+}
+
+// CopyEvents gets primePVC events and re-emits them on the target PVC with the prime name prefix
+func (r *ReconcilerBase) copyEvents(primePVC, targetPVC client.Object) {
+	primePrefixMsg := fmt.Sprintf("[%s] : ", primePVC.GetName())
+
+	newEvents := &corev1.EventList{}
+	err := r.client.List(context.TODO(), newEvents,
+		client.InNamespace(primePVC.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": primePVC.GetName(),
+			"involvedObject.uid": string(primePVC.GetUID())},
+	)
+
+	if err != nil {
+		r.log.Error(err, "Could not retrieve primePVC list of Events")
+	}
+
+	currEvents := &corev1.EventList{}
+	err = r.client.List(context.TODO(), currEvents,
+		client.InNamespace(targetPVC.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": targetPVC.GetName(),
+			"involvedObject.uid": string(targetPVC.GetUID())},
+	)
+
+	if err != nil {
+		r.log.Error(err, "Could not retrieve targetPVC list of Events")
+	}
+
+	// use this to hash each message for quick lookup, value is unused
+	eventMap := make(map[string]bool)
+
+	for _, event := range currEvents.Items {
+		eventMap[event.Message] = true
+	}
+
+	for _, newEvent := range newEvents.Items {
+		msg := newEvent.Message
+
+		// check if target PVC already has this equivalent event
+		if _, exists := eventMap[msg]; exists {
+			continue
+		}
+
+		formattedMsg := primePrefixMsg + msg
+		// check if we already emitted this event with the prime prefix
+		if _, exists := eventMap[formattedMsg]; exists {
+			continue
+		}
+		r.recorder.Event(targetPVC, newEvent.Type, newEvent.Reason, formattedMsg)
+	}
 }
 
 // reconcile functions
@@ -293,7 +377,6 @@ func (r *ReconcilerBase) reconcile(req reconcile.Request, populator populatorCon
 	if cc.IsPVCComplete(pvc) && cc.IsBound(pvc) && !cc.IsMultiStageImportInProgress(pvc) {
 		res, err = r.reconcileCleanup(pvcPrime)
 	}
-
 	return res, err
 }
 

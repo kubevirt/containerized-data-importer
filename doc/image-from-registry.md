@@ -191,3 +191,31 @@ spec:
 ```
 
 More information on image streams is available [here](https://docs.openshift.com/container-platform/4.8/openshift_images/image-streams-manage.html) and [here](https://www.tutorialworks.com/openshift-imagestreams).
+
+# Import registry image by platform specification
+
+When importing an image from a [OCI Image Index](https://specs.opencontainers.org/image-spec/image-index/), you can optionally specify a `platform` field to influence which image variant is selected from the multi-platform manifest.
+Currently the `platform` field supports the following subfields for filtering:
+- `architecture` - Specifies the image target CPU architecture (e.g., `amd64`, `arm64`, `s390x`)
+
+Subfields defined by the OCI Image Index `platform` specification but not listed above will default to the values defined in the OCI specification.
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: registry-image-datavolume
+spec:
+  source:
+    registry:
+      url: "docker://quay.io/containerdisks/fedora:latest"
+      platform:
+        architecture: "arm64"
+  storage:
+    resources:
+      requests:
+        storage: 10Gi
+```
+
+> [!NOTE]  
+> When `platform.architecture` is used together with `pullMethod: node`, a node selector will be added to the resulting importer Pod to ensure it schedules onto a node matching the specified architecture.

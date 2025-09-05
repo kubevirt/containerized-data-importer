@@ -263,6 +263,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 			Expect(sourcePod.Spec.Containers[0].VolumeMounts[0].ReadOnly).To(BeTrue())
 			Expect(sourcePod.Spec.Volumes[0].PersistentVolumeClaim.ReadOnly).To(BeFalse())
 		}
+		Expect(sourcePod.Spec.Containers[0].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
 		Expect(sourcePod.GetLabels()[cc.CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
 		Expect(sourcePod.GetLabels()[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 		By("Verifying source pod annotations passed from pvc")

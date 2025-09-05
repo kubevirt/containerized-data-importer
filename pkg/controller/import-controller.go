@@ -76,32 +76,33 @@ type ImportReconciler struct {
 }
 
 type importPodEnvVar struct {
-	ep                 string
-	secretName         string
-	source             string
-	contentType        string
-	imageSize          string
-	certConfigMap      string
-	diskID             string
-	uuid               string
-	pullMethod         string
-	readyFile          string
-	doneFile           string
-	backingFile        string
-	thumbprint         string
-	filesystemOverhead string
-	insecureTLS        bool
-	currentCheckpoint  string
-	previousCheckpoint string
-	finalCheckpoint    string
-	preallocation      bool
-	httpProxy          string
-	httpsProxy         string
-	noProxy            string
-	certConfigMapProxy string
-	extraHeaders       []string
-	secretExtraHeaders []string
-	cacheMode          string
+	ep                        string
+	secretName                string
+	source                    string
+	contentType               string
+	imageSize                 string
+	certConfigMap             string
+	diskID                    string
+	uuid                      string
+	pullMethod                string
+	readyFile                 string
+	doneFile                  string
+	backingFile               string
+	thumbprint                string
+	filesystemOverhead        string
+	insecureTLS               bool
+	currentCheckpoint         string
+	previousCheckpoint        string
+	finalCheckpoint           string
+	preallocation             bool
+	httpProxy                 string
+	httpsProxy                string
+	noProxy                   string
+	certConfigMapProxy        string
+	extraHeaders              []string
+	secretExtraHeaders        []string
+	cacheMode                 string
+	registryImageArchitecture string
 }
 
 type importerPodArgs struct {
@@ -199,6 +200,13 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 			return reconcile.Result{}, nil
 		}
 		return reconcile.Result{}, err
+	}
+
+	// only want to update bound condition for relevant type
+	if checkPVC(pvc, cc.AnnEndpoint, log) || checkPVC(pvc, cc.AnnSource, log) {
+		if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	shouldReconcile, err := r.shouldReconcilePVC(pvc, log)
@@ -405,6 +413,16 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 		anno[cc.AnnPodPhase] = string(pod.Status.Phase)
 	}
 
+	anno[cc.AnnPodSchedulable] = "true"
+	if phase, ok := anno[cc.AnnPodPhase]; ok && phase == string(corev1.PodPending) {
+		for _, cond := range pod.Status.Conditions {
+			if cond.Type == corev1.PodScheduled && cond.Reason == corev1.PodReasonUnschedulable {
+				anno[cc.AnnPodSchedulable] = "false"
+				break
+			}
+		}
+	}
+
 	for _, ev := range pod.Spec.Containers[0].Env {
 		if ev.Name == common.CacheMode && ev.Value == common.CacheModeTryNone {
 			anno[cc.AnnRequiresDirectIO] = "false"
@@ -599,6 +617,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.previousCheckpoint = getValueFromAnnotation(pvc, cc.AnnPreviousCheckpoint)
 		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, cc.AnnCurrentCheckpoint)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, cc.AnnFinalCheckpoint)
+		podEnvVar.registryImageArchitecture = getValueFromAnnotation(pvc, cc.AnnRegistryImageArchitecture)
 
 		for annotation, value := range pvc.Annotations {
 			if strings.HasPrefix(annotation, cc.AnnExtraHeaders) {
@@ -777,7 +796,6 @@ func (r *ImportReconciler) createScratchPvcForPod(pvc *corev1.PersistentVolumeCl
 			}
 			return fmt.Errorf("terminating scratch space found, deleting pod %s", pod.Name)
 		}
-		setBoundConditionFromPVC(anno, cc.AnnBoundCondition, scratchPvc)
 	}
 	anno[cc.AnnRequiresScratch] = "false"
 	return nil
@@ -873,11 +891,17 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 			return nil, err
 		}
 		setRegistryNodeImportEnvVars(args)
+		if args.podEnvVar.registryImageArchitecture != "" {
+			setRegistryNodeImportNodeSelector(args)
+		}
 	}
 
 	pod := makeImporterPodSpec(args)
 
 	util.SetRecommendedLabels(pod, installerLabels, "cdi-controller")
+
+	// add any labels from pvc to the importer pod
+	util.MergeLabels(args.pvc.Labels, pod.Labels)
 
 	if err = client.Create(context.TODO(), pod); err != nil {
 		return nil, err
@@ -970,6 +994,7 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 					Protocol:      corev1.ProtocolTCP,
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		},
 	}
 	if cc.GetVolumeMode(args.pvc) == corev1.PersistentVolumeBlock {
@@ -989,6 +1014,7 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 					Name:      "shared-volume",
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		})
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
 			MountPath: "/shared",
@@ -1132,6 +1158,7 @@ func makeImporterInitContainersSpec(args *importerPodArgs) []corev1.Container {
 					Name:      "shared-volume",
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		})
 	}
 	if args.vddkImageName != nil {
@@ -1144,6 +1171,7 @@ func makeImporterInitContainersSpec(args *importerPodArgs) []corev1.Container {
 					MountPath: "/opt",
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		})
 	}
 	if args.podResourceRequirements != nil {
@@ -1172,6 +1200,13 @@ func setRegistryNodeImportEnvVars(args *importerPodArgs) {
 	args.podEnvVar.pullMethod = string(cdiv1.RegistryPullNode)
 	args.podEnvVar.readyFile = "/shared/ready"
 	args.podEnvVar.doneFile = "/shared/done"
+}
+
+func setRegistryNodeImportNodeSelector(args *importerPodArgs) {
+	if args.workloadNodePlacement.NodeSelector == nil {
+		args.workloadNodePlacement.NodeSelector = make(map[string]string, 0)
+	}
+	args.workloadNodePlacement.NodeSelector[v1.LabelArchStable] = args.podEnvVar.registryImageArchitecture
 }
 
 func createConfigMapVolume(certVolName, objRef string) corev1.Volume {
@@ -1288,6 +1323,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.CacheMode,
 			Value: podEnvVar.cacheMode,
+		},
+		{
+			Name:  common.ImporterRegistryImageArchitecture,
+			Value: podEnvVar.registryImageArchitecture,
 		},
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source != cc.SourceGCS {

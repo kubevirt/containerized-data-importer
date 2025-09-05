@@ -66,7 +66,9 @@ func updateCondition(conditions []cdiv1.DataVolumeCondition, conditionType cdiv1
 }
 
 func updateRunningCondition(conditions []cdiv1.DataVolumeCondition, anno map[string]string) []cdiv1.DataVolumeCondition {
-	if val, ok := anno[cc.AnnRunningCondition]; ok {
+	if schedulable, ok := anno[cc.AnnPodSchedulable]; ok && schedulable == "false" {
+		conditions = updateCondition(conditions, cdiv1.DataVolumeRunning, corev1.ConditionFalse, "Importer pod cannot be scheduled", "Unschedulable")
+	} else if val, ok := anno[cc.AnnRunningCondition]; ok {
 		switch strings.ToLower(val) {
 		case "true":
 			conditions = updateWithTargetRunning(conditions, anno)
@@ -138,7 +140,8 @@ func updateBoundCondition(conditions []cdiv1.DataVolumeCondition, pvc *corev1.Pe
 				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("PVC %s Pending", pvc.Name), pvcPending)
 				conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			} else {
-				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC %s Pending and %s", pvc.Name, pvcCondition.Message), pvcCondition.Reason)
+				pvcPrimeName := getFormattedPrimeName(pvc)
+				conditions = updateCondition(conditions, cdiv1.DataVolumeBound, corev1.ConditionFalse, fmt.Sprintf("target PVC %s Pending and %s%s", pvc.Name, pvcPrimeName, pvcCondition.Message), pvcCondition.Reason)
 				conditions = UpdateReadyCondition(conditions, corev1.ConditionFalse, "", "")
 			}
 		case corev1.ClaimLost:
@@ -176,4 +179,13 @@ func getPVCCondition(anno map[string]string) *cdiv1.DataVolumeCondition {
 		}
 	}
 	return nil
+}
+
+func getFormattedPrimeName(pvc *corev1.PersistentVolumeClaim) string {
+	val, exists := pvc.GetAnnotations()[cc.AnnPVCPrimeName]
+	if exists {
+		primeName := fmt.Sprintf("[%s] : ", val)
+		return primeName
+	}
+	return ""
 }

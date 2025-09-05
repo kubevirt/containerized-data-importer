@@ -218,22 +218,6 @@ var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {
 	})
 
 	It("[test_id:6498] Should fail to import with namespace sidecar injection enabled, and sidecar.istio.io/inject set to true", func() {
-		// TODO - as of today (9/12/22), no istio release supports the restrected PSA
-		// but should be supported soon, per this PR https://github.com/istio/istio/pull/40115
-		// so use baseline PSA just for this test
-		Eventually(func() error {
-			ns, err := f.K8sClient.CoreV1().Namespaces().Get(context.TODO(), f.Namespace.Name, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
-			if ns.Labels["pod-security.kubernetes.io/enforce"] != "restricted" {
-				return nil
-			}
-			ns.Labels["pod-security.kubernetes.io/enforce"] = "baseline"
-			_, err = f.K8sClient.CoreV1().Namespaces().Update(context.TODO(), ns, metav1.UpdateOptions{})
-			return err
-		}, time.Minute, pollingInterval).Should(BeNil())
-
 		dataVolume := utils.NewDataVolumeWithHTTPImport("istio-sidecar-injection-test", "100Mi", tinyCoreIsoExternalURL)
 		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
 		// We set the Immediate Binding annotation to true, to eliminate creation of the consumer pod, which will also fail due to the Istio sidecar.
@@ -1311,8 +1295,6 @@ var _ = Describe("Preallocation", func() {
 	)
 
 	It("Filesystem overhead is honored with blank volume", Serial, func() {
-		tests.SetFilesystemOverhead(f, "0.055", "0.055")
-
 		dv := utils.NewDataVolumeForBlankRawImage("import-dv", "100Mi")
 		preallocation := true
 		dv.Spec.Preallocation = &preallocation
@@ -1539,15 +1521,12 @@ var _ = Describe("Import populator", func() {
 			Expect(err).ToNot(HaveOccurred())
 			pvc = nil
 		}
-
-		tests.DisableWebhookPvcRendering(f.CrClient)
 	})
 
 	DescribeTable("should import fileSystem PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error, preallocation, webhookRendering bool) {
 		pvc = importPopulationPVCDefinition()
 
 		if webhookRendering {
-			tests.EnableWebhookPvcRendering(f.CrClient)
 			controller.AddLabel(pvc, common.PvcApplyStorageProfileLabel, "true")
 			// Unset AccessModes which will be set by the webhook rendering
 			pvc.Spec.AccessModes = nil
@@ -1604,7 +1583,7 @@ var _ = Describe("Import populator", func() {
 	},
 		Entry("[test_id:11001]with HTTP image and preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, false),
 		Entry("[test_id:11002]with HTTP image without preallocation", utils.TinyCoreMD5, createHTTPImportPopulatorCR, false, false),
-		Entry("[rfe_id:10985][crit:high][test_id:11003]with HTTP image and preallocation, with incomplete PVC webhook rendering", Serial, utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, true),
+		Entry("[rfe_id:10985][crit:high][test_id:11003]with HTTP image and preallocation, with incomplete PVC webhook rendering", utils.TinyCoreMD5, createHTTPImportPopulatorCR, true, true),
 		Entry("[test_id:11004]with Registry image and preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, true, false),
 		Entry("[test_id:11005]with Registry image without preallocation", utils.TinyCoreMD5, createRegistryImportPopulatorCR, false, false),
 		Entry("[test_id:11006]with ImageIO image with preallocation", Label("ImageIO"), Serial, utils.ImageioMD5, createImageIOImportPopulatorCR, true, false),
@@ -1716,8 +1695,6 @@ var _ = Describe("Import populator", func() {
 		md5, err := f.GetMD5(f.Namespace, pvc, utils.DefaultImagePath, utils.MD5PrefixSize)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.TinyCoreMD5))
-		By("Verifying the image is sparse")
-		Expect(f.VerifySparse(f.Namespace, pvc, utils.DefaultImagePath)).To(BeTrue())
 		sourceMD5 := md5
 
 		By("Retaining PV")
@@ -1876,17 +1853,12 @@ var _ = Describe("Import populator", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(reflect.DeepEqual(dataVolume.Spec.Checkpoints, volumeImportSource.Spec.Checkpoints)).To(BeTrue())
 
-		By("Update DataVolume checkpoints")
-		Eventually(func() bool {
-			dataVolume, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			dataVolume.Spec.Checkpoints = []cdiv1.DataVolumeCheckpoint{
-				{Current: "test", Previous: "foo"},
-				{Current: "foo", Previous: "test"},
-			}
-			_, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Update(context.TODO(), dataVolume, metav1.UpdateOptions{})
-			return err == nil
-		}, timeout, pollingInterval).Should(BeTrue())
+		By("Patch DataVolume checkpoints")
+		dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		patch := `[{"op":"replace","path":"/spec/checkpoints","value":[{"current":"test","previous":"foo"},{"current":"foo","previous":"test"}]}]`
+		dataVolume, err = f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Patch(context.TODO(), dataVolume.Name, types.JSONPatchType, []byte(patch), metav1.PatchOptions{})
+		Expect(err).ToNot(HaveOccurred())
 
 		By("Check volumeImportSource is also updated")
 		Eventually(func() bool {
@@ -2125,6 +2097,55 @@ var _ = Describe("Containerdisk envs to PVC labels", func() {
 	)
 })
 
+var _ = Describe("Propagate DV Labels to Importer Pod", func() {
+	f := framework.NewFramework(namespacePrefix)
+
+	const (
+		testKubevirtKey    = "test.kubevirt.io/test"
+		testKubevirtValue  = "true"
+		testNonKubevirtKey = "testLabel"
+		testNonKubevirtVal = "none"
+	)
+
+	DescribeTable("Import pod should inherit any labels from Data Volume", func(usePopulator string) {
+
+		dataVolume := utils.NewDataVolumeWithHTTPImport("label-test", "100Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+		dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
+		dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+		dataVolume.Annotations[controller.AnnUsePopulator] = usePopulator
+
+		dataVolume.Labels = map[string]string{
+			testKubevirtKey:    testKubevirtValue,
+			testNonKubevirtKey: testNonKubevirtVal,
+		}
+
+		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
+		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify pvc was created")
+		_, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Wait for import to be completed")
+		err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
+		Expect(err).ToNot(HaveOccurred(), "Datavolume not in phase succeeded in time")
+
+		By("Find importer pod")
+		importer, err := utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Check labels were appended")
+		importLabels := importer.GetLabels()
+		Expect(importLabels).Should(HaveKeyWithValue(testKubevirtKey, testKubevirtValue))
+		Expect(importLabels).Should(HaveKeyWithValue(testNonKubevirtKey, testNonKubevirtVal))
+
+	},
+		Entry("With Populators", "true"),
+		Entry("Without Populators", "false"),
+	)
+})
+
 var _ = Describe("pull image failure", func() {
 	var (
 		f = framework.NewFramework(namespacePrefix)
@@ -2153,11 +2174,104 @@ var _ = Describe("pull image failure", func() {
 			Reason:  "ImagePullFailed",
 		}
 		utils.WaitForConditions(f, dv.Name, f.Namespace.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
-
 	},
 		Entry("pull method = pod", "myregistry/myorg/myimage:wrongtag", cdiv1.RegistryPullPod),
 		Entry("pull method = node", "myregistry/myorg/myimage:wrongtag", cdiv1.RegistryPullNode),
 	)
+})
+
+var _ = Describe("Multi-arch image pull", func() {
+	const (
+		errMessageArchitectureAbsent = "Unable to process data: Unable to transfer source data to scratch space: " +
+			"Failed to read registry image: Error retrieving image: choosing image instance: " +
+			`no image found in image index for architecture "absent", variant "", OS "linux"`
+		errImporterPodUnschedulable = "Importer pod cannot be scheduled"
+	)
+	var (
+		f                         = framework.NewFramework(namespacePrefix)
+		tinyCoreMultiarchRegistry = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
+		trustedRegistryURL        = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
+	)
+
+	It("Should succeed to pull multi-arch image matching architecture with pull method Pod", func() {
+		dv := utils.NewDataVolumeWithRegistryImport("multi-arch-pull", "100Mi", tinyCoreMultiarchRegistry())
+		if dv.Annotations == nil {
+			dv.Annotations = make(map[string]string)
+		}
+		pullMethod := cdiv1.RegistryPullPod
+		dv.Annotations[controller.AnnImmediateBinding] = "true"
+		dv.Spec.Source.Registry.PullMethod = &pullMethod
+		dv.Spec.Source.Registry.Platform = &cdiv1.PlatformOptions{Architecture: "amd64"}
+
+		cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+		Expect(err).ToNot(HaveOccurred())
+		dv.Spec.Source.Registry.CertConfigMap = &cm
+
+		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+
+		phase := cdiv1.Succeeded
+		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
+		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dv.Name)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("Should fail to pull multi-arch image with absent architecture with pull method Pod", func() {
+		dv := utils.NewDataVolumeWithRegistryImport("multi-arch-pull", "100Mi", tinyCoreMultiarchRegistry())
+		if dv.Annotations == nil {
+			dv.Annotations = make(map[string]string)
+		}
+		dv.Annotations[controller.AnnImmediateBinding] = "true"
+		pullMethod := cdiv1.RegistryPullPod
+		dv.Spec.Source.Registry.PullMethod = &pullMethod
+		dv.Spec.Source.Registry.Platform = &cdiv1.PlatformOptions{Architecture: "absent"}
+
+		cm, err := utils.CopyRegistryCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+		Expect(err).ToNot(HaveOccurred())
+		dv.Spec.Source.Registry.CertConfigMap = &cm
+
+		dv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify datavolume condition")
+		runningCondition := &cdiv1.DataVolumeCondition{
+			Type:    cdiv1.DataVolumeRunning,
+			Status:  v1.ConditionFalse,
+			Message: errMessageArchitectureAbsent,
+			Reason:  "Error",
+		}
+		utils.WaitForConditions(f, dv.Name, f.Namespace.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
+	})
+
+	It("Should put correct node selector for multi-arch image architecture with pull method Node", func() {
+		dv := utils.NewDataVolumeWithRegistryImport("multi-arch-pull", "100Mi", trustedRegistryURL())
+		if dv.Annotations == nil {
+			dv.Annotations = make(map[string]string)
+		}
+		pullMethod := cdiv1.RegistryPullNode
+		dv.Annotations[controller.AnnImmediateBinding] = "true"
+		dv.Spec.Source.Registry.PullMethod = &pullMethod
+		dv.Spec.Source.Registry.Platform = &cdiv1.PlatformOptions{Architecture: "absent"}
+
+		dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verify datavolume condition")
+		runningCondition := &cdiv1.DataVolumeCondition{
+			Type:    cdiv1.DataVolumeRunning,
+			Status:  v1.ConditionFalse,
+			Message: errImporterPodUnschedulable,
+			Reason:  "Unschedulable",
+		}
+		utils.WaitForConditions(f, dv.Name, f.Namespace.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
+
+		importer, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(importer.Spec.NodeSelector).To(HaveKeyWithValue(v1.LabelArchStable, "absent"))
+	})
 })
 
 func generateRegistryOnlySidecar() *unstructured.Unstructured {

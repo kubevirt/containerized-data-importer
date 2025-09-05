@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 
@@ -57,6 +58,9 @@ const (
 	ready                    = "Ready"
 	noSource                 = "NoSource"
 	dataSourceControllerName = "datasource-controller"
+	maxReferenceDepthReached = "MaxReferenceDepthReached"
+	selfReference            = "SelfReference"
+	crossNamespaceReference  = "CrossNamespaceReference"
 )
 
 // Reconcile loop for DataSourceReconciler
@@ -75,21 +79,37 @@ func (r *DataSourceReconciler) Reconcile(ctx context.Context, req reconcile.Requ
 }
 
 func (r *DataSourceReconciler) update(ctx context.Context, dataSource *cdiv1.DataSource) error {
-	if !reflect.DeepEqual(dataSource.Status.Source, dataSource.Spec.Source) {
-		dataSource.Spec.Source.DeepCopyInto(&dataSource.Status.Source)
+	dataSourceCopy := dataSource.DeepCopy()
+	resolved, err := cc.ResolveDataSourceChain(ctx, r.client, dataSource)
+	if err != nil {
+		log := r.log.WithValues("datasource", dataSource.Name, "namespace", dataSource.Namespace)
+		log.Info(err.Error())
+		if err := handleDataSourceRefError(dataSource, err); err != nil {
+			return err
+		}
+		resolved = dataSource
+	} else {
+		resolved.Spec.Source.DeepCopyInto(&dataSource.Status.Source)
 		dataSource.Status.Conditions = nil
 	}
-	dataSourceCopy := dataSource.DeepCopy()
-	if sourcePVC := dataSource.Spec.Source.PVC; sourcePVC != nil {
-		if err := r.handlePvcSource(ctx, sourcePVC, dataSource); err != nil {
+
+	switch {
+	case resolved.Spec.Source.DataSource != nil:
+		// Status condition handling already took place, continue to update
+	case resolved.Spec.Source.PVC != nil:
+		if err := r.handlePvcSource(ctx, resolved.Spec.Source.PVC, dataSource); err != nil {
 			return err
 		}
-	} else if sourceSnapshot := dataSource.Spec.Source.Snapshot; sourceSnapshot != nil {
-		if err := r.handleSnapshotSource(ctx, sourceSnapshot, dataSource); err != nil {
+	case resolved.Spec.Source.Snapshot != nil:
+		if err := r.handleSnapshotSource(ctx, resolved.Spec.Source.Snapshot, dataSource); err != nil {
 			return err
 		}
-	} else {
+	default:
 		updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, "No source PVC set", noSource)
+	}
+
+	if dsCond := FindDataSourceConditionByType(dataSource, cdiv1.DataSourceReady); dsCond != nil && dsCond.Status == corev1.ConditionFalse {
+		dataSource.Status.Source = cdiv1.DataSourceSource{}
 	}
 
 	if !reflect.DeepEqual(dataSource, dataSourceCopy) {
@@ -155,6 +175,24 @@ func (r *DataSourceReconciler) handleSnapshotSource(ctx context.Context, sourceS
 	return nil
 }
 
+func handleDataSourceRefError(dataSource *cdiv1.DataSource, err error) error {
+	reason := ""
+	switch {
+	case errors.Is(err, cc.ErrDataSourceMaxDepthReached):
+		reason = maxReferenceDepthReached
+	case errors.Is(err, cc.ErrDataSourceSelfReference):
+		reason = selfReference
+	case errors.Is(err, cc.ErrDataSourceCrossNamespace):
+		reason = crossNamespaceReference
+	case k8serrors.IsNotFound(err):
+		reason = cc.NotFound
+	default:
+		return err
+	}
+	updateDataSourceCondition(dataSource, cdiv1.DataSourceReady, corev1.ConditionFalse, err.Error(), reason)
+	return nil
+}
+
 func updateDataSourceCondition(ds *cdiv1.DataSource, conditionType cdiv1.DataSourceConditionType, status corev1.ConditionStatus, message, reason string) {
 	if condition := FindDataSourceConditionByType(ds, conditionType); condition != nil {
 		updateConditionState(&condition.ConditionState, status, message, reason)
@@ -199,20 +237,9 @@ func NewDataSourceController(mgr manager.Manager, log logr.Logger, installerLabe
 }
 
 func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
-	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{}, &handler.TypedEnqueueRequestForObject[*cdiv1.DataSource]{},
-		predicate.TypedFuncs[*cdiv1.DataSource]{
-			CreateFunc: func(e event.TypedCreateEvent[*cdiv1.DataSource]) bool { return true },
-			DeleteFunc: func(e event.TypedDeleteEvent[*cdiv1.DataSource]) bool { return true },
-			UpdateFunc: func(e event.TypedUpdateEvent[*cdiv1.DataSource]) bool {
-				return !sameSourceSpec(e.ObjectOld, e.ObjectNew)
-			},
-		},
-	)); err != nil {
-		return err
-	}
-
 	const dataSourcePvcField = "spec.source.pvc"
 	const dataSourceSnapshotField = "spec.source.snapshot"
+	const dataSourceDataSourceField = "spec.source.dataSource"
 
 	getKey := func(namespace, name string) string {
 		return namespace + "/" + name
@@ -231,6 +258,30 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 		return reqs
 	}
 
+	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{},
+		handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.DataSource](func(ctx context.Context, obj *cdiv1.DataSource) []reconcile.Request {
+			reqs := []reconcile.Request{
+				{
+					NamespacedName: types.NamespacedName{
+						Name:      obj.Name,
+						Namespace: obj.Namespace,
+					},
+				},
+			}
+			return appendMatchingDataSourceRequests(ctx, dataSourceDataSourceField, obj, reqs)
+		}),
+		predicate.TypedFuncs[*cdiv1.DataSource]{
+			CreateFunc: func(e event.TypedCreateEvent[*cdiv1.DataSource]) bool { return true },
+			DeleteFunc: func(e event.TypedDeleteEvent[*cdiv1.DataSource]) bool { return true },
+			UpdateFunc: func(e event.TypedUpdateEvent[*cdiv1.DataSource]) bool {
+				return !sameSourceSpec(e.ObjectOld, e.ObjectNew) ||
+					!sameConditions(e.ObjectOld, e.ObjectNew)
+			},
+		},
+	)); err != nil {
+		return err
+	}
+
 	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourcePvcField, func(obj client.Object) []string {
 		if pvc := obj.(*cdiv1.DataSource).Spec.Source.PVC; pvc != nil {
 			ns := cc.GetNamespace(pvc.Namespace, obj.GetNamespace())
@@ -240,10 +291,22 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 	}); err != nil {
 		return err
 	}
+
 	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourceSnapshotField, func(obj client.Object) []string {
 		if snapshot := obj.(*cdiv1.DataSource).Spec.Source.Snapshot; snapshot != nil {
 			ns := cc.GetNamespace(snapshot.Namespace, obj.GetNamespace())
 			return []string{getKey(ns, snapshot.Name)}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourceDataSourceField, func(obj client.Object) []string {
+		ds := obj.(*cdiv1.DataSource)
+		if sourceDS := ds.Spec.Source.DataSource; sourceDS != nil {
+			ns := cc.GetNamespace(sourceDS.Namespace, ds.GetNamespace())
+			return []string{getKey(ns, sourceDS.Name)}
 		}
 		return nil
 	}); err != nil {
@@ -329,6 +392,41 @@ func sameSourceSpec(objOld, objNew client.Object) bool {
 	if dsOld.Spec.Source.Snapshot != nil {
 		return reflect.DeepEqual(dsOld.Spec.Source.Snapshot, dsNew.Spec.Source.Snapshot)
 	}
+	if dsOld.Spec.Source.DataSource != nil {
+		return reflect.DeepEqual(dsOld.Spec.Source.DataSource, dsNew.Spec.Source.DataSource)
+	}
 
 	return false
+}
+
+func sameConditions(objOld, objNew client.Object) bool {
+	dsOld, okOld := objOld.(*cdiv1.DataSource)
+	dsNew, okNew := objNew.(*cdiv1.DataSource)
+
+	if !okOld || !okNew {
+		return false
+	}
+
+	oldConditions := dsOld.Status.Conditions
+	newConditions := dsNew.Status.Conditions
+
+	if len(oldConditions) != len(newConditions) {
+		return false
+	}
+
+	condMap := make(map[cdiv1.DataSourceConditionType]cdiv1.DataSourceCondition, len(oldConditions))
+	for _, c := range oldConditions {
+		condMap[c.Type] = c
+	}
+
+	for _, c := range newConditions {
+		if oldC, ok := condMap[c.Type]; !ok ||
+			oldC.Reason != c.Reason ||
+			oldC.Message != c.Message ||
+			oldC.Status != c.Status {
+			return false
+		}
+	}
+
+	return true
 }

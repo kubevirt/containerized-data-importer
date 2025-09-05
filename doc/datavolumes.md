@@ -231,6 +231,16 @@ stringData:
 ### PVC source
 You can also use a PVC as an input source for a DV which will cause a clone to happen of the original PVC. You set the 'source' to be PVC, and specify the name and namespace of the PVC you want to have cloned.
 
+The source PVC must not be mounted by any Pod, and CDI will wait as long as it is mounted before proceeding. This check is needed to ensure the snapshot is not corrupted.
+
+Clones can be executed in 2 different ways:
+- Host-assisted clones, where Pods exchange the data from one PVC to the other byte by byte. This is the slowest method.
+- Smart clones, using the cloning API of the CSI if it is available, see [the documentation](smart-clone.md) for more information.
+
+Smart clones are automatically preferred by CDI, falling back to host-assisted if it cannot use them.
+
+You can also make a clone manually by creating a VolumeSnapshot of a source PVC and creating a DV with a snapshot as a source. This can be done with the source PVC mounted to a Pod, bypassing the check done by CDI, but at the risk of potential corruptions.
+
 Regarding the DV size, CDI can apply some logic to detect the required quantity based on the source PVC, so said amount can be left empty when using the [storage](#storage) API, as shown above:
 
 ```yaml
@@ -240,7 +250,7 @@ metadata:
   name: "example-clone-dv"
 spec:
   source:
-      storage:
+      pvc:
         name: source-pvc
         namespace: example-ns
   storage:
@@ -266,6 +276,30 @@ spec:
         storage: "128Mi"  # Size needs to be specified
 ```
 [Get example](../manifests/example/clone-datavolume.yaml)
+
+### VolumeSnapshot source
+You can use a volume snapshot as an input source to create a new DV. Set the source to be a snapshot, and specify the name and namespace of the snapshot.
+
+The DV size can be omitted, we apply the same logic as when the source [is a pvc](#pvc-source).
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "example-snapshot-dv"
+spec:
+  source:
+    snapshot:
+      namespace: default
+      name: snapshot
+  storage:
+  # Can be omitted to auto-detect the correct storage size
+  # resources:
+  #   requests:
+  #     storage: 9Gi
+```
+
+More details about using snapshots as a source are available [in this document](clone-from-volumesnapshot-source.md).
 
 ### Upload Data Volumes
 You can upload a virtual disk image directly into a data volume as well, just like with PVCs. The steps to follow are identical as [upload for PVC](upload.md) except that the yaml for a Data Volume is slightly different.
@@ -351,8 +385,9 @@ spec:
 
 #### Extra VDDK Configuration Options
 
-The VDDK library itself looks in a configuration file (such as `/etc/vmware/config`) for extra options to fine tune data transfers. To pass these options through to the VDDK, store the configuration file contents in a ConfigMap with the key `vddk-config-file` and add a `cdi.kubevirt.io/storage.pod.vddk.extraargs` annotation to the DataVolume specification. The ConfigMap will be mounted to the importer pod as a volume, and the mount directory will have a file named `vddk-config-file` with the contents of the file. This means that the ConfigMap must be placed in the same namespace as the DataVolume, and the ConfigMap should only have one file entry, `vddk-config-file`.
+The VDDK library itself looks in a configuration file (such as `/etc/vmware/config`) for extra options to fine tune data transfers. To pass these options through to the VDDK, store the configuration file contents in a ConfigMap with the key `vddk-config-file` and put the name of this ConfigMap in either the `spec.source.vddk.extraArgs` field or a `cdi.kubevirt.io/storage.pod.vddk.extraargs` annotation in the DataVolume specification. The ConfigMap will be mounted to the importer pod as a volume, and the mount directory will have a file named `vddk-config-file` with the contents of the file. This means that the ConfigMap must be placed in the same namespace as the DataVolume, and the ConfigMap should only have one file entry, `vddk-config-file`.
 
+[Example field](../manifests/example/vddk-args-field.yaml)
 [Example annotation](../manifests/example/vddk-args-annotation.yaml)
 [Example ConfigMap](../manifests/example/vddk-args-configmap.yaml)
 

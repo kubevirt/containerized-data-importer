@@ -442,7 +442,7 @@ func createPrometheusPorts() []corev1.ContainerPort {
 	return []corev1.ContainerPort{
 		{
 			Name:          "metrics",
-			ContainerPort: 8080,
+			ContainerPort: 8443,
 			Protocol:      "TCP",
 		},
 	}

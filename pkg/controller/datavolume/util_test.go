@@ -7,6 +7,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 
@@ -22,6 +23,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 var _ = Describe("renderPvcSpecVolumeSize", func() {
@@ -31,7 +33,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 
 	It("Should return empty volume size on clone PVC with empty storage size", func() {
 		pvcSpec := &corev1.PersistentVolumeClaimSpec{}
-		err := renderPvcSpecVolumeSize(client, pvcSpec, true)
+		err := renderPvcSpecVolumeSize(client, pvcSpec, true, nil)
 		Expect(err).ToNot(HaveOccurred())
 		requestedVolumeSize, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 		Expect(found).To(BeTrue())
@@ -40,7 +42,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 
 	It("Should return error on non-clone PVC with empty storage size", func() {
 		pvcSpec := &corev1.PersistentVolumeClaimSpec{}
-		err := renderPvcSpecVolumeSize(client, pvcSpec, false)
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("PVC Spec is not valid - missing storage size"))
 		_, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
@@ -58,7 +60,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 				},
 			},
 		}
-		err := renderPvcSpecVolumeSize(client, pvcSpec, false)
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false, nil)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("PVC Spec is not valid - storage size should be at least 1MiB"))
 	})
@@ -74,7 +76,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 				},
 			},
 		}
-		err := renderPvcSpecVolumeSize(client, pvcSpec, false)
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false, nil)
 		Expect(err).ToNot(HaveOccurred())
 
 		requestedVolumeSize, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
@@ -93,7 +95,7 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 				},
 			},
 		}
-		err := renderPvcSpecVolumeSize(client, pvcSpec, false)
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false, nil)
 		Expect(err).ToNot(HaveOccurred())
 		requestedVolumeSize, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 		Expect(found).To(BeTrue())
@@ -103,12 +105,107 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
-		requiredSpace := GetRequiredSpace(fsOverheadFloat, volumeSize.Value())
+		requiredSpace := util.GetRequiredSpace(fsOverheadFloat, volumeSize.Value())
 		expectedResult := resource.NewScaledQuantity(requiredSpace, 0)
 
 		Expect(requestedVolumeSize.Value()).To(BeNumerically(">", volumeSize.Value()))
 		Expect(requestedVolumeSize.Value()).To(Equal(expectedResult.Value()))
 	})
+
+	DescribeTable("Should return", func(storageSize, minSupportedSize, expectedSize string) {
+		sp := &cdiv1.StorageProfile{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: scName,
+				Annotations: map[string]string{
+					AnnMinimumSupportedPVCSize: minSupportedSize,
+				},
+			},
+		}
+		client = createClient(sp)
+
+		pvcSpec := &corev1.PersistentVolumeClaimSpec{
+			StorageClassName: &scName,
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse(storageSize),
+				},
+			},
+		}
+		err := renderPvcSpecVolumeSize(client, pvcSpec, false, nil)
+		Expect(err).ToNot(HaveOccurred())
+		requestedSize, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
+		Expect(found).To(BeTrue())
+		expected := resource.MustParse(expectedSize)
+		Expect(requestedSize.Value()).To(Equal(expected.Value()))
+	},
+		Entry("increased volume size if smaller than minimal", "1Gi", "4Gi", "4Gi"),
+		Entry("original volume size if larger than minimal", "5Gi", "4Gi", "5Gi"),
+		Entry("original volume size if no minimal size defined", "1Gi", "", "1Gi"),
+		Entry("original volume size if wrong minimal size defined", "1Gi", "bla", "1Gi"),
+	)
+})
+
+var _ = Describe("renderPvcSpec", func() {
+	block := corev1.PersistentVolumeBlock
+	filesystem := corev1.PersistentVolumeFilesystem
+	rwo := corev1.ReadWriteOnce
+	rwx := corev1.ReadWriteMany
+
+	DescribeTable("Rendering pvcSpec based on storageProfile should", func(
+		storageVolumeMode *corev1.PersistentVolumeMode, storageAccessMode *corev1.PersistentVolumeAccessMode,
+		expectedVolumeMode *corev1.PersistentVolumeMode, expectedAccessMode *corev1.PersistentVolumeAccessMode,
+		expectedError *string) {
+		scName := "testSC"
+		sc := CreateStorageClassWithProvisioner(scName, nil, nil, "")
+		sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{rwo}, block)
+		cdiconfig := &cdiv1.CDIConfig{ObjectMeta: metav1.ObjectMeta{Name: "config"}}
+		client := createClient(sc, sp, cdiconfig)
+
+		storageSpec := &cdiv1.StorageSpec{
+			StorageClassName: &scName,
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("1Gi"),
+				},
+			},
+		}
+		if storageVolumeMode != nil {
+			storageSpec.VolumeMode = storageVolumeMode
+		}
+		if storageAccessMode != nil {
+			storageSpec.AccessModes = []corev1.PersistentVolumeAccessMode{*storageAccessMode}
+		}
+		dv := createDataVolumeWithStorageAPI("testDV", metav1.NamespaceDefault, &cdiv1.DataVolumeSource{}, storageSpec)
+
+		pvcSpec, err := renderPvcSpec(client, nil, logr.Logger{}, dv, nil)
+		if expectedError != nil {
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(*expectedError))
+			Expect(pvcSpec).To(BeNil())
+			return
+		}
+
+		Expect(err).ToNot(HaveOccurred())
+		if expectedVolumeMode != nil {
+			Expect(pvcSpec.VolumeMode).ToNot(BeNil())
+			Expect(*pvcSpec.VolumeMode).To(Equal(*expectedVolumeMode))
+		} else {
+			Expect(pvcSpec.VolumeMode).To(BeNil())
+		}
+		if expectedAccessMode != nil {
+			Expect(pvcSpec.AccessModes).ToNot(BeNil())
+			Expect(pvcSpec.AccessModes[0]).To(Equal(*expectedAccessMode))
+		} else {
+			Expect(pvcSpec.AccessModes).To(BeNil())
+		}
+	},
+		Entry("set default volumeMode and accessMode if not passed", nil, nil, &block, &rwo, nil),
+		Entry("set a matching accessMode for the volumeMode", &block, nil, &block, &rwo, nil),
+		Entry("set a matching volumeMode for the accessMode", nil, &rwo, &block, &rwo, nil),
+		Entry("fail when volumeMode has no matching accessMode", &filesystem, nil, nil, nil, ptr.To("no matching accessMode specified in StorageProfile testSC")),
+		Entry("fallback to k8s default when accessMode has no matching volumeMode", nil, &rwx, nil, &rwx, nil),
+		Entry("use the passed volumeMode and accessMode even if not in storageProfile", &filesystem, &rwx, &filesystem, &rwx, nil),
+	)
 })
 
 var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {

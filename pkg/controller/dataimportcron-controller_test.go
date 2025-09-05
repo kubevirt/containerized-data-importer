@@ -107,6 +107,9 @@ var _ = Describe("All DataImportCron Tests", func() {
 			cronJobKey   = func(cron *cdiv1.DataImportCron) types.NamespacedName {
 				return types.NamespacedName{Name: GetCronJobName(cron), Namespace: reconciler.cdiNamespace}
 			}
+			pollerPodKey = func(cron *cdiv1.DataImportCron) types.NamespacedName {
+				return types.NamespacedName{Name: getPollerPodName(cron), Namespace: metav1.NamespaceDefault}
+			}
 			dataSourceKey = func(cron *cdiv1.DataImportCron) types.NamespacedName {
 				return types.NamespacedName{Name: cron.Spec.ManagedDataSource, Namespace: metav1.NamespaceDefault}
 			}
@@ -349,6 +352,21 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(jobPodTemplateSpec.Volumes).To(BeEmpty())
 		})
 
+		It("Should verify CronJob container terminationMessagePolicy is correctly set", func() {
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconciler(cron)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronjob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+
+			containers := cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers
+			Expect(containers).To(HaveLen(1))
+			Expect(containers[0].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
+		})
+
 		It("Should update CronJob on reconcile", func() {
 			cron = newDataImportCron(cronName)
 			reconciler = createDataImportCronReconciler(cron)
@@ -525,6 +543,47 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Entry("default schedule", defaultSchedule, "should succeed with a default schedule"),
 			Entry("empty schedule", emptySchedule, "should succeed with an empty schedule"),
 		)
+
+		It("Should create a poller Pod, and upon its termination update the DataImportCron DesiredDigest according to the container status ImageID", func() {
+			cron = newDataImportCron(cronName)
+			cron.Spec.Template.Spec.Source.Registry.PullMethod = ptr.To(cdiv1.RegistryPullNode)
+			reconciler = createDataImportCronReconciler(cron)
+
+			res, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(res).To(Equal(reconcile.Result{RequeueAfter: 3 * time.Second}))
+
+			cronjob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+			pollerPod := &corev1.Pod{}
+			err = reconciler.client.Get(context.TODO(), pollerPodKey(cron), pollerPod)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pollerPod.Spec.Containers).To(HaveLen(1))
+			Expect(pollerPod.Status.ContainerStatuses).To(BeEmpty())
+
+			pollerPod.Status.ContainerStatuses = []corev1.ContainerStatus{
+				{
+					State: corev1.ContainerState{
+						Terminated: &corev1.ContainerStateTerminated{},
+					},
+					ImageID: testDockerRef,
+				},
+			}
+			err = reconciler.client.Status().Update(context.TODO(), pollerPod)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), pollerPodKey(cron), pollerPod)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+			err = reconciler.client.Get(context.TODO(), cronKey, cron)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cron.Annotations[AnnSourceDesiredDigest]).To(Equal(testDigest))
+		})
 
 		It("Should recreate DataVolume if the last import was deleted", func() {
 			cron = newDataImportCron(cronName)
@@ -751,7 +810,6 @@ var _ = Describe("All DataImportCron Tests", func() {
 			reconciler = createDataImportCronReconciler(cron, imageStream)
 			res, err := reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(res.Requeue).To(BeTrue())
 			Expect(res.RequeueAfter.Seconds()).To(And(BeNumerically(">", 0), BeNumerically("<=", 60)))
 
 			err = reconciler.client.Get(context.TODO(), cronKey, cron)
@@ -1007,6 +1065,62 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Entry("DV with default SC, Bound PVC with DIC-label and outdated SC - is not deleted", nil, oldScName, dicLabels, corev1.ClaimBound, false),
 			Entry("DV with default SC, Bound PVC without DIC-label and outdated SC - is not deleted", nil, oldScName, nil, corev1.ClaimBound, false),
 			Entry("DV with specific SC, Pending PVC with DIC-label and outdated SC - is not deleted", &newScName, oldScName, nil, corev1.ClaimPending, false),
+		)
+
+		DescribeTable("should propagate allowed labels from the DIC to its managed DataSource", func(label string, propagated bool) {
+			By("creating DIC with new managed DataSource")
+			cron = newDataImportCron(cronName)
+			cron.SetLabels(map[string]string{label: ""})
+			reconciler = createDataImportCronReconciler(cron)
+
+			shouldReconcile, err := reconciler.shouldReconcileCron(context.TODO(), cron)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(shouldReconcile).To(BeTrue())
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			dataSource = &cdiv1.DataSource{}
+			err = reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(dataSource.Labels[common.DataImportCronLabel]).To(Equal(cron.Name))
+			if propagated {
+				Expect(dataSource.Labels).To(HaveKey(label))
+			} else {
+				Expect(dataSource.Labels).ToNot(HaveKey(label))
+			}
+
+			By("changing managed DataSource to a different, pre-existing one")
+			newDataSource := dataSource.DeepCopy()
+			newDataSource.SetName(fmt.Sprintf("new-%s", dataSource.Name))
+			newDataSource.SetResourceVersion("")
+			newDataSource.SetLabels(map[string]string{common.DataImportCronLabel: cron.Name})
+			newDataSource.Status = cdiv1.DataSourceStatus{}
+
+			err = reconciler.client.Create(context.TODO(), newDataSource)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), cronKey, cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			cron.Spec.ManagedDataSource = newDataSource.Name
+			err = reconciler.client.Update(context.TODO(), cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), dataSourceKey(cron), newDataSource)
+			Expect(err).ToNot(HaveOccurred())
+			if propagated {
+				Expect(newDataSource.Labels).To(HaveKey(label))
+			} else {
+				Expect(newDataSource.Labels).ToNot(HaveKey(label))
+			}
+		},
+			Entry("DIC with allowed label", "template.kubevirt.io/architecture", true),
+			Entry("DIC with unallowed label", "invalid", false),
 		)
 
 		Context("Snapshot source format", func() {
@@ -1531,11 +1645,6 @@ func newImageStream(name string) *imagev1.ImageStream {
 }
 
 func newDataImportCron(name string) *cdiv1.DataImportCron {
-	garbageCollect := cdiv1.DataImportCronGarbageCollectOutdated
-	registryPullNodesource := cdiv1.RegistryPullNode
-	importsToKeep := int32(2)
-	url := testRegistryURL + testTag
-
 	return &cdiv1.DataImportCron{
 		TypeMeta: metav1.TypeMeta{APIVersion: cdiv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -1549,8 +1658,7 @@ func newDataImportCron(name string) *cdiv1.DataImportCron {
 				Spec: cdiv1.DataVolumeSpec{
 					Source: &cdiv1.DataVolumeSource{
 						Registry: &cdiv1.DataVolumeSourceRegistry{
-							URL:        &url,
-							PullMethod: &registryPullNodesource,
+							URL: ptr.To(testRegistryURL + testTag),
 						},
 					},
 					Storage: &cdiv1.StorageSpec{},
@@ -1558,8 +1666,8 @@ func newDataImportCron(name string) *cdiv1.DataImportCron {
 			},
 			Schedule:          defaultSchedule,
 			ManagedDataSource: dataSourceName,
-			GarbageCollect:    &garbageCollect,
-			ImportsToKeep:     &importsToKeep,
+			GarbageCollect:    ptr.To(cdiv1.DataImportCronGarbageCollectOutdated),
+			ImportsToKeep:     ptr.To[int32](2),
 		},
 	}
 }

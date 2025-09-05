@@ -635,15 +635,43 @@ var _ = Describe("Planner test", func() {
 				expectEvent(planner, NoVolumeExpansion)
 			})
 
-			It("should do smart clone when meeting all prerequisites", func() {
+			It("should return host assisted with non matching volume modes", func() {
 				source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+				vsc := createDefaultVolumeSnapshotContent("driver")
+				bm := corev1.PersistentVolumeBlock
+				vsc.Spec.SourceVolumeMode = &bm
+				source.Status.BoundVolumeSnapshotContentName = ptr.To(vsc.Name)
 				target := createTargetClaim()
+				fm := corev1.PersistentVolumeFilesystem
+				target.Spec.VolumeMode = &fm
 				args := &ChooseStrategyArgs{
 					TargetClaim: target,
 					DataSource:  createSnapshotDataSource(),
 					Log:         log,
 				}
-				planner = createPlanner(createStorageClass(), source, createDefaultVolumeSnapshotContent("driver"))
+				planner = createPlanner(createStorageClass(), source, vsc)
+				csr, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(csr).ToNot(BeNil())
+				Expect(csr.Strategy).To(Equal(cdiv1.CloneStrategyHostAssisted))
+				Expect(csr.FallbackReason).ToNot(BeNil())
+				Expect(*csr.FallbackReason).To(Equal(MessageIncompatibleVolumeModes))
+				expectEvent(planner, IncompatibleVolumeModes)
+			})
+
+			It("should do smart clone when meeting all prerequisites", func() {
+				source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+				fm := corev1.PersistentVolumeFilesystem
+				target := createTargetClaim()
+				target.Spec.VolumeMode = &fm
+				args := &ChooseStrategyArgs{
+					TargetClaim: target,
+					DataSource:  createSnapshotDataSource(),
+					Log:         log,
+				}
+				vsc := createDefaultVolumeSnapshotContent("driver")
+				vsc.Spec.SourceVolumeMode = &fm
+				planner = createPlanner(createStorageClass(), source, vsc)
 				csr, err := planner.ChooseStrategy(context.Background(), args)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(csr).ToNot(BeNil())
@@ -895,6 +923,32 @@ var _ = Describe("Planner test", func() {
 				Entry("when volumesnapshotcontent has no source volume mode but annotated with AnnSourceVolumeMode", []runtime.Object{createDefaultVolumeSnapshotContent(), createStorageClass()}, corev1.PersistentVolumeMode("dummyfromann"), snapWithSourceVolumeModeAnnotation()),
 				Entry("when neither source volume mode on volumesnapshotcontent nor AnnSourceVolumeMode annotation", []runtime.Object{createDefaultVolumeSnapshotContent(), createStorageClass()}, corev1.PersistentVolumeMode("dummytargetvolmode"), createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")),
 			)
+
+			It("should delete selected-node annotation for temp host assisted source", func() {
+				objs := []runtime.Object{volumeSnapshotContentWithSourceVolumeMode(), createStorageClass()}
+				source := createSourceSnapshot(sourceName, "test-snapshot-content-name", "vsc")
+				target := createTargetClaim()
+				cc.AddAnnotation(target, cc.AnnSelectedNode, "worker-1")
+				target.Spec.VolumeMode = ptr.To[corev1.PersistentVolumeMode]("dummytargetvolmode")
+				args := &PlanArgs{
+					Strategy:    cdiv1.CloneStrategyHostAssisted,
+					TargetClaim: target,
+					DataSource:  createSnapshotDataSource(),
+					Log:         log,
+				}
+				runtimeObjs := []runtime.Object{cdiConfig, source, createVolumeSnapshotClass()}
+				runtimeObjs = append(runtimeObjs, objs...)
+				planner = createPlanner(runtimeObjs...)
+				plan, err := planner.Plan(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(plan).ToNot(BeNil())
+				Expect(plan).To(HaveLen(4))
+				validateSnapshotClonePhase(planner, args, plan[0])
+				validatePrepClaimPhase(planner, args, plan[1])
+				validateHostClonePhase(planner, args, plan[2])
+				validateRebindPhase(planner, args, plan[3])
+				Expect(plan[0].(*SnapshotClonePhase).DesiredClaim.Annotations).ToNot(HaveKey(cc.AnnSelectedNode))
+			})
 		})
 
 		It("should fail planning host-assisted clone from snapshot when no valid storage class for source PVC is found", func() {

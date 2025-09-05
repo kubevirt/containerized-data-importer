@@ -46,7 +46,7 @@ elif [[ $TARGET =~ k8s-.* ]]; then
   export KUBEVIRT_MEMORY_SIZE=8192
 elif [[ $TARGET =~ kind-.* ]]; then
   export KUBEVIRT_NUM_NODES=1
-  export KIND_PORT_MAPPING=31001:31002
+  export KIND_PORT_MAPPING=30085:30084
 fi
 
 if [ ! -d "cluster-up/cluster/$KUBEVIRT_PROVIDER" ]; then

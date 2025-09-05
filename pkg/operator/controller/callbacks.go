@@ -51,6 +51,7 @@ import (
 
 func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileDeleteControllerDeployment)
+	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileUpdateControllerDeploymentSelector)
 	r.reconciler.AddCallback(&corev1.ServiceAccount{}, reconcileSCC)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileCreatePrometheusInfra)
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileRemainingRelationshipLabels)
@@ -66,6 +67,31 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 
 func isControllerDeployment(d *appsv1.Deployment) bool {
 	return d.Name == "cdi-deployment"
+}
+
+func reconcileUpdateControllerDeploymentSelector(args *callbacks.ReconcileCallbackArgs) error {
+	if args.State != callbacks.ReconcileStatePostRead {
+		return nil
+	}
+
+	if args.CurrentObject == nil || args.DesiredObject == nil {
+		return nil
+	}
+
+	deployment := args.DesiredObject.(*appsv1.Deployment)
+
+	if !isControllerDeployment(deployment) {
+		return nil
+	}
+
+	if !reflect.DeepEqual(args.CurrentObject.(*appsv1.Deployment).Spec.Selector.MatchLabels, deployment.Spec.Selector.MatchLabels) {
+		args.Logger.Info("Mismatching selector detected for CDI deployment, cleaning up")
+		if err := deleteControllerDeployment(deployment, args); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func reconcileDeleteControllerDeployment(args *callbacks.ReconcileCallbackArgs) error {
@@ -89,6 +115,22 @@ func reconcileDeleteControllerDeployment(args *callbacks.ReconcileCallbackArgs) 
 		return nil
 	}
 
+	if err := deleteControllerDeployment(deployment, args); err != nil {
+		return err
+	}
+
+	cr := args.Resource.(runtime.Object)
+	if err := deleteWorkerResources(args.Logger, args.Client); err != nil {
+		args.Logger.Error(err, "Error deleting worker resources")
+		args.Recorder.Event(cr, corev1.EventTypeWarning, deleteResourceFailed, fmt.Sprintf("Failed to deleted worker resources %v", err))
+		return err
+	}
+	args.Recorder.Event(cr, corev1.EventTypeNormal, deleteResourceSuccess, "Deleted worker resources successfully")
+
+	return nil
+}
+
+func deleteControllerDeployment(deployment *appsv1.Deployment, args *callbacks.ReconcileCallbackArgs) error {
 	args.Logger.Info("Deleting CDI deployment and all import/upload/clone pods/services")
 	err := args.Client.Delete(context.TODO(), deployment, &client.DeleteOptions{
 		PropagationPolicy: &[]metav1.DeletionPropagation{metav1.DeletePropagationForeground}[0],
@@ -100,13 +142,6 @@ func reconcileDeleteControllerDeployment(args *callbacks.ReconcileCallbackArgs) 
 		return err
 	}
 	args.Recorder.Event(cr, corev1.EventTypeNormal, deleteResourceSuccess, fmt.Sprintf("Deleted deployment %s successfully", deployment.Name))
-
-	if err = deleteWorkerResources(args.Logger, args.Client); err != nil {
-		args.Logger.Error(err, "Error deleting worker resources")
-		args.Recorder.Event(cr, corev1.EventTypeWarning, deleteResourceFailed, fmt.Sprintf("Failed to deleted worker resources %v", err))
-		return err
-	}
-	args.Recorder.Event(cr, corev1.EventTypeNormal, deleteResourceSuccess, "Deleted worker resources successfully")
 
 	return nil
 }

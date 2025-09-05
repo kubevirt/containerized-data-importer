@@ -156,7 +156,6 @@ func (c *clientCreator) CreateClient() (*http.Client, error) {
 		RootCAs:      caCertPool,
 		MinVersion:   tls.VersionTLS12,
 	}
-	tlsConfig.BuildNameToCertificate() //nolint:staticcheck // todo: BuildNameToCertificate() is deprecated - check this
 
 	transport := &http.Transport{TLSClientConfig: tlsConfig}
 	return &http.Client{Transport: transport, Timeout: proxyRequestTimeout}, nil
@@ -391,7 +390,7 @@ func (app *uploadProxyApp) startTLS() error {
 }
 
 func (app *uploadProxyApp) getPopulationPVC(ctx context.Context, pvc *v1.PersistentVolumeClaim, pvcNamespace string) (*v1.PersistentVolumeClaim, error) {
-	pvcPrimeName, ok := pvc.Annotations[populators.AnnPVCPrimeName]
+	pvcPrimeName, ok := pvc.Annotations[cc.AnnPVCPrimeName]
 	if !ok {
 		// wait for pvcPrimeName annotation on the pvc
 		return nil, nil

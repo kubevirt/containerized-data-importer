@@ -137,7 +137,7 @@ func progressFromClaim(ctx context.Context, args *progressFromClaimArgs) (string
 	}
 
 	// We fetch the clone progress from the clone source pod metrics
-	progressReport, err := cc.GetProgressReportFromURL(url, args.HTTPClient, metrics.CloneProgressMetricName, args.OwnerUID)
+	progressReport, err := cc.GetProgressReportFromURL(ctx, url, args.HTTPClient, metrics.CloneProgressMetricName, args.OwnerUID)
 	if err != nil {
 		return "", err
 	}

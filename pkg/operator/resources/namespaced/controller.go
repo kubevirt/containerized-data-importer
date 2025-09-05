@@ -175,7 +175,7 @@ func createControllerServiceAccount() *corev1.ServiceAccount {
 func createControllerDeployment(controllerImage, importerImage, clonerImage, ovirtPopulatorImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement, replicas int32) *appsv1.Deployment {
 	defaultMode := corev1.ConfigMapVolumeSourceDefaultMode
 	// The match selector is immutable. that's why we should always use the same labels.
-	deployment := utils.CreateDeployment(common.CDIControllerResourceName, common.CDILabelKey, common.CDILabelValue, common.ControllerServiceAccountName, imagePullSecrets, int32(1), infraNodePlacement)
+	deployment := utils.CreateDeployment(common.CDIControllerResourceName, common.CDIComponentLabel, common.CDIControllerResourceName, common.ControllerServiceAccountName, imagePullSecrets, int32(1), infraNodePlacement)
 	deployment.ObjectMeta.Labels[common.CDIComponentLabel] = common.CDIControllerResourceName
 	if priorityClassName != "" {
 		deployment.Spec.Template.Spec.PriorityClassName = priorityClassName
@@ -187,7 +187,7 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, ovi
 	container.Ports = []corev1.ContainerPort{
 		{
 			Name:          "metrics",
-			ContainerPort: 8080,
+			ContainerPort: 8443,
 			Protocol:      "TCP",
 		},
 	}
@@ -386,7 +386,7 @@ func createPrometheusService() *corev1.Service {
 	service.Spec.Ports = []corev1.ServicePort{
 		{
 			Name: "metrics",
-			Port: 8080,
+			Port: 8443,
 			TargetPort: intstr.IntOrString{
 				Type:   intstr.String,
 				StrVal: "metrics",

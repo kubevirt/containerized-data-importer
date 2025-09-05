@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #Copyright 2018 The CDI Authors.
 #
 #Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,7 +13,7 @@
 #See the License for the specific language governing permissions and
 #limitations under the License.
 
-set -euo pipefail
+set -exuo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd -P)"
 source "${script_dir}"/common.sh

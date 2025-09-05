@@ -183,13 +183,21 @@ func createScratchPersistentVolumeClaim(client client.Client, pvc *corev1.Persis
 		return nil, errors.Wrap(err, "failed to get filesystem overhead for original PVC")
 	}
 	pvcFsOverheadFloat, _ := strconv.ParseFloat(string(pvcFsOverhead), 64)
-	expectedVirtualSize := util.GetUsableSpace(pvcFsOverheadFloat, sizeRequest.Value())
 
-	usableSpaceRaw := util.CalculateOverheadSpace(scratchFsOverheadFloat, expectedVirtualSize)
+	// Calculate the expected usable space for the scratch PVC based on both original PVC size and its fs overhead.
+	expectedVirtualSize := util.GetUsableSpace(pvcFsOverheadFloat, sizeRequest.Value())
+	// Now we add the fs overhead for the scratch PVC.
+	// TODO: Should we allow using a smaller overhead for scratch PVCs?
+	usableSpaceRaw := util.GetRequiredSpace(scratchFsOverheadFloat, expectedVirtualSize)
+
+	// Since GetUsableSpace rounds down to the nearest block size to account for qemu-img calculations, and GetRequiredSpace rounds up before applying overhead,
+	// it's good practice round up here to ensure we don't end up with a scratch PVC that is smaller than the original PVC.
+	usableSpaceRaw = util.RoundUp(usableSpaceRaw, util.DefaultAlignBlockSize)
 
 	scratchPvcSpec.Spec.Resources.Requests[corev1.ResourceStorage] = *resource.NewScaledQuantity(usableSpaceRaw, 0)
 
 	util.SetRecommendedLabels(scratchPvcSpec, installerLabels, "cdi-controller")
+	cc.AddLabel(scratchPvcSpec, cc.LabelExcludeFromVeleroBackup, "true")
 	if err := client.Create(context.TODO(), scratchPvcSpec); err != nil {
 		if cc.ErrQuotaExceeded(err) {
 			recorder.Event(pvc, corev1.EventTypeWarning, cc.ErrExceededQuota, err.Error())
@@ -391,7 +399,8 @@ func addLabelsFromTerminationMessage(labels map[string]string, termMsg *common.T
 func simplifyKnownMessage(msg string) string {
 	if strings.Contains(msg, "is larger than the reported available") ||
 		strings.Contains(msg, "no space left on device") ||
-		strings.Contains(msg, "file largest block is bigger than maxblock") {
+		strings.Contains(msg, "file largest block is bigger than maxblock") ||
+		strings.Contains(msg, "disk quota exceeded") {
 		return "DataVolume too small to contain image"
 	}
 

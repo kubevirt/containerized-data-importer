@@ -38,6 +38,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -243,16 +244,49 @@ var _ = Describe("Controller", func() {
 				Expect(scc.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 				Expect(scc.Priority).To(BeNil())
 
-				for _, eu := range []string{"system:serviceaccount:cdi:cdi-sa"} {
-					found := false
-					for _, au := range scc.Users {
-						if eu == au {
-							found = true
-						}
-					}
-					Expect(found).To(BeTrue())
-				}
+				Expect(scc.Users).To(ContainElement("system:serviceaccount:cdi:cdi-sa"))
+
+				Expect(scc.Volumes).To(ConsistOf(
+					secv1.FSTypeConfigMap,
+					secv1.FSTypeDownwardAPI,
+					secv1.FSTypeEmptyDir,
+					secv1.FSTypePersistentVolumeClaim,
+					secv1.FSProjected,
+					secv1.FSTypeSecret,
+					secv1.FSTypeCSI,
+					secv1.FSTypeEphemeral,
+				))
+				Expect(scc.AllowPrivilegeEscalation).To(HaveValue(BeFalse()))
 				validateEvents(args.reconciler, createReadyEventValidationMap())
+			})
+
+			It("should not fire event over order differences in scc volumes stanza", func() {
+				scc := &secv1.SecurityContextConstraints{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: sccName,
+						Labels: map[string]string{
+							"cdi.kubevirt.io": "",
+						},
+					},
+					Users: []string{
+						"system:serviceaccount:cdi:cdi-sa",
+						"system:serviceaccount:cdi:cdi-cronjob",
+					},
+				}
+				setSCC(scc)
+				sccCpy := scc.DeepCopy()
+				// Shuffle order
+				scc.Volumes[0], scc.Volumes[1] = scc.Volumes[1], scc.Volumes[0]
+				Expect(apiequality.Semantic.DeepEqual(sccCpy.Volumes, scc.Volumes)).To(BeFalse())
+				args := createArgs(scc)
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				events := args.reconciler.recorder.(*record.FakeRecorder).Events
+				close(events)
+				for event := range events {
+					Expect(event).ToNot(ContainSubstring("SecurityContextConstraint"))
+				}
 			})
 
 			It("should create all resources", func() {
@@ -337,7 +371,7 @@ var _ = Describe("Controller", func() {
 				obj, err := getObject(args.client, rule)
 				Expect(err).ToNot(HaveOccurred())
 				rule = obj.(*promv1.PrometheusRule)
-				duration := promv1.Duration("5m")
+				duration := promv1.Duration("10m")
 				cdiDownAlert := promv1.Rule{
 					Alert: "CDIOperatorDown",
 					Expr:  intstr.FromString("kubevirt_cdi_operator_up == 0"),
@@ -347,7 +381,7 @@ var _ = Describe("Controller", func() {
 						"runbook_url": fmt.Sprintf(runbookURLTemplate, "CDIOperatorDown"),
 					},
 					Labels: map[string]string{
-						"severity":                      "warning",
+						"severity":                      "critical",
 						"operator_health_impact":        "critical",
 						"kubernetes_operator_part_of":   "kubevirt",
 						"kubernetes_operator_component": "containerized-data-importer",
@@ -486,14 +520,24 @@ var _ = Describe("Controller", func() {
 					}
 				}
 
+				allGroupsExcepted := func(groups []string) bool {
+					for _, group := range groups {
+						if !strings.HasSuffix(group, "cdi.kubevirt.io") {
+							return false
+						}
+					}
+					return true
+				}
+
 				verifyRule := func(rule *rbacv1.PolicyRule) {
 					Expect(rule.Verbs).ToNot(ContainElement("escalate"))
 					Expect(rule.Verbs).ToNot(ContainElement("bind"))
 					Expect(rule.Verbs).ToNot(ContainElement("impersonate"))
 					Expect(rule.APIGroups).ToNot(ContainElement("*"))
-					if len(rule.APIGroups) == 1 && strings.HasSuffix(rule.APIGroups[0], "cdi.kubevirt.io") {
+					if len(rule.APIGroups) > 0 && allGroupsExcepted(rule.APIGroups) {
 						return
 					}
+
 					Expect(rule.Resources).ToNot(ContainElement("*"))
 					Expect(rule.Verbs).ToNot(ContainElement("*"))
 
@@ -755,6 +799,54 @@ var _ = Describe("Controller", func() {
 				_, err = getObject(args.client, pod)
 				Expect(errors.IsNotFound(err)).To(BeTrue())
 				validateEvents(args.reconciler, createDeleteCDIEventValidationMap())
+			})
+
+			It("should recreate existing controller deployment with wrong .spec.selector labels", func() {
+				args := createArgs()
+				doReconcile(args)
+				setDeploymentsReady(args)
+
+				deploy := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: "cdi-deployment"}}
+				deploy, err := getDeployment(args.client, deploy)
+				Expect(err).ToNot(HaveOccurred())
+
+				deploy.Spec.Selector.MatchLabels = map[string]string{"test": "test"}
+				Expect(args.client.Update(context.TODO(), deploy)).To(Succeed())
+
+				// immutable field and mismatch detected, resource should be deleted
+				doReconcileError(args)
+
+				_, err = getDeployment(args.client, deploy)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("deployments.apps \"cdi-deployment\" not found"))
+
+				// requeue (recreate cdi-deployment)
+				doReconcileRequeue(args)
+
+				deploy, err = getDeployment(args.client, deploy)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(deploy.Spec.Selector.MatchLabels).To(Equal(map[string]string{common.CDIComponentLabel: common.CDIControllerResourceName}))
+			})
+
+			It("should create all deployment containers with terminationMessagePolicy FallbackToLogsOnError", func() {
+				args := createArgs()
+				doReconcile(args)
+
+				resources, err := getAllResources(args.reconciler)
+				Expect(err).ToNot(HaveOccurred())
+
+				for _, r := range resources {
+					d, ok := r.(*appsv1.Deployment)
+					if !ok {
+						continue
+					}
+					d, err = getDeployment(args.client, d)
+					Expect(err).ToNot(HaveOccurred())
+					for _, c := range d.Spec.Template.Spec.Containers {
+						Expect(c.TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
+					}
+				}
 			})
 		})
 	})
@@ -1974,5 +2066,6 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.Secret cdi-uploadserver-client-cert"] = false
 	match[normalCreateSuccess+" *v1.Service cdi-prometheus-metrics"] = false
 	match[normalCreateEnsured+" SecurityContextConstraint exists"] = false
+
 	return match
 }

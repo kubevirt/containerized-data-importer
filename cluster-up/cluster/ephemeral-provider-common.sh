@@ -45,7 +45,7 @@ else
 fi
 
 _cli_container="${KUBEVIRTCI_GOCLI_CONTAINER:-quay.io/kubevirtci/gocli:${KUBEVIRTCI_TAG}}"
-_cli="${_cri_bin} run --privileged --net=host --rm ${USE_TTY} -v ${_cri_socket}:/var/run/docker.sock"
+_cli="${_cri_bin} run --privileged --net=host --rm ${USE_TTY} -v ${_cri_socket}:/var/run/docker.sock -e KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER}"
 # gocli will try to mount /lib/modules to make it accessible to dnsmasq in
 # in case it exists
 if [ -d /lib/modules ]; then
@@ -114,7 +114,8 @@ function _add_common_params() {
             params=" --container-suffix=:$KUBEVIRTCI_CONTAINER_SUFFIX $params"
         fi
 
-        if [[ ${KUBEVIRT_SLIM} == "true" ]]; then
+        # Currently, the s390x architecture supports only KUBEVIRT_SLIM.
+        if [[ ${KUBEVIRT_SLIM} == "true" || $(uname -m) == "s390x" ]]; then
             params=" --slim $params"
         fi
     fi
@@ -151,7 +152,11 @@ function _add_common_params() {
     fi
 
     if [ $KUBEVIRT_DEPLOY_NFS_CSI == "true" ]; then
-        params=" --enable-nfs-csi $params"
+        if [ -z $KUBEVIRT_NFS_DIR ]; then
+            >&2 echo "NFS requested but no NFS directory specified (KUBEVIRT_NFS_DIR)"
+            exit 1
+        fi
+        params=" --enable-nfs-csi --nfs-data $KUBEVIRT_NFS_DIR $params"
     fi
 
     # alternate (new) way to specify storage providers
@@ -189,12 +194,16 @@ function _add_common_params() {
         params=" --enable-fips $params"
     fi
 
-    if [ "$KUBEVIRT_WITH_MULTUS_V3" == "true" ]; then
+    if [ "$KUBEVIRT_WITH_MULTUS_V3" == "true" ] || [ "$KUBEVIRT_WITH_MULTUS" == "true" ]; then
         params=" --deploy-multus $params"
     fi
 
     if [ "$KUBEVIRT_WITH_CNAO" == "true" ]; then
         params=" --enable-cnao $params"
+    fi
+
+    if [ "$KUBEVIRT_WITH_DYN_NET_CTRL" == "true" ]; then
+        params=" --deploy-dnc $params"
     fi
 
     if [ "$KUBEVIRT_DEPLOY_CDI" == "true" ]; then
