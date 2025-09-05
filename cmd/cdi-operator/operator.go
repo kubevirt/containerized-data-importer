@@ -35,6 +35,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -98,6 +99,7 @@ func main() {
 		LeaderElectionNamespace:    namespace,
 		LeaderElectionID:           "cdi-operator-leader-election-helper",
 		LeaderElectionResourceLock: "leases",
+		HealthProbeBindAddress:     ":8444",
 		Metrics: server.Options{
 			BindAddress:   ":8443",
 			SecureServing: true,
@@ -156,6 +158,15 @@ func main() {
 	// Setup the controller
 	if err := controller.Add(mgr); err != nil {
 		log.Error(err, "")
+		os.Exit(1)
+	}
+
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		log.Error(err, "unable to set up health check")
+		os.Exit(1)
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		log.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
 
