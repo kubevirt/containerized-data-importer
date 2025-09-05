@@ -20,6 +20,5 @@
 set -ex
 export TARGET=k8s-1.33
 export KUBEVIRT_STORAGE=hpp
-export CDI_E2E_SKIP=Destructive
 export KUBEVIRT_DEPLOY_ISTIO=true
 automation/test.sh
