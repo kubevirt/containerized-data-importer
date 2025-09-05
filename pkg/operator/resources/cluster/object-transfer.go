@@ -21,7 +21,7 @@ func createObjectTransferCRD() *extv1.CustomResourceDefinition {
 	crd := extv1.CustomResourceDefinition{}
 	_ = k8syaml.NewYAMLToJSONDecoder(strings.NewReader(resources.CDICRDs["objecttransfer"])).Decode(&crd)
 	for i := range crd.Spec.Versions {
-		deprecationWarning := fmt.Sprintf("cdi.kubevirt.io/%s is now deprecated and will be removed in v1.", crd.Spec.Versions[i].Name)
+		deprecationWarning := fmt.Sprintf("cdi.kubevirt.io/%s ObjectTransfers is now deprecated and will be removed in v1.", crd.Spec.Versions[i].Name)
 		crd.Spec.Versions[i].Deprecated = true
 		crd.Spec.Versions[i].DeprecationWarning = ptr.To(deprecationWarning)
 	}
