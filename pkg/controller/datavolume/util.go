@@ -63,6 +63,10 @@ var (
 
 // RenderPvc renders the PVC according to StorageProfiles
 func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolumeClaim) error {
+	if pvc.Labels[common.PvcApplyStorageProfileLabel] == common.PvcApplyStorageProfileMinimumSize {
+		return renderPvcMinimumSize(ctx, client, pvc)
+	}
+
 	if pvc.Spec.VolumeMode != nil &&
 		*pvc.Spec.VolumeMode == cdiv1.PersistentVolumeFromStorageProfile {
 		pvc.Spec.VolumeMode = nil
@@ -79,6 +83,37 @@ func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolu
 
 	isClone := pvc.Annotations[cc.AnnCloneType] != ""
 	return renderPvcSpecVolumeSize(client, &pvc.Spec, isClone, nil)
+}
+
+func renderPvcMinimumSize(ctx context.Context, client client.Client, pvc *v1.PersistentVolumeClaim) error {
+	requestedSize, found := pvc.Spec.Resources.Requests[v1.ResourceStorage]
+	if !found {
+		return nil
+	}
+
+	storageClass, err := cc.GetStorageClassByNameWithK8sFallback(ctx, client, pvc.Spec.StorageClassName)
+	if err != nil || storageClass == nil {
+		return err
+	}
+
+	//FIXME: refactor
+	storageProfile := &cdiv1.StorageProfile{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: storageClass.Name}, storageProfile); err != nil {
+		return err
+	}
+	val, exists := storageProfile.Annotations[cc.AnnMinimumSupportedPVCSize]
+	if !exists {
+		return nil
+	}
+	minSize, err := resource.ParseQuantity(val)
+	if err != nil {
+		return err
+	}
+	if requestedSize.Cmp(minSize) == -1 {
+		pvc.Spec.Resources.Requests[v1.ResourceStorage] = minSize
+	}
+
+	return nil
 }
 
 // renderPvcSpec creates a new PVC Spec based on either the dv.spec.pvc or dv.spec.storage section
