@@ -58,14 +58,26 @@ var operatorAlerts = []promv1.Rule{
 	},
 	{
 		Alert: "CDIDataImportCronOutdated",
-		Expr:  intstr.FromString(`sum by(ns,cron_name) (kubevirt_cdi_dataimportcron_outdated{pending="false"}) > 0`),
+		Expr:  intstr.FromString(`sum by(namespace,cron_name) (kubevirt_cdi_dataimportcron_outdated{pending="false", namespace=~"openshift-virtualization-os-images|kubevirt-os-images"}) > 0`),
 		For:   (*promv1.Duration)(ptr.To("15m")),
 		Annotations: map[string]string{
 			"summary": "DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule",
 		},
 		Labels: map[string]string{
-			severityAlertLabelKey:        "info",
+			severityAlertLabelKey:        "warning",
 			operatorHealthImpactLabelKey: "warning",
+		},
+	},
+	{
+		Alert: "CDIUserDefinedDataImportCronOutdated",
+		Expr:  intstr.FromString(`sum by(namespace,cron_name) (kubevirt_cdi_dataimportcron_outdated{pending="false", namespace!~"openshift-virtualization-os-images|kubevirt-os-images"}) > 0`),
+		For:   (*promv1.Duration)(ptr.To("15m")),
+		Annotations: map[string]string{
+			"summary": "DataImportCron (recurring polling of VM templates disk image sources, also known as golden images) PVCs are not being updated on the defined schedule",
+		},
+		Labels: map[string]string{
+			severityAlertLabelKey:        "warning",
+			operatorHealthImpactLabelKey: "none",
 		},
 	},
 	{
