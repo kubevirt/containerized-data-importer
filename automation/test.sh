@@ -77,7 +77,7 @@ kubectl() { cluster-up/kubectl.sh "$@"; }
 export CDI_NAMESPACE="${CDI_NAMESPACE:-cdi}"
 
 # Skip destructive tests by default
-export CDI_LABEL_FILTER="${CDI_LABEL_FILTER:-'!Destructive'}"
+export CDI_LABEL_FILTER="${CDI_LABEL_FILTER:-!Destructive}"
 
 make cluster-down
 # Create .bazelrc to use remote cache
