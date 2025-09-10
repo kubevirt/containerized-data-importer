@@ -24,6 +24,7 @@ go_library(
         "//pkg/monitoring/metrics/cdi-cloner:go_default_library",
         "//pkg/monitoring/metrics/cdi-controller:go_default_library",
         "//pkg/monitoring/metrics/cdi-importer:go_default_library",
+        "//pkg/storagecapabilities:go_default_library",
         "//pkg/token:go_default_library",
         "//pkg/util:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
