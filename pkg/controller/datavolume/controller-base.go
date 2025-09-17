@@ -916,7 +916,7 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 
 	if shouldSetDataVolumePending(pvc, dataVolumeCopy) {
 		dataVolumeCopy.Status.Phase = cdiv1.Pending
-	} else if pvc != nil {
+	} else if pvc != nil && pvc.DeletionTimestamp == nil {
 		dataVolumeCopy.Status.ClaimName = pvc.Name
 
 		phase := pvc.Annotations[cc.AnnPodPhase]
