@@ -226,12 +226,13 @@ var _ = Describe("Clone controller reconcile loop", func() {
 
 	DescribeTable("Should create new source pod if none exists, and target pod is marked ready and", func(sourceVolumeMode corev1.PersistentVolumeMode, podFunc func(*corev1.PersistentVolumeClaim) *corev1.Pod) {
 		testPvc := cc.CreatePvc("testPvc1", "default", map[string]string{
-			cc.AnnCloneRequest:   "default/source",
-			cc.AnnPodReady:       "true",
-			cc.AnnCloneToken:     "foobaz",
-			AnnUploadClientName:  "uploadclient",
-			cc.AnnCloneSourcePod: "default-testPvc1-source-pod",
-			cc.AnnPodNetwork:     "net1"}, nil)
+			cc.AnnCloneRequest:    "default/source",
+			cc.AnnPodReady:        "true",
+			cc.AnnCloneToken:      "foobaz",
+			AnnUploadClientName:   "uploadclient",
+			cc.AnnCloneSourcePod:  "default-testPvc1-source-pod",
+			cc.AnnPodNetwork:      "net1",
+			"unrelatedAnnotation": "test"}, nil)
 		testPvc.Spec.VolumeMode = &sourceVolumeMode
 		sourcePvc := cc.CreatePvc("source", "default", map[string]string{}, nil)
 		sourcePvc.Spec.VolumeMode = &sourceVolumeMode
@@ -270,6 +271,8 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Expect(sourcePod.GetAnnotations()[cc.AnnPodNetwork]).To(Equal("net1"))
 		Expect(sourcePod.GetAnnotations()[cc.AnnPodSidecarInjectionIstio]).To(Equal(cc.AnnPodSidecarInjectionIstioDefault))
 		Expect(sourcePod.GetAnnotations()[cc.AnnPodSidecarInjectionLinkerd]).To(Equal(cc.AnnPodSidecarInjectionLinkerdDefault))
+		// Should not pass unrelated annotations to the pod
+		Expect(sourcePod.GetAnnotations()["unrelatedAnnotation"]).To(BeEmpty())
 		Expect(sourcePod.Spec.Affinity).ToNot(BeNil())
 		Expect(sourcePod.Spec.Affinity.PodAffinity).ToNot(BeNil())
 		l := len(sourcePod.Spec.Affinity.PodAffinity.PreferredDuringSchedulingIgnoredDuringExecution)
