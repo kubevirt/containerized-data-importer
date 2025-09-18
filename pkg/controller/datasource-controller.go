@@ -61,6 +61,10 @@ const (
 	maxReferenceDepthReached = "MaxReferenceDepthReached"
 	selfReference            = "SelfReference"
 	crossNamespaceReference  = "CrossNamespaceReference"
+
+	dataSourcePvcField        = "spec.source.pvc"
+	dataSourceSnapshotField   = "spec.source.snapshot"
+	dataSourceDataSourceField = "spec.source.dataSource"
 )
 
 // Reconcile loop for DataSourceReconciler
@@ -237,29 +241,52 @@ func NewDataSourceController(mgr manager.Manager, log logr.Logger, installerLabe
 }
 
 func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
-	const dataSourcePvcField = "spec.source.pvc"
-	const dataSourceSnapshotField = "spec.source.snapshot"
-	const dataSourceDataSourceField = "spec.source.dataSource"
+	if err := setupIndexers(mgr); err != nil {
+		return err
+	}
+	if err := setupWatches(mgr, c, log); err != nil {
+		return err
+	}
+	return nil
+}
 
-	getKey := func(namespace, name string) string {
-		return namespace + "/" + name
+func setupIndexers(mgr manager.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourcePvcField, func(obj client.Object) []string {
+		if pvc := obj.(*cdiv1.DataSource).Spec.Source.PVC; pvc != nil {
+			ns := cc.GetNamespace(pvc.Namespace, obj.GetNamespace())
+			return []string{types.NamespacedName{Name: pvc.Name, Namespace: ns}.String()}
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
-	appendMatchingDataSourceRequests := func(ctx context.Context, indexingKey string, obj client.Object, reqs []reconcile.Request) []reconcile.Request {
-		var dataSources cdiv1.DataSourceList
-		matchingFields := client.MatchingFields{indexingKey: getKey(obj.GetNamespace(), obj.GetName())}
-		if err := mgr.GetClient().List(ctx, &dataSources, matchingFields); err != nil {
-			log.Error(err, "Unable to list DataSources", "matchingFields", matchingFields)
-			return reqs
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourceSnapshotField, func(obj client.Object) []string {
+		if snapshot := obj.(*cdiv1.DataSource).Spec.Source.Snapshot; snapshot != nil {
+			ns := cc.GetNamespace(snapshot.Namespace, obj.GetNamespace())
+			return []string{types.NamespacedName{Name: snapshot.Name, Namespace: ns}.String()}
 		}
-		for _, ds := range dataSources.Items {
-			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ds.Namespace, Name: ds.Name}})
-		}
-		return reqs
+		return nil
+	}); err != nil {
+		return err
 	}
 
+	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourceDataSourceField, func(obj client.Object) []string {
+		if sourceDS := obj.(*cdiv1.DataSource).Spec.Source.DataSource; sourceDS != nil {
+			ns := cc.GetNamespace(sourceDS.Namespace, obj.GetNamespace())
+			return []string{types.NamespacedName{Name: sourceDS.Name, Namespace: ns}.String()}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func setupWatches(mgr manager.Manager, c controller.Controller, log logr.Logger) error {
 	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataSource{},
-		handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.DataSource](func(ctx context.Context, obj *cdiv1.DataSource) []reconcile.Request {
+		handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, obj *cdiv1.DataSource) []reconcile.Request {
 			reqs := []reconcile.Request{
 				{
 					NamespacedName: types.NamespacedName{
@@ -268,7 +295,7 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 					},
 				},
 			}
-			return appendMatchingDataSourceRequests(ctx, dataSourceDataSourceField, obj, reqs)
+			return appendMatchingDataSourceRequests(ctx, mgr, dataSourceDataSourceField, obj, reqs, log)
 		}),
 		predicate.TypedFuncs[*cdiv1.DataSource]{
 			CreateFunc: func(e event.TypedCreateEvent[*cdiv1.DataSource]) bool { return true },
@@ -282,45 +309,9 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 		return err
 	}
 
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourcePvcField, func(obj client.Object) []string {
-		if pvc := obj.(*cdiv1.DataSource).Spec.Source.PVC; pvc != nil {
-			ns := cc.GetNamespace(pvc.Namespace, obj.GetNamespace())
-			return []string{getKey(ns, pvc.Name)}
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourceSnapshotField, func(obj client.Object) []string {
-		if snapshot := obj.(*cdiv1.DataSource).Spec.Source.Snapshot; snapshot != nil {
-			ns := cc.GetNamespace(snapshot.Namespace, obj.GetNamespace())
-			return []string{getKey(ns, snapshot.Name)}
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	if err := mgr.GetFieldIndexer().IndexField(context.TODO(), &cdiv1.DataSource{}, dataSourceDataSourceField, func(obj client.Object) []string {
-		ds := obj.(*cdiv1.DataSource)
-		if sourceDS := ds.Spec.Source.DataSource; sourceDS != nil {
-			ns := cc.GetNamespace(sourceDS.Namespace, ds.GetNamespace())
-			return []string{getKey(ns, sourceDS.Name)}
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	mapToDataSource := func(ctx context.Context, obj client.Object) []reconcile.Request {
-		reqs := appendMatchingDataSourceRequests(ctx, dataSourcePvcField, obj, nil)
-		return appendMatchingDataSourceRequests(ctx, dataSourceSnapshotField, obj, reqs)
-	}
-
 	if err := c.Watch(source.Kind(mgr.GetCache(), &cdiv1.DataVolume{},
-		handler.TypedEnqueueRequestsFromMapFunc[*cdiv1.DataVolume](func(ctx context.Context, obj *cdiv1.DataVolume) []reconcile.Request {
-			return mapToDataSource(ctx, obj)
+		handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, obj *cdiv1.DataVolume) []reconcile.Request {
+			return mapToDataSource(ctx, mgr, obj, log)
 		}),
 		predicate.TypedFuncs[*cdiv1.DataVolume]{
 			CreateFunc: func(e event.TypedCreateEvent[*cdiv1.DataVolume]) bool { return true },
@@ -336,8 +327,8 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 	}
 
 	if err := c.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{},
-		handler.TypedEnqueueRequestsFromMapFunc[*corev1.PersistentVolumeClaim](func(ctx context.Context, obj *corev1.PersistentVolumeClaim) []reconcile.Request {
-			return mapToDataSource(ctx, obj)
+		handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, obj *corev1.PersistentVolumeClaim) []reconcile.Request {
+			return mapToDataSource(ctx, mgr, obj, log)
 		}),
 		predicate.TypedFuncs[*corev1.PersistentVolumeClaim]{
 			CreateFunc: func(e event.TypedCreateEvent[*corev1.PersistentVolumeClaim]) bool { return true },
@@ -361,8 +352,8 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 		}
 	}
 	if err := c.Watch(source.Kind(mgr.GetCache(), &snapshotv1.VolumeSnapshot{},
-		handler.TypedEnqueueRequestsFromMapFunc[*snapshotv1.VolumeSnapshot](func(ctx context.Context, obj *snapshotv1.VolumeSnapshot) []reconcile.Request {
-			return mapToDataSource(ctx, obj)
+		handler.TypedEnqueueRequestsFromMapFunc(func(ctx context.Context, obj *snapshotv1.VolumeSnapshot) []reconcile.Request {
+			return mapToDataSource(ctx, mgr, obj, log)
 		}),
 		predicate.TypedFuncs[*snapshotv1.VolumeSnapshot]{
 			CreateFunc: func(e event.TypedCreateEvent[*snapshotv1.VolumeSnapshot]) bool { return true },
@@ -377,6 +368,24 @@ func addDataSourceControllerWatches(mgr manager.Manager, c controller.Controller
 	}
 
 	return nil
+}
+
+func appendMatchingDataSourceRequests(ctx context.Context, mgr manager.Manager, indexingKey string, obj client.Object, reqs []reconcile.Request, log logr.Logger) []reconcile.Request {
+	var dataSources cdiv1.DataSourceList
+	matchingFields := client.MatchingFields{indexingKey: client.ObjectKeyFromObject(obj).String()}
+	if err := mgr.GetClient().List(ctx, &dataSources, matchingFields); err != nil {
+		log.Error(err, "Unable to list DataSources", "matchingFields", matchingFields)
+		return reqs
+	}
+	for _, ds := range dataSources.Items {
+		reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: ds.Namespace, Name: ds.Name}})
+	}
+	return reqs
+}
+
+func mapToDataSource(ctx context.Context, mgr manager.Manager, obj client.Object, log logr.Logger) []reconcile.Request {
+	reqs := appendMatchingDataSourceRequests(ctx, mgr, dataSourcePvcField, obj, nil, log)
+	return appendMatchingDataSourceRequests(ctx, mgr, dataSourceSnapshotField, obj, reqs, log)
 }
 
 func sameSourceSpec(objOld, objNew client.Object) bool {
