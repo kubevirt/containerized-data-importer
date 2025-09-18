@@ -189,6 +189,7 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"csi.san.synology.com/iscsi":               cdiv1.CloneStrategyCsiClone,
 	"csi.san.synology.com/nfs":                 cdiv1.CloneStrategyCsiClone,
 	"csi.san.synology.com/smb":                 cdiv1.CloneStrategyCsiClone,
+	"blockvolume.csi.oraclecloud.com":          cdiv1.CloneStrategyCsiClone,
 }
 
 // MinimumSupportedPVCSizeByProvisionerKey defines the minimum supported PVC size for a provisioner
