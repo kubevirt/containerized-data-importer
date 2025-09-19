@@ -360,7 +360,7 @@ var _ = Describe("reconcilePVC loop", func() {
 		})
 
 		It("Should create the service and pod with passed annotations", func() {
-			testPvc := cc.CreatePvc(testPvcName, "default", map[string]string{cc.AnnCloneRequest: "default/testPvc2", AnnUploadPod: uploadResourceName, cc.AnnPodNetwork: "net1"}, nil)
+			testPvc := cc.CreatePvc(testPvcName, "default", map[string]string{cc.AnnCloneRequest: "default/testPvc2", AnnUploadPod: uploadResourceName, cc.AnnPodNetwork: "net1", "unrelatedAnnotation": "test"}, nil)
 			testPvcSource := cc.CreatePvc("testPvc2", "default", map[string]string{}, nil)
 			reconciler := createUploadReconciler(testPvc, testPvcSource)
 			By("Verifying the pod and service do not exist")
@@ -384,6 +384,8 @@ var _ = Describe("reconcilePVC loop", func() {
 			Expect(uploadPod.GetAnnotations()[cc.AnnPodNetwork]).To(Equal("net1"))
 			Expect(uploadPod.GetAnnotations()[cc.AnnPodSidecarInjectionIstio]).To(Equal(cc.AnnPodSidecarInjectionIstioDefault))
 			Expect(uploadPod.GetAnnotations()[cc.AnnPodSidecarInjectionLinkerd]).To(Equal(cc.AnnPodSidecarInjectionLinkerdDefault))
+			// Should not pass unrelated annotations to the pod
+			Expect(uploadPod.GetAnnotations()["unrelatedAnnotation"]).To(BeEmpty())
 			expectDeadline(uploadPod)
 
 			uploadService = &corev1.Service{}

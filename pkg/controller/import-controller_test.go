@@ -297,7 +297,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 	})
 
 	It("Should create a POD if a PVC with all needed annotations is passed", func() {
-		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "importer-testPvc1", cc.AnnPodNetwork: "net1"}, nil)
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "importer-testPvc1", cc.AnnPodNetwork: "net1", "unrelatedAnnotation": "test"}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 		reconciler = createImportReconciler(pvc)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
@@ -318,6 +318,8 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(pod.GetAnnotations()[cc.AnnPodNetwork]).To(Equal("net1"))
 		Expect(pod.GetAnnotations()[cc.AnnPodSidecarInjectionIstio]).To(Equal(cc.AnnPodSidecarInjectionIstioDefault))
 		Expect(pod.GetAnnotations()[cc.AnnPodSidecarInjectionLinkerd]).To(Equal(cc.AnnPodSidecarInjectionLinkerdDefault))
+		// Should not pass unrelated annotations to the pod
+		Expect(pod.GetAnnotations()["unrelatedAnnotation"]).To(BeEmpty())
 	})
 
 	It("Should not pass non-approved PVC annotation to created POD", func() {
