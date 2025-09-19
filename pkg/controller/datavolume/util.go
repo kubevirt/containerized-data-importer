@@ -299,18 +299,7 @@ func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeC
 	}
 
 	if scName := pvcSpec.StorageClassName; scName != nil {
-		storageProfile := &cdiv1.StorageProfile{}
-		if err := client.Get(context.TODO(), types.NamespacedName{Name: *scName}, storageProfile); err == nil {
-			if val, exists := storageProfile.Annotations[cc.AnnMinimumSupportedPVCSize]; exists {
-				if minSize, err := resource.ParseQuantity(val); err == nil {
-					if requestedSize.Cmp(minSize) == -1 {
-						requestedSize = minSize
-					}
-				} else if log != nil {
-					log.V(1).Info("Invalid minimum PVC size in annotation", "value", val, "error", err)
-				}
-			}
-		} else if !k8serrors.IsNotFound(err) {
+		if requestedSize, err = cc.GetEffectiveVolumeSize(context.TODO(), client, requestedSize, *scName, log); err != nil {
 			return err
 		}
 	}
