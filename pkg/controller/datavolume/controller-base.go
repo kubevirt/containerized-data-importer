@@ -937,6 +937,7 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 					}
 				} else {
 					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+					dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress(cc.ProgressDone)
 				}
 			case corev1.ClaimBound:
 				switch dataVolumeCopy.Status.Phase {
@@ -954,6 +955,7 @@ func (r *ReconcilerBase) updateStatus(req reconcile.Request, phaseSync *statusPh
 					}
 				} else {
 					dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+					dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress(cc.ProgressDone)
 				}
 
 			case corev1.ClaimLost:
