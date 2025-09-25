@@ -14,7 +14,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -779,11 +778,11 @@ func ValidateCanCloneSourceAndTargetSpec(ctx context.Context, c client.Client, s
 	}
 
 	// TODO: use detection pod here, then permissive should not be needed
-	sourceUsableSpace, err := getUsableSpace(ctx, c, sourcePvc)
+	sourceUsableSpace, err := cc.GetUsableSpace(ctx, c, sourcePvc)
 	if err != nil {
 		return err
 	}
-	targetUsableSpace, err := getUsableSpace(ctx, c, targetPvc)
+	targetUsableSpace, err := cc.GetUsableSpace(ctx, c, targetPvc)
 	if err != nil {
 		return err
 	}
@@ -794,22 +793,4 @@ func ValidateCanCloneSourceAndTargetSpec(ctx context.Context, c client.Client, s
 
 	// Can clone.
 	return nil
-}
-
-func getUsableSpace(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (resource.Quantity, error) {
-	sizeRequest := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
-	volumeMode := util.ResolveVolumeMode(pvc.Spec.VolumeMode)
-
-	if volumeMode == corev1.PersistentVolumeFilesystem {
-		fsOverhead, err := cc.GetFilesystemOverheadForStorageClass(ctx, c, pvc.Spec.StorageClassName)
-		if err != nil {
-			return resource.Quantity{}, err
-		}
-		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
-		usableSpaceRaw := util.GetUsableSpace(fsOverheadFloat, sizeRequest.Value())
-
-		return *resource.NewScaledQuantity(usableSpaceRaw, 0), nil
-	}
-
-	return sizeRequest, nil
 }
