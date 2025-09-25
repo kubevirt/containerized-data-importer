@@ -35,3 +35,9 @@ BugFix: Add missing RBAC for ovirt and openstack volume populator CRDs
 Enhancement: Support DataImportCron update polling for DataVolume node pullMethod
 Enhancement: Metrics port for cdi-prometheus-metrics service changed from 8080 to 8443.
 Enhancement: DataImportCrons now propagate kubevirt-specific labels to their managed DataSource
+
+v1.63.1
+BugFix: DataSource reference status updates are now correctly propagated to DataSources that have them as sources
+BugFix: Portworx enterprise and PX-CSI driver using the same provisioner string key pxd.portworx.com
+BugFix: DataImportCrons now respects the platform.architecture setting in all modes
+BugFix: Fix wrong Items type in VolumeUploadSourceList
