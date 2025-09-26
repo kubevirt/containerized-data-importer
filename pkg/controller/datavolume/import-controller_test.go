@@ -1466,6 +1466,49 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(readyCondition.Message).To(Equal(""))
 		})
 
+		It("Should not use PVC to update status if PVC is marked for deletion", func() {
+			reconciler = createImportReconciler(NewImportDataVolume("test-dv"))
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Name).To(Equal("test-dv"))
+
+			By("Setting PVC to Succeeded phase and marking for deletion")
+			pvc.SetAnnotations(make(map[string]string))
+			pvc.GetAnnotations()[AnnPodPhase] = string(corev1.PodSucceeded)
+
+			// Set finalizer so PVC is not removed when Delete is called
+			pvc.Finalizers = append(pvc.Finalizers, "test-finalizer")
+			err = reconciler.client.Update(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			// Mark PVC for deletion
+			err = reconciler.client.Delete(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Setting DV to Pending phase")
+			dv := &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			pendingStatus := cdiv1.Pending
+			dv.Status.Phase = pendingStatus
+			err = reconciler.client.Status().Update(context.TODO(), dv)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Calling updateStatus")
+			_, err = reconciler.updateStatus(getReconcileRequest(dv), nil, reconciler)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Checking DV did not inherit new status from PVC")
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(pendingStatus))
+		})
+
 		It("Should switch to paused if pod phase is succeeded but a checkpoint is set", func() {
 			reconciler = createImportReconciler(NewImportDataVolume("test-dv"))
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
