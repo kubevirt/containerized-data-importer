@@ -14,6 +14,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -129,15 +130,47 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 }
 
 func (r *StorageProfileReconciler) updateStorageProfile(prevStorageProfile runtime.Object, storageProfile *cdiv1.StorageProfile, log logr.Logger) error {
-	if prevStorageProfile == nil {
+	var prevSP *cdiv1.StorageProfile
+	if p, ok := prevStorageProfile.(*cdiv1.StorageProfile); ok {
+		prevSP = p
+	}
+
+	if prevSP == nil {
 		return r.client.Create(context.TODO(), storageProfile)
-	} else if !reflect.DeepEqual(prevStorageProfile, storageProfile) {
-		// Updates have happened, update StorageProfile.
+	}
+
+	if storageProfileSpecMetaChanged(prevSP, storageProfile) {
 		log.Info("Updating StorageProfile", "StorageProfile.Name", storageProfile.Name, "storageProfile", storageProfile)
-		return r.client.Update(context.TODO(), storageProfile)
+		if err := r.client.Update(context.TODO(), storageProfile); err != nil {
+			return err
+		}
+	}
+
+	if !reflect.DeepEqual(prevSP.Status, storageProfile.Status) {
+		log.Info("Updating StorageProfile Status", "StorageProfile.Name", storageProfile.Name, "storageProfile", storageProfile)
+		if err := r.client.Status().Update(context.TODO(), storageProfile); err != nil {
+			return err
+		}
 	}
 
 	return nil
+}
+
+// storageProfileSpecMetaChanged returns true if Spec, Labels, or Annotations differ
+func storageProfileSpecMetaChanged(previous, desired *cdiv1.StorageProfile) bool {
+	if previous == nil || desired == nil {
+		return previous != desired
+	}
+	if !apiequality.Semantic.DeepEqual(previous.Spec, desired.Spec) {
+		return true
+	}
+	if !apiequality.Semantic.DeepEqual(previous.GetLabels(), desired.GetLabels()) {
+		return true
+	}
+	if !apiequality.Semantic.DeepEqual(previous.GetAnnotations(), desired.GetAnnotations()) {
+		return true
+	}
+	return false
 }
 
 func (r *StorageProfileReconciler) getStorageProfile(sc *storagev1.StorageClass) (*cdiv1.StorageProfile, runtime.Object, error) {

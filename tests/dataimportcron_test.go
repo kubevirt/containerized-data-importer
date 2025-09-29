@@ -436,6 +436,27 @@ var _ = Describe("DataImportCron", Serial, func() {
 		waitForDigest()
 	})
 
+	It("Should add an appropriate node selector to poller when specfiying architecture with pullMethod node", func() {
+		By("Create DataImportCron with only initial poller job")
+		cron = utils.NewDataImportCron(cronName, "1Gi", scheduleOnceAYear, dataSourceName, importsToKeep, *reg)
+		retentionPolicy := cdiv1.DataImportCronRetainNone
+		cron.Spec.RetentionPolicy = &retentionPolicy
+		cron.Spec.Template.Spec.Source.Registry.Platform = &cdiv1.PlatformOptions{Architecture: "test"}
+
+		cron, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Ensuring that nodeSelector was added")
+		pollerPodName := fmt.Sprintf("poller-%s-%s", cron.Name, cron.UID[:8])
+		Eventually(func() bool {
+			pollerPod, err := f.K8sClient.CoreV1().Pods(cron.Namespace).Get(context.TODO(), pollerPodName, metav1.GetOptions{})
+			if err != nil {
+				return false
+			}
+			return pollerPod.Spec.NodeSelector[corev1.LabelArchStable] == "test"
+		}, dataImportCronTimeout, pollInterval).Should(BeTrue())
+	})
+
 	It("[test_id:10360] Should allow an empty schedule to trigger an external update to the source", func() {
 		configureStorageProfileResultingFormat(cdiv1.DataImportCronSourceFormatPvc)
 

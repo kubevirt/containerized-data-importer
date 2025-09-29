@@ -657,6 +657,13 @@ func (r *DataImportCronReconciler) updateContainerImageDesiredDigest(ctx context
 	if err != nil {
 		return false, err
 	}
+	platform := cron.Spec.Template.Spec.Source.Registry.Platform
+	if platform != nil && platform.Architecture != "" {
+		if workloadNodePlacement.NodeSelector == nil {
+			workloadNodePlacement.NodeSelector = map[string]string{}
+		}
+		workloadNodePlacement.NodeSelector[corev1.LabelArchStable] = platform.Architecture
+	}
 
 	containerImage := strings.TrimPrefix(*cron.Spec.Template.Spec.Source.Registry.URL, "docker://")
 

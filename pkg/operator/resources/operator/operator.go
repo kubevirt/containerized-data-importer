@@ -29,6 +29,7 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -426,23 +427,56 @@ func createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage
 
 func createOperatorDeployment(operatorVersion, namespace, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, ovirtPopulatorImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference) *appsv1.Deployment {
 	deployment := utils.CreateOperatorDeployment("cdi-operator", namespace, "name", "cdi-operator", serviceAccountName, imagePullSecrets, int32(1))
-	container := utils.CreatePortsContainer("cdi-operator", operatorImage, pullPolicy, createPrometheusPorts())
+	container := utils.CreatePortsContainer("cdi-operator", operatorImage, pullPolicy, createOperatorPorts())
 	container.Resources = corev1.ResourceRequirements{
 		Requests: corev1.ResourceList{
 			corev1.ResourceCPU:    resource.MustParse("100m"),
 			corev1.ResourceMemory: resource.MustParse("150Mi"),
 		},
 	}
+	container.LivenessProbe = &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Scheme: corev1.URISchemeHTTP,
+				Port: intstr.IntOrString{
+					Type:   intstr.Int,
+					IntVal: 8444,
+				},
+				Path: "/healthz",
+			},
+		},
+		InitialDelaySeconds: 5,
+		TimeoutSeconds:      10,
+	}
+	container.ReadinessProbe = &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Scheme: corev1.URISchemeHTTP,
+				Port: intstr.IntOrString{
+					Type:   intstr.Int,
+					IntVal: 8444,
+				},
+				Path: "/readyz",
+			},
+		},
+		InitialDelaySeconds: 5,
+		TimeoutSeconds:      10,
+	}
 	container.Env = createOperatorEnvVar(operatorVersion, deployClusterResources, operatorImage, controllerImage, importerImage, clonerImage, ovirtPopulatorImage, apiServerImage, uploadProxyImage, uploadServerImage, verbosity, pullPolicy)
 	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
 	return deployment
 }
 
-func createPrometheusPorts() []corev1.ContainerPort {
+func createOperatorPorts() []corev1.ContainerPort {
 	return []corev1.ContainerPort{
 		{
 			Name:          "metrics",
 			ContainerPort: 8443,
+			Protocol:      "TCP",
+		},
+		{
+			Name:          "health",
+			ContainerPort: 8444,
 			Protocol:      "TCP",
 		},
 	}

@@ -18,6 +18,7 @@ go_library(
         "//vendor/k8s.io/kube-aggregator/pkg/apis/apiregistration/v1:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/cache:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/client/config:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/healthz:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/log:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/log/zap:go_default_library",
         "//vendor/sigs.k8s.io/controller-runtime/pkg/manager:go_default_library",
