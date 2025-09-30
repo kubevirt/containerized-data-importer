@@ -2219,3 +2219,21 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 
 	return nil
 }
+
+func GetUsableSpace(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim) (resource.Quantity, error) {
+	sizeRequest := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+	volumeMode := util.ResolveVolumeMode(pvc.Spec.VolumeMode)
+
+	if volumeMode == corev1.PersistentVolumeFilesystem {
+		fsOverhead, err := GetFilesystemOverheadForStorageClass(ctx, c, pvc.Spec.StorageClassName)
+		if err != nil {
+			return resource.Quantity{}, err
+		}
+		fsOverheadFloat, _ := strconv.ParseFloat(string(fsOverhead), 64)
+		usableSpaceRaw := util.GetUsableSpace(fsOverheadFloat, sizeRequest.Value())
+
+		return *resource.NewScaledQuantity(usableSpaceRaw, 0), nil
+	}
+
+	return sizeRequest, nil
+}
