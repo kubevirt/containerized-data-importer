@@ -440,7 +440,11 @@ var _ = Describe("DataImportCron", Serial, func() {
 		By("Create DataImportCron with only initial poller job")
 		cron = utils.NewDataImportCron(cronName, "1Gi", scheduleOnceAYear, dataSourceName, importsToKeep, *reg)
 		retentionPolicy := cdiv1.DataImportCronRetainNone
+		url := fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix)
+		pullMethod := cdiv1.RegistryPullNode
 		cron.Spec.RetentionPolicy = &retentionPolicy
+		cron.Spec.Template.Spec.Source.Registry.URL = &url
+		cron.Spec.Template.Spec.Source.Registry.PullMethod = &pullMethod
 		cron.Spec.Template.Spec.Source.Registry.Platform = &cdiv1.PlatformOptions{Architecture: "test"}
 
 		cron, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
