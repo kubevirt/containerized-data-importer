@@ -117,12 +117,6 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 		},
 		ImagePullSecrets: imagePullSecrets,
 		NodeSelector:     map[string]string{"kubernetes.io/os": "linux"},
-		Tolerations: []corev1.Toleration{
-			{
-				Key:      "CriticalAddonsOnly",
-				Operator: corev1.TolerationOpExists,
-			},
-		},
 		Affinity: &corev1.Affinity{
 			PodAffinity: &corev1.PodAffinity{
 				PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
