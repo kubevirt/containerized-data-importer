@@ -24,6 +24,7 @@ import (
 	"runtime"
 	"strconv"
 
+	popv1beta1 "github.com/kubernetes-csi/volume-data-source-validator/client/apis/volumepopulator/v1beta1"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
@@ -43,6 +44,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	forklift "kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/operator/controller"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -146,6 +148,16 @@ func main() {
 	}
 
 	if err := routev1.Install(mgr.GetScheme()); err != nil {
+		log.Error(err, "")
+		os.Exit(1)
+	}
+
+	if err := forklift.AddToScheme(mgr.GetScheme()); err != nil {
+		log.Error(err, "")
+		os.Exit(1)
+	}
+
+	if err := popv1beta1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "")
 		os.Exit(1)
 	}

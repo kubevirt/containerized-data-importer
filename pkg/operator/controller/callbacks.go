@@ -63,6 +63,9 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 	if r.haveRoutes {
 		r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileRoute)
 	}
+	if r.haveVolumeDataSourceValidator {
+		r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileVolumePopulators)
+	}
 }
 
 func isControllerDeployment(d *appsv1.Deployment) bool {
@@ -169,6 +172,30 @@ func reconcileRoute(args *callbacks.ReconcileCallbackArgs) error {
 
 	if err := updateUserRoutes(context.TODO(), args.Logger, args.Client, args.Recorder); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func reconcileVolumePopulators(args *callbacks.ReconcileCallbackArgs) error {
+	if args.State != callbacks.ReconcileStatePostRead {
+		return nil
+	}
+
+	deployment := args.CurrentObject.(*appsv1.Deployment)
+	if !isControllerDeployment(deployment) || !sdk.CheckDeploymentReady(deployment) {
+		return nil
+	}
+
+	cr := args.Resource.(runtime.Object)
+	updated, err := ensureVolumePopulatorsExist(context.TODO(), args.Client, args.Scheme)
+	if err != nil {
+		args.Recorder.Event(cr, corev1.EventTypeWarning, createResourceFailed, fmt.Sprintf("Failed to ensure volume populators exist, %v", err))
+		return err
+	}
+
+	if updated {
+		args.Recorder.Event(cr, corev1.EventTypeNormal, createResourceSuccess, "Successfully ensured volume populators exist")
 	}
 
 	return nil

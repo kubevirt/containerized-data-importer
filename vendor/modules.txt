@@ -385,6 +385,9 @@ github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typ
 # github.com/kubernetes-csi/lib-volume-populator v1.2.1-0.20230316163120-b62a0eee2c56
 ## explicit; go 1.19
 github.com/kubernetes-csi/lib-volume-populator/populator-machinery
+# github.com/kubernetes-csi/volume-data-source-validator/client v0.0.0-20230911161012-c2e130d28434
+## explicit; go 1.20
+github.com/kubernetes-csi/volume-data-source-validator/client/apis/volumepopulator/v1beta1
 # github.com/kubevirt/monitoring/pkg/metrics/parser v0.0.0-20230627123556-81a891d4462a
 ## explicit; go 1.20
 github.com/kubevirt/monitoring/pkg/metrics/parser

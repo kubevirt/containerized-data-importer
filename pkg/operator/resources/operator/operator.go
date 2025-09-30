@@ -176,6 +176,22 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"delete",
 			},
 		},
+		{
+			APIGroups: []string{
+				"populator.storage.k8s.io",
+			},
+			Resources: []string{
+				"volumepopulators",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+				"create",
+				"update",
+				"delete",
+			},
+		},
 	}
 	rules = append(rules, cdicluster.GetClusterRolePolicyRules()...)
 	return rules

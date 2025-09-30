@@ -146,18 +146,23 @@ func newReconciler(mgr manager.Manager) (*ReconcileCDI, error) {
 	if err != nil {
 		return nil, err
 	}
+	haveVolumeDataSourceValidator, err := haveVolumeDataSourceValidator(uncachedClient)
+	if err != nil {
+		return nil, err
+	}
 
 	r := &ReconcileCDI{
-		client:              restClient,
-		uncachedClient:      uncachedClient,
-		scheme:              scheme,
-		getCache:            mgr.GetCache,
-		recorder:            recorder,
-		namespace:           namespace,
-		clusterArgs:         clusterArgs,
-		namespacedArgs:      &namespacedArgs,
-		dumpInstallStrategy: dumpInstallStrategy,
-		haveRoutes:          haveRoutes,
+		client:                        restClient,
+		uncachedClient:                uncachedClient,
+		scheme:                        scheme,
+		getCache:                      mgr.GetCache,
+		recorder:                      recorder,
+		namespace:                     namespace,
+		clusterArgs:                   clusterArgs,
+		namespacedArgs:                &namespacedArgs,
+		dumpInstallStrategy:           dumpInstallStrategy,
+		haveRoutes:                    haveRoutes,
+		haveVolumeDataSourceValidator: haveVolumeDataSourceValidator,
 	}
 	callbackDispatcher := callbacks.NewCallbackDispatcher(log, restClient, uncachedClient, scheme, namespace)
 	r.reconciler = sdkr.NewReconciler(r, log, restClient, callbackDispatcher, scheme, mgr.GetCache, createVersionLabel, updateVersionLabel, LastAppliedConfigAnnotation, certPollInterval, finalizerName, false, recorder)
@@ -187,10 +192,11 @@ type ReconcileCDI struct {
 	clusterArgs    *cdicluster.FactoryArgs
 	namespacedArgs *cdinamespaced.FactoryArgs
 
-	certManager         CertManager
-	reconciler          *sdkr.Reconciler
-	dumpInstallStrategy bool
-	haveRoutes          bool
+	certManager                   CertManager
+	reconciler                    *sdkr.Reconciler
+	dumpInstallStrategy           bool
+	haveRoutes                    bool
+	haveVolumeDataSourceValidator bool
 }
 
 // SetController sets the controller dependency
