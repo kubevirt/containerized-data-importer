@@ -576,7 +576,7 @@ func newSnappyReadCloser(stream io.ReadCloser) io.ReadCloser {
 func handleStreamError(w http.ResponseWriter, err error) {
 	if importer.IsNoCapacityError(err) {
 		w.WriteHeader(http.StatusBadRequest)
-		err = errors.New("effective image size is larger than the reported available storage. A larger PVC is required")
+		err = fmt.Errorf("effective image size is larger than the reported available storage: %w", err)
 	} else {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
