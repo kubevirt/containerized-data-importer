@@ -2247,10 +2247,10 @@ func CopyEvents(srcPVC, targetPVC client.Object, c client.Client, recorder recor
 	}
 
 	// use this to hash each message for quick lookup, value is unused
-	eventMap := make(map[string]bool)
+	eventMap := map[string]struct{}{}
 
 	for _, event := range currEvents.Items {
-		eventMap[event.Message] = true
+		eventMap[event.Message] = struct{}{}
 	}
 
 	for _, newEvent := range newEvents.Items {

@@ -165,6 +165,12 @@ func (p *HostClonePhase) Reconcile(ctx context.Context) (*reconcile.Result, erro
 		}
 	}
 
+	targetPvc, err := cc.GetAnnotatedEventSource(ctx, p.Client, actualClaim)
+	if err != nil {
+		return nil, err
+	}
+	cc.CopyEvents(actualClaim, targetPvc, p.Client, p.Recorder)
+
 	if !p.hostCloneComplete(actualClaim) {
 		// requeue to update status
 		return &reconcile.Result{RequeueAfter: 3 * time.Second}, nil
