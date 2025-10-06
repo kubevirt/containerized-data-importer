@@ -144,7 +144,7 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	}
 
 	// copy over any new events from pvcPrime to pvc
-	r.copyEvents(pvcPrime, pvcCopy)
+	cc.CopyEvents(pvcPrime, pvcCopy, r.client, r.recorder)
 
 	err := cc.UpdatePVCBoundContionFromEvents(pvcCopy, r.client, r.log)
 	if err != nil {
