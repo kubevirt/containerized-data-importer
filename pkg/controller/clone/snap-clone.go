@@ -69,6 +69,12 @@ func (p *SnapshotClonePhase) Reconcile(ctx context.Context) (*reconcile.Result, 
 		}
 	}
 
+	targetPvc, err := cc.GetAnnotatedEventSource(ctx, p.Client, pvc)
+	if err != nil {
+		return nil, err
+	}
+	cc.CopyEvents(pvc, targetPvc, p.Client, p.Recorder)
+
 	done, err := isClaimBoundOrWFFC(ctx, p.Client, pvc)
 	if err != nil {
 		return nil, err
