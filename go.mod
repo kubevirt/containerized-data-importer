@@ -41,7 +41,7 @@ require (
 	github.com/rhobs/operator-observability-toolkit v0.0.29
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/cors v1.7.0
-	github.com/ulikunitz/xz v0.5.12
+	github.com/ulikunitz/xz v0.5.14
 	github.com/vmware/govmomi v0.23.1
 	go.uber.org/zap v1.26.0
 	golang.org/x/sys v0.28.0
