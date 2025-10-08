@@ -528,30 +528,28 @@ var _ = Describe("CDI route config tests", Serial, func() {
 	})
 })
 
-var _ = Describe("CDIConfig instance management", Serial, func() {
+var _ = Describe("[Destructive] CDIConfig instance management", Label("Destructive"), Serial, func() {
 	f := framework.NewFramework("cdiconfig-test")
 
-	Context("[Destructive]", Serial, func() {
-		It("[test_id:4952]Should re-create the object if deleted", func() {
-			By("Verifying the object exists")
-			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			// Save the UID, so we can check it against a new one.
-			orgUID := config.GetUID()
-			_, _ = fmt.Fprintf(GinkgoWriter, "Original CDIConfig UID: %s\n", orgUID)
-			By("Deleting the object")
-			err = f.CdiClient.CdiV1beta1().CDIConfigs().Delete(context.TODO(), config.Name, metav1.DeleteOptions{})
-			Expect(err).ToNot(HaveOccurred())
+	It("[test_id:4952]Should re-create the object if deleted", func() {
+		By("Verifying the object exists")
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		// Save the UID, so we can check it against a new one.
+		orgUID := config.GetUID()
+		_, _ = fmt.Fprintf(GinkgoWriter, "Original CDIConfig UID: %s\n", orgUID)
+		By("Deleting the object")
+		err = f.CdiClient.CdiV1beta1().CDIConfigs().Delete(context.TODO(), config.Name, metav1.DeleteOptions{})
+		Expect(err).ToNot(HaveOccurred())
 
-			Eventually(func() bool {
-				newConfig, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-				if err != nil {
-					return false
-				}
-				_, _ = fmt.Fprintf(GinkgoWriter, "New CDIConfig UID: %s\n", newConfig.GetUID())
-				return orgUID != newConfig.GetUID() && !apiequality.Semantic.DeepEqual(newConfig.Status, cdiv1.CDIConfigStatus{})
-			}, time.Second*30, time.Second).Should(BeTrue())
-		})
+		Eventually(func() bool {
+			newConfig, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+			if err != nil {
+				return false
+			}
+			_, _ = fmt.Fprintf(GinkgoWriter, "New CDIConfig UID: %s\n", newConfig.GetUID())
+			return orgUID != newConfig.GetUID() && !apiequality.Semantic.DeepEqual(newConfig.Status, cdiv1.CDIConfigStatus{})
+		}, time.Second*30, time.Second).Should(BeTrue())
 	})
 })
 
