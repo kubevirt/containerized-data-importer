@@ -25,11 +25,9 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/klog/v2"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 )
 
@@ -49,12 +47,6 @@ func (wh *pvcMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1
 	pvc := &v1.PersistentVolumeClaim{}
 	if err := json.Unmarshal(ar.Request.Object.Raw, &pvc); err != nil {
 		return toAdmissionResponseError(err)
-	}
-
-	// Note the webhook LabelSelector should not pass us such pvcs
-	if pvc.Labels[common.PvcApplyStorageProfileLabel] != "true" {
-		klog.Warningf("Got PVC %s/%s which was not labeled for rendering", pvc.Namespace, pvc.Name)
-		return allowedAdmissionResponse()
 	}
 
 	pvcCpy := pvc.DeepCopy()
