@@ -28,6 +28,8 @@ fi
 
 PUSH_TARGETS=(${PUSH_TARGETS:-$CONTROLLER_IMAGE_NAME $IMPORTER_IMAGE_NAME $CLONER_IMAGE_NAME $APISERVER_IMAGE_NAME $UPLOADPROXY_IMAGE_NAME $UPLOADSERVER_IMAGE_NAME $OPERATOR_IMAGE_NAME})
 
+TEST_PUSH_TARGETS=(${TEST_PUSH_TARGETS:-$FUNC_TEST_INIT $FUNC_TEST_HTTP $FUNC_TEST_REGISTRY $FUNC_TEST_REGISTRY_POPULATE $FUNC_TEST_REGISTRY_INIT $FUNC_TEST_BAD_WEBSERVER $FUNC_TEST_PROXY $FUNC_TEST_POPULATOR})
+
 echo "docker_prefix: $DOCKER_PREFIX, docker_tag: $DOCKER_TAG"
 for target in ${PUSH_TARGETS[@]}; do
     echo "Pushing: $target"
@@ -40,13 +42,17 @@ for target in ${PUSH_TARGETS[@]}; do
         //:push-${target}
 done
 
-bazel run \
-    --verbose_failures \
-    --config=${ARCHITECTURE} \
-    --define container_prefix=${DOCKER_PREFIX} \
-    --define container_tag=${DOCKER_TAG} \
-    --host_force_python=PY3 \
-    //:push-test-images
+# Push test images
+for target in ${TEST_PUSH_TARGETS[@]}; do
+    echo "Pushing test image: $target"
+    bazel run \
+        --verbose_failures \
+        --config=${ARCHITECTURE} \
+        --define container_prefix=${DOCKER_PREFIX} \
+        --define container_tag=${DOCKER_TAG} \
+        --host_force_python=PY3 \
+        //:push-${target}
+done
 
 rm -rf ${DIGESTS_DIR}/${ARCHITECTURE}
 mkdir -p ${DIGESTS_DIR}/${ARCHITECTURE}
