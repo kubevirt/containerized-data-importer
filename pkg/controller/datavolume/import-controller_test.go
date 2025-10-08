@@ -1466,6 +1466,44 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(readyCondition.Message).To(Equal(""))
 		})
 
+		It("Should not use PVC to update status if PVC is marked for deletion", func() {
+			dv := NewImportDataVolume("test-dv")
+			annotations := map[string]string{
+				AnnPopulatedFor: "test-dv",
+				AnnPodPhase:     string(corev1.PodSucceeded),
+			}
+			pvc := CreatePvc("test-dv", metav1.NamespaceDefault, annotations, nil)
+			// Set finalizer so PVC is not removed when Delete is called
+			pvc.Finalizers = append(pvc.Finalizers, "test-finalizer")
+
+			reconciler = createImportReconciler(dv, pvc)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Marking PVC for deletion")
+			err = reconciler.client.Delete(context.TODO(), pvc)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Resetting DV to Pending phase")
+			pendingStatus := cdiv1.Pending
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			dv.Status.Phase = pendingStatus
+			err = reconciler.client.Status().Update(context.TODO(), dv)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Calling updateStatus")
+			_, err = reconciler.updateStatus(getReconcileRequest(dv), nil, reconciler)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Checking DV did not inherit new status from PVC")
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(pendingStatus))
+		})
+
 		It("Should switch to paused if pod phase is succeeded but a checkpoint is set", func() {
 			reconciler = createImportReconciler(NewImportDataVolume("test-dv"))
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
