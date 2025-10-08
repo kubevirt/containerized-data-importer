@@ -35,6 +35,10 @@ func (r *ReconcileCDI) watch() error {
 		return err
 	}
 
+	if err := r.watchPopulators(); err != nil {
+		return err
+	}
+
 	if err := r.watchSecurityContextConstraints(); err != nil {
 		return err
 	}

@@ -29,6 +29,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	popv1beta1 "github.com/kubernetes-csi/volume-data-source-validator/client/apis/volumepopulator/v1beta1"
 	routev1 "github.com/openshift/api/route/v1"
 	secv1 "github.com/openshift/api/security/v1"
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
@@ -55,6 +56,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	forklift "kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules"
 	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules/alerts"
@@ -91,6 +93,8 @@ func init() {
 		promv1.AddToScheme,
 		secv1.Install,
 		routev1.Install,
+		popv1beta1.AddToScheme,
+		forklift.AddToScheme,
 	}
 
 	for _, f := range schemeInitFuncs {
@@ -118,6 +122,7 @@ var _ = Describe("Controller", func() {
 		Entry("SSC type", &secv1.SecurityContextConstraints{ObjectMeta: metav1.ObjectMeta{Name: "scc"}}),
 		Entry("Route type", &routev1.Route{ObjectMeta: metav1.ObjectMeta{Name: "route"}}),
 		Entry("PromRule type", &promv1.PrometheusRule{ObjectMeta: metav1.ObjectMeta{Name: "rule"}}),
+		Entry("VolumePopulator type", &popv1beta1.VolumePopulator{ObjectMeta: metav1.ObjectMeta{Name: "volumepopulator"}}),
 	)
 
 	Describe("Deploying CDI", func() {
@@ -323,7 +328,6 @@ var _ = Describe("Controller", func() {
 				Expect(route.Spec.To.Name).Should(Equal(uploadProxyServiceName))
 				Expect(route.Spec.TLS.DestinationCACertificate).Should(Equal(testCertData))
 				Expect(route.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
-				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
 
 			It("should update existing route", func() {
@@ -353,6 +357,49 @@ var _ = Describe("Controller", func() {
 				eventMap := createReadyEventValidationMap()
 				eventMap["Normal UploadProxyRouteInjectSuccess Successfully updated Route destination CA certificate"] = false
 				validateEvents(args.reconciler, eventMap)
+			})
+
+			It("should create volume populators", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+				for _, source := range volumePopulatorSources {
+					gvk, err := args.client.GroupVersionKindFor(source)
+					Expect(err).ToNot(HaveOccurred())
+					volumePopulator := &popv1beta1.VolumePopulator{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: strings.ToLower(gvk.Kind),
+						},
+					}
+
+					obj, err := getObject(args.client, volumePopulator)
+					Expect(err).ToNot(HaveOccurred())
+					volumePopulator = obj.(*popv1beta1.VolumePopulator)
+
+					Expect(volumePopulator.SourceKind).To(Equal(metav1.GroupKind(gvk.GroupKind())))
+					Expect(volumePopulator.Labels).To(HaveKeyWithValue(common.AppKubernetesPartOfLabel, "testing"))
+				}
+			})
+
+			It("should update existing volume populator", func() {
+				const volumeImportSource = "volumeimportsource"
+				populator := &popv1beta1.VolumePopulator{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: volumeImportSource,
+					},
+				}
+				args := createArgs(populator)
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				obj, err := getObject(args.client, populator)
+				Expect(err).ToNot(HaveOccurred())
+				populator = obj.(*popv1beta1.VolumePopulator)
+
+				gvk, err := args.client.GroupVersionKindFor(&cdiv1.VolumeImportSource{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(populator.SourceKind).To(Equal(metav1.GroupKind(gvk.GroupKind())))
+				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
 
 			It("should have CDIOperatorDown", func() {
@@ -1932,15 +1979,16 @@ func createReconciler(client client.Client) *ReconcileCDI {
 
 	recorder := record.NewFakeRecorder(250)
 	r := &ReconcileCDI{
-		client:         client,
-		uncachedClient: client,
-		scheme:         scheme.Scheme,
-		recorder:       recorder,
-		namespace:      namespace,
-		clusterArgs:    clusterArgs,
-		namespacedArgs: namespacedArgs,
-		certManager:    newFakeCertManager(client, namespace),
-		haveRoutes:     true,
+		client:                        client,
+		uncachedClient:                client,
+		scheme:                        scheme.Scheme,
+		recorder:                      recorder,
+		namespace:                     namespace,
+		clusterArgs:                   clusterArgs,
+		namespacedArgs:                namespacedArgs,
+		certManager:                   newFakeCertManager(client, namespace),
+		haveRoutes:                    true,
+		haveVolumeDataSourceValidator: true,
 	}
 	callbackDispatcher := callbacks.NewCallbackDispatcher(log, client, client, scheme.Scheme, namespace)
 	getCache := func() cache.Cache {
@@ -1998,6 +2046,7 @@ func createErrorCDIEventValidationMap() map[string]bool {
 func createReadyEventValidationMap() map[string]bool {
 	match := createNotReadyEventValidationMap()
 	match[normalCreateEnsured+" upload proxy route exists"] = false
+	match[normalCreateEnsured+" volume populators exist"] = false
 	match["Normal DeployCompleted Deployment Completed"] = false
 	return match
 }
