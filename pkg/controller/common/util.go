@@ -87,6 +87,8 @@ const (
 	AnnPodRestarts = AnnAPIGroup + "/storage.pod.restarts"
 	// AnnPodSchedulable is a PVC annotation that tells if the Pod is schedulable or not
 	AnnPodSchedulable = AnnAPIGroup + "/storage.pod.schedulable"
+	// AnnImportFatalError is a PVC annotation that indicates a fatal import error that should not be retried
+	AnnImportFatalError = AnnAPIGroup + "/storage.import.fatalError"
 	// AnnPopulatedFor is a PVC annotation telling the datavolume controller that the PVC is already populated
 	AnnPopulatedFor = AnnAPIGroup + "/storage.populatedFor"
 	// AnnPrePopulated is a PVC annotation telling the datavolume controller that the PVC is already populated
@@ -191,6 +193,8 @@ const (
 	AnnExtraHeaders = AnnAPIGroup + "/storage.import.extraHeaders"
 	// AnnSecretExtraHeaders provides a const for our PVC secretExtraHeaders annotation
 	AnnSecretExtraHeaders = AnnAPIGroup + "/storage.import.secretExtraHeaders"
+	// AnnChecksum provides a const for our PVC checksum annotation
+	AnnChecksum = AnnAPIGroup + "/storage.import.checksum"
 	// AnnRegistryImageArchitecture provides a const for our PVC registryImageArchitecture annotation
 	AnnRegistryImageArchitecture = AnnAPIGroup + "/storage.import.registryImageArchitecture"
 
@@ -1695,6 +1699,9 @@ func UpdateHTTPAnnotations(annotations map[string]string, http *cdiv1.DataVolume
 	}
 	if http.CertConfigMap != "" {
 		annotations[AnnCertConfigMap] = http.CertConfigMap
+	}
+	if http.Checksum != "" {
+		annotations[AnnChecksum] = http.Checksum
 	}
 	for index, header := range http.ExtraHeaders {
 		annotations[fmt.Sprintf("%s.%d", AnnExtraHeaders, index)] = header

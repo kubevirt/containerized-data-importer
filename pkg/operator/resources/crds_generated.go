@@ -6004,6 +6004,12 @@ spec:
                                   containing a Certificate Authority(CA) public key,
                                   and a base64 encoded pem certificate
                                 type: string
+                              checksum:
+                                description: |-
+                                  Checksum is the expected checksum of the file. Format: "algorithm:hash", e.g., "sha256:1234abcd..." or "md5:5678efgh..."
+                                  Supported algorithms: md5, sha1, sha256, sha512
+                                  If specified, the importer will verify the downloaded content matches this checksum
+                                type: string
                               extraHeaders:
                                 description: ExtraHeaders is a list of strings containing
                                   extra headers to include with HTTP transfer requests
@@ -7009,6 +7015,12 @@ spec:
                         description: CertConfigMap is a configmap reference, containing
                           a Certificate Authority(CA) public key, and a base64 encoded
                           pem certificate
+                        type: string
+                      checksum:
+                        description: |-
+                          Checksum is the expected checksum of the file. Format: "algorithm:hash", e.g., "sha256:1234abcd..." or "md5:5678efgh..."
+                          Supported algorithms: md5, sha1, sha256, sha512
+                          If specified, the importer will verify the downloaded content matches this checksum
                         type: string
                       extraHeaders:
                         description: ExtraHeaders is a list of strings containing
@@ -8066,6 +8078,12 @@ spec:
                         description: CertConfigMap is a configmap reference, containing
                           a Certificate Authority(CA) public key, and a base64 encoded
                           pem certificate
+                        type: string
+                      checksum:
+                        description: |-
+                          Checksum is the expected checksum of the file. Format: "algorithm:hash", e.g., "sha256:1234abcd..." or "md5:5678efgh..."
+                          Supported algorithms: md5, sha1, sha256, sha512
+                          If specified, the importer will verify the downloaded content matches this checksum
                         type: string
                       extraHeaders:
                         description: ExtraHeaders is a list of strings containing

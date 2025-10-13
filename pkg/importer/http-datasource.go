@@ -81,6 +81,8 @@ type HTTPDataSource struct {
 	brokenForQemuImg bool
 	// the content length reported by the http server.
 	contentLength uint64
+	// checksumValidator validates the checksum of downloaded data
+	checksumValidator *ChecksumValidator
 
 	n image.NbdkitOperation
 }
@@ -88,7 +90,7 @@ type HTTPDataSource struct {
 var createNbdkitCurl = image.NewNbdkitCurl
 
 // NewHTTPDataSource creates a new instance of the http data provider.
-func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType) (*HTTPDataSource, error) {
+func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType, checksum string) (*HTTPDataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to parse endpoint %q", endpoint)
@@ -107,15 +109,26 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		return nil, err
 	}
 
+	// Create checksum validator if checksum is provided
+	checksumValidator, err := NewChecksumValidator(checksum)
+	if err != nil {
+		cancel()
+		return nil, errors.Wrap(err, "invalid checksum")
+	}
+	if checksumValidator != nil {
+		klog.Infof("Checksum validation enabled: %s", checksum)
+	}
+
 	httpSource := &HTTPDataSource{
-		ctx:              ctx,
-		cancel:           cancel,
-		httpReader:       httpReader,
-		contentType:      contentType,
-		endpoint:         ep,
-		customCA:         certDir,
-		brokenForQemuImg: brokenForQemuImg,
-		contentLength:    contentLength,
+		ctx:               ctx,
+		cancel:            cancel,
+		httpReader:        httpReader,
+		contentType:       contentType,
+		endpoint:          ep,
+		customCA:          certDir,
+		brokenForQemuImg:  brokenForQemuImg,
+		contentLength:     contentLength,
+		checksumValidator: checksumValidator,
 	}
 	httpSource.n, err = createNbdkitCurl(nbdkitPid, accessKey, secKey, certDir, nbdkitSocket, extraHeaders, secretExtraHeaders)
 	if err != nil {
@@ -131,7 +144,7 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 // Info is called to get initial information about the data.
 func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	var err error
-	hs.readers, err = NewFormatReaders(hs.httpReader, hs.contentLength)
+	hs.readers, err = NewFormatReaders(hs.httpReader, hs.contentLength, hs.checksumValidator)
 	if err != nil {
 		klog.Errorf("Error creating readers: %v", err)
 		return ProcessingPhaseError, err
@@ -180,12 +193,20 @@ func (hs *HTTPDataSource) Transfer(path string, preallocation bool) (ProcessingP
 		if err != nil {
 			return ProcessingPhaseError, err
 		}
+		// Verify checksum if specified
+		if err := hs.readers.ValidateChecksum(); err != nil {
+			return ProcessingPhaseError, fmt.Errorf("checksum validation failed: %w", err)
+		}
 		// If we successfully wrote to the file, then the parse will succeed.
 		hs.url, _ = url.Parse(file)
 		return ProcessingPhaseConvert, nil
 	} else if hs.contentType == cdiv1.DataVolumeArchive {
 		if err := util.UnArchiveTar(hs.readers.TopReader(), path); err != nil {
 			return ProcessingPhaseError, errors.Wrap(err, "unable to untar files from endpoint")
+		}
+		// Verify checksum if specified
+		if err := hs.readers.ValidateChecksum(); err != nil {
+			return ProcessingPhaseError, fmt.Errorf("checksum validation failed: %w", err)
 		}
 		hs.url = nil
 		return ProcessingPhaseComplete, nil
@@ -202,6 +223,10 @@ func (hs *HTTPDataSource) TransferFile(fileName string, preallocation bool) (Pro
 	_, _, err := StreamDataToFile(hs.readers.TopReader(), fileName, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, err
+	}
+	// Verify checksum if specified
+	if err := hs.readers.ValidateChecksum(); err != nil {
+		return ProcessingPhaseError, fmt.Errorf("checksum validation failed: %w", err)
 	}
 	return ProcessingPhaseResize, nil
 }
