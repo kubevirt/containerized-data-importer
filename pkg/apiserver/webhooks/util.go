@@ -28,6 +28,7 @@ import (
 	field "k8s.io/apimachinery/pkg/util/validation/field"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/util/checksum"
 )
 
 func validateNumberOfSources(source interface{}, sourceKind string, field *field.Path) []metav1.StatusCause {
@@ -163,7 +164,14 @@ func validateDataVolumeSourceRegistry(sourceRegistry *cdiv1.DataVolumeSourceRegi
 // if source types are HTTP, Imageio, S3, GCS or VDDK, check if URL is valid
 
 func validateHTTPSource(http *cdiv1.DataVolumeSourceHTTP, field *field.Path) []metav1.StatusCause {
-	return checkSourceURL(http.URL, "HTTP", field)
+	var causes []metav1.StatusCause
+	if urlCauses := checkSourceURL(http.URL, "HTTP", field); urlCauses != nil {
+		causes = append(causes, urlCauses...)
+	}
+	if checksumCauses := validateChecksum(http.Checksum, field, "HTTP"); checksumCauses != nil {
+		causes = append(causes, checksumCauses...)
+	}
+	return causes
 }
 
 func validateS3Source(s3 *cdiv1.DataVolumeSourceS3, field *field.Path) []metav1.StatusCause {
@@ -229,4 +237,19 @@ func validateSourceURL(sourceURL string) string {
 		return fmt.Sprintf("Invalid source URL scheme: %s", sourceURL)
 	}
 	return ""
+}
+
+func validateChecksum(checksumStr string, field *field.Path, sourceType string) []metav1.StatusCause {
+	if checksumStr == "" {
+		return nil // checksum is optional
+	}
+
+	if _, _, err := checksum.ParseAndValidate(checksumStr); err != nil {
+		return []metav1.StatusCause{{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("Invalid checksum format: %v", err),
+			Field:   field.Child("source", sourceType, "checksum").String(),
+		}}
+	}
+	return nil
 }

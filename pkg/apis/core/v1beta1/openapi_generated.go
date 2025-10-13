@@ -18157,6 +18157,13 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceHTTP(ref common.ReferenceCallb
 							},
 						},
 					},
+					"checksum": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Checksum is the expected checksum of the file. Format: \"algorithm:hash\", e.g., \"sha256:1234abcd...\" or \"md5:5678efgh...\" Supported algorithms: md5, sha1, sha256, sha512 If specified, the importer will verify the downloaded content matches this checksum",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"url"},
 			},

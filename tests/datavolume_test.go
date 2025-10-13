@@ -1165,6 +1165,69 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "Import Complete",
 					Reason:  "Completed",
 				}}),
+			Entry("[rfe_id:XXXX][crit:high][test_id:XXXX]succeed creating import dv with valid checksum", dataVolumeTestArguments{
+				name: "dv-http-import-valid-checksum",
+				size: "1Gi",
+				url:  tinyCoreIsoURL,
+				dvFunc: func(name, size, url string) *cdiv1.DataVolume {
+					dv := utils.NewDataVolumeWithHTTPImport(name, size, url)
+					// sha256 checksum for tinyCore.iso: 11d74aa12309da7240f171c140394729bb9b407e8fa3cb52c6dcbf7009352fab
+					dv.Spec.Source.HTTP.Checksum = "sha256:11d74aa12309da7240f171c140394729bb9b407e8fa3cb52c6dcbf7009352fab"
+					return dv
+				},
+				eventReason:      dvc.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-http-import-valid-checksum Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			Entry("[rfe_id:XXXX][crit:high][posneg:negative][test_id:XXXX]fail creating import dv due to checksum mismatch", dataVolumeTestArguments{
+				name: "dv-http-import-checksum-mismatch",
+				size: "1Gi",
+				url:  tinyCoreIsoURL,
+				dvFunc: func(name, size, url string) *cdiv1.DataVolume {
+					dv := utils.NewDataVolumeWithHTTPImport(name, size, url)
+					dv.Spec.Source.HTTP.Checksum = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					return dv
+				},
+				errorMessage: "checksum validation failed",
+				eventReason:  dvc.ImportFailed,
+				phase:        cdiv1.Failed,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-http-import-checksum-mismatch Bound",
+					Reason:  "Bound",
+				},
+				boundConditionWithPopulators: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionFalse,
+					Message: "PVC dv-http-import-checksum-mismatch Pending",
+					Reason:  "Pending",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "checksum validation failed",
+					Reason:  "ChecksumError",
+				}}),
 		)
 
 		savedVddkConfigMap := common.VddkConfigMap + "-saved"

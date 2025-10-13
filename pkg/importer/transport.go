@@ -135,7 +135,7 @@ func processLayer(ctx context.Context,
 		klog.Errorf("%v: %v", errReadingLayer, err)
 		return false, fmt.Errorf("%w: %v", errReadingLayer, err)
 	}
-	fr, err := NewFormatReaders(reader, 0)
+	fr, err := NewFormatReaders(reader, 0, nil)
 	if err != nil {
 		klog.Errorf("%v: %v", errReadingLayer, err)
 		return false, fmt.Errorf("%w: %v", errReadingLayer, err)
