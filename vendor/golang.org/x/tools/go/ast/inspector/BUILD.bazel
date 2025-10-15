@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "inspector.go",
+        "iter.go",
         "typeof.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/golang.org/x/tools/go/ast/inspector",
