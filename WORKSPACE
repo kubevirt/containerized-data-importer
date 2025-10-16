@@ -93,99 +93,80 @@ load("@bazeldnf//:deps.bzl", "bazeldnf_dependencies", "rpm")
 
 bazeldnf_dependencies()
 
-#load("@com_github_bazelbuild_buildtools//buildifier:deps.bzl", "buildifier_dependencies")
-
-#buildifier_dependencies()
-
-# bazel docker rules
+# bazel-lib rules
 http_archive(
-    name = "io_bazel_rules_docker",
-    sha256 = "95d39fd84ff4474babaf190450ee034d958202043e366b9fc38f438c9e6c3334",
-    strip_prefix = "rules_docker-0.16.0",
+    name = "aspect_bazel_lib",
+    sha256 = "9a44f457810ce64ec36a244cc7c807607541ab88f2535e07e0bf2976ef4b73fe",
+    strip_prefix = "bazel-lib-2.19.4",
+    url = "https://github.com/bazel-contrib/bazel-lib/releases/download/v2.19.4/bazel-lib-v2.19.4.tar.gz",
+)
+
+load("@aspect_bazel_lib//lib:repositories.bzl", "aspect_bazel_lib_dependencies", "aspect_bazel_lib_register_toolchains")
+
+aspect_bazel_lib_dependencies()
+
+aspect_bazel_lib_register_toolchains()
+
+load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
+load("@platforms//host:extension.bzl", "host_platform_repo")
+
+maybe(
+    host_platform_repo,
+    name = "host_platform",
+)
+
+# rules_pkg
+http_archive(
+    name = "rules_pkg",
+    sha256 = "d20c951960ed77cb7b341c2a59488534e494d5ad1d30c4818c736d57772a9fef",
     urls = [
-        "https://github.com/bazelbuild/rules_docker/releases/download/v0.16.0/rules_docker-v0.16.0.tar.gz",
-        "https://storage.googleapis.com/builddeps/95d39fd84ff4474babaf190450ee034d958202043e366b9fc38f438c9e6c3334",
+        "https://mirror.bazel.build/github.com/bazelbuild/rules_pkg/releases/download/1.0.1/rules_pkg-1.0.1.tar.gz",
+        "https://github.com/bazelbuild/rules_pkg/releases/download/1.0.1/rules_pkg-1.0.1.tar.gz",
+        "https://storage.googleapis.com/builddeps/d20c951960ed77cb7b341c2a59488534e494d5ad1d30c4818c736d57772a9fef",
     ],
 )
 
-load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_image",
-    "container_pull",
-)
-load(
-    "@io_bazel_rules_docker//repositories:repositories.bzl",
-    container_repositories = "repositories",
-)
+load("@rules_pkg//:deps.bzl", "rules_pkg_dependencies")
 
-container_repositories()
+rules_pkg_dependencies()
 
-# This is NOT needed when going through the language lang_image
-# "repositories" function(s).
-load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
-
-container_deps()
-
-# override rules_docker issue with this dependency
-# rules_docker 0.16 uses 0.1.4, bit since there the checksum changed, which is very weird, going with 0.1.4.1 to
-go_repository(
-    name = "com_github_google_go_containerregistry",
-    importpath = "github.com/google/go-containerregistry",
-    sha256 = "bc0136a33f9c1e4578a700f7afcdaa1241cfff997d6bba695c710d24c5ae26bd",
-    strip_prefix = "google-go-containerregistry-efb2d62",
-    type = "tar.gz",
-    urls = ["https://api.github.com/repos/google/go-containerregistry/tarball/efb2d62d93a7705315b841d0544cb5b13565ff2a"],  # v0.1.4.1
-)
-
-# RPM rules
+# bazel oci rules
 http_archive(
-    name = "io_bazel_rules_container_rpm",
-    sha256 = "151261f1b81649de6e36f027c945722bff31176f1340682679cade2839e4b1e1",
-    strip_prefix = "rules_container_rpm-0.0.5",
-    urls = [
-        "https://github.com/rmohr/rules_container_rpm/archive/v0.0.5.tar.gz",
-        "https://storage.googleapis.com/builddeps/151261f1b81649de6e36f027c945722bff31176f1340682679cade2839e4b1e1",
-    ],
+    name = "rules_oci",
+    sha256 = "5994ec0e8df92c319ef5da5e1f9b514628ceb8fc5824b4234f2fe635abb8cc2e",
+    strip_prefix = "rules_oci-2.2.6",
+    url = "https://github.com/bazel-contrib/rules_oci/releases/download/v2.2.6/rules_oci-v2.2.6.tar.gz",
 )
 
-# Pull base image centos:stream9
-container_pull(
-    name = "centos",
-    registry = "quay.io",
-    repository = "centos/centos",
-    tag = "stream9",
-)
+load("@rules_oci//oci:dependencies.bzl", "rules_oci_dependencies")
 
-container_pull(
-    name = "centos-aarch64",
-    architecture = "arm64",
-    registry = "quay.io",
-    repository = "centos/centos",
-    tag = "stream9",
-)
+rules_oci_dependencies()
+
+load("@rules_oci//oci:repositories.bzl", "oci_register_toolchains")
+
+oci_register_toolchains(name = "oci")
+
+load("@rules_oci//oci:pull.bzl", "oci_pull")
 
 # Pull base image container registry
-container_pull(
+oci_pull(
     name = "registry",
     digest = "sha256:5c98b00f91e8daed324cb680661e9d647f09d825778493ffb2618ff36bec2a9e",
-    registry = "quay.io",
-    repository = "libpod/registry",
+    image = "quay.io/libpod/registry",
     tag = "2.8",
 )
 
-container_pull(
+oci_pull(
     name = "registry-aarch64",
     digest = "sha256:f4e803a2d37afca6d059961f28d73c57cbe6fdb3a44ba6ae7ad463811f43b81c",
-    registry = "quay.io",
-    repository = "libpod/registry",
+    image = "quay.io/libpod/registry",
     tag = "2.8",
 )
 
-container_pull(
+oci_pull(
     name = "registry-s390x",
     digest = "sha256:7e1926b82e5b862a633b83acf8f456e1619be720aff346e1b634db2f843082b7",
-    registry = "quay.io",
-    repository = "libpod/registry",
+    image = "quay.io/libpod/registry",
     tag = "2.8",
 )
 
@@ -207,43 +188,6 @@ http_file(
         "https://github.com/vmware/govmomi/releases/download/v0.26.1/vcsim_Linux_x86_64.tar.gz",
         "https://storage.googleapis.com/builddeps/b844f6f7645c870a503aa1c5bd23d9a3cb4f5c850505073eef521f2f22a5f2b7",
     ],
-)
-
-#imageio rpms and dependencies
-http_file(
-    name = "ovirt-imageio-client",
-    sha256 = "4447b2e6c659f0b486f8db82b415eaa065adb09092b00308eade30632be0c4bf",
-    urls = ["https://storage.googleapis.com/builddeps/4447b2e6c659f0b486f8db82b415eaa065adb09092b00308eade30632be0c4bf"],
-)
-
-http_file(
-    name = "ovirt-imageio-client-aarch64",
-    sha256 = "ab2cdec494c6ed22cb718779bf1445d3ede79c051337e506b3c05c77c28f5b2d",
-    urls = ["https://storage.googleapis.com/builddeps/ab2cdec494c6ed22cb718779bf1445d3ede79c051337e506b3c05c77c28f5b2d"],
-)
-
-http_file(
-    name = "ovirt-imageio-common",
-    sha256 = "d6562eb701afcbde7ab1f14e1cc5f3a8be3ecc7fa25b9f3b831e342c3e14bc2a",
-    urls = ["https://storage.googleapis.com/builddeps/d6562eb701afcbde7ab1f14e1cc5f3a8be3ecc7fa25b9f3b831e342c3e14bc2a"],
-)
-
-http_file(
-    name = "ovirt-imageio-common-aarch64",
-    sha256 = "f8a9273463657244fdf34fef0077f2c79f1216891439472df0543eb5133d7922",
-    urls = ["https://storage.googleapis.com/builddeps/f8a9273463657244fdf34fef0077f2c79f1216891439472df0543eb5133d7922"],
-)
-
-http_file(
-    name = "ovirt-imageio-daemon",
-    sha256 = "e0df3d43109769d2745a0d2befc05db8961b7de770047adf8ad60469d6e430f0",
-    urls = ["https://storage.googleapis.com/builddeps/e0df3d43109769d2745a0d2befc05db8961b7de770047adf8ad60469d6e430f0"],
-)
-
-http_file(
-    name = "ovirt-imageio-daemon-aarch64",
-    sha256 = "5a6697a4fd9c8d52a8a9ead8a4281b3d208df221e0d87f4377e7a3f6a3a1608d",
-    urls = ["https://storage.googleapis.com/builddeps/5a6697a4fd9c8d52a8a9ead8a4281b3d208df221e0d87f4377e7a3f6a3a1608d"],
 )
 
 rpm(
@@ -955,8 +899,15 @@ rpm(
     name = "curl-0__7.76.1-31.el9.x86_64",
     sha256 = "7884a48b4198a915ec412bbfd32bedee955f11119ac1c55b4afa82dd269d22dd",
     urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/curl-7.76.1-31.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/7884a48b4198a915ec412bbfd32bedee955f11119ac1c55b4afa82dd269d22dd",
+        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/curl-7.76.1-34.el9.x86_64.rpm",
+    ],
+)
+
+rpm(
+    name = "curl-minimal-0__7.76.1-34.el9.s390x",
+    sha256 = "ccc673892f1a770f9b2f328a4165e66f11b35a89a91825f0c73cc4e5159560e1",
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/BaseOS/s390x/os/Packages/curl-minimal-7.76.1-34.el9.s390x.rpm",
     ],
 )
 
@@ -1137,6 +1088,14 @@ rpm(
     urls = [
         "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/filesystem-3.16-5.el9.x86_64.rpm",
         "https://storage.googleapis.com/builddeps/da7750fc31248ecc606016391c3f570e1abe7422f812b29a49d830c71884e6dc",
+    ],
+)
+
+rpm(
+    name = "fips-provider-next-0__1.2.0-5.el9.x86_64",
+    sha256 = "efb7823a54b75b86faf6344f8ddf7da965f35b16e5d40c2032e6d75d4fbc6897",
+    urls = [
+        "http://mirror.stream.centos.org/9-stream/AppStream/x86_64/os/Packages/fips-provider-next-1.2.0-5.el9.x86_64.rpm",
     ],
 )
 
@@ -3757,6 +3716,22 @@ rpm(
     name = "ovirt-imageio-common-0__2.5.1-0.202505141115.git4cde810.el9.x86_64",
     sha256 = "d6deb00554fdb6d1b8696bd5fd190a717d9e868ee5e22209d364de6b26bdf543",
     urls = ["https://storage.googleapis.com/builddeps/d6deb00554fdb6d1b8696bd5fd190a717d9e868ee5e22209d364de6b26bdf543"],
+)
+
+rpm(
+    name = "ovirt-imageio-daemon-0__2.5.0-1.el9.aarch64",
+    sha256 = "402f4490db47113a4298eb227a774ad9dd299eb052c7ad72a1ac2b3cdc649ba0",
+    urls = [
+        "https://mirror.stream.centos.org/SIGs/9-stream/virt/aarch64/ovirt-45/Packages/o/ovirt-imageio-daemon-2.5.0-1.el9.aarch64.rpm",
+    ],
+)
+
+rpm(
+    name = "ovirt-imageio-daemon-0__2.5.2-0.202509221044.git989607c.el9.x86_64",
+    sha256 = "06b32299f065e72b4200cd349ee3634731113a9a4b634f79f1f73393f9c522d5",
+    urls = [
+        "https://download.copr.fedorainfracloud.org/results/ovirt/ovirt-master-snapshot/centos-stream-9-x86_64/09589183-ovirt-imageio/ovirt-imageio-daemon-2.5.2-0.202509221044.git989607c.el9.x86_64.rpm",
+    ],
 )
 
 rpm(

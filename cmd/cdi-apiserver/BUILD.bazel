@@ -1,4 +1,6 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 go_library(
     name = "go_default_library",
@@ -35,29 +37,25 @@ load("//pkg/version:def.bzl", "version_x_defs")
 go_binary(
     name = "cdi-apiserver",
     embed = [":go_default_library"],
-    visibility = ["//visibility:public"],
+    visibility = ["//visibility:private"],
     x_defs = version_x_defs(),
 )
 
-load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_image",
+pkg_tar(
+    name = "cdi-apiserver-bin",
+    srcs = [":cdi-apiserver"],
+    package_dir = "/usr/bin/",
+    visibility = ["//visibility:private"],
 )
 
-container_image(
+oci_image(
     name = "cdi-apiserver-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
     base = "//:centos_base",
-    directory = "/usr/bin",
     entrypoint = [
         "/usr/bin/cdi-apiserver",
         "-alsologtostderr",
     ],
-    files = [":cdi-apiserver"],
+    tars = [":cdi-apiserver-bin"],
     user = "1001",
     visibility = ["//visibility:public"],
     workdir = "/home/cdi-apiserver",
