@@ -1,42 +1,66 @@
-load("@io_bazel_rules_docker//container:container.bzl", "container_image")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
-container_image(
-    name = "vcenter-simulator",
-    base = "//:testimage_base",
-    cmd = "mkdir -p /opt",
-    directory = "/usr/bin",
-    entrypoint = "/usr/bin/entrypoint.sh",
-    files = [
-        "entrypoint.sh",
-        "@vcenter-govc-tar//file",
-        "@vcenter-vcsim-tar//file",
-    ],
-    visibility = ["//visibility:public"],
+pkg_tar(
+    name = "vcenter-govc-tar",
+    srcs = ["@vcenter-govc-tar//file"],
+    package_dir = "/usr/bin/",
 )
 
-container_image(
-    name = "vddk-test-image",
-    entrypoint = "mkdir -p /opt/testing && cp -f /libvddk-test-plugin.so /opt/testing/libvddk-test-plugin.so && cp -f /cirros.raw /opt/testing/nbdtest.img",
-    files = [
-        ":vddk-test-plugin",
-        "//tests:images/cirros.raw",
+pkg_tar(
+    name = "vcenter-vcsim-tar",
+    srcs = ["@vcenter-vcsim-tar//file"],
+    package_dir = "/usr/bin/",
+)
+
+pkg_tar(
+    name = "entrypoint",
+    srcs = [":entrypoint.sh"],
+    package_dir = "/usr/bin/",
+)
+
+oci_image(
+    name = "vcenter-simulator-image",
+    base = "//:testimage_base",
+    cmd = ["mkdir -p /opt"],
+    entrypoint = ["/usr/bin/entrypoint.sh"],
+    tars = [
+        ":entrypoint",
+        ":vcenter-govc-tar",
+        ":vcenter-vcsim-tar",
     ],
-    tars = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": [
-            "//rpm:testimage_s390x",
-        ],
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "//rpm:testimage_aarch64",
-        ],
-        "//conditions:default": [
-            "//rpm:testimage_x86_64",
-        ],
-    }),
-    user = "1001",
     visibility = ["//visibility:public"],
 )
 
 cc_library(
     name = "vddk-test-plugin",
     srcs = ["vddk-test-plugin.c"],
+)
+
+pkg_tar(
+    name = "vddk-test-plugin-tar",
+    srcs = [":vddk-test-plugin"],
+    package_dir = "/",
+)
+
+pkg_tar(
+    name = "cirros-tar",
+    srcs = ["//tests:images/cirros.raw"],
+    package_dir = "/",
+)
+
+oci_image(
+    name = "vddk-test-image",
+    base = "//:testimage_base",
+    entrypoint = [
+        "/bin/sh",
+        "-c",
+        "mkdir -p /opt/testing && cp -f /libvddk-test-plugin.so /opt/testing/libvddk-test-plugin.so && cp -f /cirros.raw /opt/testing/nbdtest.img",
+    ],
+    tars = [
+        ":cirros-tar",
+        ":vddk-test-plugin-tar",
+    ],
+    user = "1001",
+    visibility = ["//visibility:public"],
 )

@@ -24,7 +24,7 @@ var _ = Describe("Transport Tests", func() {
 		targetQCOWImage         = "tinycoreqcow2"
 		targetRawImage          = "tinycoreqcow2"
 		targetArchivedImage     = "tinycoreisotar"
-		targetArchivedImageHash = "b354a50183e70ee2ed3413eea67fe153"
+		targetArchivedImageHash = "5681e1924e0ef06ab0e92c8db119b1c5"
 		targetNodePullImage     = "cdi-func-test-tinycore"
 	)
 
