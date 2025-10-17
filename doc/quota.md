@@ -48,9 +48,6 @@ spec:
   infra:
     nodeSelector:
       kubernetes.io/os: linux
-    tolerations:
-    - key: CriticalAddonsOnly
-      operator: Exists
   workload:
     nodeSelector:
       kubernetes.io/os: linux
