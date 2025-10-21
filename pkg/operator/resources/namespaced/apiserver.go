@@ -31,6 +31,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	utils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
@@ -100,6 +101,12 @@ func createAPIServerDeployment(image, verbosity, pullPolicy string, imagePullSec
 	if replicas > 1 {
 		deployment.Spec.Replicas = &replicas
 	}
+	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{
+		common.AllowAccessClusterServicesNPLabel: "true",
+	})
+	deployment.SetLabels(labels)
+	deployment.Spec.Template.SetLabels(labels)
+
 	container := utils.CreatePortsContainer(common.CDIApiServerResourceName, image, pullPolicy, createAPIServerPorts(common.CDIApiServerResourceName))
 	container.Args = []string{"-v=" + verbosity}
 	container.Env = []corev1.EnvVar{
@@ -200,7 +207,6 @@ func createAPIServerDeployment(image, verbosity, pullPolicy string, imagePullSec
 		deployment.Spec.Template.Annotations = make(map[string]string)
 	}
 	deployment.Spec.Template.Annotations[secv1.RequiredSCCAnnotation] = common.RestrictedSCCName
-
 	return deployment
 }
 
