@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-all-cdi-test
+  labels:
+    cdi.kubevirt.io: ""
+spec:
+  podSelector:
+    matchLabels:
+      cdi.kubevirt.io/testing: ""
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: 
+  - {}
+  egress: 
+  - {}

@@ -17,6 +17,7 @@ const (
 	allowUploadProxyCommunications = "cdi-allow-uploadproxy-communications"
 	allowIngressToCdiAPIWebhook    = "cdi-allow-cdi-api-webhook-server"
 	allowEgressToImporterMetrics   = "cdi-allow-cdi-deployment-importer-metrics"
+	allowEgressFromPoller          = "cdi-allow-egress-from-poller"
 )
 
 func createNetworkPolicies(args *FactoryArgs) []client.Object {
@@ -25,6 +26,7 @@ func createNetworkPolicies(args *FactoryArgs) []client.Object {
 		newUploadProxyCommunicationsNP(args.Namespace),
 		newIngressToCdiAPIWebhookNP(args.Namespace),
 		newCdiDeploymentToImporterMetricsNP(args.Namespace),
+		newEgressFromPollerNP(args.Namespace),
 	}
 }
 
@@ -160,6 +162,20 @@ func newCdiDeploymentToImporterMetricsNP(namespace string) *networkv1.NetworkPol
 					},
 				},
 			},
+		},
+	)
+}
+
+func newEgressFromPollerNP(namespace string) *networkv1.NetworkPolicy {
+	return newNetworkPolicy(
+		namespace,
+		allowEgressFromPoller,
+		&networkv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{common.DataImportCronPollerLabel: ""},
+			},
+			PolicyTypes: []networkv1.PolicyType{networkv1.PolicyTypeEgress},
+			Egress:      []networkv1.NetworkPolicyEgressRule{{}},
 		},
 	)
 }
