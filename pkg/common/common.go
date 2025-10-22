@@ -62,6 +62,8 @@ const (
 	DataImportCronLabel = CDIComponentLabel + "/dataImportCron"
 	// DataImportCronNsLabel has the namespace of the DataImportCron responsible for the labeled resource
 	DataImportCronNsLabel = CDIComponentLabel + "/dataImportCronNs"
+	// DataImportCronPollerLabel indicates that the pod is a DataImportCron poller pod
+	DataImportCronPollerLabel = CDIComponentLabel + "/dataImportCronPoller"
 	// DataImportCronCleanupLabel tells whether to delete the resource when its DataImportCron is deleted
 	DataImportCronCleanupLabel = DataImportCronLabel + ".cleanup"
 

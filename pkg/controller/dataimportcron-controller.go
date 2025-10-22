@@ -1460,8 +1460,8 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 	return cronJob, nil
 }
 
-// InitPollerPodSpec inits poller PodSpec
-func InitPollerPodSpec(c client.Client, cron *cdiv1.DataImportCron, podSpec *corev1.PodSpec, image string, pullPolicy corev1.PullPolicy, log logr.Logger) error {
+// InitPollerPod inits poller Pod
+func InitPollerPod(c client.Client, cron *cdiv1.DataImportCron, pod *corev1.PodTemplateSpec, image string, pullPolicy corev1.PullPolicy, log logr.Logger) error {
 	regSource, err := getCronRegistrySource(cron)
 	if err != nil {
 		return err
@@ -1566,6 +1566,8 @@ func InitPollerPodSpec(c client.Client, cron *cdiv1.DataImportCron, podSpec *cor
 		return err
 	}
 
+	podSpec := &pod.Spec
+
 	podSpec.RestartPolicy = corev1.RestartPolicyNever
 	podSpec.TerminationGracePeriodSeconds = ptr.To[int64](0)
 	podSpec.Containers = []corev1.Container{container}
@@ -1585,6 +1587,11 @@ func InitPollerPodSpec(c client.Client, cron *cdiv1.DataImportCron, podSpec *cor
 		podSpec.Containers[0].SecurityContext.RunAsUser = nil
 	}
 
+	if pod.Labels == nil {
+		pod.Labels = map[string]string{}
+	}
+	pod.Labels[common.DataImportCronPollerLabel] = ""
+
 	return nil
 }
 
@@ -1600,8 +1607,8 @@ func (r *DataImportCronReconciler) initCronJob(cron *cdiv1.DataImportCron, cronJ
 	jobSpec.TTLSecondsAfterFinished = ptr.To[int32](10)
 	cc.AddAnnotation(&jobSpec.Template, secv1.RequiredSCCAnnotation, common.RestrictedSCCName)
 
-	podSpec := &jobSpec.Template.Spec
-	if err := InitPollerPodSpec(r.client, cron, podSpec, r.image, corev1.PullPolicy(r.pullPolicy), r.log); err != nil {
+	pod := &jobSpec.Template
+	if err := InitPollerPod(r.client, cron, pod, r.image, corev1.PullPolicy(r.pullPolicy), r.log); err != nil {
 		return err
 	}
 	if err := r.setJobCommon(cron, cronJob); err != nil {

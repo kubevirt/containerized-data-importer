@@ -425,9 +425,11 @@ var _ = Describe("DataImportCron", Serial, func() {
 		importerImage := f.GetEnvVarValue("IMPORTER_IMAGE")
 		Expect(importerImage).ToNot(BeEmpty())
 
-		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: pollerPodName}}
-		err = controller.InitPollerPodSpec(f.CrClient, cron, &pod.Spec, importerImage, corev1.PullIfNotPresent, log)
+		podTemplateSpec := &corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Name: pollerPodName}}
+		err = controller.InitPollerPod(f.CrClient, cron, podTemplateSpec, importerImage, corev1.PullIfNotPresent, log)
 		Expect(err).ToNot(HaveOccurred())
+
+		pod := &corev1.Pod{ObjectMeta: podTemplateSpec.ObjectMeta, Spec: podTemplateSpec.Spec}
 
 		_, err = utils.CreatePod(f.K8sClient, f.CdiInstallNs, pod)
 		Expect(err).ToNot(HaveOccurred())
@@ -472,12 +474,19 @@ var _ = Describe("DataImportCron", Serial, func() {
 		importerImage := f.GetEnvVarValue("IMPORTER_IMAGE")
 		Expect(importerImage).ToNot(BeEmpty())
 
-		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: pollerPodName}}
-		err = controller.InitPollerPodSpec(f.CrClient, cron, &pod.Spec, importerImage, corev1.PullIfNotPresent, log)
+		podTemplateSpec := &corev1.PodTemplateSpec{ObjectMeta: metav1.ObjectMeta{Name: pollerPodName}}
+		err = controller.InitPollerPod(f.CrClient, cron, podTemplateSpec, importerImage, corev1.PullIfNotPresent, log)
 		Expect(err).ToNot(HaveOccurred())
+
+		pod := &corev1.Pod{ObjectMeta: podTemplateSpec.ObjectMeta, Spec: podTemplateSpec.Spec}
 
 		_, err = utils.CreatePod(f.K8sClient, f.CdiInstallNs, pod)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying the poller pod's labels")
+		pod, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).Get(context.TODO(), pod.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pod.GetLabels()).To(HaveKey(common.DataImportCronPollerLabel))
 
 		By("Wait for digest set by external poller")
 		waitForDigest()
