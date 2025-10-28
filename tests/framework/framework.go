@@ -586,6 +586,8 @@ func (f *Framework) CreateNonDefaultVariationOfStorageClass(sc *storagev1.Storag
 			"cdi.kubevirt.io/testing": "",
 		},
 		Annotations: scCopy.Annotations,
+		// Avoid other operators from taking ownership of our temporary storage class
+		OwnerReferences: nil,
 	}
 
 	return f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), scCopy, metav1.CreateOptions{})
