@@ -68,7 +68,7 @@ func NewPopulatorController(ctx context.Context, mgr manager.Manager, log logr.L
 			recorder:             mgr.GetEventRecorderFor(populatorControllerName),
 			featureGates:         featuregates.NewFeatureGates(client),
 			installerLabels:      installerLabels,
-			shouldUpdateProgress: false,
+			shouldUpdateProgress: true,
 		},
 	}
 
@@ -163,6 +163,100 @@ func dvUsesVolumePopulator(dv *cdiv1.DataVolume) bool {
 	return isDataSourcePopulated(dv) || isDataSourceRefPopulated(dv)
 }
 
+// isCDIVolumePopulator returns true if the DataVolume uses CDI's own volume populators
+func isCDIVolumePopulator(dv *cdiv1.DataVolume) bool {
+	kind := getCDIVolumePopulatorKind(dv)
+	return kind == cdiv1.VolumeImportSourceRef ||
+		kind == cdiv1.VolumeUploadSourceRef ||
+		kind == cdiv1.VolumeCloneSourceRef
+}
+
+func getCDIVolumePopulatorKind(dv *cdiv1.DataVolume) string {
+	if dv.Spec.PVC != nil && dv.Spec.PVC.DataSourceRef != nil {
+		return dv.Spec.PVC.DataSourceRef.Kind
+	} else if dv.Spec.Storage != nil && dv.Spec.Storage.DataSourceRef != nil {
+		return dv.Spec.Storage.DataSourceRef.Kind
+	} else if dv.Spec.PVC != nil && dv.Spec.PVC.DataSource != nil {
+		return dv.Spec.PVC.DataSource.Kind
+	} else if dv.Spec.Storage != nil && dv.Spec.Storage.DataSource != nil {
+		return dv.Spec.Storage.DataSource.Kind
+	}
+	return ""
+}
+
+// updateCDIPopulatorStatus updates the DataVolume status for CDI's own populators by reading
+// PVC annotations set by the populator controllers
+func (r *PopulatorReconciler) updateCDIPopulatorStatus(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+	phase, ok := pvc.Annotations[cc.AnnPodPhase]
+	kind := getCDIVolumePopulatorKind(dataVolumeCopy)
+	if kind == cdiv1.VolumeImportSourceRef {
+		dataVolumeCopy.Status.Phase = cdiv1.ImportScheduled
+	} else if kind == cdiv1.VolumeUploadSourceRef {
+		dataVolumeCopy.Status.Phase = cdiv1.UploadScheduled
+	} else if kind == cdiv1.VolumeCloneSourceRef {
+		dataVolumeCopy.Status.Phase = cdiv1.CloneScheduled
+	}
+
+	if !ok {
+		return nil
+	}
+
+	switch phase {
+	case string(corev1.PodPending):
+		if kind == cdiv1.VolumeImportSourceRef {
+			event.eventType = corev1.EventTypeNormal
+			event.reason = "ImportScheduled"
+			event.message = fmt.Sprintf("Import into %s scheduled", pvc.Name)
+		}
+	case string(corev1.PodRunning):
+		if kind == cdiv1.VolumeImportSourceRef {
+			dataVolumeCopy.Status.Phase = cdiv1.ImportInProgress
+			event.eventType = corev1.EventTypeNormal
+			event.reason = "ImportInProgress"
+			event.message = fmt.Sprintf("Import into %s in progress", pvc.Name)
+		} else if kind == cdiv1.VolumeUploadSourceRef {
+			dataVolumeCopy.Status.Phase = cdiv1.UploadReady
+			event.eventType = corev1.EventTypeNormal
+			event.reason = "UploadReady"
+			event.message = fmt.Sprintf("Upload into %s ready", pvc.Name)
+		} else {
+			dataVolumeCopy.Status.Phase = cdiv1.CloneInProgress
+			event.eventType = corev1.EventTypeNormal
+			event.reason = "CloneInProgress"
+			event.message = fmt.Sprintf("Clone into %s in progress", pvc.Name)
+		}
+	case string(corev1.PodFailed):
+		event.eventType = corev1.EventTypeWarning
+		if kind == cdiv1.VolumeImportSourceRef {
+			event.reason = "ImportFailed"
+			event.message = fmt.Sprintf("Failed to import into PVC %s", pvc.Name)
+		} else {
+			event.reason = "PopulationFailed"
+			event.message = fmt.Sprintf("Population of %s failed", pvc.Name)
+		}
+	case string(corev1.PodSucceeded):
+		if kind == cdiv1.VolumeImportSourceRef && cc.IsMultiStageImportInProgress(pvc) {
+			dataVolumeCopy.Status.Phase = cdiv1.Paused
+			event.eventType = corev1.EventTypeNormal
+			event.reason = cc.ImportPaused
+			event.message = fmt.Sprintf(cc.MessageImportPaused, pvc.Name)
+			return nil
+		}
+		dataVolumeCopy.Status.Phase = cdiv1.Succeeded
+		dataVolumeCopy.Status.Progress = cdiv1.DataVolumeProgress("100.0%")
+		event.eventType = corev1.EventTypeNormal
+		if kind == cdiv1.VolumeImportSourceRef {
+			event.reason = "ImportSucceeded"
+			event.message = fmt.Sprintf("Successfully imported into PVC %s", pvc.Name)
+		} else {
+			event.reason = "PopulationSucceeded"
+			event.message = fmt.Sprintf("Successfully populated %s", pvc.Name)
+		}
+	}
+
+	return nil
+}
+
 // isDataSourcePopulated returns true if the DataVolume has a populated DataSource field
 func isDataSourcePopulated(dv *cdiv1.DataVolume) bool {
 	return (dv.Spec.PVC != nil && dv.Spec.PVC.DataSource != nil) ||
@@ -217,6 +311,10 @@ func (r *PopulatorReconciler) syncExternalPopulation(log logr.Logger, req reconc
 }
 
 func (r *PopulatorReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+	if isCDIVolumePopulator(dataVolumeCopy) {
+		return r.updateCDIPopulatorStatus(pvc, dataVolumeCopy, event)
+	}
+
 	// * Population by Snapshots doesn't have additional requirements.
 	// * Population by PVC requires CSI drivers.
 	// * Population by external populators requires both CSI drivers and the AnyVolumeDataSource feature gate.
