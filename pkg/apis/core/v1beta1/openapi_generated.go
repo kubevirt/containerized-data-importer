@@ -18194,6 +18194,13 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceImageIO(ref common.ReferenceCa
 							Format:      "",
 						},
 					},
+					"insecureSkipVerify": {
+						SchemaProps: spec.SchemaProps{
+							Description: "InsecureSkipVerify is a flag to skip certificate verification",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 				},
 				Required: []string{"url", "diskId"},
 			},

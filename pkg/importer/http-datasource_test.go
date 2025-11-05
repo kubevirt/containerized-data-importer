@@ -263,7 +263,7 @@ var _ = Describe("Http client", func() {
 	})
 
 	It("should load the cert", func() {
-		client, err := createHTTPClient(tempDir)
+		client, err := createHTTPClient(tempDir, false)
 		Expect(err).ToNot(HaveOccurred())
 
 		transport := client.Transport.(*http.Transport)

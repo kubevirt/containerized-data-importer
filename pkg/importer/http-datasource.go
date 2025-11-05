@@ -291,26 +291,31 @@ func createCertPool(certDir string) (*x509.CertPool, error) {
 	return certPool, nil
 }
 
-func createHTTPClient(certDir string) (*http.Client, error) {
+func createHTTPClient(certDir string, insecureSkipVerify bool) (*http.Client, error) {
 	client := &http.Client{
 		// Don't set timeout here, since that will be an absolute timeout, we need a relative to last progress timeout.
 	}
 
-	if certDir == "" {
+	if certDir == "" && !insecureSkipVerify {
 		return client, nil
 	}
-
-	certPool, err := createCertPool(certDir)
-	if err != nil {
-		return nil, err
-	}
-
 	// the default transport contains Proxy configurations to use environment variables and default timeouts
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = &tls.Config{
-		RootCAs:    certPool,
+	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
+		// #nosec G402 -- InsecureSkipVerify is intentionally set based on user configuration
+		InsecureSkipVerify: insecureSkipVerify,
 	}
+
+	if !insecureSkipVerify {
+		certPool, err := createCertPool(certDir)
+		if err != nil {
+			return nil, err
+		}
+		tlsConfig.RootCAs = certPool
+	}
+
+	transport.TLSClientConfig = tlsConfig
 	transport.GetProxyConnectHeader = func(ctx context.Context, proxyURL *url.URL, target string) (http.Header, error) {
 		h := http.Header{}
 		h.Add("User-Agent", defaultUserAgent)
@@ -333,7 +338,7 @@ func addExtraheaders(req *http.Request, extraHeaders []string) {
 
 func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string, extraHeaders, secretExtraHeaders []string, contentType cdiv1.DataVolumeContentType) (io.ReadCloser, uint64, bool, error) {
 	var brokenForQemuImg bool
-	client, err := createHTTPClient(certDir)
+	client, err := createHTTPClient(certDir, false)
 	if err != nil {
 		return nil, uint64(0), false, errors.Wrap(err, "Error creating http client")
 	}

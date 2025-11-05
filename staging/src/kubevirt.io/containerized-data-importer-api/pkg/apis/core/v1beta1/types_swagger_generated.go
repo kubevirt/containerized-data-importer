@@ -136,11 +136,12 @@ func (DataVolumeSourceHTTP) SwaggerDoc() map[string]string {
 
 func (DataVolumeSourceImageIO) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":              "DataVolumeSourceImageIO provides the parameters to create a Data Volume from an imageio source",
-		"url":           "URL is the URL of the ovirt-engine",
-		"diskId":        "DiskID provides id of a disk to be imported",
-		"secretRef":     "SecretRef provides the secret reference needed to access the ovirt-engine",
-		"certConfigMap": "CertConfigMap provides a reference to the CA cert",
+		"":                   "DataVolumeSourceImageIO provides the parameters to create a Data Volume from an imageio source",
+		"url":                "URL is the URL of the ovirt-engine",
+		"diskId":             "DiskID provides id of a disk to be imported",
+		"secretRef":          "SecretRef provides the secret reference needed to access the ovirt-engine",
+		"certConfigMap":      "CertConfigMap provides a reference to the CA cert",
+		"insecureSkipVerify": "InsecureSkipVerify is a flag to skip certificate verification",
 	}
 }
 

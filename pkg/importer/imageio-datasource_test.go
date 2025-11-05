@@ -68,13 +68,13 @@ var _ = Describe("Imageio reader", func() {
 
 	It("should fail creating client", func() {
 		newOvirtClientFunc = failMockOvirtClient
-		_, total, _, _, err := createImageioReader(context.Background(), "invalid/", "", "", "", diskID, "", "")
+		_, total, _, _, err := createImageioReader(context.Background(), "invalid/", "", "", "", diskID, "", "", false)
 		Expect(err).To(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
 	})
 
 	It("should create reader", func() {
-		reader, total, _, _, err := createImageioReader(context.Background(), "", "", "", tempDir, diskID, "", "")
+		reader, total, _, _, err := createImageioReader(context.Background(), "", "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(1024)).To(Equal(total))
 		err = reader.Close()
@@ -113,26 +113,26 @@ var _ = Describe("Imageio data source", func() {
 
 	It("NewImageioDataSource should fail when called with an invalid endpoint", func() {
 		newOvirtClientFunc = getOvirtClient
-		_, err = NewImageioDataSource("httpd://!@#$%^&*()dgsdd&3r53/invalid", "", "", "", diskID, "", "")
+		_, err = NewImageioDataSource("httpd://!@#$%^&*()dgsdd&3r53/invalid", "", "", "", diskID, "", "", false)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("NewImageioDataSource info should not fail when called with valid endpoint", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = dp.Info()
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("NewImageioDataSource tranfer should fail if invalid path", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = dp.Transfer("", false)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("NewImageioDataSource tranferfile should fail when invalid path", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = dp.Info()
 		Expect(err).NotTo(HaveOccurred())
@@ -142,14 +142,64 @@ var _ = Describe("Imageio data source", func() {
 	})
 
 	It("NewImageioDataSource url should be nil if not set", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		url := dp.GetURL()
 		Expect(url).To(BeNil())
 	})
 
+	It("NewImageioDataSource should create datasource with InsecureSkipVerify enabled", func() {
+		dp, err := NewImageioDataSource(ts.URL, "", "", "", diskID, "", "", true)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dp).ToNot(BeNil())
+		Expect(dp.ctx).ToNot(BeNil())
+		Expect(dp.cancel).ToNot(BeNil())
+	})
+
+	It("NewImageioDataSource should fail without cert when InsecureSkipVerify is disabled", func() {
+		newOvirtClientFunc = getOvirtClient
+		dp, err := NewImageioDataSource(ts.URL, "", "", "", diskID, "", "", false)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("Error listing files"))
+		Expect(dp).To(BeNil())
+	})
+
+	It("NewImageioDataSource should succeed with cert when InsecureSkipVerify is disabled", func() {
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dp).ToNot(BeNil())
+	})
+
+	It("NewImageioDataSource should work with InsecureSkipVerify even without cert", func() {
+		dp, err := NewImageioDataSource(ts.URL, "", "", "", diskID, "", "", true)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dp).ToNot(BeNil())
+
+		// Verify Info() can retrieve disk information without certificates
+		phase, err := dp.Info()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phase).To(Equal(ProcessingPhaseTransferDataFile))
+	})
+
+	It("NewImageioDataSource should transfer with InsecureSkipVerify enabled", func() {
+		tempFile, err := os.CreateTemp("", "imageio-test")
+		Expect(err).ToNot(HaveOccurred())
+		defer os.Remove(tempFile.Name())
+
+		dp, err := NewImageioDataSource(ts.URL, "", "", "", diskID, "", "", true)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dp).ToNot(BeNil())
+
+		_, err = dp.Info()
+		Expect(err).ToNot(HaveOccurred())
+
+		phase, err := dp.TransferFile(tempFile.Name(), false)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phase).To(BeElementOf(ProcessingPhaseConvert, ProcessingPhaseResize))
+	})
+
 	It("NewImageioDataSource close should succeed if valid url", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		err = dp.Close()
 		Expect(err).ToNot(HaveOccurred())
@@ -157,19 +207,19 @@ var _ = Describe("Imageio data source", func() {
 
 	It("NewImageioDataSource should fail if transfer in unknown state", func() {
 		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_UNKNOWN)
-		_, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		_, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("NewImageioDataSource should fail if disk creation fails", func() {
 		errDiskCreate = errors.New("this is error message")
-		_, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		_, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("NewImageioDataSource should fail if disk does not exists", func() {
 		diskAvailable = false
-		_, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		_, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -267,7 +317,7 @@ var _ = Describe("Imageio cancel", func() {
 	})
 
 	It("should clean up transfer on SIGTERM", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		timesFinalized := 0
 		resultChannel := make(chan struct {
@@ -298,7 +348,7 @@ var _ = Describe("Imageio cancel", func() {
 	})
 
 	DescribeTable("should finalize successful transfer on close", func(initialPhase, expectedPhase ovirtsdk4.ImageTransferPhase) {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		dp.imageTransfer.SetPhase(initialPhase)
 		Expect(err).ToNot(HaveOccurred())
 		timesFinalized := 0
@@ -316,7 +366,7 @@ var _ = Describe("Imageio cancel", func() {
 	)
 
 	DescribeTable("should cancel failed transfer on close", func(initialPhase, expectedPhase ovirtsdk4.ImageTransferPhase) {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		dp.imageTransfer.SetPhase(initialPhase)
 		Expect(err).ToNot(HaveOccurred())
 		timesCancelled := 0
@@ -338,7 +388,7 @@ var _ = Describe("Imageio cancel", func() {
 	)
 
 	DescribeTable("should take no action on final transfer states", func(initialPhase ovirtsdk4.ImageTransferPhase) {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		dp.imageTransfer.SetPhase(initialPhase)
 		Expect(err).ToNot(HaveOccurred())
 		timesFinalized := 0
@@ -435,7 +485,7 @@ var _ = Describe("imageio snapshots", func() {
 	})
 
 	It("should correctly get initial snapshot transfer", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, snapshotID, "")
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, snapshotID, "", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dp.currentSnapshot).To(Equal(snapshotID))
 		Expect(dp.previousSnapshot).To(Equal(""))
@@ -444,7 +494,7 @@ var _ = Describe("imageio snapshots", func() {
 	})
 
 	It("should correctly get child snapshot transfer", func() {
-		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, snapshotID, parentSnapshotID)
+		dp, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, snapshotID, parentSnapshotID, false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dp.currentSnapshot).To(Equal(snapshotID))
 		Expect(dp.previousSnapshot).To(Equal(parentSnapshotID))
@@ -494,7 +544,7 @@ var _ = Describe("Imageio extents", func() {
 	})
 
 	It("should create an extents reader when the feature is enabled", func() {
-		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		countingReader, ok := source.imageioReader.(*util.CountingReader)
 		Expect(ok).To(BeTrue())
@@ -509,7 +559,7 @@ var _ = Describe("Imageio extents", func() {
 		createTestImageOptions = func() *ImageioImageOptions {
 			return &ImageioImageOptions{}
 		}
-		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		countingReader, ok := source.imageioReader.(*util.CountingReader)
 		Expect(ok).To(BeTrue())
@@ -520,7 +570,7 @@ var _ = Describe("Imageio extents", func() {
 	})
 
 	It("should be able to get a range", func() {
-		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		extentsReader, err := source.getExtentsReader()
 		Expect(err).ToNot(HaveOccurred())
@@ -530,7 +580,7 @@ var _ = Describe("Imageio extents", func() {
 	})
 
 	It("should be able to read from an extents reader", func() {
-		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		extentsReader, err := source.getExtentsReader()
 		Expect(err).ToNot(HaveOccurred())
@@ -544,7 +594,7 @@ var _ = Describe("Imageio extents", func() {
 	})
 
 	It("should send a small read along with a ticket renewal", func() {
-		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		extentsReader, err := source.getExtentsReader()
 		Expect(err).ToNot(HaveOccurred())
@@ -561,7 +611,7 @@ var _ = Describe("Imageio extents", func() {
 			// Each poll read consumes 512 bytes, make sure there will always be more
 			return bytes.Repeat([]byte{0x55}, pollCount*1024)
 		}
-		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		extentsReader, err := source.getExtentsReader()
 		Expect(err).ToNot(HaveOccurred())
@@ -578,7 +628,7 @@ var _ = Describe("Imageio extents", func() {
 	})
 
 	It("should not send a ticket renewal if there has been progress", func() {
-		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		extentsReader, err := source.getExtentsReader()
 		Expect(err).ToNot(HaveOccurred())
@@ -596,7 +646,7 @@ var _ = Describe("Imageio extents", func() {
 
 	It("should stream extents to a local file", func() {
 		destination := path.Join(tempDir, "outfile")
-		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		extentsReader, err := source.getExtentsReader()
 		Expect(err).ToNot(HaveOccurred())
@@ -615,7 +665,7 @@ var _ = Describe("Imageio extents", func() {
 	It("should refuse to write to destination if extents are returned out of order", func() {
 		createTestExtents = createBadTestExtents
 		destination := path.Join(tempDir, "outfile")
-		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		extentsReader, err := source.getExtentsReader()
 		Expect(err).ToNot(HaveOccurred())
@@ -630,7 +680,7 @@ var _ = Describe("Imageio extents", func() {
 	It("should fail if server terminates connection during transfer", func() {
 		handleRangeRequest = hangupRangeRequestHandler
 		destination := path.Join(tempDir, "outfile")
-		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "")
+		source, err := NewImageioDataSource(ts.URL, "", "", tempDir, diskID, "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		extentsReader, err := source.getExtentsReader()
 		Expect(err).ToNot(HaveOccurred())
@@ -865,7 +915,7 @@ func (conn *MockOvirtClient) Close() error {
 var mockCancelHook func() error
 var mockFinalizeHook func() error
 
-func failMockOvirtClient(ep string, accessKey string, secKey string, certDir string) (ConnectionInterface, error) {
+func failMockOvirtClient(ep string, accessKey string, secKey string, certDir string, insecureSkipVerify bool) (ConnectionInterface, error) {
 	return nil, errors.New("Failed to create client")
 }
 
@@ -886,7 +936,7 @@ func createCert() string {
 	return tempDir
 }
 
-func createMockOvirtClient(ep string, accessKey string, secKey string, certDir string) (ConnectionInterface, error) {
+func createMockOvirtClient(ep string, accessKey string, secKey string, certDir string, insecureSkipVerify bool) (ConnectionInterface, error) {
 	return &MockOvirtClient{
 		ep:     ep,
 		accKey: accessKey,
