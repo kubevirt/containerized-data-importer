@@ -68,9 +68,9 @@ type ImageioDataSource struct {
 }
 
 // NewImageioDataSource creates a new instance of the ovirt-imageio data provider.
-func NewImageioDataSource(endpoint string, accessKey string, secKey string, certDir string, diskID string, currentCheckpoint string, previousCheckpoint string) (*ImageioDataSource, error) {
+func NewImageioDataSource(endpoint string, accessKey string, secKey string, certDir string, diskID string, currentCheckpoint string, previousCheckpoint string, insecureSkipVerify bool) (*ImageioDataSource, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	imageioReader, contentLength, it, conn, err := createImageioReader(ctx, endpoint, accessKey, secKey, certDir, diskID, currentCheckpoint, previousCheckpoint)
+	imageioReader, contentLength, it, conn, err := createImageioReader(ctx, endpoint, accessKey, secKey, certDir, diskID, currentCheckpoint, previousCheckpoint, insecureSkipVerify)
 	if err != nil {
 		cleanupError := cleanupTransfer(conn, it)
 		if cleanupError != nil {
@@ -493,8 +493,8 @@ func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
 	return response.Body, nil
 }
 
-func createImageioReader(ctx context.Context, ep string, accessKey string, secKey string, certDir string, diskID string, currentCheckpoint string, previousCheckpoint string) (io.ReadCloser, uint64, *ovirtsdk4.ImageTransfer, ConnectionInterface, error) {
-	conn, err := newOvirtClientFunc(ep, accessKey, secKey, certDir)
+func createImageioReader(ctx context.Context, ep string, accessKey string, secKey string, certDir string, diskID string, currentCheckpoint string, previousCheckpoint string, insecureSkipVerify bool) (io.ReadCloser, uint64, *ovirtsdk4.ImageTransfer, ConnectionInterface, error) {
+	conn, err := newOvirtClientFunc(ep, accessKey, secKey, certDir, insecureSkipVerify)
 	if err != nil {
 		return nil, uint64(0), nil, conn, errors.Wrap(err, "Error creating connection")
 	}
@@ -542,7 +542,7 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 	}
 
 	// Use the create client from http source.
-	client, err := createHTTPClient(certDir)
+	client, err := createHTTPClient(certDir, insecureSkipVerify)
 	if err != nil {
 		return nil, uint64(0), it, conn, err
 	}
@@ -1454,15 +1454,19 @@ func (e *extraSettings) ExtraHeaders() map[string]string {
 	return e.extraHeaders
 }
 
-func getOvirtClient(ep string, accessKey string, secKey string, certDir string) (ConnectionInterface, error) {
+func getOvirtClient(ep string, accessKey string, secKey string, certDir string, insecureSkipVerify bool) (ConnectionInterface, error) {
 	var conn *ovirtsdk4.Connection
 
-	certPool, err := createCertPool(certDir)
-	if err != nil {
-		return nil, err
-	}
 	tls := ovirtclient.TLS()
-	tls.CACertsFromCertPool(certPool)
+	if insecureSkipVerify {
+		tls.Insecure()
+	} else {
+		certPool, err := createCertPool(certDir)
+		if err != nil {
+			return nil, err
+		}
+		tls.CACertsFromCertPool(certPool)
+	}
 
 	logger := ovirtclientlog.New()
 	extras := &extraSettings{

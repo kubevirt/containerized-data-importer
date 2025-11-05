@@ -276,7 +276,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 		}
 		return ds
 	case cc.SourceImageio:
-		ds, err := importer.NewImageioDataSource(ep, acc, sec, certDir, diskID, currentCheckpoint, previousCheckpoint)
+		ds, err := importer.NewImageioDataSource(ep, acc, sec, certDir, diskID, currentCheckpoint, previousCheckpoint, insecureTLS)
 		if err != nil {
 			errorCannotConnectDataSource(err, "imageio")
 		}

@@ -265,6 +265,8 @@ type DataVolumeSourceImageIO struct {
 	SecretRef string `json:"secretRef,omitempty"`
 	//CertConfigMap provides a reference to the CA cert
 	CertConfigMap string `json:"certConfigMap,omitempty"`
+	// InsecureSkipVerify is a flag to skip certificate verification
+	InsecureSkipVerify *bool `json:"insecureSkipVerify,omitempty"`
 }
 
 // DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source

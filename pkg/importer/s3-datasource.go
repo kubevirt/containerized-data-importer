@@ -168,7 +168,7 @@ func createS3Reader(ep *url.URL, accessKey, secKey string, certDir string) (io.R
 
 func getS3Client(endpoint, accessKey, secKey string, certDir string, urlScheme string) (S3Client, error) {
 	// Adding certs using CustomCABundle will overwrite the SystemCerts, so we opt by creating a custom HTTPClient
-	httpClient, err := createHTTPClient(certDir)
+	httpClient, err := createHTTPClient(certDir, false)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating http client for s3")

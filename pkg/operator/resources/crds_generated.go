@@ -6034,6 +6034,10 @@ spec:
                               diskId:
                                 description: DiskID provides id of a disk to be imported
                                 type: string
+                              insecureSkipVerify:
+                                description: InsecureSkipVerify is a flag to skip
+                                  certificate verification
+                                type: boolean
                               secretRef:
                                 description: SecretRef provides the secret reference
                                   needed to access the ovirt-engine
@@ -7036,6 +7040,10 @@ spec:
                       diskId:
                         description: DiskID provides id of a disk to be imported
                         type: string
+                      insecureSkipVerify:
+                        description: InsecureSkipVerify is a flag to skip certificate
+                          verification
+                        type: boolean
                       secretRef:
                         description: SecretRef provides the secret reference needed
                           to access the ovirt-engine
@@ -8089,6 +8097,10 @@ spec:
                       diskId:
                         description: DiskID provides id of a disk to be imported
                         type: string
+                      insecureSkipVerify:
+                        description: InsecureSkipVerify is a flag to skip certificate
+                          verification
+                        type: boolean
                       secretRef:
                         description: SecretRef provides the secret reference needed
                           to access the ovirt-engine

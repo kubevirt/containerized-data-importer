@@ -181,6 +181,8 @@ const (
 	AnnDiskID = AnnAPIGroup + "/storage.import.diskId"
 	// AnnUUID provides a const for our PVC uuid annotation
 	AnnUUID = AnnAPIGroup + "/storage.import.uuid"
+	// AnnInsecureSkipVerify provides a const for skipping certificate verification
+	AnnInsecureSkipVerify = AnnAPIGroup + "/storage.import.insecureSkipVerify"
 	// AnnBackingFile provides a const for our PVC backing file annotation
 	AnnBackingFile = AnnAPIGroup + "/storage.import.backingFile"
 	// AnnThumbprint provides a const for our PVC backing thumbprint annotation
@@ -1732,6 +1734,9 @@ func UpdateImageIOAnnotations(annotations map[string]string, imageio *cdiv1.Data
 	annotations[AnnSecret] = imageio.SecretRef
 	annotations[AnnCertConfigMap] = imageio.CertConfigMap
 	annotations[AnnDiskID] = imageio.DiskID
+	if imageio.InsecureSkipVerify != nil && *imageio.InsecureSkipVerify {
+		annotations[AnnInsecureSkipVerify] = "true"
+	}
 }
 
 // IsPVBoundToPVC checks if a PV is bound to a specific PVC
