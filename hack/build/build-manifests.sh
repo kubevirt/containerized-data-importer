@@ -35,6 +35,9 @@ mkdir -p "${MANIFEST_GENERATED_DIR}/"
 #generate operator related manifests used to deploy cdi with operator-framework
 generateResourceManifest $generator $MANIFEST_GENERATED_DIR "operator" "everything" "operator-everything.yaml.in"
 
+#generate networkpolicy manifests
+generateResourceManifest $generator $MANIFEST_GENERATED_DIR "namespaced" "networkpolicies" "network-policies.yaml.in"
+
 #process templated manifests and populate them with generated manifests
 tempDir=${MANIFEST_TEMPLATE_DIR}
 processDirTemplates ${tempDir} ${OUT_DIR}/manifests ${OUT_DIR}/manifests/templates ${generator} ${MANIFEST_GENERATED_DIR}

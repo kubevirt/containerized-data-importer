@@ -139,7 +139,11 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 		},
 	}
 	deployment := ResourceBuilder.CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAccount, numReplicas, podSpec)
-	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{common.PrometheusLabelKey: common.PrometheusLabelValue, common.CDIComponentLabel: common.CDIOperatorName})
+	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{
+		common.PrometheusLabelKey:                common.PrometheusLabelValue,
+		common.CDIComponentLabel:                 common.CDIOperatorName,
+		common.AllowAccessClusterServicesNPLabel: "true",
+	})
 	deployment.SetLabels(labels)
 	deployment.Spec.Template.SetLabels(labels)
 	if deployment.Spec.Template.Annotations == nil {

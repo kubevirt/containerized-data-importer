@@ -64,6 +64,7 @@ help: ## Print this message and exit
 	@echo "    WHAT                        Path to the package to test. Default is './pkg/... ./cmd/...' for unit tests and './test/...' for functional tests."
 	@echo "    RELREF                      Required by release-description. Must be a commit or tag. Should be newer than $$PREREF."
 	@echo "    PREREF                      Required by release-description. Must also be a commit or tag. Should be older than $$RELREF."
+	@echo "    CDI_DEPLOY_NP        Deploy CDI's utility network policies. Default is 'false'."
 
 all: manifests bazel-build-images ## Clean up previous build artifacts, compile all CDI packages and build containers
 
@@ -170,10 +171,10 @@ cluster-clean-test-infra:
 	CDI_CLEAN="test-infra" ./cluster-sync/clean.sh
 
 cluster-sync-cdi: cluster-clean-cdi
-	./cluster-sync/sync.sh CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} PULL_POLICY=${PULL_POLICY} CDI_NAMESPACE=${CDI_NAMESPACE}
+	./cluster-sync/sync.sh CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} PULL_POLICY=${PULL_POLICY} CDI_NAMESPACE=${CDI_NAMESPACE} CDI_DEPLOY_NP=${CDI_DEPLOY_NP}
 
 cluster-sync-test-infra: cluster-clean-test-infra
-	CDI_SYNC="test-infra" ./cluster-sync/sync.sh CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} PULL_POLICY=${PULL_POLICY} CDI_NAMESPACE=${CDI_NAMESPACE}
+	CDI_SYNC="test-infra" ./cluster-sync/sync.sh CDI_AVAILABLE_TIMEOUT=${CDI_AVAILABLE_TIMEOUT} DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} PULL_POLICY=${PULL_POLICY} CDI_NAMESPACE=${CDI_NAMESPACE} CDI_DEPLOY_NP=${CDI_DEPLOY_NP}
 
 cluster-sync: cluster-sync-cdi cluster-sync-test-infra ## Build the controller/importer/cloner, and push it into a running cluster. The cluster must be up before running a cluster sync. Also generates a manifest and applies it to the running cluster after pushing the images to it.
 
