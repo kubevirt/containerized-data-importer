@@ -148,6 +148,14 @@ var _ = Describe("Validating Webhook", func() {
 			resp := validateDataImportCronCreate(cron)
 			Expect(resp.Allowed).To(BeFalse())
 		})
+		It("should reject DataImportCron with CreatedBy field set by user on create", func() {
+			cron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
+			createdBy := `{"username":"hacker"}`
+			cron.Spec.CreatedBy = &createdBy
+			resp := validateDataImportCronCreate(cron)
+			Expect(resp.Allowed).To(BeFalse())
+			Expect(resp.Result.Message).To(ContainSubstring("CreatedBy field is set automatically"))
+		})
 		It("should reject invalid DataImportCron spec update", func() {
 			newCron := newDataImportCron(cdiv1.DataVolumeSourceRegistry{URL: &testRegistryURL})
 			newBytes, _ := json.Marshal(&newCron)
