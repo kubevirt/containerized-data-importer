@@ -1719,6 +1719,9 @@ func UpdateVDDKAnnotations(annotations map[string]string, vddk *cdiv1.DataVolume
 	annotations[AnnBackingFile] = vddk.BackingFile
 	annotations[AnnUUID] = vddk.UUID
 	annotations[AnnThumbprint] = vddk.Thumbprint
+	if vddk.CertConfigMap != "" {
+		annotations[AnnCertConfigMap] = vddk.CertConfigMap
+	}
 	if vddk.InitImageURL != "" {
 		annotations[AnnVddkInitImageURL] = vddk.InitImageURL
 	}

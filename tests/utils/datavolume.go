@@ -783,7 +783,12 @@ func ModifyDataVolumeWithImportToBlockPV(dataVolume *cdiv1.DataVolume, storageCl
 
 // NewDataVolumeWithVddkImport initializes a DataVolume struct for importing disks from vCenter/ESX
 func NewDataVolumeWithVddkImport(dataVolumeName string, size string, backingFile string, secretRef string, thumbprint string, httpURL string, uuid string) *cdiv1.DataVolume {
-	return &cdiv1.DataVolume{
+	return NewDataVolumeWithVddkImportAndCertConfigMap(dataVolumeName, size, backingFile, secretRef, thumbprint, httpURL, uuid, "")
+}
+
+// NewDataVolumeWithVddkImportAndCertConfigMap initializes a DataVolume struct for importing disks from vCenter/ESX with optional certConfigMap
+func NewDataVolumeWithVddkImportAndCertConfigMap(dataVolumeName string, size string, backingFile string, secretRef string, thumbprint string, httpURL string, uuid string, certConfigMap string) *cdiv1.DataVolume {
+	dv := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dataVolumeName,
 		},
@@ -807,6 +812,10 @@ func NewDataVolumeWithVddkImport(dataVolumeName string, size string, backingFile
 			},
 		},
 	}
+	if certConfigMap != "" {
+		dv.Spec.Source.VDDK.CertConfigMap = certConfigMap
+	}
+	return dv
 }
 
 // NewDataVolumeWithVddkWarmImport initializes a DataVolume struct for a multi-stage import from vCenter/ESX snapshots

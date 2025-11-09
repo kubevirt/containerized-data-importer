@@ -297,7 +297,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 		}
 		return ds
 	case cc.SourceVDDK:
-		ds, err := importer.NewVDDKDataSource(ep, acc, sec, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, volumeMode)
+		ds, err := importer.NewVDDKDataSource(ep, acc, sec, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, volumeMode, certDir, insecureTLS)
 		if err != nil {
 			errorCannotConnectDataSource(err, "vddk")
 		}
