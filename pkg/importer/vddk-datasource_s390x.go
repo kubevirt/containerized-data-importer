@@ -45,7 +45,7 @@ func (V VDDKDataSource) IsDeltaCopy() bool {
 	return false
 }
 
-func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode) (*VDDKDataSource, error) {
+func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode, certDir string, insecureTLS bool) (*VDDKDataSource, error) {
 	return nil, errors.New("the s390x architecture does not support VDDK")
 }
 
