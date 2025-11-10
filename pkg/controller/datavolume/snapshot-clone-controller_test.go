@@ -308,6 +308,7 @@ var _ = Describe("All DataVolume Tests", func() {
 
 				var _ = Describe("validateSnapshotClone", func() {
 					type snapshotModifierFunc func(*snapshotv1.VolumeSnapshot)
+					r := createSnapshotCloneReconciler()
 
 					DescribeTable("Validation mechanism rejects or accepts the clone depending snapshot state",
 						func(expectedErr string, snapshotModifier snapshotModifierFunc) {
@@ -316,7 +317,7 @@ var _ = Describe("All DataVolume Tests", func() {
 							snapshot := createSnapshotInVolumeSnapshotClass("test-snap", dv.Namespace, &expectedSnapshotClass, nil, nil, true)
 							snapshotModifier(snapshot)
 
-							err := validateSnapshotClone(snapshot, &dv.Spec)
+							err := r.validateSnapshotClone(snapshot, &dv.Spec)
 							if expectedErr != "" {
 								Expect(err).To(HaveOccurred())
 								Expect(err.Error()).To(ContainSubstring(expectedErr))
@@ -363,7 +364,7 @@ var _ = Describe("All DataVolume Tests", func() {
 							restoreSizeParsed := resource.MustParse(restoreSize)
 							snapshot.Status.RestoreSize = &restoreSizeParsed
 
-							err := validateSnapshotClone(snapshot, &dv.Spec)
+							err := r.validateSnapshotClone(snapshot, &dv.Spec)
 							if expectedErr != "" {
 								Expect(err).To(HaveOccurred())
 								Expect(err.Error()).To(ContainSubstring(expectedErr))
