@@ -24,6 +24,50 @@ source hack/build/config.sh
 
 docker_tag=$DOCKER_TAG
 
+COMMON_IMAGE_TARGETS=(
+    //cmd/cdi-operator:cdi-operator-image
+    //cmd/cdi-controller:cdi-controller-image
+    //cmd/cdi-apiserver:cdi-apiserver-image
+    //cmd/cdi-cloner:cdi-cloner-image
+    //cmd/cdi-importer:cdi-importer-image
+    //cmd/cdi-uploadproxy:cdi-uploadproxy-image
+    //cmd/cdi-uploadserver:cdi-uploadserver-image
+)
+
+TEST_IMAGE_TARGETS=(
+    //tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image
+    //tools/cdi-func-test-proxy:cdi-func-test-proxy-image
+    //tools/cdi-func-test-sample-populator:cdi-func-test-sample-populator-image
+    //tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image
+    //tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image
+    //tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image
+    //tools/cdi-func-test-registry-init:cdi-func-test-registry-populate-image
+    //tools/cdi-func-test-registry-init:cdi-func-test-registry-image
+    //tests:cdi-func-test-tinycore
+    //tests:cdi-func-test-cirros-qcow2
+)
+
+case "${ARCHITECTURE}" in
+  x86_64|crossbuild-x86_64)
+    TEST_IMAGE_TARGETS+=(
+        //tools/imageio-init:imageio-init-image
+        //tools/vddk-test:vcenter-simulator
+        //tools/vddk-init:vddk-init-image
+        //tools/vddk-test:vddk-test-image
+        //tools/image-io:cdi-func-test-imageio-image
+    )
+    ;;
+  aarch64|crossbuild-aarch64)
+    TEST_IMAGE_TARGETS+=(
+        //tools/imageio-init:imageio-init-image
+        //tools/image-io:cdi-func-test-imageio-image
+    )
+    ;;
+  s390x|crossbuild-s390x)
+    # No additional for now
+    ;;
+esac
+
 for tag in ${docker_tag}; do
     bazel build \
         --verbose_failures \
@@ -31,28 +75,8 @@ for tag in ${docker_tag}; do
         --define container_prefix=${docker_prefix} \
         --define container_tag=${tag} \
         --host_force_python=PY3 \
-        //tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image \
-        //tools/cdi-func-test-proxy:cdi-func-test-proxy-image \
-        //tools/cdi-func-test-sample-populator:cdi-func-test-sample-populator-image \
-        //tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image \
-        //tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image \
-        //tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image \
-        //tools/cdi-func-test-registry-init:cdi-func-test-registry-populate-image \
-        //tools/cdi-func-test-registry-init:cdi-func-test-registry-image \
-        //tools/imageio-init:imageio-init-image \
-        //tools/vddk-test:vcenter-simulator \
-        //tools/vddk-init:vddk-init-image \
-        //tools/vddk-test:vddk-test-image \
-        //tests:cdi-func-test-tinycore \
-        //tools/image-io:cdi-func-test-imageio-image \
-        //tests:cdi-func-test-cirros-qcow2 \
-        //cmd/cdi-operator:cdi-operator-image \
-        //cmd/cdi-controller:cdi-controller-image \
-        //cmd/cdi-apiserver:cdi-apiserver-image \
-        //cmd/cdi-cloner:cdi-cloner-image \
-        //cmd/cdi-importer:cdi-importer-image \
-        //cmd/cdi-uploadproxy:cdi-uploadproxy-image \
-        //cmd/cdi-uploadserver:cdi-uploadserver-image
+        "${TEST_IMAGE_TARGETS[@]}" \
+        "${COMMON_IMAGE_TARGETS[@]}"
 done
 
 rm -rf ${DIGESTS_DIR}/${ARCHITECTURE}
