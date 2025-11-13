@@ -295,6 +295,7 @@ func (DataImportCronSpec) SwaggerDoc() map[string]string {
 		"importsToKeep":     "Number of import PVCs to keep when garbage collecting. Default is 3.\n+optional",
 		"managedDataSource": "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.\nDataSource has to be in the same namespace.",
 		"retentionPolicy":   "RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RatainAll.\n+optional",
+		"createdBy":         "CreatedBy is the JSON-marshaled UserInfo of the user who created this DataImportCron.\nThis field is set by the mutating webhook and cannot be set by users.\n+optional",
 	}
 }
 
