@@ -79,6 +79,8 @@ const (
 
 	dataImportCronValidatePath = "/dataimportcron-validate"
 
+	dataImportCronMutatePath = "/dataimportcron-mutate"
+
 	populatorValidatePath = "/populator-validate"
 
 	healthzPath = "/healthz"
@@ -212,6 +214,11 @@ func NewCdiAPIServer(bindAddress string,
 	err = app.createDataImportCronValidatingWebhook()
 	if err != nil {
 		return nil, errors.Errorf("failed to create DataImportCron validating webhook: %s", err)
+	}
+
+	err = app.createDataImportCronMutatingWebhook()
+	if err != nil {
+		return nil, errors.Errorf("failed to create DataImportCron mutating webhook: %s", err)
 	}
 
 	err = app.createPopulatorValidatingWebhook()
@@ -556,6 +563,12 @@ func (app *cdiAPIApp) createDataImportCronValidatingWebhook() error {
 	app.container.ServeMux.Handle(dataImportCronValidatePath, webhooks.NewDataImportCronValidatingWebhook(app.client, app.cdiClient))
 	return nil
 }
+
+func (app *cdiAPIApp) createDataImportCronMutatingWebhook() error {
+	app.container.ServeMux.Handle(dataImportCronMutatePath, webhooks.NewDataImportCronMutatingWebhook())
+	return nil
+}
+
 func (app *cdiAPIApp) createPopulatorValidatingWebhook() error {
 	app.container.ServeMux.Handle(populatorValidatePath, webhooks.NewPopulatorValidatingWebhook(app.client, app.cdiClient))
 	return nil
