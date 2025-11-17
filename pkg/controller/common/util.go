@@ -2269,3 +2269,53 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 
 	return nil
 }
+
+// CopyEvents gets srcPvc events and re-emits them on the target PVC with the src name prefix
+func CopyEvents(srcPVC, targetPVC client.Object, c client.Client, recorder record.EventRecorder) {
+	srcPrefixMsg := fmt.Sprintf("[%s] : ", srcPVC.GetName())
+
+	newEvents := &corev1.EventList{}
+	err := c.List(context.TODO(), newEvents,
+		client.InNamespace(srcPVC.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": srcPVC.GetName(),
+			"involvedObject.uid": string(srcPVC.GetUID())},
+	)
+
+	if err != nil {
+		klog.Error(err, "Could not retrieve srcPVC list of Events")
+	}
+
+	currEvents := &corev1.EventList{}
+	err = c.List(context.TODO(), currEvents,
+		client.InNamespace(targetPVC.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": targetPVC.GetName(),
+			"involvedObject.uid": string(targetPVC.GetUID())},
+	)
+
+	if err != nil {
+		klog.Error(err, "Could not retrieve targetPVC list of Events")
+	}
+
+	// use this to hash each message for quick lookup, value is unused
+	eventMap := map[string]struct{}{}
+
+	for _, event := range currEvents.Items {
+		eventMap[event.Message] = struct{}{}
+	}
+
+	for _, newEvent := range newEvents.Items {
+		msg := newEvent.Message
+
+		// check if target PVC already has this equivalent event
+		if _, exists := eventMap[msg]; exists {
+			continue
+		}
+
+		formattedMsg := srcPrefixMsg + msg
+		// check if we already emitted this event with the src prefix
+		if _, exists := eventMap[formattedMsg]; exists {
+			continue
+		}
+		recorder.Event(targetPVC, newEvent.Type, newEvent.Reason, formattedMsg)
+	}
+}
