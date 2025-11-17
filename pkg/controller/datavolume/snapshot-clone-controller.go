@@ -340,7 +340,7 @@ func (r *SnapshotCloneReconciler) validateCloneAndSourceSnapshot(syncState *dvSy
 	}
 	syncState.snapshot = snapshot
 
-	err = validateSnapshotClone(snapshot, &datavolume.Spec)
+	err = r.validateSnapshotClone(snapshot, &datavolume.Spec)
 	if err != nil {
 		syncEventErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, datavolume.Status.Phase, nil,
 			Event{
@@ -358,7 +358,7 @@ func (r *SnapshotCloneReconciler) validateCloneAndSourceSnapshot(syncState *dvSy
 }
 
 // validateSnapshotClone compares a snapshot clone spec against its source snapshot to validate its creation
-func validateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv1.DataVolumeSpec) error {
+func (r *SnapshotCloneReconciler) validateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv1.DataVolumeSpec) error {
 	err := cc.IsSnapshotValidForClone(sourceSnapshot)
 	if err != nil {
 		return err
@@ -375,23 +375,23 @@ func validateSnapshotClone(sourceSnapshot *snapshotv1.VolumeSnapshot, spec *cdiv
 		sourceResources.Requests = corev1.ResourceList{corev1.ResourceStorage: *size}
 	}
 
-	isSizelessClone := false
+	hasSize := true
 	explicitPvcRequest := spec.PVC != nil
 	if explicitPvcRequest {
 		targetResources = spec.PVC.Resources
-	} else {
-		targetResources = spec.Storage.Resources
-		if _, ok := targetResources.Requests["storage"]; !ok {
-			isSizelessClone = true
+	} else if _, hasSize = spec.Storage.Resources.Requests[corev1.ResourceStorage]; hasSize {
+		targetResources, err = cc.GetEffectiveStorageResources(context.TODO(), r.client, spec.Storage.Resources, spec.Storage.StorageClassName, spec.ContentType, r.log)
+		if err != nil {
+			return err
 		}
 	}
 
-	if !isSizelessClone && restoreSizeAvailable {
+	if hasSize && restoreSizeAvailable {
 		// Sizes available, make sure user picked something bigger than minimal
 		if err := cc.ValidateRequestedCloneSize(sourceResources, targetResources); err != nil {
 			return err
 		}
-	} else if isSizelessClone && !restoreSizeAvailable {
+	} else if !hasSize && !restoreSizeAvailable {
 		return fmt.Errorf("size not specified by user/provisioner, can't tell how much needed for restore")
 	}
 
