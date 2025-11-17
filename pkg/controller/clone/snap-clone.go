@@ -69,6 +69,12 @@ func (p *SnapshotClonePhase) Reconcile(ctx context.Context) (*reconcile.Result, 
 		}
 	}
 
+	targetPvc, err := cc.GetAnnotatedEventSource(ctx, p.Client, pvc)
+	if err != nil {
+		return nil, err
+	}
+	cc.CopyEvents(pvc, targetPvc, p.Client, p.Recorder)
+
 	done, err := isClaimBoundOrWFFC(ctx, p.Client, pvc)
 	if err != nil {
 		return nil, err
@@ -101,6 +107,8 @@ func (p *SnapshotClonePhase) createClaim(ctx context.Context, snapshot *snapshot
 		claim.Spec.Resources.Requests[corev1.ResourceStorage] = *rs
 	}
 
+	cc.AddAnnotation(claim, cc.AnnEventSourceKind, p.Owner.GetObjectKind().GroupVersionKind().Kind)
+	cc.AddAnnotation(claim, cc.AnnEventSource, fmt.Sprintf("%s/%s", p.Owner.GetNamespace(), p.Owner.GetName()))
 	cc.AddAnnotation(claim, cc.AnnPopulatorKind, cdiv1.VolumeCloneSourceRef)
 	if p.OwnershipLabel != "" {
 		AddOwnershipLabel(p.OwnershipLabel, claim, p.Owner)

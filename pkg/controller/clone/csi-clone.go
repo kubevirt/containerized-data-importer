@@ -73,6 +73,12 @@ func (p *CSIClonePhase) Reconcile(ctx context.Context) (*reconcile.Result, error
 		}
 	}
 
+	targetPvc, err := cc.GetAnnotatedEventSource(ctx, p.Client, pvc)
+	if err != nil {
+		return nil, err
+	}
+	cc.CopyEvents(pvc, targetPvc, p.Client, p.Recorder)
+
 	done, err := isClaimBoundOrWFFC(ctx, p.Client, pvc)
 	if err != nil {
 		return nil, err
@@ -108,6 +114,9 @@ func (p *CSIClonePhase) createClaim(ctx context.Context) (*corev1.PersistentVolu
 	desiredClaim.Spec.Resources.Requests[corev1.ResourceStorage] = sourceSize
 
 	cc.AddAnnotation(desiredClaim, cc.AnnPopulatorKind, cdiv1.VolumeCloneSourceRef)
+	cc.AddAnnotation(desiredClaim, cc.AnnEventSourceKind, p.Owner.GetObjectKind().GroupVersionKind().Kind)
+	cc.AddAnnotation(desiredClaim, cc.AnnEventSource, fmt.Sprintf("%s/%s", p.Owner.GetNamespace(), p.Owner.GetName()))
+
 	if p.OwnershipLabel != "" {
 		AddOwnershipLabel(p.OwnershipLabel, desiredClaim, p.Owner)
 	}
