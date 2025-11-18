@@ -13,6 +13,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
 // GetStorageProfileSpec attempts to get the StorageProfile for storageClass by Name.
@@ -66,4 +67,28 @@ func updateCloneStrategy(originalProfileSpec *cdiv1.StorageProfileSpec, cloneStr
 	newProfileSpec.CloneStrategy = &cloneStrategy
 
 	return newProfileSpec
+}
+
+func GetMinimumSupportedPVCSize(client client.Client, storageClassName string) (string, error) {
+	storageProfile := &cdiv1.StorageProfile{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, storageProfile); err != nil {
+		return "", err
+	}
+	size := storageProfile.Annotations[cc.AnnMinimumSupportedPVCSize]
+	return size, nil
+}
+
+func SetMinimumSupportedPVCSize(client client.Client, storageClassName string, size string) error {
+	storageProfile := &cdiv1.StorageProfile{}
+	if err := client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, storageProfile); err != nil {
+		return err
+	}
+	if size != "" {
+		cc.AddAnnotation(storageProfile, cc.AnnMinimumSupportedPVCSize, size)
+	} else {
+		annotations := storageProfile.Annotations
+		delete(annotations, cc.AnnMinimumSupportedPVCSize)
+		storageProfile.Annotations = annotations
+	}
+	return client.Update(context.TODO(), storageProfile)
 }

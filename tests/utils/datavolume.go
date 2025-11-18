@@ -153,9 +153,14 @@ func CleanupDvPvcNoWait(k8sClient *kubernetes.Clientset, cdiClient *cdiclientset
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 }
 
-// NewCloningDataVolume initializes a DataVolume struct with PVC annotations
+// NewCloningDataVolume initializes a DataVolume struct with PVC spec
 func NewCloningDataVolume(dataVolumeName, size string, sourcePvc *k8sv1.PersistentVolumeClaim) *cdiv1.DataVolume {
 	return NewDataVolumeForImageCloning(dataVolumeName, size, sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
+}
+
+// NewCloningDataVolume initializes a DataVolume struct with Storage spec
+func NewCloningDataVolumeWithStorageSpec(dataVolumeName, size string, sourcePvc *k8sv1.PersistentVolumeClaim) *cdiv1.DataVolume {
+	return NewDataVolumeForImageCloningAndStorageSpec(dataVolumeName, size, sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
 }
 
 // NewDataVolumeWithSourceRef initializes a DataVolume struct with DataSource SourceRef

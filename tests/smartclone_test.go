@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -77,22 +78,22 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests th
 
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", Serial, func() {
 	var originalProfileSpec *cdiv1.StorageProfileSpec
-	var cloneStorageClassName string
+	var originalMinPvcSize, cloneStorageClassName string
 
 	f := framework.NewFramework("dv-func-test")
 
 	BeforeEach(func() {
 		cloneStorageClassName = utils.DefaultStorageClass.GetName()
-		if f.IsCSIVolumeCloneStorageClassAvailable() {
-			cloneStorageClassName = f.CsiCloneSCName
+		if f.IsSnapshotStorageClassAvailable() {
+			cloneStorageClassName = f.SnapshotSCName
 		}
 
 		By(fmt.Sprintf("Get original storage profile: %s", cloneStorageClassName))
-
 		spec, err := utils.GetStorageProfileSpec(f.CdiClient, cloneStorageClassName)
 		originalProfileSpec = spec
 		Expect(err).ToNot(HaveOccurred())
-		By(fmt.Sprintf("Got original storage profile: %v", originalProfileSpec))
+		originalMinPvcSize, err = utils.GetMinimumSupportedPVCSize(f.CrClient, cloneStorageClassName)
+		Expect(err).ToNot(HaveOccurred())
 
 		By(fmt.Sprintf("configure storage profile %s", cloneStorageClassName))
 		Expect(
@@ -101,6 +102,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 	})
 
 	AfterEach(func() {
+		Expect(utils.SetMinimumSupportedPVCSize(f.CrClient, cloneStorageClassName, originalMinPvcSize)).To(Succeed())
 		if originalProfileSpec != nil {
 			By("Restore the profile")
 			Expect(utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)).To(Succeed())
@@ -111,16 +113,18 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		if !f.IsSnapshotStorageClassAvailable() {
 			Skip("Smart Clone is not applicable")
 		}
+
+		Expect(utils.SetMinimumSupportedPVCSize(f.CrClient, f.SnapshotSCName, testMinPvcSize)).To(Succeed())
 		dataVolume, expectedMd5 := createDataVolume("dv-smart-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
 		if !f.IsBindingModeWaitForFirstConsumer(&cloneStorageClassName) {
 			// We don't hit this event for WFFC targets ATM
 			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneFromSnapshotSourceInProgress))
 		}
-		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
-		// Verify PVC's content
+
+		verifyPVCRequestedSize(dataVolume, f, testMinPvcSize)
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, expectedMd5)
 	})
 
@@ -131,16 +135,18 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
 		}
+
+		Expect(utils.SetMinimumSupportedPVCSize(f.CrClient, f.SnapshotSCName, testMinPvcSize)).To(Succeed())
 		dataVolume, expectedMd5 := createDataVolume("dv-smart-clone-test-1", utils.DefaultPvcMountPath, v1.PersistentVolumeBlock, f.SnapshotSCName, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
 		if !f.IsBindingModeWaitForFirstConsumer(&cloneStorageClassName) {
 			// We don't hit this event for WFFC targets ATM
 			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneFromSnapshotSourceInProgress))
 		}
-		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
-		// Verify PVC's content
+
+		verifyPVCRequestedSize(dataVolume, f, testMinPvcSize)
 		verifyPVC(dataVolume, f, utils.DefaultPvcMountPath, expectedMd5)
 	})
 
@@ -159,9 +165,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		}, 90*time.Second, 2*time.Second).Should(BeTrue())
 
 		By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
-		dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
+		dataVolume := utils.NewCloningDataVolumeWithStorageSpec(dataVolumeName, "1Gi", sourcePvc)
 		if f.SnapshotSCName != "" {
-			dataVolume.Spec.PVC.StorageClassName = &f.SnapshotSCName
+			dataVolume.Spec.Storage.StorageClassName = &f.SnapshotSCName
 		}
 
 		By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
@@ -217,6 +223,13 @@ func verifyPVC(dataVolume *cdiv1.DataVolume, f *framework.Framework, testPath st
 	Expect(f.VerifyTargetPVCContentMD5(f.Namespace, targetPvc, testPath, md5sum, utils.UploadFileSize)).To(BeTrue())
 }
 
+func verifyPVCRequestedSize(dataVolume *cdiv1.DataVolume, f *framework.Framework, size string) {
+	pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	quantity := resource.MustParse(size)
+	Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal((&quantity).Value()))
+}
+
 func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f *framework.Framework) {
 	By(fmt.Sprintf("waiting for datavolume to match phase %s", string(phase)))
 	err := utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
@@ -233,10 +246,10 @@ func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f
 func createAndPopulateSourcePVC(dataVolumeName string, volumeMode v1.PersistentVolumeMode, scName string, f *framework.Framework) *v1.PersistentVolumeClaim {
 	By(fmt.Sprintf("Storage Class name: %s", scName))
 	srcName := fmt.Sprintf("%s-src-pvc", dataVolumeName)
-	dataVolume := utils.NewDataVolumeWithHTTPImport(srcName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-	dataVolume.Spec.PVC.VolumeMode = &volumeMode
+	dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(srcName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+	dataVolume.Spec.Storage.VolumeMode = &volumeMode
 	if scName != "" {
-		dataVolume.Spec.PVC.StorageClassName = &scName
+		dataVolume.Spec.Storage.StorageClassName = &scName
 	}
 
 	dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -262,9 +275,10 @@ func createDataVolume(dataVolumeName, testPath string, volumeMode v1.PersistentV
 	Expect(err).ToNot(HaveOccurred())
 
 	By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
-	dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
+
+	dataVolume := utils.NewCloningDataVolumeWithStorageSpec(dataVolumeName, "1Gi", sourcePvc)
 	if scName != "" {
-		dataVolume.Spec.PVC.StorageClassName = &scName
+		dataVolume.Spec.Storage.StorageClassName = &scName
 	}
 	By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 	dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)

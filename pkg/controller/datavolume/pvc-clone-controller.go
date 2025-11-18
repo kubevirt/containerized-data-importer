@@ -445,7 +445,7 @@ func (r *PvcCloneReconciler) validateCloneAndSourcePVC(syncState *dvSyncState, l
 		return false, err
 	}
 
-	err = validateClone(sourcePvc, &datavolume.Spec)
+	err = r.validateClone(sourcePvc, &datavolume.Spec)
 	if err != nil {
 		syncErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, datavolume.Status.Phase, nil,
 			Event{
@@ -463,8 +463,9 @@ func (r *PvcCloneReconciler) validateCloneAndSourcePVC(syncState *dvSyncState, l
 }
 
 // validateClone compares a clone spec against its source PVC to validate its creation
-func validateClone(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) error {
+func (r *PvcCloneReconciler) validateClone(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolumeSpec) error {
 	var targetResources corev1.VolumeResourceRequirements
+	var err error
 
 	valid, sourceContentType, targetContentType := validateContentTypes(sourcePVC, spec)
 	if !valid {
@@ -472,22 +473,20 @@ func validateClone(sourcePVC *corev1.PersistentVolumeClaim, spec *cdiv1.DataVolu
 		return errors.New(msg)
 	}
 
-	isSizelessClone := false
+	hasSize := true
 	explicitPvcRequest := spec.PVC != nil
 	if explicitPvcRequest {
 		targetResources = spec.PVC.Resources
-	} else {
-		targetResources = spec.Storage.Resources
-		// The storage size in the target DV can be empty
-		// when cloning using the 'Storage' API
-		if _, ok := targetResources.Requests[corev1.ResourceStorage]; !ok {
-			isSizelessClone = true
+	} else if _, hasSize = spec.Storage.Resources.Requests[corev1.ResourceStorage]; hasSize {
+		targetResources, err = cc.GetEffectiveStorageResources(context.TODO(), r.client, spec.Storage.Resources, spec.Storage.StorageClassName, spec.ContentType, r.log)
+		if err != nil {
+			return err
 		}
 	}
 
 	// TODO: Spec.Storage API needs a better more complex check to validate clone size - to account for fsOverhead
 	// simple size comparison will not work here
-	if (!isSizelessClone && cc.GetVolumeMode(sourcePVC) == corev1.PersistentVolumeBlock) || explicitPvcRequest {
+	if (hasSize && cc.GetVolumeMode(sourcePVC) == corev1.PersistentVolumeBlock) || explicitPvcRequest {
 		if err := cc.ValidateRequestedCloneSize(sourcePVC.Spec.Resources, targetResources); err != nil {
 			return err
 		}

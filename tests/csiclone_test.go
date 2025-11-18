@@ -17,9 +17,11 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
+const testMinPvcSize = "4Gi"
+
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:4219] CSI Volume cloning tests", Serial, func() {
 	var originalProfileSpec *cdiv1.StorageProfileSpec
-	var cloneStorageClassName string
+	var originalMinPvcSize, cloneStorageClassName string
 
 	f := framework.NewFramework("dv-func-test")
 
@@ -30,14 +32,17 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		}
 
 		By(fmt.Sprintf("Get original storage profile: %s", cloneStorageClassName))
-
 		spec, err := utils.GetStorageProfileSpec(f.CdiClient, cloneStorageClassName)
 		originalProfileSpec = spec
 		Expect(err).ToNot(HaveOccurred())
-		By(fmt.Sprintf("Got original storage profile: %v", originalProfileSpec))
+		originalMinPvcSize, err = utils.GetMinimumSupportedPVCSize(f.CrClient, cloneStorageClassName)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
+		if f.IsCSIVolumeCloneStorageClassAvailable() {
+			Expect(utils.SetMinimumSupportedPVCSize(f.CrClient, f.CsiCloneSCName, originalMinPvcSize)).To(Succeed())
+		}
 		if originalProfileSpec != nil {
 			By("Restore the profile")
 			Expect(utils.UpdateStorageProfile(f.CrClient, cloneStorageClassName, *originalProfileSpec)).To(Succeed())
@@ -53,14 +58,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		Expect(
 			utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone),
 		).To(Succeed())
+		Expect(utils.SetMinimumSupportedPVCSize(f.CrClient, f.CsiCloneSCName, testMinPvcSize)).To(Succeed())
 
 		dataVolume, md5 := createDataVolume("dv-csi-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, f.CsiCloneSCName, f)
-		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
-		// Verify PVC's content
+
+		verifyPVCRequestedSize(dataVolume, f, testMinPvcSize)
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, md5)
-		// Verify csi clone took place
 		verifyCSIClone(dataVolume, f)
 	})
 
@@ -76,14 +81,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		Expect(
 			utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone),
 		).To(Succeed())
+		Expect(utils.SetMinimumSupportedPVCSize(f.CrClient, f.CsiCloneSCName, testMinPvcSize)).To(Succeed())
 
 		dataVolume, expectedMd5 := createDataVolume("dv-csi-clone-test-1", utils.DefaultPvcMountPath, v1.PersistentVolumeBlock, f.CsiCloneSCName, f)
-		// Wait for operation Succeeded
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
-		// Verify PVC's content
+
+		verifyPVCRequestedSize(dataVolume, f, testMinPvcSize)
 		verifyPVC(dataVolume, f, utils.DefaultPvcMountPath, expectedMd5)
-		// Verify csi clone took place
 		verifyCSIClone(dataVolume, f)
 	})
 
@@ -138,16 +143,14 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
 
 		By("Increase quota")
-		Expect(f.UpdateStorageQuota(int64(3), int64(4*1024*1024*1024))).To(Succeed())
+		Expect(f.UpdateStorageQuota(int64(3), int64(5*1024*1024*1024))).To(Succeed())
 
 		By("Verify clone completed after quota increase")
-		// Wait for operation Succeeded
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
-		// Verify PVC's content
+
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, md5)
-		// Verify csi clone took place
 		verifyCSIClone(dataVolume, f)
 
 		Expect(f.DeleteStorageQuota()).To(Succeed())
@@ -168,9 +171,9 @@ func createAndVerifySourcePVC(dataVolumeName, testPath, scName string, volumeMod
 
 func createCloneDataVolumeFromSource(sourcePvc *v1.PersistentVolumeClaim, dataVolumeName, scName string, f *framework.Framework) *cdiv1.DataVolume {
 	By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
-	dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", sourcePvc)
+	dataVolume := utils.NewCloningDataVolumeWithStorageSpec(dataVolumeName, "1Gi", sourcePvc)
 	if scName != "" {
-		dataVolume.Spec.PVC.StorageClassName = &scName
+		dataVolume.Spec.Storage.StorageClassName = &scName
 	}
 	By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 	dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
