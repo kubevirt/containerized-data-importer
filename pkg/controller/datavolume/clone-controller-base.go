@@ -461,6 +461,22 @@ func (r *CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClai
 		return r.updateStatusPhaseForPopulator(pvc, dataVolumeCopy, event)
 	}
 
+	// Non-populator CSI clone: if PVC was created with DataSource/Ref pointing to a PVC or VolumeSnapshot, reflect CSI progress
+	if (pvc.Spec.DataSource != nil && (pvc.Spec.DataSource.Kind == "PersistentVolumeClaim" || pvc.Spec.DataSource.Kind == "VolumeSnapshot")) ||
+		(pvc.Spec.DataSourceRef != nil && (pvc.Spec.DataSourceRef.Kind == "PersistentVolumeClaim" || pvc.Spec.DataSourceRef.Kind == "VolumeSnapshot")) {
+		// When PVC is pending/binding under CSI, report CSICloneInProgress
+		if pvc.Status.Phase == corev1.ClaimPending || pvc.Status.Phase == "" {
+			dataVolumeCopy.Status.Phase = cdiv1.CSICloneInProgress
+			if dataVolumeCopy.Status.Progress == "" {
+				dataVolumeCopy.Status.Progress = "N/A"
+			}
+			event.eventType = corev1.EventTypeNormal
+			event.reason = CSICloneInProgress
+			event.message = fmt.Sprintf(MessageCsiCloneInProgress, sourceNamespace, sourceName)
+			return nil
+		}
+	}
+
 	phase, ok := pvc.Annotations[cc.AnnPodPhase]
 	if phase != string(corev1.PodSucceeded) {
 		_, ok = pvc.Annotations[cc.AnnCloneRequest]

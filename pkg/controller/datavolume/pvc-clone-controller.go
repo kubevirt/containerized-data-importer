@@ -41,8 +41,10 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	clone "kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 )
 
 const (
@@ -325,7 +327,9 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 			}
 		}
 
+		finalPvcSpec := pvcSpec
 		pvcModifier := r.updateAnnotations
+
 		if syncRes.usePopulator {
 			if isCrossNamespaceClone(datavolume) {
 				if !cc.HasFinalizer(datavolume, crossNamespaceFinalizer) {
@@ -334,9 +338,27 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 				}
 			}
 			pvcModifier = r.updatePVCForPopulation
+		} else {
+			// Check if we can use CSI clone when populators are disabled
+			sc, _ := clone.GetStorageClassForClaim(context.TODO(), r.client, &corev1.PersistentVolumeClaim{Spec: *pvcSpec})
+			if sc != nil {
+				if advised, ok := storagecapabilities.GetAdvisedCloneStrategy(sc); ok && advised == cdiv1.CloneStrategyCsiClone {
+					sourcePvc, err := r.findSourcePvc(datavolume)
+					if err != nil {
+						return syncRes, err
+					}
+					csiCloneSpec, err := r.newVolumeCloneFromPVCSpec(datavolume, sourcePvc, pvcSpec)
+					if err != nil {
+						return syncRes, err
+					}
+					finalPvcSpec = csiCloneSpec
+					pvcModifier = r.updateCSICloneFromPVCAnnotations
+				}
+			}
 		}
 
-		newPvc, err := r.createPvcForDatavolume(datavolume, pvcSpec, pvcModifier)
+		// Create PVC with determined spec and modifier
+		pvc, err = r.createPvcForDatavolume(datavolume, finalPvcSpec, pvcModifier)
 		if err != nil {
 			if cc.ErrQuotaExceeded(err) {
 				syncErr = r.syncDataVolumeStatusPhaseWithEvent(&syncRes, cdiv1.Pending, nil,
@@ -351,7 +373,6 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 			}
 			return syncRes, err
 		}
-		pvc = newPvc
 	}
 
 	if syncRes.usePopulator {
@@ -364,9 +385,33 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 			cc.AddAnnotation(datavolume, cc.AnnCloneType, ct)
 		}
 	} else {
-		cc.AddAnnotation(datavolume, cc.AnnCloneType, string(cdiv1.CloneStrategyHostAssisted))
-		if err := r.fallbackToHostAssisted(pvc); err != nil {
-			return syncRes, err
+		// Determine clone strategy and annotate DV accordingly
+		sc, _ := clone.GetStorageClassForClaim(context.TODO(), r.client, pvc)
+		var advised *cdiv1.CDICloneStrategy
+		if sc != nil {
+			if s, ok := storagecapabilities.GetAdvisedCloneStrategy(sc); ok {
+				advised = &s
+			}
+		}
+		if advised != nil && *advised == cdiv1.CloneStrategyCsiClone &&
+			((pvc.Spec.DataSource != nil && pvc.Spec.DataSource.Kind == "PersistentVolumeClaim") ||
+				(pvc.Spec.DataSourceRef != nil && pvc.Spec.DataSourceRef.Kind == "PersistentVolumeClaim")) {
+			cc.AddAnnotation(datavolume, cc.AnnCloneType, string(cdiv1.CloneStrategyCsiClone))
+			if pvc.Status.Phase == corev1.ClaimBound {
+				if pvc.Annotations == nil || pvc.Annotations[cc.AnnPopulatedFor] != datavolume.Name {
+					pvcCpy := pvc.DeepCopy()
+					cc.AddAnnotation(pvcCpy, cc.AnnPopulatedFor, datavolume.Name)
+					if err := r.updatePVC(pvcCpy); err != nil {
+						return syncRes, err
+					}
+					pvc = pvcCpy
+				}
+			}
+		} else {
+			cc.AddAnnotation(datavolume, cc.AnnCloneType, string(cdiv1.CloneStrategyHostAssisted))
+			if err := r.fallbackToHostAssisted(pvc); err != nil {
+				return syncRes, err
+			}
 		}
 	}
 
@@ -374,7 +419,69 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 		return syncRes, err
 	}
 
+	if !syncRes.usePopulator {
+		cloneType, ok := datavolume.Annotations[cc.AnnCloneType]
+		if ok && cloneType == string(cdiv1.CloneStrategyCsiClone) {
+			shouldBeMarkedWaitForFirstConsumer, err := r.shouldBeMarkedWaitForFirstConsumer(pvc)
+			if err != nil {
+				return syncRes, err
+			}
+
+			switch pvc.Status.Phase {
+			case corev1.ClaimBound:
+				return syncRes, nil
+			case corev1.ClaimPending:
+				r.log.V(3).Info("ClaimPending CSIClone")
+				if !shouldBeMarkedWaitForFirstConsumer {
+					return syncRes, r.syncCloneStatusPhase(&syncRes, cdiv1.CSICloneInProgress, pvc)
+				}
+			case corev1.ClaimLost:
+				return syncRes,
+					r.syncDataVolumeStatusPhaseWithEvent(&syncRes, cdiv1.Failed, pvc,
+						Event{
+							eventType: corev1.EventTypeWarning,
+							reason:    "ClaimLost",
+							message:   fmt.Sprintf("PVC %s lost", pvc.Name),
+						})
+			}
+		}
+	}
+
 	return syncRes, syncErr
+}
+
+// newVolumeCloneFromPVCSpec creates a PVC spec for CSI clone from another PVC
+func (r *PvcCloneReconciler) newVolumeCloneFromPVCSpec(dv *cdiv1.DataVolume, sourcePvc *corev1.PersistentVolumeClaim, targetPvcSpec *corev1.PersistentVolumeClaimSpec) (*corev1.PersistentVolumeClaimSpec, error) {
+	csiCloneSpec := targetPvcSpec.DeepCopy()
+
+	if csiCloneSpec.Resources.Requests == nil {
+		csiCloneSpec.Resources.Requests = corev1.ResourceList{}
+	}
+	if sourcePvc.Status.Capacity != nil {
+		if sourceSize := sourcePvc.Status.Capacity.Storage(); sourceSize != nil {
+			csiCloneSpec.Resources.Requests[corev1.ResourceStorage] = *sourceSize
+		}
+	}
+
+	// Set DataSource to point to the source PVC
+	csiCloneSpec.DataSource = &corev1.TypedLocalObjectReference{
+		Kind: "PersistentVolumeClaim",
+		Name: dv.Spec.Source.PVC.Name,
+	}
+
+	return csiCloneSpec, nil
+}
+
+// updateCSICloneFromPVCAnnotations sets CSI clone from PVC specific annotations
+func (r *PvcCloneReconciler) updateCSICloneFromPVCAnnotations(dataVolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
+	if dataVolume.Spec.Source.PVC == nil {
+		return errors.Errorf("no PVC source set for clone datavolume")
+	}
+	if err := addCloneToken(dataVolume, pvc); err != nil {
+		return err
+	}
+	pvc.Annotations[AnnCSICloneRequest] = "true"
+	return nil
 }
 
 // Verify that the source PVC has been completely populated.
