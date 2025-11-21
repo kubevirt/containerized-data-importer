@@ -264,7 +264,7 @@ type VMwareClient struct {
 }
 
 // createVMwareClient creates a govmomi handle and finds the VM with the given UUID
-func createVMwareClient(endpoint string, accessKey string, secKey string, thumbprint string, uuid string) (*VMwareClient, error) {
+func createVMwareClient(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, certDir string, insecureTLS bool) (*VMwareClient, error) {
 	vmwURL, err := url.Parse(endpoint)
 	if err != nil {
 		klog.Errorf("Unable to parse endpoint: %v", endpoint)
@@ -276,11 +276,28 @@ func createVMwareClient(endpoint string, accessKey string, secKey string, thumbp
 
 	// Log in to vCenter
 	ctx, cancel := context.WithCancel(context.Background())
-	conn, err := govmomi.NewClient(ctx, vmwURL, true)
+	conn, err := govmomi.NewClient(ctx, vmwURL, insecureTLS)
 	if err != nil {
 		klog.Errorf("Unable to connect to vCenter: %v", err)
 		cancel()
 		return nil, err
+	}
+
+	// Configure certificate validation if certDir is provided and not using insecure mode
+	if certDir != "" && !insecureTLS {
+		certPool, err := createCertPool(certDir)
+		if err != nil {
+			klog.Errorf("Unable to create certificate pool from %s: %v", certDir, err)
+			cancel()
+			return nil, err
+		}
+		// Set the RootCAs on the soap client's TLS config
+		if certPool != nil {
+			conn.Client.DefaultTransport().TLSClientConfig.RootCAs = certPool
+			klog.Infof("Configured VMware client with certificates from %s", certDir)
+		}
+	} else if insecureTLS {
+		klog.Warningf("Connecting to VMware with insecure TLS (certificate validation disabled)")
 	}
 
 	moref, vm, err := FindVM(ctx, conn, uuid)
@@ -830,12 +847,12 @@ func init() {
 }
 
 // NewVDDKDataSource creates a new instance of the vddk data provider.
-func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode) (*VDDKDataSource, error) {
-	return newVddkDataSource(endpoint, accessKey, secKey, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, volumeMode)
+func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode, certDir string, insecureTLS bool) (*VDDKDataSource, error) {
+	return newVddkDataSource(endpoint, accessKey, secKey, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, volumeMode, certDir, insecureTLS)
 }
 
-func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode) (*VDDKDataSource, error) {
-	klog.Infof("Creating VDDK data source: backingFile [%s], currentCheckpoint [%s], previousCheckpoint [%s], finalCheckpoint [%s]", backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint)
+func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode, certDir string, insecureTLS bool) (*VDDKDataSource, error) {
+	klog.Infof("Creating VDDK data source: backingFile [%s], currentCheckpoint [%s], previousCheckpoint [%s], finalCheckpoint [%s], certDir [%s], insecureTLS [%v]", backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, certDir, insecureTLS)
 
 	if currentCheckpoint == "" && previousCheckpoint != "" {
 		// Not sure what to do with just previous set by itself, return error
@@ -843,7 +860,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	}
 
 	// Log in to VMware to make sure disks and snapshots are present
-	vmware, err := newVMwareClient(endpoint, accessKey, secKey, thumbprint, uuid)
+	vmware, err := newVMwareClient(endpoint, accessKey, secKey, thumbprint, uuid, certDir, insecureTLS)
 	if err != nil {
 		klog.Errorf("Unable to log in to VMware: %v", err)
 		return nil, err
