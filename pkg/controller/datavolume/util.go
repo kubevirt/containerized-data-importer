@@ -77,8 +77,7 @@ func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolu
 		return renderClonePvcVolumeSizeFromSource(ctx, client, pvc)
 	}
 
-	isClone := pvc.Annotations[cc.AnnCloneType] != ""
-	return renderPvcSpecVolumeSize(client, &pvc.Spec, isClone, nil)
+	return renderPvcSpecVolumeSize(client, &pvc.Spec, false, nil)
 }
 
 // renderPvcSpec creates a new PVC Spec based on either the dv.spec.pvc or dv.spec.storage section
@@ -213,7 +212,7 @@ func renderClonePvcVolumeSizeFromSource(ctx context.Context, client client.Clien
 	}
 
 	volumeCloneSource := &cdiv1.VolumeCloneSource{}
-	if exists, err := cc.GetResource(ctx, client, sourceNamespace, pvc.Spec.DataSourceRef.Name, volumeCloneSource); err != nil || !exists {
+	if err := client.Get(ctx, types.NamespacedName{Namespace: sourceNamespace, Name: pvc.Spec.DataSourceRef.Name}, volumeCloneSource); err != nil {
 		return err
 	}
 
@@ -221,7 +220,7 @@ func renderClonePvcVolumeSizeFromSource(ctx context.Context, client client.Clien
 
 	if source.Kind == "VolumeSnapshot" && source.Name != "" {
 		sourceSnapshot := &snapshotv1.VolumeSnapshot{}
-		if exists, err := cc.GetResource(ctx, client, sourceNamespace, source.Name, sourceSnapshot); err != nil || !exists {
+		if err := client.Get(ctx, types.NamespacedName{Namespace: sourceNamespace, Name: source.Name}, sourceSnapshot); err != nil {
 			return err
 		}
 		if sourceSnapshot.Status != nil && sourceSnapshot.Status.RestoreSize != nil {
@@ -231,10 +230,10 @@ func renderClonePvcVolumeSizeFromSource(ctx context.Context, client client.Clien
 	}
 
 	if source.Kind != "PersistentVolumeClaim" || source.Name == "" {
-		return nil
+		return errors.Errorf("unsupported volumeCloneSource source")
 	}
 	sourcePvc := &v1.PersistentVolumeClaim{}
-	if exists, err := cc.GetResource(ctx, client, sourceNamespace, source.Name, sourcePvc); err != nil || !exists {
+	if err := client.Get(ctx, types.NamespacedName{Namespace: sourceNamespace, Name: source.Name}, sourcePvc); err != nil {
 		return err
 	}
 
@@ -246,25 +245,36 @@ func renderClonePvcVolumeSizeFromSource(ctx context.Context, client client.Clien
 	if sourceVolumeMode == v1.PersistentVolumeFilesystem &&
 		targetVolumeMode == v1.PersistentVolumeBlock &&
 		isKubevirtContent && isHostAssistedClone {
-		return nil
+		return errors.Errorf("cannot detect the required pvc size")
 	}
 
 	sourceSC, err := cc.GetStorageClassByNameWithK8sFallback(ctx, client, sourcePvc.Spec.StorageClassName)
-	if err != nil || sourceSC == nil {
+	if err != nil {
 		return err
+	}
+	if sourceSC == nil {
+		return errors.Errorf("cannot get source pvc storage class")
 	}
 	targetSC, err := cc.GetStorageClassByNameWithK8sFallback(ctx, client, pvc.Spec.StorageClassName)
 	if err != nil || targetSC == nil {
 		return err
 	}
+	if targetSC == nil {
+		return errors.Errorf("cannot get target pvc storage class")
+	}
 
 	// If target has the source volume mode and storage class, it can request the source requested volume size.
 	// Otherwise try using the source capacity.
 	volSize := sourcePvc.Spec.Resources.Requests[v1.ResourceStorage]
+	if sourcePvc.Status.Phase != v1.ClaimBound {
+		return errors.Errorf("source pvc is not bound")
+	}
 	if targetVolumeMode != sourceVolumeMode || targetSC.Name != sourceSC.Name {
-		if capacity, exists := sourcePvc.Status.Capacity[v1.ResourceStorage]; exists {
-			volSize = capacity
+		capacity, exists := sourcePvc.Status.Capacity[v1.ResourceStorage]
+		if !exists {
+			return errors.Errorf("source pvc has no status.capacity[storage]")
 		}
+		volSize = capacity
 	}
 	setRequestedVolumeSize(&pvc.Spec, volSize)
 
