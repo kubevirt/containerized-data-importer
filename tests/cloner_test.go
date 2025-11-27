@@ -2243,9 +2243,9 @@ var _ = Describe("all clone tests", func() {
 			err = utils.WaitForDataVolumePhase(f, targetDV.Namespace, cdiv1.Succeeded, targetDV.Name)
 			Expect(err).ToNot(HaveOccurred())
 		},
-			Entry("[test_id:XXXX] large enough", "1Gi", true),
-			Entry("[test_id:XXXX] too small", "256Mi", false),
-			Entry("[test_id:XXXX] empty", "", false),
+			Entry("[test_id:12420] large enough", "1Gi", true),
+			Entry("[test_id:12421] too small", "256Mi", false),
+			Entry("[test_id:12424] empty", "", false),
 		)
 
 		DescribeTable("Filesystem volumeMode clone with target smaller than the source, using storgeProfile with minPvcSize annotation", func(minSize string, shouldSucceed bool) {
@@ -2273,9 +2273,9 @@ var _ = Describe("all clone tests", func() {
 			err = utils.WaitForDataVolumePhase(f, targetDV.Namespace, cdiv1.Succeeded, targetDV.Name)
 			Expect(err).ToNot(HaveOccurred())
 		},
-			Entry("[test_id:XXXX] large enough", "1Gi", true),
-			Entry("[test_id:XXXX] too small", "256Mi", false),
-			Entry("[test_id:XXXX] empty", "", false),
+			Entry("[test_id:12425] large enough", "1Gi", true),
+			Entry("[test_id:12422] too small", "256Mi", false),
+			Entry("[test_id:12423] empty", "", false),
 		)
 
 		It("[test_id:4276] Clone datavolume with short name", Serial, func() {
