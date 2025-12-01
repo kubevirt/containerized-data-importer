@@ -1527,7 +1527,7 @@ var _ = Describe("Import populator", func() {
 		pvc = importPopulationPVCDefinition()
 
 		if webhookRendering {
-			controller.AddLabel(pvc, common.PvcApplyStorageProfileLabel, "true")
+			controller.AddLabel(pvc, cdiv1.LabelApplyStorageProfile, "true")
 			// Unset AccessModes which will be set by the webhook rendering
 			pvc.Spec.AccessModes = nil
 		}

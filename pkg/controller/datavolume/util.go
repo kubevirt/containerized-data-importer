@@ -41,7 +41,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
@@ -99,7 +98,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 		return nil, err
 	}
 
-	shouldRender := !isWebhookRenderingEnabled || dv.Labels[common.PvcApplyStorageProfileLabel] != "true"
+	shouldRender := !isWebhookRenderingEnabled || dv.Labels[cdiv1.LabelApplyStorageProfile] != "true"
 
 	if pvc == nil {
 		pvcSpec = copyStorageAsPvc(dv.Spec.Storage)

@@ -41,7 +41,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 var _ = Describe("Mutating PVC Webhook", func() {
@@ -158,7 +157,7 @@ func newPvc() *corev1.PersistentVolumeClaim {
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   "testPvc",
-			Labels: map[string]string{common.PvcApplyStorageProfileLabel: "true"},
+			Labels: map[string]string{cdiv1.LabelApplyStorageProfile: "true"},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			Resources: corev1.VolumeResourceRequirements{

@@ -2067,7 +2067,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				},
 			}
 			dataVolume := createLabeledDataVolumeForImport(f, spec,
-				map[string]string{common.PvcApplyStorageProfileLabel: webhookRenderingLabel})
+				map[string]string{cdiv1.LabelApplyStorageProfile: webhookRenderingLabel})
 
 			By("verifying event occurred")
 			Eventually(func() bool {
@@ -2113,7 +2113,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				},
 			}
 			dataVolume := createLabeledDataVolumeForImport(f, spec,
-				map[string]string{common.PvcApplyStorageProfileLabel: webhookRenderingLabel})
+				map[string]string{cdiv1.LabelApplyStorageProfile: webhookRenderingLabel})
 
 			By("verifying pvc not created")
 			_, err := utils.FindPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
@@ -2548,7 +2548,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("creating new datavolume %s with StorageClassName %s", dataVolumeName, scName))
 			dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
 				dataVolumeName, "100Mi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
-			dataVolume.Labels = map[string]string{common.PvcApplyStorageProfileLabel: webhookRenderingLabel}
+			dataVolume.Labels = map[string]string{cdiv1.LabelApplyStorageProfile: webhookRenderingLabel}
 			dataVolume.Spec.Storage.StorageClassName = ptr.To[string](scName)
 			dataVolume.Spec.Storage.AccessModes = nil
 
