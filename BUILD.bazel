@@ -48,77 +48,141 @@ load(
     "container_push",
 )
 
-container_bundle(
-    name = "test-container-images-amd64",
-    images = {
-        "$(container_prefix)/cdi-func-test-bad-webserver:$(container_tag)": "//tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image",
-        "$(container_prefix)/cdi-func-test-proxy:$(container_tag)": "//tools/cdi-func-test-proxy:cdi-func-test-proxy-image",
-        "$(container_prefix)/cdi-func-test-sample-populator:$(container_tag)": "//tools/cdi-func-test-sample-populator:cdi-func-test-sample-populator-image",
-        "$(container_prefix)/cdi-func-test-file-host-init:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image",
-        "$(container_prefix)/cdi-func-test-file-host-http:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image",
-        "$(container_prefix)/cdi-func-test-registry-init:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image",
-        "$(container_prefix)/cdi-func-test-registry-populate:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-populate-image",
-        "$(container_prefix)/cdi-func-test-registry:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-image",
-        "$(container_prefix)/imageio-init:$(container_tag)": "//tools/imageio-init:imageio-init-image",
-        "$(container_prefix)/vcenter-simulator:$(container_tag)": "//tools/vddk-test:vcenter-simulator",
-        "$(container_prefix)/vddk-init:$(container_tag)": "//tools/vddk-init:vddk-init-image",
-        "$(container_prefix)/vddk-test:$(container_tag)": "//tools/vddk-test:vddk-test-image",
-        "$(container_prefix)/cdi-func-test-tinycore:$(container_tag)": "//tests:cdi-func-test-tinycore",
-        "$(container_prefix)/cdi-func-test-imageio:$(container_tag)": "//tools/image-io:cdi-func-test-imageio-image",
-        "$(container_prefix)/cdi-func-test-cirros-qcow2:$(container_tag)": "//tests:cdi-func-test-cirros-qcow2",
-    },
-)
-
-container_bundle(
-    name = "test-container-images-aarch64",
-    images = {
-        "$(container_prefix)/cdi-func-test-bad-webserver:$(container_tag)": "//tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image",
-        "$(container_prefix)/cdi-func-test-proxy:$(container_tag)": "//tools/cdi-func-test-proxy:cdi-func-test-proxy-image",
-        "$(container_prefix)/cdi-func-test-sample-populator:$(container_tag)": "//tools/cdi-func-test-sample-populator:cdi-func-test-sample-populator-image",
-        "$(container_prefix)/cdi-func-test-file-host-init:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image",
-        "$(container_prefix)/cdi-func-test-file-host-http:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image",
-        "$(container_prefix)/cdi-func-test-registry-init:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image",
-        "$(container_prefix)/cdi-func-test-registry-populate:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-populate-image",
-        "$(container_prefix)/cdi-func-test-registry:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-image",
-        "$(container_prefix)/imageio-init:$(container_tag)": "//tools/imageio-init:imageio-init-image",
-        "$(container_prefix)/cdi-func-test-tinycore:$(container_tag)": "//tests:cdi-func-test-tinycore",
-        "$(container_prefix)/cdi-func-test-imageio:$(container_tag)": "//tools/image-io:cdi-func-test-imageio-image",
-        "$(container_prefix)/cdi-func-test-cirros-qcow2:$(container_tag)": "//tests:cdi-func-test-cirros-qcow2",
-    },
-)
-
-container_bundle(
-    name = "test-container-images-s390x",
-    images = {
-        "$(container_prefix)/cdi-func-test-bad-webserver:$(container_tag)": "//tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image",
-        "$(container_prefix)/cdi-func-test-proxy:$(container_tag)": "//tools/cdi-func-test-proxy:cdi-func-test-proxy-image",
-        "$(container_prefix)/cdi-func-test-sample-populator:$(container_tag)": "//tools/cdi-func-test-sample-populator:cdi-func-test-sample-populator-image",
-        "$(container_prefix)/cdi-func-test-file-host-init:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image",
-        "$(container_prefix)/cdi-func-test-file-host-http:$(container_tag)": "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image",
-        "$(container_prefix)/cdi-func-test-registry-init:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image",
-        "$(container_prefix)/cdi-func-test-tinycore:$(container_tag)": "//tests:cdi-func-test-tinycore",
-        "$(container_prefix)/cdi-func-test-registry-populate:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-populate-image",
-        "$(container_prefix)/cdi-func-test-registry:$(container_tag)": "//tools/cdi-func-test-registry-init:cdi-func-test-registry-image",
-        "$(container_prefix)/vcenter-simulator:$(container_tag)": "//tools/vddk-test:vcenter-simulator",
-    },
-)
-
 load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
 
-
-
-alias(
-    name = "test-container-images",
-    actual = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x":":test-container-images-s390x",
-        "@io_bazel_rules_go//go/platform:linux_arm64":":test-container-images-aarch64",
-        "//conditions:default":  ":test-container-images-amd64",
-    })
+container_push(
+    name = "push-cdi-func-test-bad-webserver",
+    format = "Docker",
+    image = "//tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-func-test-bad-webserver",
+    tag = "$(container_tag)",
 )
 
-docker_push(
-    name = "push-test-images",
-    bundle = ":test-container-images",
+container_push(
+    name = "push-cdi-func-test-proxy",
+    format = "Docker",
+    image = "//tools/cdi-func-test-proxy:cdi-func-test-proxy-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-func-test-proxy",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-func-test-sample-populator",
+    format = "Docker",
+    image = "//tools/cdi-func-test-sample-populator:cdi-func-test-sample-populator-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-func-test-sample-populator",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-func-test-file-host-init",
+    format = "Docker",
+    image = "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-func-test-file-host-init",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-func-test-file-host-http",
+    format = "Docker",
+    image = "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-func-test-file-host-http",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-func-test-registry-init",
+    format = "Docker",
+    image = "//tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-func-test-registry-init",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-func-test-registry-populate",
+    format = "Docker",
+    image = "//tools/cdi-func-test-registry-init:cdi-func-test-registry-populate-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-func-test-registry-populate",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-func-test-registry",
+    format = "Docker",
+    image = "//tools/cdi-func-test-registry-init:cdi-func-test-registry-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-func-test-registry",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-imageio-init",
+    format = "Docker",
+    image = "//tools/imageio-init:imageio-init-image",
+    registry = "$(container_prefix)",
+    repository = "imageio-init",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-vcenter-simulator",
+    format = "Docker",
+    image = "//tools/vddk-test:vcenter-simulator",
+    registry = "$(container_prefix)",
+    repository = "vcenter-simulator",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-vddk-init",
+    format = "Docker",
+    image = "//tools/vddk-init:vddk-init-image",
+    registry = "$(container_prefix)",
+    repository = "vddk-init",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-vddk-test",
+    format = "Docker",
+    image = "//tools/vddk-test:vddk-test-image",
+    registry = "$(container_prefix)",
+    repository = "vddk-test",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-func-test-tinycore",
+    format = "Docker",
+    image = "//tests:cdi-func-test-tinycore",
+    registry = "$(container_prefix)",
+    repository = "cdi-func-test-tinycore",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-func-test-imageio",
+    format = "Docker",
+    image = "//tools/image-io:cdi-func-test-imageio-image",
+    registry = "$(container_prefix)",
+    repository = "cdi-func-test-imageio",
+    tag = "$(container_tag)",
+)
+
+container_push(
+    name = "push-cdi-func-test-cirros-qcow2",
+    format = "Docker",
+    image = "//tests:cdi-func-test-cirros-qcow2",
+    registry = "$(container_prefix)",
+    repository = "cdi-func-test-cirros-qcow2",
+    tag = "$(container_tag)",
 )
 
 container_push(
