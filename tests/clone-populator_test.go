@@ -20,7 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
-	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/tests/framework"
@@ -189,7 +188,7 @@ var _ = Describe("Clone Populator tests", func() {
 		}
 		pvc := generateTargetPVCWithStrategy(size, vm, strategy, scName)
 		pvc.Spec.AccessModes = nil
-		cc.AddLabel(pvc, common.PvcApplyStorageProfileLabel, "true")
+		cc.AddLabel(pvc, cdiv1.LabelApplyStorageProfile, "true")
 		Eventually(func() error {
 			err := f.CrClient.Create(context.Background(), pvc)
 			if err != nil {

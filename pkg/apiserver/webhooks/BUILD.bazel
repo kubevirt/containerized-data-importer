@@ -65,7 +65,6 @@ go_test(
     embed = [":go_default_library"],
     deps = [
         "//pkg/client/clientset/versioned/fake:go_default_library",
-        "//pkg/common:go_default_library",
         "//pkg/controller/common:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/appscode/jsonpatch:go_default_library",
