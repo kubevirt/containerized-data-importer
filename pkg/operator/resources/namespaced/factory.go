@@ -40,6 +40,8 @@ type FactoryArgs struct {
 	APIServerImage         string `required:"true" envconfig:"apiserver_image"`
 	UploadProxyImage       string `required:"true" split_words:"true"`
 	UploadServerImage      string `required:"true" split_words:"true"`
+	ExternalImageMinio     string `split_words:"true"`
+	ExternalImageFakeovirt string `split_words:"true"`
 	Verbosity              string `required:"true"`
 	PullPolicy             string `required:"true" split_words:"true"`
 	ImagePullSecrets       []corev1.LocalObjectReference
