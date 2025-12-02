@@ -54,6 +54,7 @@ var _ = Describe("Mutating PVC Webhook", func() {
 		})
 
 		const testStorageClassName = "sc_test"
+		const virtDefaultStorageClassName = "virt_default"
 
 		var (
 			storageClass = storagev1.StorageClass{
@@ -69,6 +70,16 @@ var _ = Describe("Mutating PVC Webhook", func() {
 					},
 				},
 			}
+
+			virtDefaultStorageClass = storagev1.StorageClass{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: virtDefaultStorageClassName,
+					Annotations: map[string]string{
+						"storageclass.kubevirt.io/is-default-virt-class": "true",
+					},
+				},
+			}
+
 			storageProfile = cdiv1.StorageProfile{
 				ObjectMeta: metav1.ObjectMeta{Name: testStorageClassName},
 				Status: cdiv1.StorageProfileStatus{
@@ -78,6 +89,17 @@ var _ = Describe("Mutating PVC Webhook", func() {
 					}},
 				},
 			}
+
+			virtDefaultStorageProfile = cdiv1.StorageProfile{
+				ObjectMeta: metav1.ObjectMeta{Name: virtDefaultStorageClassName},
+				Status: cdiv1.StorageProfileStatus{
+					ClaimPropertySets: []cdiv1.ClaimPropertySet{{
+						VolumeMode:  ptr.To[corev1.PersistentVolumeMode](corev1.PersistentVolumeBlock),
+						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
+					}},
+				},
+			}
+
 			partialStorageProfile = cdiv1.StorageProfile{
 				ObjectMeta: metav1.ObjectMeta{Name: testStorageClassName},
 				Status: cdiv1.StorageProfileStatus{
@@ -88,7 +110,7 @@ var _ = Describe("Mutating PVC Webhook", func() {
 			}
 		)
 
-		DescribeTable("should", func(allowed bool, message string, objs ...client.Object) {
+		DescribeTable("should", func(allowed bool, message, scName string, objs ...client.Object) {
 			pvc := newPvc()
 			dvBytes, _ := json.Marshal(&pvc)
 
@@ -137,19 +159,20 @@ var _ = Describe("Mutating PVC Webhook", func() {
 
 			Expect(patchObjs[1].Operation).Should(Equal("add"))
 			Expect(patchObjs[1].Path).Should(Equal("/spec/storageClassName"))
-			Expect(patchObjs[1].Value).Should(Equal(testStorageClassName))
+			Expect(patchObjs[1].Value).Should(Equal(scName))
 
 			Expect(patchObjs[2].Operation).Should(Equal("add"))
 			Expect(patchObjs[2].Path).Should(Equal("/spec/volumeMode"))
 			Expect(patchObjs[2].Value).Should(Equal("Block"))
 		},
 			Entry("fail with no storage classes", false,
-				"PVC spec is missing accessMode and no storageClass to choose profile"),
+				"PVC spec is missing accessMode and no storageClass to choose profile", ""),
 			Entry("fail with no default storage classes", false,
-				"PVC spec is missing accessMode and no storageClass to choose profile", &storageClass, &storageProfile),
+				"PVC spec is missing accessMode and no storageClass to choose profile", "", &storageClass, &storageProfile),
 			Entry("fail with default storage classes but with partial storage profile", false,
-				fmt.Sprintf("no accessMode specified in StorageProfile %s", testStorageClassName), &defaultStorageClass, &partialStorageProfile),
-			Entry("succeed with default storage classes and complete storage profile", true, "", &defaultStorageClass, &storageProfile),
+				fmt.Sprintf("no accessMode specified in StorageProfile %s", testStorageClassName), testStorageClassName, &defaultStorageClass, &partialStorageProfile),
+			Entry("succeed with default storage classes and complete storage profile", true, "", testStorageClassName, &defaultStorageClass, &storageProfile),
+			Entry("choose virt default storage class over default", true, "", virtDefaultStorageClassName, &defaultStorageClass, &virtDefaultStorageClass, &storageProfile, &virtDefaultStorageProfile),
 		)
 	})
 })

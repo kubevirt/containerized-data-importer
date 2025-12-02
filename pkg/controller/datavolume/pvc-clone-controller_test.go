@@ -380,6 +380,25 @@ var _ = Describe("All DataVolume Tests", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 			})
+
+			It("Should respect virt-default storage class for clone", func() {
+				dv := newCloneDataVolume("test-dv")
+				dv.Spec.Storage = createStorageSpec()
+				dv.Spec.PVC = nil
+				defaultStorageClass := CreateStorageClass("defaultSc", map[string]string{AnnDefaultStorageClass: "true"})
+				virtDefaultStorageClass := CreateStorageClass("virt-default", map[string]string{AnnDefaultVirtStorageClass: "true"})
+				srcPvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+				reconciler = createCloneReconciler(defaultStorageClass, virtDefaultStorageClass, dv, srcPvc)
+
+				_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+				Expect(err).ToNot(HaveOccurred())
+
+				pvc := &corev1.PersistentVolumeClaim{}
+				err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(pvc.Name).To(Equal("test-dv"))
+				Expect(pvc.Spec.StorageClassName).To(HaveValue(Equal("virt-default")))
+			})
 		})
 	})
 
