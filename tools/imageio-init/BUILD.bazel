@@ -1,6 +1,6 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
-load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
-load("@io_bazel_rules_docker//container:container.bzl", "container_image")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 go_library(
     name = "go_default_library",
@@ -18,21 +18,25 @@ go_library(
 go_binary(
     name = "imageio-init",
     embed = [":go_default_library"],
-    visibility = ["//visibility:public"],
+    visibility = ["//visibility:private"],
 )
 
-container_image(
+pkg_tar(
+    name = "imageio-init-bin",
+    srcs = [":imageio-init"],
+    package_dir = "/usr/bin/",
+    visibility = ["//visibility:private"],
+)
+
+oci_image(
     name = "imageio-init-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
     base = "//:testimage_base",
-    directory = "/usr/bin",
     entrypoint = [
         "imageio-init",
         "-alsologtostderr",
     ],
-    files = [":imageio-init"],
+    tars = [
+        ":imageio-init-bin",
+    ],
     visibility = ["//visibility:public"],
 )
