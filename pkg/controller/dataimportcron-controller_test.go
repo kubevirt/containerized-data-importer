@@ -862,7 +862,8 @@ var _ = Describe("All DataImportCron Tests", func() {
 					Namespace: pvc.Namespace,
 				},
 			}
-			reconciler = createDataImportCronReconciler(cron, pvc)
+			reconciler = createDataImportCronReconciler(cron, pvc,
+				&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "default"}})
 			_, err := reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
 		})
