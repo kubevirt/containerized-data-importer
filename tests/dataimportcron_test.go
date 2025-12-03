@@ -822,6 +822,46 @@ var _ = Describe("DataImportCron", Serial, func() {
 			Expect(dataSource.Spec.Source).To(Equal(expectedSource))
 		})
 	})
+
+	Context("DataImportCron controller authorization when cloning from PVC source", func() {
+		var sourceDv *cdiv1.DataVolume
+
+		createSourceDv := func(dvNamespace string) {
+			if dvNamespace != ns {
+				sourceNamespace, err := f.CreateNamespace(dvNamespace, nil)
+				Expect(err).ToNot(HaveOccurred())
+				f.AddNamespaceToDelete(sourceNamespace)
+				dvNamespace = sourceNamespace.Name
+			}
+
+			sourceDv = utils.NewDataVolumeWithHTTPImport("source-pvc", "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+			sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, dvNamespace, sourceDv)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
+		}
+
+		It("[test_id:12407] should create DataVolume when default ServiceAccount created the DataImportCron with source PVC in the same namespace", func() {
+			createSourceDv(ns)
+			cron := createDataImportCronWithPVCSource(cronName, sourceDv.Namespace, sourceDv.Name)
+			_, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			waitForConditions(corev1.ConditionFalse, corev1.ConditionTrue)
+		})
+
+		It("[test_id:XXXX] should not create DataVolume when default ServiceAccount created the DataImportCron with source PVC in another namespace", func() {
+			createSourceDv("source-ns")
+			cron := createDataImportCronWithPVCSource(cronName, sourceDv.Namespace, sourceDv.Name)
+			_, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			waitForConditions(corev1.ConditionFalse, corev1.ConditionFalse)
+			cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			cronCond := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronProgressing)
+			Expect(cronCond).ToNot(BeNil())
+			Expect(cronCond.ConditionState.Message).To(Equal("Not authorized to create DataVolume"))
+			Expect(cronCond.ConditionState.Reason).To(Equal("NotAuthorized"))
+		})
+	})
 })
 
 func getDataVolumeSourceRegistry(f *framework.Framework) (*cdiv1.DataVolumeSourceRegistry, error) {
@@ -872,6 +912,29 @@ func updateDataSource(clientSet *cdiclientset.Clientset, namespace string, dataS
 
 		_, err = clientSet.CdiV1beta1().DataSources(namespace).Update(context.TODO(), dataSource, metav1.UpdateOptions{})
 		return err
+	}
+}
+
+func createDataImportCronWithPVCSource(name string, pvcNamespace, pvcName string) *cdiv1.DataImportCron {
+	return &cdiv1.DataImportCron{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: cdiv1.DataImportCronSpec{
+			Template: cdiv1.DataVolume{
+				Spec: cdiv1.DataVolumeSpec{
+					Source: &cdiv1.DataVolumeSource{
+						PVC: &cdiv1.DataVolumeSourcePVC{
+							Namespace: pvcNamespace,
+							Name:      pvcName,
+						},
+					},
+					Storage: &cdiv1.StorageSpec{},
+				},
+			},
+			Schedule:          scheduleOnceAYear,
+			ManagedDataSource: "datasource-test",
+		},
 	}
 }
 
