@@ -12,10 +12,8 @@ import (
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -826,56 +824,37 @@ var _ = Describe("DataImportCron", Serial, func() {
 	})
 
 	Context("DataImportCron controller authorization when cloning from PVC source", func() {
-		const serviceAccountName = "sa-test"
 		var sourceDv *cdiv1.DataVolume
 
-		BeforeEach(func() {
-			sourceNamespace, err := f.CreateNamespace("source-ns", nil)
-			Expect(err).ToNot(HaveOccurred())
-			f.AddNamespaceToDelete(sourceNamespace)
+		createSourceDv := func(dvNamespace string) {
+			if dvNamespace != ns {
+				sourceNamespace, err := f.CreateNamespace(dvNamespace, nil)
+				Expect(err).ToNot(HaveOccurred())
+				f.AddNamespaceToDelete(sourceNamespace)
+				dvNamespace = sourceNamespace.Name
+			}
 
 			sourceDv = utils.NewDataVolumeWithHTTPImport("source-pvc", "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-			sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, sourceNamespace.Name, sourceDv)
+			sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, dvNamespace, sourceDv)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
-		})
+		}
 
-		It("[test_id:12407] should create DataVolume when kubernetes-admin created the DataImportCron", func() {
+		It("[test_id:12407] should create DataVolume when default ServiceAccount created the DataImportCron with source PVC in the same namespace", func() {
+			createSourceDv(ns)
 			cron := createDataImportCronWithPVCSource(cronName, sourceDv.Namespace, sourceDv.Name)
-			cron, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
+			_, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cron.Spec.CreatedBy).ToNot(BeNil())
-			waitForConditions(corev1.ConditionFalse, corev1.ConditionTrue)
-
-			time.Sleep(60 * time.Second)
-		})
-
-		It("[test_id:12408] should create DataVolume when authorized ServiceAccount created the DataImportCron", func() {
-			createServiceAccount(f.K8sClient, ns, serviceAccountName)
-			altCdiClient, err := f.GetCdiClientForServiceAccount(ns, serviceAccountName)
-			Expect(err).ToNot(HaveOccurred())
-			addDataImportCronRBAC(f.K8sClient, serviceAccountName, ns)
-			addSourcePvcRBAC(f.K8sClient, sourceDv.Namespace, serviceAccountName, ns)
-
-			cron := createDataImportCronWithPVCSource(cronName, sourceDv.Namespace, sourceDv.Name)
-			cron, err = altCdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			Expect(cron.Spec.CreatedBy).ToNot(BeNil())
 			waitForConditions(corev1.ConditionFalse, corev1.ConditionTrue)
 		})
 
-		It("[test_id:12409] should not create DataVolume when unauthorized ServiceAccount created the DataImportCron", func() {
-			createServiceAccount(f.K8sClient, ns, serviceAccountName)
-			altCdiClient, err := f.GetCdiClientForServiceAccount(ns, serviceAccountName)
-			Expect(err).ToNot(HaveOccurred())
-			addDataImportCronRBAC(f.K8sClient, serviceAccountName, ns)
-
+		It("[test_id:XXXX] should not create DataVolume when default ServiceAccount created the DataImportCron with source PVC in another namespace", func() {
+			createSourceDv("source-ns")
 			cron := createDataImportCronWithPVCSource(cronName, sourceDv.Namespace, sourceDv.Name)
-			cron, err = altCdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
+			_, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cron.Spec.CreatedBy).ToNot(BeNil())
 			waitForConditions(corev1.ConditionFalse, corev1.ConditionFalse)
-			cron, err = altCdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
+			cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			cronCond := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronProgressing)
 			Expect(cronCond).ToNot(BeNil())
@@ -936,20 +915,6 @@ func updateDataSource(clientSet *cdiclientset.Clientset, namespace string, dataS
 	}
 }
 
-func createServiceAccount(client kubernetes.Interface, namespace, name string) *corev1.ServiceAccount {
-	sa := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-		},
-	}
-	sa, err := client.CoreV1().ServiceAccounts(namespace).Create(context.TODO(), sa, metav1.CreateOptions{})
-	if !errors.IsAlreadyExists(err) {
-		Expect(err).ToNot(HaveOccurred())
-	}
-
-	return sa
-}
-
 func createDataImportCronWithPVCSource(name string, pvcNamespace, pvcName string) *cdiv1.DataImportCron {
 	return &cdiv1.DataImportCron{
 		ObjectMeta: metav1.ObjectMeta{
@@ -971,84 +936,6 @@ func createDataImportCronWithPVCSource(name string, pvcNamespace, pvcName string
 			ManagedDataSource: "datasource-test",
 		},
 	}
-}
-
-func addDataImportCronRBAC(client kubernetes.Interface, saName, saNamespace string) {
-	role := &rbacv1.Role{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-role",
-			Namespace: saNamespace,
-		},
-		Rules: []rbacv1.PolicyRule{
-			{
-				APIGroups: []string{"cdi.kubevirt.io"},
-				Resources: []string{"dataimportcrons"},
-				Verbs:     []string{"*"},
-			},
-		},
-	}
-	_, err := client.RbacV1().Roles(role.Namespace).Create(context.TODO(), role, metav1.CreateOptions{})
-	Expect(err).ToNot(HaveOccurred())
-
-	roleBinding := &rbacv1.RoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-rolebinding",
-			Namespace: saNamespace,
-		},
-		RoleRef: rbacv1.RoleRef{
-			Kind:     "Role",
-			Name:     "test-role",
-			APIGroup: "rbac.authorization.k8s.io",
-		},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      "ServiceAccount",
-				Name:      saName,
-				Namespace: saNamespace,
-			},
-		},
-	}
-	_, err = client.RbacV1().RoleBindings(roleBinding.Namespace).Create(context.TODO(), roleBinding, metav1.CreateOptions{})
-	Expect(err).ToNot(HaveOccurred())
-}
-
-func addSourcePvcRBAC(client kubernetes.Interface, sourceNamespace, saName, saNamespace string) {
-	role := &rbacv1.Role{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-role",
-			Namespace: sourceNamespace,
-		},
-		Rules: []rbacv1.PolicyRule{
-			{
-				APIGroups: []string{""},
-				Resources: []string{"pods"},
-				Verbs:     []string{"create"},
-			},
-		},
-	}
-	_, err := client.RbacV1().Roles(role.Namespace).Create(context.TODO(), role, metav1.CreateOptions{})
-	Expect(err).ToNot(HaveOccurred())
-
-	roleBinding := &rbacv1.RoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-rolebinding",
-			Namespace: sourceNamespace,
-		},
-		RoleRef: rbacv1.RoleRef{
-			Kind:     "Role",
-			Name:     "test-role",
-			APIGroup: "rbac.authorization.k8s.io",
-		},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      "ServiceAccount",
-				Name:      saName,
-				Namespace: saNamespace,
-			},
-		},
-	}
-	_, err = client.RbacV1().RoleBindings(roleBinding.Namespace).Create(context.TODO(), roleBinding, metav1.CreateOptions{})
-	Expect(err).ToNot(HaveOccurred())
 }
 
 func retryOnceOnErr(f func() error) Assertion {

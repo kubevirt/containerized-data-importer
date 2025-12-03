@@ -4377,10 +4377,6 @@
      "managedDataSource"
     ],
     "properties": {
-     "createdBy": {
-      "description": "CreatedBy is the JSON-marshaled UserInfo of the user who created this DataImportCron. This field is set by the mutating webhook and cannot be set by users.",
-      "type": "string"
-     },
      "garbageCollect": {
       "description": "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported. Options are currently \"Outdated\" and \"Never\", defaults to \"Outdated\".",
       "type": "string"

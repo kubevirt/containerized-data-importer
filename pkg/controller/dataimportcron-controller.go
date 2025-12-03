@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"reflect"
@@ -34,7 +33,6 @@ import (
 	"github.com/pkg/errors"
 	cronexpr "github.com/robfig/cron/v3"
 
-	authenticationv1 "k8s.io/api/authentication/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -912,31 +910,9 @@ func (r *DataImportCronReconciler) authorizeCloneDataVolume(dataImportCron *cdiv
 		return true, nil
 	}
 
-	createdBy := dataImportCron.Spec.CreatedBy
-	if createdBy == nil {
-		r.log.Info("Not authorized to create DataVolume without CreatedBy", "cron", dataImportCron.Name)
-		return false, nil
-	}
-
-	var userInfo authenticationv1.UserInfo
-	if err := json.Unmarshal([]byte(*createdBy), &userInfo); err != nil {
+	if resp, err := dv.AuthorizeSA(dv.Namespace, dv.Name, r, dataImportCron.Namespace, "default"); err != nil {
 		return false, err
-	}
-
-	var resp cdiv1.CloneAuthResponse
-	var err error
-	if saNamespace, saName, ok := parseServiceAccount(userInfo.Username); ok {
-		r.log.Info("Using creator ServiceAccount for authorization", "namespace", saNamespace, "name", saName, "cron", dataImportCron.Name)
-		resp, err = dv.AuthorizeSA(dv.Namespace, dv.Name, r, saNamespace, saName)
-	} else {
-		r.log.Info("Using creator User for authorization", "username", userInfo.Username, "cron", dataImportCron.Name)
-		resp, err = dv.AuthorizeUser(dv.Namespace, dv.Name, r, userInfo)
-	}
-
-	if err != nil {
-		return false, err
-	}
-	if !resp.Allowed {
+	} else if !resp.Allowed {
 		r.log.Info("Not authorized to create DataVolume", "cron", dataImportCron.Name, "reason", resp.Reason)
 		return false, nil
 	}
@@ -1872,18 +1848,4 @@ func getAccessModesFromDVSpec(dv *cdiv1.DataVolume) []corev1.PersistentVolumeAcc
 	}
 
 	return nil
-}
-
-// parseServiceAccount extracts namespace and service account name from username
-// Username format: "system:serviceaccount:<namespace>:<serviceaccount-name>"
-func parseServiceAccount(username string) (namespace, saName string, ok bool) {
-	const prefix = "system:serviceaccount:"
-	if !strings.HasPrefix(username, prefix) {
-		return "", "", false
-	}
-	parts := strings.Split(strings.TrimPrefix(username, prefix), ":")
-	if len(parts) != 2 {
-		return "", "", false
-	}
-	return parts[0], parts[1], true
 }

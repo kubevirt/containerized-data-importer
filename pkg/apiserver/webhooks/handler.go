@@ -91,11 +91,6 @@ func NewDataImportCronValidatingWebhook(k8sClient kubernetes.Interface, cdiClien
 	return newAdmissionHandler(&dataImportCronValidatingWebhook{dataVolumeValidatingWebhook{k8sClient: k8sClient, cdiClient: cdiClient}})
 }
 
-// NewDataImportCronMutatingWebhook creates a new DataImportCron mutating webhook
-func NewDataImportCronMutatingWebhook() http.Handler {
-	return newAdmissionHandler(&dataImportCronMutatingWebhook{})
-}
-
 // NewPopulatorValidatingWebhook creates a new DataVolumeValidation webhook
 func NewPopulatorValidatingWebhook(k8sClient kubernetes.Interface, cdiClient cdiclient.Interface) http.Handler {
 	return newAdmissionHandler(&populatorValidatingWebhook{dataVolumeValidatingWebhook{k8sClient: k8sClient, cdiClient: cdiClient}})
