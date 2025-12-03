@@ -5684,11 +5684,6 @@ spec:
           spec:
             description: DataImportCronSpec defines specification for DataImportCron
             properties:
-              createdBy:
-                description: |-
-                  CreatedBy is the JSON-marshaled UserInfo of the user who created this DataImportCron.
-                  This field is set by the mutating webhook and cannot be set by users.
-                type: string
               garbageCollect:
                 description: |-
                   GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.
