@@ -122,6 +122,19 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 				"",
 			},
 			Resources: []string{
+				"namespaces",
+			},
+			Verbs: []string{
+				"get",
+				"list",
+				"watch",
+			},
+		},
+		{
+			APIGroups: []string{
+				"",
+			},
+			Resources: []string{
 				"configmaps",
 			},
 			Verbs: []string{
@@ -269,6 +282,17 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 			},
 			Verbs: []string{
 				"update",
+			},
+		},
+		{
+			APIGroups: []string{
+				"authorization.k8s.io",
+			},
+			Resources: []string{
+				"subjectaccessreviews",
+			},
+			Verbs: []string{
+				"create",
 			},
 		},
 	}

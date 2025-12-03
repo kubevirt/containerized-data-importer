@@ -5708,6 +5708,10 @@ spec:
                 description: Schedule specifies in cron format when and how often
                   to look for new imports
                 type: string
+              serviceAccountName:
+                description: ServiceAccountName is the name of the ServiceAccount
+                  for creating DataVolumes.
+                type: string
               template:
                 description: Template specifies template for the DVs to be created
                 properties:
