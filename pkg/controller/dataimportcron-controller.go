@@ -33,6 +33,7 @@ import (
 	"github.com/pkg/errors"
 	cronexpr "github.com/robfig/cron/v3"
 
+	authorizationv1 "k8s.io/api/authorization/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -873,7 +874,6 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 	if err != nil {
 		return err
 	}
-	dataImportCron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: digest}}
 
 	sources := []client.Object{&snapshotv1.VolumeSnapshot{}, &corev1.PersistentVolumeClaim{}}
 	for _, src := range sources {
@@ -886,16 +886,70 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 				return err
 			}
 			// If source exists don't create DV
+			dataImportCron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: digest}}
 			return nil
 		}
 	}
 
 	dv := r.newSourceDataVolume(dataImportCron, dvName)
+	if allowed, err := r.authorizeCloneDataVolume(dataImportCron, dv); err != nil {
+		return err
+	} else if !allowed {
+		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse,
+			"Not authorized to create DataVolume", notAuthorized)
+		return nil
+	}
 	if err := r.client.Create(ctx, dv); err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
+	dataImportCron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: digest}}
 
 	return nil
+}
+
+func (r *DataImportCronReconciler) authorizeCloneDataVolume(dataImportCron *cdiv1.DataImportCron, dv *cdiv1.DataVolume) (bool, error) {
+	if !isPvcSource(dataImportCron) {
+		return true, nil
+	}
+	saName := "default"
+	if dataImportCron.Spec.ServiceAccountName != nil {
+		saName = *dataImportCron.Spec.ServiceAccountName
+	}
+	if resp, err := dv.AuthorizeSA(dv.Namespace, dv.Name, &authProxy{r.client}, dataImportCron.Namespace, saName); err != nil {
+		return false, err
+	} else if !resp.Allowed {
+		r.log.Info("Not authorized to create DataVolume", "cron", dataImportCron.Name, "reason", resp.Reason)
+		return false, nil
+	}
+
+	return true, nil
+}
+
+type authProxy struct {
+	client client.Client
+}
+
+func (p *authProxy) CreateSar(sar *authorizationv1.SubjectAccessReview) (*authorizationv1.SubjectAccessReview, error) {
+	if err := p.client.Create(context.TODO(), sar); err != nil {
+		return nil, err
+	}
+	return sar, nil
+}
+
+func (p *authProxy) GetNamespace(name string) (*corev1.Namespace, error) {
+	ns := &corev1.Namespace{}
+	if err := p.client.Get(context.TODO(), types.NamespacedName{Name: name}, ns); err != nil {
+		return nil, err
+	}
+	return ns, nil
+}
+
+func (p *authProxy) GetDataSource(namespace, name string) (*cdiv1.DataSource, error) {
+	das := &cdiv1.DataSource{}
+	if err := p.client.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: name}, das); err != nil {
+		return nil, err
+	}
+	return das, nil
 }
 
 func (r *DataImportCronReconciler) handleStorageClassChange(ctx context.Context, dataImportCron *cdiv1.DataImportCron, desiredStorageClass string) error {

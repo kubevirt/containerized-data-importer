@@ -4400,6 +4400,10 @@
       "type": "string",
       "default": ""
      },
+     "serviceAccountName": {
+      "description": "ServiceAccountName is the name of the ServiceAccount for creating DataVolumes.",
+      "type": "string"
+     },
      "template": {
       "description": "Template specifies template for the DVs to be created",
       "default": {},
