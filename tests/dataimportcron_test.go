@@ -838,53 +838,66 @@ var _ = Describe("DataImportCron", Serial, func() {
 		const serviceAccountName = "sa-test"
 		var sourceDv *cdiv1.DataVolume
 
-		BeforeEach(func() {
-			sourceNamespace, err := f.CreateNamespace("source-ns", nil)
-			Expect(err).ToNot(HaveOccurred())
-			f.AddNamespaceToDelete(sourceNamespace)
+		createSourceDv := func(dvNamespace string) {
+			if dvNamespace != ns {
+				sourceNamespace, err := f.CreateNamespace(dvNamespace, nil)
+				Expect(err).ToNot(HaveOccurred())
+				f.AddNamespaceToDelete(sourceNamespace)
+				dvNamespace = sourceNamespace.Name
+			}
 
 			sourceDv = utils.NewDataVolumeWithHTTPImport("source-pvc", "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-			sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, sourceNamespace.Name, sourceDv)
+			sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, dvNamespace, sourceDv)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDv)
+		}
+
+		It("[test_id:12407] should create DataVolume when default ServiceAccount created the DataImportCron with source PVC in the same namespace", func() {
+			createSourceDv(ns)
+			cron := createDataImportCronWithPVCSource(cronName, sourceDv.Namespace, sourceDv.Name)
+			_, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			waitForConditions(corev1.ConditionFalse, corev1.ConditionTrue)
 		})
 
-		It("[test_id:12407] should create DataVolume when kubernetes-admin created the DataImportCron", func() {
+		It("[test_id:XXXX] should not create DataVolume when default ServiceAccount created the DataImportCron with source PVC in another namespace", func() {
+			createSourceDv("source-ns")
 			cron := createDataImportCronWithPVCSource(cronName, sourceDv.Namespace, sourceDv.Name)
-			cron, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
+			_, err := f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cron.Spec.CreatedBy).ToNot(BeNil())
-			waitForConditions(corev1.ConditionFalse, corev1.ConditionTrue)
-
-			time.Sleep(60 * time.Second)
+			waitForConditions(corev1.ConditionFalse, corev1.ConditionFalse)
+			cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			cronCond := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronProgressing)
+			Expect(cronCond).ToNot(BeNil())
+			Expect(cronCond.ConditionState.Message).To(Equal("Not authorized to create DataVolume"))
+			Expect(cronCond.ConditionState.Reason).To(Equal("NotAuthorized"))
 		})
 
 		It("[test_id:12408] should create DataVolume when authorized ServiceAccount created the DataImportCron", func() {
+			createSourceDv("source-ns")
 			createServiceAccount(f.K8sClient, ns, serviceAccountName)
-			altCdiClient, err := f.GetCdiClientForServiceAccount(ns, serviceAccountName)
-			Expect(err).ToNot(HaveOccurred())
 			addDataImportCronRBAC(f.K8sClient, serviceAccountName, ns)
 			addSourcePvcRBAC(f.K8sClient, sourceDv.Namespace, serviceAccountName, ns)
 
 			cron := createDataImportCronWithPVCSource(cronName, sourceDv.Namespace, sourceDv.Name)
-			cron, err = altCdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
+			cron.Spec.ServiceAccountName = serviceAccountName
+			_, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cron.Spec.CreatedBy).ToNot(BeNil())
 			waitForConditions(corev1.ConditionFalse, corev1.ConditionTrue)
 		})
 
 		It("[test_id:12409] should not create DataVolume when unauthorized ServiceAccount created the DataImportCron", func() {
+			createSourceDv("source-ns")
 			createServiceAccount(f.K8sClient, ns, serviceAccountName)
-			altCdiClient, err := f.GetCdiClientForServiceAccount(ns, serviceAccountName)
-			Expect(err).ToNot(HaveOccurred())
 			addDataImportCronRBAC(f.K8sClient, serviceAccountName, ns)
 
 			cron := createDataImportCronWithPVCSource(cronName, sourceDv.Namespace, sourceDv.Name)
-			cron, err = altCdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
+			cron.Spec.ServiceAccountName = serviceAccountName
+			_, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Create(context.TODO(), cron, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(cron.Spec.CreatedBy).ToNot(BeNil())
 			waitForConditions(corev1.ConditionFalse, corev1.ConditionFalse)
-			cron, err = altCdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
+			cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(ns).Get(context.TODO(), cronName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			cronCond := controller.FindDataImportCronConditionByType(cron, cdiv1.DataImportCronProgressing)
 			Expect(cronCond).ToNot(BeNil())
