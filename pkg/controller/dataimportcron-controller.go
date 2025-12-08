@@ -18,7 +18,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"reflect"
@@ -34,7 +33,6 @@ import (
 	"github.com/pkg/errors"
 	cronexpr "github.com/robfig/cron/v3"
 
-	authenticationv1 "k8s.io/api/authentication/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -876,7 +874,6 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 	if err != nil {
 		return err
 	}
-	dataImportCron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: digest}}
 
 	sources := []client.Object{&snapshotv1.VolumeSnapshot{}, &corev1.PersistentVolumeClaim{}}
 	for _, src := range sources {
@@ -889,9 +886,11 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 				return err
 			}
 			// If source exists don't create DV
+			dataImportCron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: digest}}
 			return nil
 		}
 	}
+
 	dv := r.newSourceDataVolume(dataImportCron, dvName)
 	if allowed, err := r.authorizeCloneDataVolume(dataImportCron, dv); err != nil {
 		return err
@@ -903,6 +902,7 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 	if err := r.client.Create(ctx, dv); err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
+	dataImportCron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: digest}}
 
 	return nil
 }
@@ -911,32 +911,13 @@ func (r *DataImportCronReconciler) authorizeCloneDataVolume(dataImportCron *cdiv
 	if !isPvcSource(dataImportCron) {
 		return true, nil
 	}
-
-	createdBy := dataImportCron.Spec.CreatedBy
-	if createdBy == nil {
-		r.log.Info("Not authorized to create DataVolume without CreatedBy", "cron", dataImportCron.Name)
-		return false, nil
+	saName := "default"
+	if dataImportCron.Spec.ServiceAccountName != nil {
+		saName = *dataImportCron.Spec.ServiceAccountName
 	}
-
-	var userInfo authenticationv1.UserInfo
-	if err := json.Unmarshal([]byte(*createdBy), &userInfo); err != nil {
+	if resp, err := dv.AuthorizeSA(dv.Namespace, dv.Name, &authProxy{r.client}, dataImportCron.Namespace, saName); err != nil {
 		return false, err
-	}
-
-	var resp cdiv1.CloneAuthResponse
-	var err error
-	if saNamespace, saName, ok := parseServiceAccount(userInfo.Username); ok {
-		r.log.Info("Using creator ServiceAccount for authorization", "namespace", saNamespace, "name", saName, "cron", dataImportCron.Name)
-		resp, err = dv.AuthorizeSA(dv.Namespace, dv.Name, r, saNamespace, saName)
-	} else {
-		r.log.Info("Using creator User for authorization", "username", userInfo.Username, "cron", dataImportCron.Name)
-		resp, err = dv.AuthorizeUser(dv.Namespace, dv.Name, r, userInfo)
-	}
-
-	if err != nil {
-		return false, err
-	}
-	if !resp.Allowed {
+	} else if !resp.Allowed {
 		r.log.Info("Not authorized to create DataVolume", "cron", dataImportCron.Name, "reason", resp.Reason)
 		return false, nil
 	}
@@ -944,24 +925,28 @@ func (r *DataImportCronReconciler) authorizeCloneDataVolume(dataImportCron *cdiv
 	return true, nil
 }
 
-func (r *DataImportCronReconciler) CreateSar(sar *authorizationv1.SubjectAccessReview) (*authorizationv1.SubjectAccessReview, error) {
-	if err := r.client.Create(context.TODO(), sar); err != nil {
+type authProxy struct {
+	client client.Client
+}
+
+func (p *authProxy) CreateSar(sar *authorizationv1.SubjectAccessReview) (*authorizationv1.SubjectAccessReview, error) {
+	if err := p.client.Create(context.TODO(), sar); err != nil {
 		return nil, err
 	}
 	return sar, nil
 }
 
-func (r *DataImportCronReconciler) GetNamespace(name string) (*corev1.Namespace, error) {
+func (p *authProxy) GetNamespace(name string) (*corev1.Namespace, error) {
 	ns := &corev1.Namespace{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: name}, ns); err != nil {
+	if err := p.client.Get(context.TODO(), types.NamespacedName{Name: name}, ns); err != nil {
 		return nil, err
 	}
 	return ns, nil
 }
 
-func (r *DataImportCronReconciler) GetDataSource(namespace, name string) (*cdiv1.DataSource, error) {
+func (p *authProxy) GetDataSource(namespace, name string) (*cdiv1.DataSource, error) {
 	das := &cdiv1.DataSource{}
-	if err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: name}, das); err != nil {
+	if err := p.client.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: name}, das); err != nil {
 		return nil, err
 	}
 	return das, nil
@@ -1879,18 +1864,4 @@ func getAccessModesFromDVSpec(dv *cdiv1.DataVolume) []corev1.PersistentVolumeAcc
 	}
 
 	return nil
-}
-
-// parseServiceAccount extracts namespace and service account name from username
-// Username format: "system:serviceaccount:<namespace>:<serviceaccount-name>"
-func parseServiceAccount(username string) (namespace, saName string, ok bool) {
-	const prefix = "system:serviceaccount:"
-	if !strings.HasPrefix(username, prefix) {
-		return "", "", false
-	}
-	parts := strings.Split(strings.TrimPrefix(username, prefix), ":")
-	if len(parts) != 2 {
-		return "", "", false
-	}
-	return parts[0], parts[1], true
 }

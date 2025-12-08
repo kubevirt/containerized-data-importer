@@ -5684,11 +5684,6 @@ spec:
           spec:
             description: DataImportCronSpec defines specification for DataImportCron
             properties:
-              createdBy:
-                description: |-
-                  CreatedBy is the JSON-marshaled UserInfo of the user who created this DataImportCron.
-                  This field is set by the mutating webhook and cannot be set by users.
-                type: string
               garbageCollect:
                 description: |-
                   GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.
@@ -5712,6 +5707,11 @@ spec:
               schedule:
                 description: Schedule specifies in cron format when and how often
                   to look for new imports
+                type: string
+              serviceAccountName:
+                description: ServiceAccountName is the name of the ServiceAccount
+                  for creating DataVolumes.
+                minLength: 1
                 type: string
               template:
                 description: Template specifies template for the DVs to be created

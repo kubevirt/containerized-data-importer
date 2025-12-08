@@ -17462,9 +17462,9 @@ func schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref common.ReferenceCallbac
 							Format:      "",
 						},
 					},
-					"createdBy": {
+					"serviceAccountName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "CreatedBy is the JSON-marshaled UserInfo of the user who created this DataImportCron. This field is set by the mutating webhook and cannot be set by users.",
+							Description: "ServiceAccountName is the name of the ServiceAccount for creating DataVolumes.",
 							Type:        []string{"string"},
 							Format:      "",
 						},

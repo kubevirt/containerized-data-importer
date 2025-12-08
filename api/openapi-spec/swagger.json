@@ -4377,10 +4377,6 @@
      "managedDataSource"
     ],
     "properties": {
-     "createdBy": {
-      "description": "CreatedBy is the JSON-marshaled UserInfo of the user who created this DataImportCron. This field is set by the mutating webhook and cannot be set by users.",
-      "type": "string"
-     },
      "garbageCollect": {
       "description": "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported. Options are currently \"Outdated\" and \"Never\", defaults to \"Outdated\".",
       "type": "string"
@@ -4403,6 +4399,10 @@
       "description": "Schedule specifies in cron format when and how often to look for new imports",
       "type": "string",
       "default": ""
+     },
+     "serviceAccountName": {
+      "description": "ServiceAccountName is the name of the ServiceAccount for creating DataVolumes.",
+      "type": "string"
      },
      "template": {
       "description": "Template specifies template for the DVs to be created",

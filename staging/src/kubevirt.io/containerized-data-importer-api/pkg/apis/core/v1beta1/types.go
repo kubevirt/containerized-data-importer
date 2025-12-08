@@ -596,10 +596,10 @@ type DataImportCronSpec struct {
 	// RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RatainAll.
 	// +optional
 	RetentionPolicy *DataImportCronRetentionPolicy `json:"retentionPolicy,omitempty"`
-	// CreatedBy is the JSON-marshaled UserInfo of the user who created this DataImportCron.
-	// This field is set by the mutating webhook and cannot be set by users.
+	// ServiceAccountName is the name of the ServiceAccount for creating DataVolumes.
 	// +optional
-	CreatedBy *string `json:"createdBy,omitempty"`
+	// +kubebuilder:validation:MinLength=1
+	ServiceAccountName *string `json:"serviceAccountName,omitempty"`
 }
 
 // DataImportCronGarbageCollect represents the DataImportCron garbage collection mode
