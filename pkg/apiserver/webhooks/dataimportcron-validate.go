@@ -161,25 +161,5 @@ func (wh *dataImportCronValidatingWebhook) validateDataImportCronSpec(request *a
 		return causes
 	}
 
-	if request.Operation == admissionv1.Create {
-		userInfoStr, err := getUserInfoString(&request.UserInfo)
-		if err != nil {
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeInternal,
-				Message: fmt.Sprintf("Cannot marshal UserInfo to string: %v", err),
-				Field:   field.Child("CreatedBy").String(),
-			})
-			return causes
-		}
-		if spec.CreatedBy != nil && *userInfoStr != *spec.CreatedBy {
-			causes = append(causes, metav1.StatusCause{
-				Type:    metav1.CauseTypeForbidden,
-				Message: "CreatedBy field is set automatically and cannot be specified by users",
-				Field:   field.Child("CreatedBy").String(),
-			})
-			return causes
-		}
-	}
-
 	return causes
 }
