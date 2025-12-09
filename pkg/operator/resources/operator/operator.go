@@ -160,6 +160,21 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 				"delete",
 			},
 		},
+		// FIXME: drop after a few releases
+		{
+			APIGroups: []string{
+				"admissionregistration.k8s.io",
+			},
+			Resources: []string{
+				"mutatingwebhookconfigurations",
+			},
+			ResourceNames: []string{
+				"cdi-api-dataimportcron-mutate",
+			},
+			Verbs: []string{
+				"delete",
+			},
+		},
 		{
 			APIGroups: []string{
 				"apiregistration.k8s.io",
