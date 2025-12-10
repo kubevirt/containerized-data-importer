@@ -66,6 +66,7 @@ var _ = Describe("All DataVolume Tests", func() {
 	var (
 		reconciler *ImportReconciler
 	)
+
 	AfterEach(func() {
 		if reconciler != nil {
 			reconciler = nil
@@ -106,6 +107,25 @@ var _ = Describe("All DataVolume Tests", func() {
 		},
 			Entry("no StorageClassName, and no default storage class set", nil),
 			Entry("non-existing StorageClassName", ptr.To[string]("nosuch")),
+		)
+
+		DescribeTable("Respect virt-default storage class", func(dv *cdiv1.DataVolume, expectedStorageClass string) {
+			defaultStorageClass := CreateStorageClass("defaultSc", map[string]string{AnnDefaultStorageClass: "true"})
+			virtDefaultStorageClass := CreateStorageClass("virt-default", map[string]string{AnnDefaultVirtStorageClass: "true"})
+			reconciler = createImportReconciler(virtDefaultStorageClass, defaultStorageClass, dv)
+
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Name).To(Equal("test-dv"))
+			Expect(pvc.Spec.StorageClassName).To(HaveValue(Equal(expectedStorageClass)))
+		},
+			Entry("Should use virt-default when k8s default exists", createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault, &cdiv1.DataVolumeSource{HTTP: &cdiv1.DataVolumeSourceHTTP{}}, createStorageSpec()), "virt-default"),
+			Entry("Should use k8s default for non-kubevirt contentType", newArchiveImportDataVolumeWithStorage("test-dv", metav1.NamespaceDefault, createStorageSpec()), "defaultSc"),
+			Entry("Should use explicit storage class when specified", createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault, &cdiv1.DataVolumeSource{HTTP: &cdiv1.DataVolumeSourceHTTP{}}, createStorageSpecWithStorageClass("explicit-sc")), "explicit-sc"),
 		)
 
 		It("Should create volumeImportSource if should use cdi populator", func() {
@@ -1929,6 +1949,14 @@ func createStorageSpec() *cdiv1.StorageSpec {
 	}
 }
 
+func createStorageSpecWithStorageClass(sc string) *cdiv1.StorageSpec {
+	storageSpec := createStorageSpec()
+	if sc != "" {
+		storageSpec.StorageClassName = &sc
+	}
+	return storageSpec
+}
+
 func boundStatusByPVCPhase(pvcPhase corev1.PersistentVolumeClaimPhase) corev1.ConditionStatus {
 	if pvcPhase == corev1.ClaimBound {
 		return corev1.ConditionTrue
@@ -2045,6 +2073,13 @@ func newImportDataVolumeWithPvc(name string, pvc *corev1.PersistentVolumeClaimSp
 			PVC: pvc,
 		},
 	}
+}
+
+func newArchiveImportDataVolumeWithStorage(name, namespace string, storage *cdiv1.StorageSpec) *cdiv1.DataVolume {
+	dv := createDataVolumeWithStorageAPI(name, namespace, &cdiv1.DataVolumeSource{HTTP: &cdiv1.DataVolumeSourceHTTP{}}, storage)
+	dv.Spec.Storage.VolumeMode = &FilesystemMode
+	dv.Spec.ContentType = cdiv1.DataVolumeArchive
+	return dv
 }
 
 func newS3ImportDataVolume(name string) *cdiv1.DataVolume {
