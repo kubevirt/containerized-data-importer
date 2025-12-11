@@ -77,7 +77,32 @@ func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolu
 		return renderClonePvcVolumeSizeFromSource(ctx, client, pvc)
 	}
 
+	// Skip size inflation for PVCs restoring from VolumeSnapshots.
+	// The PVC size must not exceed what the snapshot can provide; inflating it
+	// causes strict CSI drivers (e.g., NetApp Trident) to reject the restore.
+	if hasVolumeSnapshotDataSource(pvc) {
+		return nil
+	}
+
 	return renderPvcSpecVolumeSize(client, &pvc.Spec, false, nil)
+}
+
+// hasVolumeSnapshotDataSource returns true if the PVC's DataSource or DataSourceRef
+// references a VolumeSnapshot.
+func hasVolumeSnapshotDataSource(pvc *v1.PersistentVolumeClaim) bool {
+	if pvc.Spec.DataSourceRef != nil &&
+		pvc.Spec.DataSourceRef.APIGroup != nil &&
+		*pvc.Spec.DataSourceRef.APIGroup == snapshotv1.GroupName &&
+		pvc.Spec.DataSourceRef.Kind == "VolumeSnapshot" {
+		return true
+	}
+	if pvc.Spec.DataSource != nil &&
+		pvc.Spec.DataSource.APIGroup != nil &&
+		*pvc.Spec.DataSource.APIGroup == snapshotv1.GroupName &&
+		pvc.Spec.DataSource.Kind == "VolumeSnapshot" {
+		return true
+	}
+	return false
 }
 
 // renderPvcSpec creates a new PVC Spec based on either the dv.spec.pvc or dv.spec.storage section
