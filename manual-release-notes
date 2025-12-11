@@ -1,0 +1,19 @@
+v1.64.0
+
+BugFix: DataSource reference status updates are now correctly propagated to DataSources that have them as sources.
+Enhancement: Add IBM VPC Block CSI storage capabilities
+Enhancement: PX-CSI Portworx capabilities adjustment
+BugFix: DataImportCrons now respects the platform.architecture setting in all modes.
+BugFix: Fix wrong Items API type in VolumeUploadSourceList
+Enhancement: Readiness/Liveness Probes for Operator
+Enhancement: CDI's volume populators are now compatible with volume-data-source-validator
+BugFix: Check for PVC DeletionTimeStamp before updating DV status
+BugFix: Removal of CriticalAddonsOnly toleration from CDI pods.
+Enhancement: Allow insecureSkipVerify on imageio importer
+Enhancement: Added example network policies as part of the manifest-generator and csv-generator tools
+Enhancement: Expose scheme's GroupName and Version as new global variable `GroupVersion` making it easier to integrate the scheme.
+Enhancement: Support storageProfile minimumSupportedPVCSize in clone
+Enhancement: Copy Events from tmp PVCs
+BugFix: Improve PVC webhook rendering error reporting
+Fix PVC size inflation during VolumeSnapshot restore that caused strict CSI drivers (e.g., NetApp Trident) to reject the operation.
+    Note: CDI PVC mutating webhook will no longer wrongly inflate direct restores from volumesnapshot src
