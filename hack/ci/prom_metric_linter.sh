@@ -20,7 +20,7 @@
 #
 set -e
 
-linter_image_tag="v0.0.1"
+linter_image_tag="v0.0.11"
 
 PROJECT_ROOT="$(readlink -e "$(dirname "${BASH_SOURCE[0]}")"/../../)"
 
