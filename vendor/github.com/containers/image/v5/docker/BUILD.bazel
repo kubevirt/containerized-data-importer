@@ -52,7 +52,6 @@ go_library(
         "//vendor/github.com/containers/storage/pkg/regexp:go_default_library",
         "//vendor/github.com/docker/distribution/registry/api/errcode:go_default_library",
         "//vendor/github.com/docker/distribution/registry/api/v2:go_default_library",
-        "//vendor/github.com/docker/distribution/registry/client/auth/challenge:go_default_library",
         "//vendor/github.com/docker/go-connections/tlsconfig:go_default_library",
         "//vendor/github.com/opencontainers/go-digest:go_default_library",
         "//vendor/github.com/opencontainers/image-spec/specs-go/v1:go_default_library",
