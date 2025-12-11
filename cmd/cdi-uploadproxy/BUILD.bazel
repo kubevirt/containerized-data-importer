@@ -10,7 +10,7 @@ go_library(
         "//pkg/uploadproxy:go_default_library",
         "//pkg/util:go_default_library",
         "//pkg/util/cert/fetcher:go_default_library",
-        "//pkg/util/cert/watcher:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/certwatcher:go_default_library",
         "//pkg/util/tls-crypto-watch:go_default_library",
         "//vendor/github.com/kelseyhightower/envconfig:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
