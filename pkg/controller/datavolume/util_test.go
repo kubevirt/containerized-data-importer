@@ -145,6 +145,74 @@ var _ = Describe("renderPvcSpecVolumeSize", func() {
 	)
 })
 
+var _ = Describe("RenderPvc", func() {
+	var (
+		scName       = "test"
+		originalSize = resource.MustParse("1Gi")
+		sc           = CreateStorageClassWithProvisioner(scName, nil, nil, "csi.example.com")
+		sp           = createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, corev1.PersistentVolumeFilesystem)
+	)
+
+	createTestPvc := func(dataSource *corev1.TypedLocalObjectReference) *corev1.PersistentVolumeClaim {
+		return &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-pvc",
+				Namespace: "default",
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &scName,
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: originalSize,
+					},
+				},
+				DataSource: dataSource,
+			},
+		}
+	}
+
+	assertStorageProfileApplied := func(pvc *corev1.PersistentVolumeClaim) {
+		Expect(pvc.Spec.VolumeMode).To(Equal(ptr.To(corev1.PersistentVolumeFilesystem)))
+		Expect(pvc.Spec.AccessModes).To(Equal([]corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}))
+	}
+
+	It("Should not inflate size for PVC restoring from VolumeSnapshot", func() {
+		pvc := createTestPvc(&corev1.TypedLocalObjectReference{
+			APIGroup: ptr.To(snapshotv1.GroupName),
+			Kind:     "VolumeSnapshot",
+			Name:     "source-snapshot",
+		})
+
+		cl := createClient(sc, sp)
+		Expect(RenderPvc(context.Background(), cl, pvc)).To(Succeed())
+
+		assertStorageProfileApplied(pvc)
+		requestedSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		Expect(requestedSize.Value()).To(Equal(originalSize.Value()))
+	})
+
+	It("Should inflate size for regular filesystem PVC without VolumeSnapshot DataSource", func() {
+		cdiConfig := &cdiv1.CDIConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "config"},
+			Status: cdiv1.CDIConfigStatus{
+				FilesystemOverhead: &cdiv1.FilesystemOverhead{
+					Global: "1.0",
+				},
+			},
+		}
+
+		pvc := createTestPvc(nil)
+
+		cl := createClient(sc, sp, cdiConfig)
+		Expect(RenderPvc(context.Background(), cl, pvc)).To(Succeed())
+
+		assertStorageProfileApplied(pvc)
+		requestedSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		expectedSize := resource.MustParse("2Gi")
+		Expect(requestedSize.Value()).To(Equal(expectedSize.Value()))
+	})
+})
+
 var _ = Describe("renderPvcSpec", func() {
 	block := corev1.PersistentVolumeBlock
 	filesystem := corev1.PersistentVolumeFilesystem
@@ -444,6 +512,61 @@ var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
 		Entry("Snapshot", &dataVolumeWithSourceSnapshot),
 		Entry("Registry", &dataVolumeWithSourceRegistry),
 		Entry("DataSource", &dataVolumeWithSourceDataSource),
+	)
+})
+
+var _ = Describe("hasVolumeSnapshotDataSource", func() {
+	DescribeTable("Should return", func(pvc *corev1.PersistentVolumeClaim, expected bool) {
+		Expect(hasVolumeSnapshotDataSource(pvc)).To(Equal(expected))
+	},
+		Entry("false for PVC without DataSource", &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{},
+		}, false),
+		Entry("false for PVC with PVC DataSource", &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				DataSource: &corev1.TypedLocalObjectReference{
+					Kind: "PersistentVolumeClaim",
+					Name: "source-pvc",
+				},
+			},
+		}, false),
+		Entry("true for PVC with VolumeSnapshot DataSource", &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				DataSource: &corev1.TypedLocalObjectReference{
+					APIGroup: ptr.To(snapshotv1.GroupName),
+					Kind:     "VolumeSnapshot",
+					Name:     "source-snapshot",
+				},
+			},
+		}, true),
+		Entry("true for PVC with VolumeSnapshot DataSourceRef", &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				DataSourceRef: &corev1.TypedObjectReference{
+					APIGroup: ptr.To(snapshotv1.GroupName),
+					Kind:     "VolumeSnapshot",
+					Name:     "source-snapshot",
+				},
+			},
+		}, true),
+		Entry("true for PVC with VolumeSnapshot DataSourceRef in different namespace", &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				DataSourceRef: &corev1.TypedObjectReference{
+					APIGroup:  ptr.To(snapshotv1.GroupName),
+					Kind:      "VolumeSnapshot",
+					Name:      "source-snapshot",
+					Namespace: ptr.To("other-ns"),
+				},
+			},
+		}, true),
+		Entry("false for PVC with wrong APIGroup", &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				DataSource: &corev1.TypedLocalObjectReference{
+					APIGroup: ptr.To("wrong.api.group"),
+					Kind:     "VolumeSnapshot",
+					Name:     "source-snapshot",
+				},
+			},
+		}, false),
 	)
 })
 
