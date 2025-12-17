@@ -168,6 +168,11 @@ pkg_tar(
 
 container_image(
     name = "cdi-func-test-cirros-qcow2",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
     tars = [":cirros-qcow2-tar"],
     visibility = ["//visibility:public"],
 )
