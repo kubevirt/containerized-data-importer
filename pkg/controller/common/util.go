@@ -312,6 +312,8 @@ const (
 	MessageStorageProfileVolumeSnapshotClassSelected = "VolumeSnapshotClass selected according to StorageProfile"
 	// MessageDefaultVolumeSnapshotClassSelected reports that the default VolumeSnapshotClass was selected
 	MessageDefaultVolumeSnapshotClassSelected = "Default VolumeSnapshotClass selected"
+	// MessageSpecificVolumeSnapshotClassSelected reports that a VolumeSnapshotClass was selected according to specific parameters
+	MessageSpecificVolumeSnapshotClassSelected = "VolumeSnapshotClass selected according to specific parameters"
 	// MessageFirstVolumeSnapshotClassSelected reports that the first VolumeSnapshotClass was selected
 	MessageFirstVolumeSnapshotClassSelected = "First VolumeSnapshotClass selected"
 
@@ -1432,6 +1434,7 @@ func CreateClient(objs ...runtime.Object) client.Client {
 	_ = cdiv1.AddToScheme(s)
 	_ = corev1.AddToScheme(s)
 	_ = storagev1.AddToScheme(s)
+	_ = snapshotv1.AddToScheme(s)
 	_ = ocpconfigv1.Install(s)
 
 	return fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(objs...).Build()
@@ -1926,7 +1929,8 @@ func GetSnapshotClassForSmartClone(pvc *corev1.PersistentVolumeClaim, targetPvcS
 
 // GetVolumeSnapshotClass looks up the snapshot class based on the driver and an optional specific name
 // In case of multiple candidates, it returns the default-annotated one, or the sorted list first one if no such default
-func GetVolumeSnapshotClass(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim, driver string, snapshotClassName *string, log logr.Logger, recorder record.EventRecorder) (*string, error) {
+// Optional parameter requirements can be provided as a map[string]string
+func GetVolumeSnapshotClass(ctx context.Context, c client.Client, pvc *corev1.PersistentVolumeClaim, driver string, snapshotClassName *string, log logr.Logger, recorder record.EventRecorder, requiredParams ...map[string]string) (*string, error) {
 	logger := log.WithName("GetVolumeSnapshotClass").V(3)
 
 	logEvent := func(message, vscName string) {
@@ -1937,12 +1941,22 @@ func GetVolumeSnapshotClass(ctx context.Context, c client.Client, pvc *corev1.Pe
 		}
 	}
 
+	// Extract requiredParams if provided (variadic allows backward compatibility)
+	var params map[string]string
+	if len(requiredParams) > 0 && requiredParams[0] != nil {
+		params = requiredParams[0]
+	}
+
 	if snapshotClassName != nil {
 		vsc := &snapshotv1.VolumeSnapshotClass{}
-		if err := c.Get(context.TODO(), types.NamespacedName{Name: *snapshotClassName}, vsc); err != nil {
+		if err := c.Get(ctx, types.NamespacedName{Name: *snapshotClassName}, vsc); err != nil {
 			return nil, err
 		}
-		if vsc.Driver == driver {
+
+		isDriverMatch := vsc.Driver == driver
+		areParamsMatch := len(params) == 0 || matchesParameters(vsc, params)
+
+		if isDriverMatch && areParamsMatch {
 			logEvent(MessageStorageProfileVolumeSnapshotClassSelected, vsc.Name)
 			return snapshotClassName, nil
 		}
@@ -1957,16 +1971,28 @@ func GetVolumeSnapshotClass(ctx context.Context, c client.Client, pvc *corev1.Pe
 		return nil, err
 	}
 
+	var defaultCandidate *string
 	var candidates []string
 	for _, vsc := range vscList.Items {
-		if vsc.Driver == driver {
-			if vsc.Annotations[AnnDefaultSnapshotClass] == "true" {
-				logEvent(MessageDefaultVolumeSnapshotClassSelected, vsc.Name)
-				vscName := vsc.Name
-				return &vscName, nil
-			}
-			candidates = append(candidates, vsc.Name)
+		if vsc.Driver != driver {
+			continue
 		}
+		// prioritize vsc with requiredParams.
+		if len(params) > 0 && matchesParameters(&vsc, params) {
+			logEvent(MessageSpecificVolumeSnapshotClassSelected, vsc.Name)
+			return &vsc.Name, nil
+		}
+		// Check for default annotation
+		if vsc.Annotations[AnnDefaultSnapshotClass] == "true" && defaultCandidate == nil {
+			vscName := vsc.Name
+			defaultCandidate = &vscName
+		}
+		candidates = append(candidates, vsc.Name)
+	}
+
+	if defaultCandidate != nil {
+		logEvent(MessageDefaultVolumeSnapshotClassSelected, *defaultCandidate)
+		return defaultCandidate, nil
 	}
 
 	if len(candidates) > 0 {
@@ -1976,6 +2002,19 @@ func GetVolumeSnapshotClass(ctx context.Context, c client.Client, pvc *corev1.Pe
 	}
 
 	return nil, nil
+}
+
+// matchesParameters checks if a VolumeSnapshotClass has all the required parameters with matching values
+func matchesParameters(vsc *snapshotv1.VolumeSnapshotClass, requiredParams map[string]string) bool {
+	if vsc.Parameters == nil {
+		return false
+	}
+	for key, value := range requiredParams {
+		if vsc.Parameters[key] != value {
+			return false
+		}
+	}
+	return true
 }
 
 // isCsiCrdsDeployed checks whether the CSI snapshotter CRD are deployed

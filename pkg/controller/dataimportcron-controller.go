@@ -65,6 +65,7 @@ import (
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-controller"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
+	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
@@ -491,7 +492,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			}
 		}
 		if importSucceeded || len(imports) == 0 {
-			if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
+			if err := r.createImportDataVolume(ctx, dataImportCron, desiredStorageClass); err != nil {
 				return res, err
 			}
 		}
@@ -866,7 +867,7 @@ func updateLastExecutionTimestamp(cron *cdiv1.DataImportCron) error {
 	return nil
 }
 
-func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, dataImportCron *cdiv1.DataImportCron, desiredStorageClass *storagev1.StorageClass) error {
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
 	digest := dataImportCron.Annotations[AnnSourceDesiredDigest]
 	if digest == "" {
@@ -892,7 +893,8 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 			return nil
 		}
 	}
-	dv := r.newSourceDataVolume(dataImportCron, dvName)
+
+	dv := r.newSourceDataVolume(dataImportCron, dvName, desiredStorageClass)
 	if allowed, err := r.authorizeCloneDataVolume(dataImportCron, dv); err != nil {
 		return err
 	} else if !allowed {
@@ -1022,7 +1024,11 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 	if err := r.client.Get(ctx, types.NamespacedName{Name: desiredStorageClass.Name}, storageProfile); err != nil {
 		return err
 	}
-	className, err := cc.GetSnapshotClassForSmartClone(pvc, &desiredStorageClass.Name, storageProfile.Status.SnapshotClass, r.log, r.client, r.recorder)
+
+	// Use provisioner-aware snapshot class selection for DataImportCron
+	// Some provisioners require specific parameters in the VolumeSnapshotClass (e.g., GKE requires snapshot-type: images)
+	requiredParams := storagecapabilities.GetSnapshotClassParametersForDataImportCron(desiredStorageClass)
+	vscName, err := cc.GetVolumeSnapshotClass(ctx, r.client, pvc, desiredStorageClass.Provisioner, storageProfile.Status.SnapshotClass, r.log, r.recorder, requiredParams)
 	if err != nil {
 		return err
 	}
@@ -1039,8 +1045,10 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 			Source: snapshotv1.VolumeSnapshotSource{
 				PersistentVolumeClaimName: &pvc.Name,
 			},
-			VolumeSnapshotClassName: &className,
 		},
+	}
+	if vscName != nil && *vscName != "" {
+		desiredSnapshot.Spec.VolumeSnapshotClassName = vscName
 	}
 	r.setDataImportCronResourceLabels(dataImportCron, desiredSnapshot)
 	cc.CopyAllowedLabels(pvc.GetLabels(), desiredSnapshot, false)
@@ -1712,7 +1720,7 @@ func (r *DataImportCronReconciler) setJobCommon(cron *cdiv1.DataImportCron, obj 
 	return nil
 }
 
-func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdiv1.DataVolume {
+func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string, desiredStorageClass *storagev1.StorageClass) *cdiv1.DataVolume {
 	dv := cron.Spec.Template.DeepCopy()
 	if isCronRegistrySource(cron) {
 		var digestedURL string
@@ -1738,7 +1746,23 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 
 	passCronLabelToDv(cron, dv, cc.LabelDynamicCredentialSupport)
 
+	// Apply provisioner-specific access mode requirements for DataImportCron
+	if desiredStorageClass != nil {
+		requiredAccessModes := storagecapabilities.GetDataImportCronAccessModes(desiredStorageClass)
+		if len(requiredAccessModes) > 0 {
+			r.applyRequiredAccessModes(dv, requiredAccessModes)
+		}
+	}
+
 	return dv
+}
+
+func (r *DataImportCronReconciler) applyRequiredAccessModes(dv *cdiv1.DataVolume, requiredAccessModes []corev1.PersistentVolumeAccessMode) {
+	if dv.Spec.PVC != nil {
+		dv.Spec.PVC.AccessModes = requiredAccessModes
+	} else if dv.Spec.Storage != nil {
+		dv.Spec.Storage.AccessModes = requiredAccessModes
+	}
 }
 
 func (r *DataImportCronReconciler) setDataImportCronResourceLabels(cron *cdiv1.DataImportCron, obj metav1.Object) {

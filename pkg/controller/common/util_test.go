@@ -4,8 +4,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/client-go/tools/record"
+
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -417,3 +421,192 @@ func createPvcNoSize(name, ns string, annotations, labels map[string]string) *v1
 		},
 	}
 }
+
+func createVolumeSnapshotClass(name, driver string, annotations map[string]string, parameters map[string]string) *snapshotv1.VolumeSnapshotClass {
+	return &snapshotv1.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        name,
+			Annotations: annotations,
+		},
+		Driver:     driver,
+		Parameters: parameters,
+	}
+}
+
+var _ = Describe("GetVolumeSnapshotClass", func() {
+	const (
+		testDriver    = "test.driver.csi.io"
+		vscParamKey   = "key1"
+		vscParamValue = "value1"
+	)
+
+	var (
+		ctx      context.Context
+		log      logr.Logger
+		recorder record.EventRecorder
+		pvc      *v1.PersistentVolumeClaim
+		driver   string
+	)
+
+	// Helper to create common required params for tests
+	testRequiredParams := func() map[string]string {
+		return map[string]string{
+			vscParamKey: vscParamValue,
+		}
+	}
+
+	// Helper to create VSC with matching parameters
+	vscWithMatchingParams := func(name string) *snapshotv1.VolumeSnapshotClass {
+		return createVolumeSnapshotClass(name, driver, nil, testRequiredParams())
+	}
+
+	// Helper to create default-annotated VSC
+	vscDefault := func(name string) *snapshotv1.VolumeSnapshotClass {
+		return createVolumeSnapshotClass(name, driver, map[string]string{
+			AnnDefaultSnapshotClass: "true",
+		}, nil)
+	}
+
+	BeforeEach(func() {
+		ctx = context.Background()
+		log = logr.Discard()
+		recorder = record.NewFakeRecorder(10)
+		pvc = &v1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-pvc",
+				Namespace: "default",
+			},
+		}
+		driver = testDriver
+	})
+
+	It("Should return VSC matching requiredParams when provided, prioritizing over default-annotated one", func() {
+		requiredParams := testRequiredParams()
+		vscWithParams := vscWithMatchingParams("vsc-with-params")
+		vscWithoutParams := createVolumeSnapshotClass("vsc-without-params", driver, nil, nil)
+		vscDefaultAnnotated := vscDefault("vsc-default")
+
+		client := CreateClient(vscWithParams, vscWithoutParams, vscDefaultAnnotated)
+		result, err := GetVolumeSnapshotClass(ctx, client, pvc, driver, nil, log, recorder, requiredParams)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).ToNot(BeNil())
+		Expect(*result).To(Equal("vsc-with-params"))
+	})
+
+	It("Should fall back to default-annotated VSC when no requiredParams match, prioritizing over alphabetical", func() {
+		requiredParams := testRequiredParams()
+		vscWithoutParams := createVolumeSnapshotClass("vsc-without-params", driver, nil, nil)
+		vscDefaultAnnotated := vscDefault("vsc-default")
+		vscA := createVolumeSnapshotClass("vsc-a", driver, nil, nil)
+
+		client := CreateClient(vscWithoutParams, vscA, vscDefaultAnnotated)
+		result, err := GetVolumeSnapshotClass(ctx, client, pvc, driver, nil, log, recorder, requiredParams)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).ToNot(BeNil())
+		Expect(*result).To(Equal("vsc-default"))
+	})
+
+	It("Should fall back to first alphabetically sorted VSC when no default and no requiredParams match", func() {
+		requiredParams := testRequiredParams()
+		vscZ := createVolumeSnapshotClass("vsc-z", driver, nil, nil)
+		vscA := createVolumeSnapshotClass("vsc-a", driver, nil, nil)
+		vscM := createVolumeSnapshotClass("vsc-m", driver, nil, nil)
+
+		client := CreateClient(vscZ, vscA, vscM)
+		result, err := GetVolumeSnapshotClass(ctx, client, pvc, driver, nil, log, recorder, requiredParams)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).ToNot(BeNil())
+		Expect(*result).To(Equal("vsc-a"))
+	})
+
+	It("Should return nil when no VSCs match the driver", func() {
+		requiredParams := testRequiredParams()
+		vscWrongDriver := createVolumeSnapshotClass("vsc-wrong", "other.driver.csi.io", nil, testRequiredParams())
+
+		client := CreateClient(vscWrongDriver)
+		result, err := GetVolumeSnapshotClass(ctx, client, pvc, driver, nil, log, recorder, requiredParams)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).To(BeNil())
+	})
+
+	It("Should return nil when requiredParams is nil and no VSCs exist", func() {
+		client := CreateClient()
+		result, err := GetVolumeSnapshotClass(ctx, client, pvc, driver, nil, log, recorder)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).To(BeNil())
+	})
+
+	It("Should return default VSC when requiredParams is nil, prioritizing over alphabetical", func() {
+		vscDefaultAnnotated := vscDefault("vsc-default")
+		vscA := createVolumeSnapshotClass("vsc-a", driver, nil, nil)
+		vscZ := createVolumeSnapshotClass("vsc-z", driver, nil, nil)
+
+		client := CreateClient(vscA, vscZ, vscDefaultAnnotated)
+		result, err := GetVolumeSnapshotClass(ctx, client, pvc, driver, nil, log, recorder)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).ToNot(BeNil())
+		Expect(*result).To(Equal("vsc-default"))
+	})
+
+	It("Should return first alphabetically sorted VSC when requiredParams is nil and no default", func() {
+		vscZ := createVolumeSnapshotClass("vsc-z", driver, nil, nil)
+		vscA := createVolumeSnapshotClass("vsc-a", driver, nil, nil)
+
+		client := CreateClient(vscZ, vscA)
+		result, err := GetVolumeSnapshotClass(ctx, client, pvc, driver, nil, log, recorder)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).ToNot(BeNil())
+		Expect(*result).To(Equal("vsc-a"))
+	})
+
+	It("Should match VSC with all required parameters", func() {
+		requiredParams := map[string]string{
+			vscParamKey: vscParamValue,
+			"clusterID": "test-cluster",
+		}
+		vscMatching := createVolumeSnapshotClass("vsc-matching", driver, nil, requiredParams)
+		vscPartial := createVolumeSnapshotClass("vsc-partial", driver, nil, testRequiredParams())
+
+		client := CreateClient(vscPartial, vscMatching)
+		result, err := GetVolumeSnapshotClass(ctx, client, pvc, driver, nil, log, recorder, requiredParams)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).ToNot(BeNil())
+		Expect(*result).To(Equal("vsc-matching"))
+	})
+
+	It("Should not match VSC with wrong parameter value or missing parameters, falling back to default", func() {
+		requiredParams := testRequiredParams()
+		vscWrongValue := createVolumeSnapshotClass("vsc-wrong", driver, nil, map[string]string{
+			vscParamKey: "backup",
+		})
+		vscNoParams := createVolumeSnapshotClass("vsc-no-params", driver, nil, nil)
+		vscDefaultAnnotated := vscDefault("vsc-default")
+
+		client := CreateClient(vscWrongValue, vscNoParams, vscDefaultAnnotated)
+		result, err := GetVolumeSnapshotClass(ctx, client, pvc, driver, nil, log, recorder, requiredParams)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).ToNot(BeNil())
+		Expect(*result).To(Equal("vsc-default"))
+	})
+
+	It("Should handle empty requiredParams map", func() {
+		requiredParams := map[string]string{}
+		vscDefaultAnnotated := vscDefault("vsc-default")
+
+		client := CreateClient(vscDefaultAnnotated)
+		result, err := GetVolumeSnapshotClass(ctx, client, pvc, driver, nil, log, recorder, requiredParams)
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).ToNot(BeNil())
+		Expect(*result).To(Equal("vsc-default"))
+	})
+})

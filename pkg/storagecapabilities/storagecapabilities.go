@@ -207,6 +207,25 @@ var MinimumSupportedPVCSizeByProvisionerKey = map[string]string{
 	"csi.trident.netapp.io/gcnv-flex": "1Gi",
 }
 
+// DataImportCronAccessModesByProvisionerKey defines required access modes for DataImportCron PVCs
+// Some provisioners require specific access modes for DataImportCron-created PVCs
+var DataImportCronAccessModesByProvisionerKey = map[string][]v1.PersistentVolumeAccessMode{
+	"pd.csi.storage.gke.io":           {rwo},
+	"pd.csi.storage.gke.io/hyperdisk": {rwo},
+}
+
+// DataImportCronSnapshotClassParametersByProvisionerKey defines required VolumeSnapshotClass parameters for DataImportCron.
+// Some provisioners require specific parameters in the VolumeSnapshotClass for DataImportCron snapshots.
+var DataImportCronSnapshotClassParametersByProvisionerKey = map[string]map[string]string{
+	// https://docs.cloud.google.com/kubernetes-engine/docs/how-to/persistent-volumes/backup-pd-volume-snapshots#restore-snapshot
+	"pd.csi.storage.gke.io": {
+		"snapshot-type": "images",
+	},
+	"pd.csi.storage.gke.io/hyperdisk": {
+		"snapshot-type": "images",
+	},
+}
+
 const (
 	// ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
 	ProvisionerNoobaa = "openshift-storage.noobaa.io/obc"
@@ -257,6 +276,28 @@ func GetMinimumSupportedPVCSize(sc *storagev1.StorageClass) (string, bool) {
 	provisionerKey := storageProvisionerKey(sc)
 	size, found := MinimumSupportedPVCSizeByProvisionerKey[provisionerKey]
 	return size, found
+}
+
+// GetDataImportCronAccessModes finds and returns required access modes for DataImportCron PVCs
+// Returns empty slice if no specific requirements exist
+func GetDataImportCronAccessModes(sc *storagev1.StorageClass) []v1.PersistentVolumeAccessMode {
+	provisionerKey := storageProvisionerKey(sc)
+	accessModes, found := DataImportCronAccessModesByProvisionerKey[provisionerKey]
+	if !found {
+		return nil
+	}
+	return accessModes
+}
+
+// GetSnapshotClassParametersForDataImportCron finds and returns required VolumeSnapshotClass parameters for DataImportCron
+// Returns nil if no specific requirements exist
+func GetSnapshotClassParametersForDataImportCron(sc *storagev1.StorageClass) map[string]string {
+	provisionerKey := storageProvisionerKey(sc)
+	parameters, found := DataImportCronSnapshotClassParametersByProvisionerKey[provisionerKey]
+	if !found {
+		return nil
+	}
+	return parameters
 }
 
 func capabilitiesForNoProvisioner(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
