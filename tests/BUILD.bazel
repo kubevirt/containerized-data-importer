@@ -1,6 +1,6 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
-load("@io_bazel_rules_docker//container:container.bzl", "container_image")
-load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 go_library(
     name = "go_default_library",
@@ -139,7 +139,15 @@ pkg_tar(
     strip_prefix = "/tests/images",
 )
 
-container_image(
+pkg_tar(
+    name = "cirros-qcow2-tar",
+    srcs = [":images/cirros-qcow2.img"],
+    owner = "107.107",
+    package_dir = "/disk",
+    strip_prefix = "/tests/images",
+)
+
+oci_image(
     name = "cdi-func-test-tinycore",
     architecture = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
@@ -154,20 +162,19 @@ container_image(
         "INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE": "test-preference",
         "INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE_KIND": "VirtualMachineClusterPreference",
     },
+    os = "linux",
     tars = [":tinycore-tar"],
     visibility = ["//visibility:public"],
 )
 
-pkg_tar(
-    name = "cirros-qcow2-tar",
-    srcs = [":images/cirros-qcow2.img"],
-    owner = "107.107",
-    package_dir = "/disk",
-    strip_prefix = "/tests/images",
-)
-
-container_image(
+oci_image(
     name = "cdi-func-test-cirros-qcow2",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
+    os = "linux",
     tars = [":cirros-qcow2-tar"],
     visibility = ["//visibility:public"],
 )

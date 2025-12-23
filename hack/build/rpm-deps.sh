@@ -59,11 +59,13 @@ cdi_importer_extra_x86_64="
 nbdkit-vddk-plugin
 sqlite-libs
 ovirt-imageio-client
+ovirt-imageio-daemon
 python3-ovirt-engine-sdk4
 "
 
 cdi_importer_extra_aarch64="
 ovirt-imageio-client
+ovirt-imageio-daemon
 python3-ovirt-engine-sdk4
 "
 

@@ -1,6 +1,6 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
-load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
-load("@io_bazel_rules_docker//container:container.bzl", "container_image")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 go_library(
     name = "go_default_library",
@@ -18,92 +18,14 @@ go_library(
 go_binary(
     name = "cdi-func-test-file-host-init",
     embed = [":go_default_library"],
-    visibility = ["//visibility:public"],
+    visibility = ["//visibility:private"],
 )
 
-container_image(
-    name = "cdi-func-test-file-host-init-file-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    directory = "/",
-    tars = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": [
-            ":test-img-tar",
-            ":test-invalid-img-tar",
-            "//rpm:testimage_s390x",
-        ],
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            ":test-img-tar",
-            ":test-invalid-img-tar",
-            "//rpm:testimage_aarch64",
-        ],
-        "//conditions:default": [
-            ":test-img-tar",
-            ":test-invalid-img-tar",
-            "//rpm:testimage_x86_64",
-        ],
-    }),
-    visibility = ["//visibility:public"],
-)
-
-container_image(
-    name = "cdi-func-test-file-host-init-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    base = ":cdi-func-test-file-host-init-file-image",
-    directory = "/usr/bin",
-    entrypoint = [
-        "cdi-func-test-file-host-init",
-        "-alsologtostderr",
-    ],
-    files = [":cdi-func-test-file-host-init"],
-    visibility = ["//visibility:public"],
-)
-
-container_image(
-    name = "cdi-func-test-file-host-http-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    cmd = "mkdir -p /usr/share/nginx/html/images/priv && update-ca-trust && update-crypto-policies",
-    directory = "/",
-    entrypoint = [
-        "nginx",
-    ],
-    env = {
-        "container": "",
-        "docker": "",
-    },
-    ports = [
-        "80",
-        "81",
-        "82",
-        "83",
-        "444",
-    ],
-    tars = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": [
-            ":nginx-conf-tar",
-            "//rpm:testimage_s390x",
-        ],
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            ":nginx-conf-tar",
-            "//rpm:testimage_aarch64",
-        ],
-        "//conditions:default": [
-            ":nginx-conf-tar",
-            "//rpm:testimage_x86_64",
-        ],
-    }),
-    visibility = ["//visibility:public"],
+pkg_tar(
+    name = "cdi-func-test-file-host-init-bin",
+    srcs = [":cdi-func-test-file-host-init"],
+    package_dir = "/usr/bin/",
+    visibility = ["//visibility:private"],
 )
 
 pkg_tar(
@@ -133,4 +55,45 @@ pkg_tar(
     srcs = [":nginx-conf"],
     mode = "644",
     package_dir = "/etc/nginx/",
+)
+
+oci_image(
+    name = "cdi-func-test-file-host-init-base-image",
+    base = "//:testimage_base",
+    tars = [
+        ":test-img-tar",
+        ":test-invalid-img-tar",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+oci_image(
+    name = "cdi-func-test-file-host-init-image",
+    base = ":cdi-func-test-file-host-init-base-image",
+    entrypoint = [
+        "cdi-func-test-file-host-init",
+        "-alsologtostderr",
+    ],
+    tars = [":cdi-func-test-file-host-init-bin"],
+    visibility = ["//visibility:public"],
+)
+
+oci_image(
+    name = "cdi-func-test-file-host-http-image",
+    base = "//:testimage_base",
+    cmd = ["mkdir -p /usr/share/nginx/html/images/priv && update-ca-trust && update-crypto-policies"],
+    entrypoint = ["nginx"],
+    env = {
+        "container": "",
+        "docker": "",
+    },
+    exposed_ports = [
+        "80",
+        "81",
+        "82",
+        "83",
+        "444",
+    ],
+    tars = [":nginx-conf-tar"],
+    visibility = ["//visibility:public"],
 )
