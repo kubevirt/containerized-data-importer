@@ -37,7 +37,7 @@ ADD https://storage.googleapis.com/builddeps/swagger2markup-cli-1.3.3.jar /opt/s
 
 ENV JAVA_HOME=/usr/lib/jvm/java-11
 
-ENV GIMME_GO_VERSION=1.23.6 GOPATH="/go" GO111MODULE="on"
+ENV GIMME_GO_VERSION=1.24.9 GOPATH="/go" GO111MODULE="on"
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
 
@@ -50,7 +50,7 @@ RUN \
 	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0 && \
 	rm -rf "${GOPATH}/pkg"
 
-ENV BAZEL_VERSION=5.4.1
+ENV BAZEL_VERSION=6.5.0
 
 COPY output-bazel-arch.sh /output-bazel-arch.sh
 
