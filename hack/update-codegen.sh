@@ -47,40 +47,40 @@ mkdir "${SCRIPT_ROOT}/pkg/client/listers"
 ${SCRIPT_ROOT}/hack/build/build-go.sh generate
 
 deepcopy-gen \
-	--output-file zz_generated.deepcopy.go \
-	--go-header-file "${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt" \
+    --output-file zz_generated.deepcopy.go \
+    --go-header-file "${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt" \
     kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1 \
     kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1 \
     kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1 \
     kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1
 
 client-gen \
-	--clientset-name versioned \
-	--input-base kubevirt.io/containerized-data-importer-api/pkg/apis \
+    --clientset-name versioned \
+    --input-base kubevirt.io/containerized-data-importer-api/pkg/apis \
     --output-dir "${SCRIPT_ROOT}/pkg/client/clientset" \
-	--output-pkg kubevirt.io/containerized-data-importer/pkg/client/clientset \
-	--apply-configuration-package '' \
-	--go-header-file "${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt" \
+    --output-pkg kubevirt.io/containerized-data-importer/pkg/client/clientset \
+    --apply-configuration-package '' \
+    --go-header-file "${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt" \
     --input core/v1alpha1 \
     --input core/v1beta1 \
     --input upload/v1beta1 \
     --input forklift/v1beta1
 
 lister-gen \
-	--output-dir "${SCRIPT_ROOT}/pkg/client/listers" \
+    --output-dir "${SCRIPT_ROOT}/pkg/client/listers" \
     --output-pkg kubevirt.io/containerized-data-importer/pkg/client/listers \
-	--go-header-file "${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt" \
+    --go-header-file "${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt" \
     kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1 \
     kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1 \
     kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1 \
     kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1
 
 informer-gen \
-	--versioned-clientset-package kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned \
-	--listers-package kubevirt.io/containerized-data-importer/pkg/client/listers \
-	--output-dir "${SCRIPT_ROOT}/pkg/client/informers" \
+    --versioned-clientset-package kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned \
+    --listers-package kubevirt.io/containerized-data-importer/pkg/client/listers \
+    --output-dir "${SCRIPT_ROOT}/pkg/client/informers" \
     --output-pkg kubevirt.io/containerized-data-importer/pkg/client/informers \
-	--go-header-file "${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt" \
+    --go-header-file "${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt" \
     kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1 \
     kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1 \
     kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1 \

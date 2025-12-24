@@ -85,7 +85,7 @@ var _ = Describe("PVC adoption tests", func() {
 					}
 				}
 				return nil
-			}, timeout, pollingInterval).Should(BeNil())
+			}, timeout, pollingInterval).Should(Succeed())
 
 			By("Deleting source DV")
 			err = utils.DeleteDataVolume(f.CdiClient, dv.Namespace, dv.Name)

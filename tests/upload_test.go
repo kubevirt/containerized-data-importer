@@ -229,7 +229,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			By("Do upload")
 			Eventually(func() error {
 				return uploadImage(uploadProxyURL, token, http.StatusOK)
-			}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+			}, timeout, pollingInterval).Should(Succeed(), "Upload should eventually succeed, even if initially pod is not ready")
 
 			By("Verify PVC status annotation says succeeded")
 			found, err = utils.WaitPVCPodStatusSucceeded(f.K8sClient, pvc)
@@ -292,7 +292,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			tokenExpiration := 5 * time.Minute
 			Eventually(func() error {
 				return uploadFileNameToPath(binaryRequestFunc, filename, uploadProxyURL, uploadPath, token, http.StatusBadRequest)
-			}, tokenExpiration, pollingInterval).Should(BeNil(), "Upload should fail with HTTP 400")
+			}, tokenExpiration, pollingInterval).Should(Succeed(), "Upload should fail with HTTP 400")
 
 			uploadPod, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, utils.UploadPodName(pvc), common.CDILabelSelector)
 			Expect(err).NotTo(HaveOccurred(), fmt.Sprintf("Unable to get uploader pod %q", f.Namespace.Name+"/"+utils.UploadPodName(pvc)))
@@ -364,7 +364,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			By("Do upload")
 			Eventually(func() error {
 				return uploader(archiveFilePath, uploadProxyURL, token, expectedStatus)
-			}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+			}, timeout, pollingInterval).Should(Succeed(), "Upload should eventually succeed, even if initially pod is not ready")
 
 			if validToken {
 				By("Verify PVC status annotation says succeeded")
@@ -683,7 +683,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				By("Do upload")
 				Eventually(func() error {
 					return uploader(archiveFilePath, uploadProxyURL, token, expectedStatus)
-				}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+				}, timeout, pollingInterval).Should(Succeed(), "Upload should eventually succeed, even if initially pod is not ready")
 
 				if validToken {
 					By("Verify target PVC is bound")
@@ -1057,7 +1057,7 @@ var _ = Describe("Block PV upload Test", Serial, func() {
 		By("Do upload")
 		Eventually(func() error {
 			return uploadImage(uploadProxyURL, token, expectedStatus)
-		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+		}, timeout, pollingInterval).Should(Succeed(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		if validToken {
 			By("Verify PVC status annotation says succeeded")
@@ -1396,7 +1396,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By("Do upload")
 		Eventually(func() error {
 			return uploadFileNameToPath(binaryRequestFunc, utils.UploadFileLargeVirtualDiskQcow, uploadProxyURL, syncUploadPath, token, http.StatusOK)
-		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+		}, timeout, pollingInterval).Should(Succeed(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		phase = cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -1441,7 +1441,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By("Do upload")
 		Eventually(func() error {
 			return uploadImage(uploadProxyURL, token, http.StatusOK)
-		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+		}, timeout, pollingInterval).Should(Succeed(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		phase = cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -1556,7 +1556,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By("Do upload")
 		Eventually(func() error {
 			return uploadImage(uploadProxyURL, token, http.StatusOK)
-		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+		}, timeout, pollingInterval).Should(Succeed(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		phase = cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -1624,7 +1624,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		By("Retry Upload")
 		Eventually(func() error {
 			return uploadFileNameToPath(binaryRequestFunc, utils.UploadFile, uploadProxyURL, syncUploadPath, token, http.StatusOK)
-		}, timeout, pollingInterval).Should(BeNil(), "uploadFileNameToPath should return nil, even if not ready")
+		}, timeout, pollingInterval).Should(Succeed(), "uploadFileNameToPath should return nil, even if not ready")
 
 		phase = cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -1718,7 +1718,7 @@ var _ = Describe("Preallocation", Serial, func() {
 		By("Do upload")
 		Eventually(func() error {
 			return uploadImage(uploadProxyURL, token, http.StatusOK)
-		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+		}, timeout, pollingInterval).Should(Succeed(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		phase = cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
@@ -1771,7 +1771,7 @@ var _ = Describe("Preallocation", Serial, func() {
 		By("Do upload")
 		Eventually(func() error {
 			return uploadImage(uploadProxyURL, token, http.StatusOK)
-		}, timeout, pollingInterval).Should(BeNil(), "Upload should eventually succeed, even if initially pod is not ready")
+		}, timeout, pollingInterval).Should(Succeed(), "Upload should eventually succeed, even if initially pod is not ready")
 
 		phase = cdiv1.Succeeded
 		By(fmt.Sprintf("Waiting for datavolume to match phase %s", string(phase)))
