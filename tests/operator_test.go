@@ -159,7 +159,7 @@ var _ = Describe("ALL Operator tests", func() {
 						nn := crclient.ObjectKey{Namespace: dv.Namespace, Name: dv.Name}
 						err = f.CrClient.Get(context.TODO(), nn, u)
 						return err
-					}, 1*time.Minute, 2*time.Second).Should(BeNil())
+					}, 1*time.Minute, 2*time.Second).Should(Succeed())
 
 					By("Scaling up CDI operator")
 					scaleDeployment(f, deploymentName, originalReplicaVal)
@@ -1126,7 +1126,7 @@ var _ = Describe("ALL Operator tests", func() {
 				Eventually(func() error {
 					_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
 					return err
-				}, 2*time.Minute, 1*time.Second).Should(BeNil())
+				}, 2*time.Minute, 1*time.Second).Should(Succeed())
 
 				pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
 				Expect(err).ToNot(HaveOccurred())

@@ -55,7 +55,15 @@ go_library(
             "//vendor/github.com/containers/storage/pkg/unshare:go_default_library",
             "//vendor/github.com/sirupsen/logrus:go_default_library",
         ],
+        "@io_bazel_rules_go//go/platform:osx": [
+            "//vendor/github.com/containers/storage/pkg/unshare:go_default_library",
+            "//vendor/github.com/sirupsen/logrus:go_default_library",
+        ],
         "@io_bazel_rules_go//go/platform:plan9": [
+            "//vendor/github.com/containers/storage/pkg/unshare:go_default_library",
+            "//vendor/github.com/sirupsen/logrus:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:qnx": [
             "//vendor/github.com/containers/storage/pkg/unshare:go_default_library",
             "//vendor/github.com/sirupsen/logrus:go_default_library",
         ],

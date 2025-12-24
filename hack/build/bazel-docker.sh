@@ -48,7 +48,7 @@ fi
 pullcount=0
 until ${CDI_CRI} pull ${BUILDER_IMAGE}; do
     ((pullcount++)) && ((pullcount == 5)) && echo "Couldn't pull builder image" && exit 1
-    sleep $((2**pullcount))
+    sleep $((2 ** pullcount))
 done
 
 # Make sure that the output directory exists

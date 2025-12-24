@@ -446,11 +446,12 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 					if cron.Annotations == nil {
 						cron.Annotations = make(map[string]string)
 					}
-					// notarealsha
+					// not a real hash
+
 					cron.Annotations[controller.AnnSourceDesiredDigest] = "sha256:c616e1c85568b1f1d528da2b3dbc257fd2035ada441e286a8c42606491442a5d"
 					cron, err = f.CdiClient.CdiV1beta1().DataImportCrons(f.Namespace.Name).Update(context.TODO(), cron, metav1.UpdateOptions{})
 					return err
-				}, dataImportCronTimeout, pollingInterval).Should(BeNil())
+				}, dataImportCronTimeout, pollingInterval).Should(Succeed())
 				By(fmt.Sprintf("Ensuring metric value incremented to %d", i))
 				Eventually(func() int {
 					return getMetricValue(f, "kubevirt_cdi_dataimportcron_outdated")
@@ -689,7 +690,7 @@ func getPrometheusRule(f *framework.Framework) *promv1.PrometheusRule {
 	}
 	Eventually(func() error {
 		return f.CrClient.Get(context.TODO(), crclient.ObjectKeyFromObject(promRule), promRule)
-	}, 5*time.Minute, 1*time.Second).Should(BeNil())
+	}, 5*time.Minute, 1*time.Second).Should(Succeed())
 	return promRule
 }
 

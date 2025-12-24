@@ -21,18 +21,17 @@ source "${script_dir}"/config.sh
 
 if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
     BUILDAH_PLATFORM_FLAG="--platform linux/amd64"
-    
+
     if rpm -qa | grep -q qemu-user-static-aarch64; then
         BUILDAH_PLATFORM_FLAG="${BUILDAH_PLATFORM_FLAG},linux/arm64"
     fi
-    
+
     if rpm -qa | grep -q qemu-user-static-s390x; then
         BUILDAH_PLATFORM_FLAG="${BUILDAH_PLATFORM_FLAG},linux/s390x"
     fi
-    
+
     echo "Building with $BUILDAH_PLATFORM_FLAG"
 fi
-
 
 # Instead of hard-coding the UNTAGGED_BUILDER_IMAGE, we're going
 # to use DOCKER_PREFIX as it is set in config.sh and used elsewhere in

@@ -143,7 +143,7 @@ var _ = Describe("Import Proxy tests", func() {
 		Eventually(func() error {
 			_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Get(context.TODO(), trustedCAProxy, metav1.GetOptions{})
 			return err
-		}, time.Second*60, time.Second).Should(BeNil())
+		}, time.Second*60, time.Second).Should(Succeed())
 	}
 
 	verifyImportProxyConfigMapIsDeletedOnPodDeletion := func(pvc *corev1.PersistentVolumeClaim) {

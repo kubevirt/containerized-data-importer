@@ -34,6 +34,11 @@ gazelle(name = "gazelle")
 
 bazeldnf(name = "bazeldnf")
 
+alias(
+    name = "buildozer",
+    actual = "@buildifier_prebuilt//:buildozer",
+)
+
 go_library(
     name = "go_default_library",
     srcs = ["doc.go"],

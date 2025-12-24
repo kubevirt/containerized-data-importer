@@ -27,15 +27,15 @@ if [ -n "$DOCKER_CA_CERT_FILE" ]; then
 fi
 
 BASE_TEST_IMAGES=(
-        "cdi-func-test-bad-webserver"
-        "cdi-func-test-proxy"
-        "cdi-func-test-sample-populator"
-        "cdi-func-test-file-host-init"
-        "cdi-func-test-file-host-http"
-        "cdi-func-test-registry-init"
-        "cdi-func-test-tinycore"
-        "cdi-func-test-registry-populate"
-        "cdi-func-test-registry"
+    "cdi-func-test-bad-webserver"
+    "cdi-func-test-proxy"
+    "cdi-func-test-sample-populator"
+    "cdi-func-test-file-host-init"
+    "cdi-func-test-file-host-http"
+    "cdi-func-test-registry-init"
+    "cdi-func-test-tinycore"
+    "cdi-func-test-registry-populate"
+    "cdi-func-test-registry"
 )
 
 declare -A ARCH_ADDITIONAL_IMAGES
@@ -46,7 +46,7 @@ ARCH_ADDITIONAL_IMAGES[s390x]="vcenter-simulator"
 TEST_IMAGES=("${BASE_TEST_IMAGES[@]}")
 
 for img in ${ARCH_ADDITIONAL_IMAGES[$ARCHITECTURE]}; do
-        TEST_IMAGES+=("$img")
+    TEST_IMAGES+=("$img")
 done
 
 PUSH_TARGETS=(${PUSH_TARGETS:-$CONTROLLER_IMAGE_NAME $IMPORTER_IMAGE_NAME $CLONER_IMAGE_NAME $APISERVER_IMAGE_NAME $UPLOADPROXY_IMAGE_NAME $UPLOADSERVER_IMAGE_NAME $OPERATOR_IMAGE_NAME})

@@ -1760,7 +1760,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Expect(err).ToNot(HaveOccurred())
 				storageProfile.Spec = spec
 				return client.Update(context.TODO(), storageProfile)
-			}, 15*time.Second, time.Second).Should(BeNil())
+			}, 15*time.Second, time.Second).Should(Succeed())
 		}
 
 		configureStorageProfile := func(client client.Client,
