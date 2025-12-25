@@ -27,6 +27,7 @@ RUN 	dnf -y install dnf-plugins-core && \
 	unzip \
 	java-11-openjdk-devel \
 	rubygems \
+    skopeo \
 	&& dnf clean all
 
 # Necessary for generation of HTML-formatted API docs (.adoc)
