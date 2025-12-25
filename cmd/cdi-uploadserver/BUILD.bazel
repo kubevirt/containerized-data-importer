@@ -27,6 +27,7 @@ go_binary(
 pkg_tar(
     name = "cdi-uploadserver-bin",
     srcs = [":cdi-uploadserver"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )
@@ -43,6 +44,17 @@ oci_image(
     visibility = ["//visibility:public"],
 )
 
+pkg_tar(
+    name = "uploadserver_base_rpm_compressed",
+    extension = "tar.gz",
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": ["//rpm:cdi_uploadserver_base_s390x"],
+        "@io_bazel_rules_go//go/platform:linux_arm64": ["//rpm:cdi_uploadserver_base_aarch64"],
+        "//conditions:default": ["//rpm:cdi_uploadserver_base_x86_64"],
+    }),
+)
+
 oci_image(
     name = "uploadserver-base",
     architecture = select({
@@ -51,16 +63,6 @@ oci_image(
         "//conditions:default": "amd64",
     }),
     os = "linux",
-    tars = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": [
-            "//rpm:cdi_uploadserver_base_s390x",
-        ],
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "//rpm:cdi_uploadserver_base_aarch64",
-        ],
-        "//conditions:default": [
-            "//rpm:cdi_uploadserver_base_x86_64",
-        ],
-    }),
+    tars = [":uploadserver_base_rpm_compressed"],
     visibility = ["//visibility:private"],
 )

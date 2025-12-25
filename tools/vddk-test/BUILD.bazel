@@ -4,18 +4,21 @@ load("@rules_pkg//:pkg.bzl", "pkg_tar")
 pkg_tar(
     name = "vcenter-govc-tar",
     srcs = ["@vcenter-govc-tar//file"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
 )
 
 pkg_tar(
     name = "vcenter-vcsim-tar",
     srcs = ["@vcenter-vcsim-tar//file"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
 )
 
 pkg_tar(
     name = "entrypoint",
     srcs = [":entrypoint.sh"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
 )
 
@@ -40,12 +43,14 @@ cc_library(
 pkg_tar(
     name = "vddk-test-plugin-tar",
     srcs = [":vddk-test-plugin"],
+    extension = "tar.gz",
     package_dir = "/",
 )
 
 pkg_tar(
     name = "cirros-tar",
     srcs = ["//tests:images/cirros.raw"],
+    extension = "tar.gz",
     package_dir = "/",
 )
 

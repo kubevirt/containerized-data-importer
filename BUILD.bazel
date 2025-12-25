@@ -244,6 +244,28 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
+pkg_tar(
+    name = "testimage_base_rpm_compressed",
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": ["//rpm:testimage_s390x"],
+        "@io_bazel_rules_go//go/platform:linux_arm64": ["//rpm:testimage_aarch64"],
+        "//conditions:default": ["//rpm:testimage_x86_64"],
+    }),
+    extension = "tar.gz",
+)
+
+pkg_tar(
+    name = "centos_base_rpm_compressed",
+    extension = "tar.gz",
+    deps = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": ["//rpm:centos_base_s390x"],
+        "@io_bazel_rules_go//go/platform:linux_arm64": ["//rpm:centos_base_aarch64"],
+        "//conditions:default": ["//rpm:centos_base_x86_64"],
+    }),
+    visibility = ["//visibility:private"],
+)
+
 oci_image(
     name = "testimage_base",
     architecture = select({
@@ -252,17 +274,7 @@ oci_image(
         "//conditions:default": "amd64",
     }),
     os = "linux",
-    tars = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": [
-            "//rpm:testimage_s390x",
-        ],
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "//rpm:testimage_aarch64",
-        ],
-        "//conditions:default": [
-            "//rpm:testimage_x86_64",
-        ],
-    }),
+    tars = [":testimage_base_rpm_compressed"],
     visibility = ["//visibility:public"],
 )
 
@@ -274,24 +286,8 @@ oci_image(
         "//conditions:default": "amd64",
     }),
     os = "linux",
-    tars = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": [
-            "//rpm:centos_base_s390x",
-        ],
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "//rpm:centos_base_aarch64",
-        ],
-        "//conditions:default": [
-            "//rpm:centos_base_x86_64",
-        ],
-    }),
+    tars = [":centos_base_rpm_compressed"],
     visibility = ["//visibility:public"],
-)
-
-genrule(
-    name = "ca_anchors",
-    outs = ["tls-ca-bundle.pem"],
-    cmd = "/usr/bin/p11-kit extract --format=pem-bundle --filter=ca-anchors --overwrite --comment --purpose server-auth $@",
 )
 
 genrule(
@@ -302,11 +298,4 @@ genrule(
     outs = ["ginkgo-copier"],
     cmd = "echo '#!/bin/sh\n\ncp -f $(SRCS) $$1' > \"$@\"",
     executable = 1,
-)
-
-pkg_tar(
-    name = "ca_anchors_tar",
-    srcs = [":ca_anchors"],
-    package_dir = "/etc/pki/ca-trust/extracted/pem",
-    visibility = ["//visibility:public"],
 )

@@ -22,6 +22,7 @@ go_binary(
 pkg_tar(
     name = "ovirt-populator-bin",
     srcs = [":ovirt-populator"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:public"],
 )
