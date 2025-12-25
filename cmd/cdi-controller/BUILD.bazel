@@ -59,6 +59,7 @@ go_binary(
 pkg_tar(
     name = "cdi-controller-bin",
     srcs = [":cdi-controller"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )

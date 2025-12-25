@@ -27,6 +27,7 @@ go_binary(
 pkg_tar(
     name = "cdi-source-update-poller-bin",
     srcs = [":cdi-source-update-poller"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:public"],
 )

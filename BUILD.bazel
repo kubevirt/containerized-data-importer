@@ -251,7 +251,6 @@ oci_image(
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
-    os = "linux",
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": [
             "//rpm:testimage_s390x",
@@ -263,6 +262,7 @@ oci_image(
             "//rpm:testimage_x86_64",
         ],
     }),
+    os = "linux",
     visibility = ["//visibility:public"],
 )
 
@@ -273,7 +273,6 @@ oci_image(
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
         "//conditions:default": "amd64",
     }),
-    os = "linux",
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": [
             "//rpm:centos_base_s390x",
@@ -285,13 +284,8 @@ oci_image(
             "//rpm:centos_base_x86_64",
         ],
     }),
+    os = "linux",
     visibility = ["//visibility:public"],
-)
-
-genrule(
-    name = "ca_anchors",
-    outs = ["tls-ca-bundle.pem"],
-    cmd = "/usr/bin/p11-kit extract --format=pem-bundle --filter=ca-anchors --overwrite --comment --purpose server-auth $@",
 )
 
 genrule(
@@ -302,11 +296,4 @@ genrule(
     outs = ["ginkgo-copier"],
     cmd = "echo '#!/bin/sh\n\ncp -f $(SRCS) $$1' > \"$@\"",
     executable = 1,
-)
-
-pkg_tar(
-    name = "ca_anchors_tar",
-    srcs = [":ca_anchors"],
-    package_dir = "/etc/pki/ca-trust/extracted/pem",
-    visibility = ["//visibility:public"],
 )

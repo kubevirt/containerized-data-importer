@@ -26,6 +26,7 @@ go_binary(
 pkg_tar(
     name = "cdi-func-test-sample-populator-bin",
     srcs = [":cdi-func-test-sample-populator"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )

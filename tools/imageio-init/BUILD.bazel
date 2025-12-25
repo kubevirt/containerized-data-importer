@@ -24,6 +24,7 @@ go_binary(
 pkg_tar(
     name = "imageio-init-bin",
     srcs = [":imageio-init"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )

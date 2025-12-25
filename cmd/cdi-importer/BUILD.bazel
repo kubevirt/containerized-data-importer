@@ -31,6 +31,7 @@ go_binary(
 pkg_tar(
     name = "cdi-importer-bin",
     srcs = [":cdi-importer"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )
@@ -65,16 +66,30 @@ oci_image(
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": [
             "//rpm:cdi_importer_base_s390x",
-            "//:ca_anchors_tar",
+            ":ca_anchors_tar",
         ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             "//rpm:cdi_importer_base_aarch64",
-            "//:ca_anchors_tar",
+            ":ca_anchors_tar",
         ],
         "//conditions:default": [
             "//rpm:cdi_importer_base_x86_64",
-            "//:ca_anchors_tar",
+            ":ca_anchors_tar",
         ],
     }),
     visibility = ["//visibility:private"],
+)
+
+genrule(
+    name = "ca_anchors",
+    outs = ["tls-ca-bundle.pem"],
+    cmd = "/usr/bin/p11-kit extract --format=pem-bundle --filter=ca-anchors --overwrite --comment --purpose server-auth $@",
+)
+
+pkg_tar(
+    name = "ca_anchors_tar",
+    srcs = [":ca_anchors"],
+    extension = "tar.gz",
+    package_dir = "/etc/pki/ca-trust/extracted/pem",
+    visibility = ["//visibility:public"],
 )
