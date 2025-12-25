@@ -68,8 +68,8 @@ done
 rm -rf ${DIGESTS_DIR}/${ARCHITECTURE}
 mkdir -p ${DIGESTS_DIR}/${ARCHITECTURE}
 
-for f in $(find bazel-bin/ -name '*.digest'); do
-    dir=${DIGESTS_DIR}/${ARCHITECTURE}/$(dirname $f)
+for target in ${PUSH_TARGETS[@]}; do
+    dir=${DIGESTS_DIR}/${ARCHITECTURE}/${target}
     mkdir -p ${dir}
-    cp -f ${f} ${dir}/$(basename ${f})
+    touch ${dir}/${target}.image
 done
