@@ -18,6 +18,7 @@ filegroup(
 pkg_tar(
     name = "ovirt-imageio-conf-tar",
     srcs = [":ovirt-imageio-conf"],
+    extension = "tar.gz",
     mode = "644",
     package_dir = "/etc/ovirt-imageio/conf.d",
 )
@@ -25,6 +26,7 @@ pkg_tar(
 pkg_tar(
     name = "test-img-tar",
     srcs = ["//:test-images"],
+    extension = "tar.gz",
     mode = "644",
     package_dir = "/images",
 )
@@ -32,6 +34,7 @@ pkg_tar(
 pkg_tar(
     name = "test-ticket-tar",
     srcs = [":test-ticket"],
+    extension = "tar.gz",
     mode = "644",
     package_dir = "/",
 )

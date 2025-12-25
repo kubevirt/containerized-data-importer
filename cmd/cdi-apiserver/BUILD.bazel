@@ -43,6 +43,7 @@ go_binary(
 pkg_tar(
     name = "cdi-apiserver-bin",
     srcs = [":cdi-apiserver"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )

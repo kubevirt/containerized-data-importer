@@ -26,6 +26,7 @@ go_binary(
 pkg_tar(
     name = "cdi-cloner-bin",
     srcs = [":cdi-cloner"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )
@@ -33,6 +34,7 @@ pkg_tar(
 pkg_tar(
     name = "cloner-startup",
     srcs = [":cloner_startup.sh"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )
