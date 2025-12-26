@@ -13,12 +13,12 @@ import (
 	"k8s.io/klog/v2"
 
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
 
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/uploadproxy"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	certfetcher "kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
-	certwatcher "kubevirt.io/containerized-data-importer/pkg/util/cert/watcher"
 	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 )
 
@@ -123,7 +123,7 @@ func main() {
 	}
 
 	go func() {
-		if err := certWatcher.Start(ctx.Done()); err != nil {
+		if err := certWatcher.Start(ctx); err != nil {
 			klog.Errorf("failed to close certWatcher, %v", err)
 		}
 		if err := ctx.Err(); err != nil {

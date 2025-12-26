@@ -39,13 +39,13 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/apiserver"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
-	certwatcher "kubevirt.io/containerized-data-importer/pkg/util/cert/watcher"
 	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 	"kubevirt.io/containerized-data-importer/pkg/version/verflag"
 )
@@ -189,7 +189,7 @@ func main() {
 	}()
 
 	go func() {
-		if err := certWatcher.Start(ctx.Done()); err != nil {
+		if err := certWatcher.Start(ctx); err != nil {
 			klog.Errorf("cert watcher failed: %v\n", errors.WithStack(err))
 		}
 	}()
