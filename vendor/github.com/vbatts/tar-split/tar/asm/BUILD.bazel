@@ -6,6 +6,7 @@ go_library(
         "assemble.go",
         "disassemble.go",
         "doc.go",
+        "iterate.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/vbatts/tar-split/tar/asm",
     importpath = "github.com/vbatts/tar-split/tar/asm",
