@@ -35,6 +35,7 @@ import (
 	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -400,6 +401,35 @@ var _ = Describe("Controller", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(populator.SourceKind).To(Equal(metav1.GroupKind(gvk.GroupKind())))
 				validateEvents(args.reconciler, createReadyEventValidationMap())
+			})
+
+			It("should allow any namespace selector for webhooks", func() {
+				webhook := &admissionregistrationv1.ValidatingWebhookConfiguration{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "cdi-api-datavolume-validate",
+					},
+				}
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				obj, err := getObject(args.client, webhook)
+				Expect(err).ToNot(HaveOccurred())
+				webhook = obj.(*admissionregistrationv1.ValidatingWebhookConfiguration)
+				webhook.Webhooks[0].NamespaceSelector = &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"userspecified": "selector",
+					},
+				}
+				err = args.client.Update(context.TODO(), webhook)
+				Expect(err).ToNot(HaveOccurred())
+
+				doReconcile(args)
+
+				obj, err = getObject(args.client, webhook)
+				Expect(err).ToNot(HaveOccurred())
+				webhook = obj.(*admissionregistrationv1.ValidatingWebhookConfiguration)
+				Expect(webhook.Webhooks[0].NamespaceSelector.MatchLabels).To(Equal(map[string]string{"userspecified": "selector"}))
 			})
 
 			It("should have CDIOperatorDown", func() {
