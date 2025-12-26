@@ -1251,6 +1251,76 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				}}),
 		)
 
+		// Certificate validation tests for VDDK
+		DescribeTable("VDDK certificate validation", Label("VDDK"), func(certConfigMap string, shouldSucceed bool) {
+			createVddkDataVolumeWithCert := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+				// Find vcenter-simulator pod
+				pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "vcenter-deployment", "app=vcenter")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(pod).ToNot(BeNil())
+
+				// Get test VM UUID
+				id, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
+				Expect(err).ToNot(HaveOccurred())
+				vmid, err := uuid.Parse(strings.TrimSpace(id))
+				Expect(err).ToNot(HaveOccurred())
+
+				// Get disk name
+				disk, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
+				Expect(err).ToNot(HaveOccurred())
+				disk = strings.TrimSpace(disk)
+				Expect(err).ToNot(HaveOccurred())
+
+				// Create VDDK login secret
+				stringData := map[string]string{
+					common.KeyAccess: "user",
+					common.KeySecret: "pass",
+				}
+				backingFile := disk
+				secretRef := "vddksecret"
+				thumbprint := "testprint"
+				s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, secretRef))
+
+				// Create cert ConfigMap if specified
+				var certCM string
+				if certConfigMap != "" {
+					// Use file host certs as a test certificate (vcsim uses insecure anyway)
+					certCM, err = utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+					Expect(err).ToNot(HaveOccurred())
+				}
+
+				return utils.NewDataVolumeWithVddkImportAndCertConfigMap(dataVolumeName, size, backingFile, s.Name, thumbprint, url, vmid.String(), certCM)
+			}
+
+			dataVolumeName := "dv-import-vddk-cert-test"
+			dataVolume := createVddkDataVolumeWithCert(dataVolumeName, "100Mi", vcenterURL())
+
+			By(fmt.Sprintf("creating new datavolume %s with certConfigMap=%s", dataVolumeName, certConfigMap))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			if shouldSucceed {
+				By("verifying pvc was created")
+				pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("verifying datavolume succeeded")
+				err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dataVolumeName)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("verifying pvc is bound")
+				Expect(pvc.Status.Phase).To(Equal(v1.ClaimBound))
+			} else {
+				By("verifying datavolume fails")
+				err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Failed, dataVolumeName)
+				Expect(err).ToNot(HaveOccurred())
+			}
+		},
+			Entry("[test_id:XXXX]succeed importing VDDK data volume without certConfigMap (fallback to insecure)", "", true),
+			Entry("[test_id:XXXX]succeed importing VDDK data volume with certConfigMap", "vddk-ca-cert", true),
+		)
+
 		// similar to other tables but with check of quota
 		DescribeTable("should fail create pvc in namespace with storge quota, then succeed once the quota is large enough", testDataVolumeWithQuota,
 			Entry("[test_id:7737]when creating import dv with given valid url", dataVolumeTestArguments{
