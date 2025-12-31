@@ -60,6 +60,8 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 	r.reconciler.AddCallback(&appsv1.Deployment{}, reconcilePvcMutatingWebhook)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileSetConfigAuthority)
 	r.reconciler.AddCallback(&extv1.CustomResourceDefinition{}, reconcileHandleOldVersion)
+	r.reconciler.AddCallback(&admissionregistrationv1.ValidatingWebhookConfiguration{}, reconcileAnyNamespaceSelector)
+	r.reconciler.AddCallback(&admissionregistrationv1.MutatingWebhookConfiguration{}, reconcileAnyNamespaceSelector)
 	if r.haveRoutes {
 		r.reconciler.AddCallback(&appsv1.Deployment{}, reconcileRoute)
 	}
@@ -70,6 +72,35 @@ func addReconcileCallbacks(r *ReconcileCDI) {
 
 func isControllerDeployment(d *appsv1.Deployment) bool {
 	return d.Name == "cdi-deployment"
+}
+
+func reconcileAnyNamespaceSelector(args *callbacks.ReconcileCallbackArgs) error {
+	// NamespaceSelector gets defaulted to the empty LabelSelector but we want to allow any value
+	// For certain cloud providers mutators
+	if args.State != callbacks.ReconcileStatePostRead {
+		return nil
+	}
+
+	if args.CurrentObject == nil || args.DesiredObject == nil {
+		return nil
+	}
+
+	switch whc := args.DesiredObject.(type) {
+	case *admissionregistrationv1.ValidatingWebhookConfiguration:
+		current := args.CurrentObject.(*admissionregistrationv1.ValidatingWebhookConfiguration)
+		if len(whc.Webhooks) != 1 || len(current.Webhooks) != 1 {
+			return nil
+		}
+		whc.Webhooks[0].NamespaceSelector = current.Webhooks[0].NamespaceSelector
+	case *admissionregistrationv1.MutatingWebhookConfiguration:
+		current := args.CurrentObject.(*admissionregistrationv1.MutatingWebhookConfiguration)
+		if len(whc.Webhooks) != 1 || len(current.Webhooks) != 1 {
+			return nil
+		}
+		whc.Webhooks[0].NamespaceSelector = current.Webhooks[0].NamespaceSelector
+	}
+
+	return nil
 }
 
 func reconcileUpdateControllerDeploymentSelector(args *callbacks.ReconcileCallbackArgs) error {
