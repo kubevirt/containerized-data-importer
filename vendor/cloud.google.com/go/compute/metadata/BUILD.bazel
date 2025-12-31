@@ -3,11 +3,21 @@ load("@io_bazel_rules_go//go:def.bzl", "go_library")
 go_library(
     name = "go_default_library",
     srcs = [
+        "log.go",
         "metadata.go",
         "retry.go",
         "retry_linux.go",
+        "syscheck.go",
+        "syscheck_linux.go",
+        "syscheck_windows.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/cloud.google.com/go/compute/metadata",
     importpath = "cloud.google.com/go/compute/metadata",
     visibility = ["//visibility:public"],
+    deps = select({
+        "@io_bazel_rules_go//go/platform:windows": [
+            "//vendor/golang.org/x/sys/windows/registry:go_default_library",
+        ],
+        "//conditions:default": [],
+    }),
 )

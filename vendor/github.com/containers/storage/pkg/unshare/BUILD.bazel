@@ -81,9 +81,9 @@ go_library(
         "@io_bazel_rules_go//go/platform:android": [
             "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
             "//vendor/github.com/containers/storage/pkg/reexec:go_default_library",
+            "//vendor/github.com/moby/sys/capability:go_default_library",
             "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
             "//vendor/github.com/sirupsen/logrus:go_default_library",
-            "//vendor/github.com/syndtr/gocapability/capability:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:darwin": [
             "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
@@ -114,9 +114,9 @@ go_library(
         "@io_bazel_rules_go//go/platform:linux": [
             "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
             "//vendor/github.com/containers/storage/pkg/reexec:go_default_library",
+            "//vendor/github.com/moby/sys/capability:go_default_library",
             "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
             "//vendor/github.com/sirupsen/logrus:go_default_library",
-            "//vendor/github.com/syndtr/gocapability/capability:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:netbsd": [
             "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",

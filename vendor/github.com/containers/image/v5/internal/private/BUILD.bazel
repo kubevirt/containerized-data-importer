@@ -13,5 +13,6 @@ go_library(
         "//vendor/github.com/containers/image/v5/pkg/compression/types:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",
         "//vendor/github.com/opencontainers/go-digest:go_default_library",
+        "//vendor/github.com/opencontainers/image-spec/specs-go/v1:go_default_library",
     ],
 )
