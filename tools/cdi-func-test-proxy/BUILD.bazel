@@ -24,6 +24,7 @@ go_binary(
 pkg_tar(
     name = "cdi-func-test-proxy-bin",
     srcs = [":cdi-func-test-proxy"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )

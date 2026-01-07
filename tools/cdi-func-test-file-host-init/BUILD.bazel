@@ -24,6 +24,7 @@ go_binary(
 pkg_tar(
     name = "cdi-func-test-file-host-init-bin",
     srcs = [":cdi-func-test-file-host-init"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )
@@ -31,6 +32,7 @@ pkg_tar(
 pkg_tar(
     name = "test-img-tar",
     srcs = ["//:test-images"],
+    extension = "tar.gz",
     mode = "644",
     package_dir = "/tmp/source",
 )
@@ -38,6 +40,7 @@ pkg_tar(
 pkg_tar(
     name = "test-invalid-img-tar",
     srcs = ["//:test-invalid-images"],
+    extension = "tar.gz",
     mode = "644",
     package_dir = "/tmp/source/invalid_qcow_images",
 )
@@ -53,6 +56,7 @@ filegroup(
 pkg_tar(
     name = "nginx-conf-tar",
     srcs = [":nginx-conf"],
+    extension = "tar.gz",
     mode = "644",
     package_dir = "/etc/nginx/",
 )

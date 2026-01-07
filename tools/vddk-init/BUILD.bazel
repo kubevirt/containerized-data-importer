@@ -9,6 +9,7 @@ filegroup(
 pkg_tar(
     name = "vmware-vix-disklib-distrib-tar",
     srcs = [":vmware-vix-disklib-distrib-files"],
+    extension = "tar.gz",
     package_dir = "/opt",
     visibility = ["//visibility:private"],
 )

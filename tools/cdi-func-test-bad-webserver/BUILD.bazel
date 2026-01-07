@@ -18,6 +18,7 @@ go_binary(
 pkg_tar(
     name = "cdi-func-test-bad-webserver-bin",
     srcs = [":cdi-func-test-bad-webserver"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )

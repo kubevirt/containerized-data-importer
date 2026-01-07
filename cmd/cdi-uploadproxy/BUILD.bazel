@@ -32,6 +32,7 @@ go_binary(
 pkg_tar(
     name = "cdi-uploadproxy-bin",
     srcs = [":cdi-uploadproxy"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )

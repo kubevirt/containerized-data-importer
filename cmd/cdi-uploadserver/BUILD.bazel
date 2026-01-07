@@ -27,6 +27,7 @@ go_binary(
 pkg_tar(
     name = "cdi-uploadserver-bin",
     srcs = [":cdi-uploadserver"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )

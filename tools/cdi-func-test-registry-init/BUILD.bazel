@@ -25,6 +25,7 @@ go_binary(
 pkg_tar(
     name = "cdi-func-test-registry-init-bin",
     srcs = [":cdi-func-test-registry-init"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:private"],
 )
@@ -62,6 +63,7 @@ pkg_tar(
 pkg_tar(
     name = "test-img-tar",
     srcs = ["//:test-images"],
+    extension = "tar.gz",
     mode = "644",
     package_dir = "/tmp/source",
 )
@@ -76,6 +78,7 @@ filegroup(
 pkg_tar(
     name = "populate-script-tar",
     srcs = [":populate-script"],
+    extension = "tar.gz",
     mode = "755",
     package_dir = "/",
 )

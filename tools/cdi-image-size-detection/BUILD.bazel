@@ -22,6 +22,7 @@ go_binary(
 pkg_tar(
     name = "cdi-image-size-detection-bin",
     srcs = [":cdi-image-size-detection"],
+    extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:public"],
 )
