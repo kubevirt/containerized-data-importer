@@ -15,30 +15,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules"
 )
 
-const tpl = `# Containerized Data Importer metrics
-{{- range . }}
-
-{{ $deprecatedVersion := "" -}}
-{{- with index .ExtraFields "DeprecatedVersion" -}}
-    {{- $deprecatedVersion = printf " in %s" . -}}
-{{- end -}}
-
-{{- $stabilityLevel := "" -}}
-{{- if and (.ExtraFields.StabilityLevel) (ne .ExtraFields.StabilityLevel "STABLE") -}}
-	{{- $stabilityLevel = printf "[%s%s] " .ExtraFields.StabilityLevel $deprecatedVersion -}}
-{{- end -}}
-
-### {{ .Name }}
-{{ print $stabilityLevel }}{{ .Help }}. Type: {{ .Type -}}.
-
-{{- end }}
-
-## Developing new metrics
-
-All metrics documented here are auto-generated and reflect exactly what is being
-exposed. After developing new metrics or changing old ones please regenerate
-this document.
-`
+const title = `Containerized Data Importer metrics`
 
 func main() {
 	err := operatorMetrics.SetupMetrics()
@@ -75,7 +52,7 @@ func main() {
 		panic(err)
 	}
 
-	docsString := docs.BuildMetricsDocsWithCustomTemplate(om.ListMetrics(), rules.ListRecordingRules(), tpl)
+	docsString := docs.BuildMetricsDocs(title, om.ListMetrics(), rules.ListRecordingRules())
 
 	fmt.Print(docsString)
 }

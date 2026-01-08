@@ -38,7 +38,7 @@ require (
 	github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring v0.74.0
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
-	github.com/rhobs/operator-observability-toolkit v0.0.29
+	github.com/rhobs/operator-observability-toolkit v0.0.30
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/cors v1.7.0
 	github.com/ulikunitz/xz v0.5.12
