@@ -4430,6 +4430,11 @@
        "$ref": "#/definitions/v1beta1.ImportStatus"
       }
      },
+     "importsToKeep": {
+      "description": "ImportsToKeep is the effective number of imports to keep when garbage collecting",
+      "type": "integer",
+      "format": "int32"
+     },
      "lastExecutionTimestamp": {
       "description": "LastExecutionTimestamp is the time of the last polling",
       "$ref": "#/definitions/v1.Time"

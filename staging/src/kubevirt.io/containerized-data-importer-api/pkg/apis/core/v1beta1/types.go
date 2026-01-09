@@ -634,6 +634,8 @@ type DataImportCronStatus struct {
 	LastImportTimestamp *metav1.Time `json:"lastImportTimestamp,omitempty"`
 	// SourceFormat defines the format of the DataImportCron-created disk image sources
 	SourceFormat *DataImportCronSourceFormat `json:"sourceFormat,omitempty"`
+	// ImportsToKeep is the effective number of imports to keep when garbage collecting
+	ImportsToKeep int32 `json:"importsToKeep,omitempty"`
 	Conditions   []DataImportCronCondition   `json:"conditions,omitempty" optional:"true"`
 }
 

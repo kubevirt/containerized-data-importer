@@ -307,6 +307,7 @@ func (DataImportCronStatus) SwaggerDoc() map[string]string {
 		"lastExecutionTimestamp": "LastExecutionTimestamp is the time of the last polling",
 		"lastImportTimestamp":    "LastImportTimestamp is the time of the last import",
 		"sourceFormat":           "SourceFormat defines the format of the DataImportCron-created disk image sources",
+		"importsToKeep":          "ImportsToKeep is the effective number of imports to keep when garbage collecting",
 	}
 }
 
