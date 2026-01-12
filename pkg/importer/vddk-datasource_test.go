@@ -362,7 +362,7 @@ var _ = Describe("VDDK data source", func() {
 		//Expect(ds.ChangedBlocks).To(Equal(&changeInfo))
 	})
 
-	DescribeTable("disk name lookup", func(targetDiskName, diskName, snapshotDiskName, rootSnapshotParentName string, expectedSuccess bool) {
+	DescribeTable("disk name lookup", func(targetDiskName, diskName, snapshotDiskName, rootSnapshotParentName string, backingInfoType string, expectedSuccess bool) {
 		var returnedDiskName string
 
 		newVddkDataSource = createVddkDataSource
@@ -381,8 +381,33 @@ var _ = Describe("VDDK data source", func() {
 			case *mo.VirtualMachineSnapshot:
 				out.Config = *createVirtualDiskConfig(snapshotDiskName, 123456)
 				disk := out.Config.Hardware.Device[0].(*types.VirtualDisk)
-				parent := disk.Backing.(*types.VirtualDiskFlatVer1BackingInfo).Parent
-				parent.FileName = rootSnapshotParentName
+				switch backingInfoType {
+				case "VirtualDiskFlatVer1BackingInfo": // Default from createVirtualDiskConfig, no extra setup needed
+					parent := disk.Backing.(*types.VirtualDiskFlatVer1BackingInfo).Parent
+					parent.FileName = rootSnapshotParentName
+				case "VirtualDiskFlatVer2BackingInfo":
+					disk.Backing = &types.VirtualDiskFlatVer2BackingInfo{
+						VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+							FileName: snapshotDiskName,
+						},
+						Parent: &types.VirtualDiskFlatVer2BackingInfo{
+							VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+								FileName: rootSnapshotParentName,
+							},
+						},
+					}
+				case "VirtualDiskRawDiskMappingVer1BackingInfo":
+					disk.Backing = &types.VirtualDiskRawDiskMappingVer1BackingInfo{
+						VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+							FileName: snapshotDiskName,
+						},
+						Parent: &types.VirtualDiskRawDiskMappingVer1BackingInfo{
+							VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+								FileName: rootSnapshotParentName,
+							},
+						},
+					}
+				}
 			}
 			return nil
 		}
@@ -396,10 +421,18 @@ var _ = Describe("VDDK data source", func() {
 			Expect(returnedDiskName).ToNot(Equal(targetDiskName))
 		}
 	},
-		Entry("should find backing file on a VM", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile.vmdk", "", "", true),
-		Entry("should find backing file on a snapshot", "[teststore] testvm/testfile.vmdk", "wrong disk.vmdk", "[teststore] testvm/testfile.vmdk", "", true),
-		Entry("should find base backing file even if not listed as first snapshot", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile-000001.vmdk", "[teststore] testvm/testfile-000002.vmdk", "[teststore] testvm/testfile.vmdk", true),
-		Entry("should fail if backing file is not found in snapshot tree", "[teststore] testvm/testfile.vmdk", "wrong disk 1.vmdk", "wrong disk 2.vmdk", "wrong disk 1.vmdk", false),
+		Entry("should find backing file on a VM", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile.vmdk", "", "", "VirtualDiskFlatVer1BackingInfo", true),
+		Entry("should find backing file on a snapshot", "[teststore] testvm/testfile.vmdk", "wrong disk.vmdk", "[teststore] testvm/testfile.vmdk", "", "VirtualDiskFlatVer1BackingInfo", true),
+		Entry("should find base backing file even if not listed as first snapshot", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile-000001.vmdk", "[teststore] testvm/testfile-000002.vmdk", "[teststore] testvm/testfile.vmdk", "VirtualDiskFlatVer1BackingInfo", true),
+		Entry("should fail if backing file is not found in snapshot tree", "[teststore] testvm/testfile.vmdk", "wrong disk 1.vmdk", "wrong disk 2.vmdk", "wrong disk 1.vmdk", "VirtualDiskFlatVer1BackingInfo", false),
+		Entry("should find backing file on a VM, FlatVer2 backing", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile.vmdk", "", "", "VirtualDiskFlatVer2BackingInfo", true),
+		Entry("should find backing file on a snapshot, FlatVer2 backing", "[teststore] testvm/testfile.vmdk", "wrong disk.vmdk", "[teststore] testvm/testfile.vmdk", "", "VirtualDiskFlatVer2BackingInfo", true),
+		Entry("should find base backing file even if not listed as first snapshot, FlatVer2 backing", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile-000001.vmdk", "[teststore] testvm/testfile-000002.vmdk", "[teststore] testvm/testfile.vmdk", "VirtualDiskFlatVer2BackingInfo", true),
+		Entry("should fail if backing file is not found in snapshot tree, FlatVer2 backing", "[teststore] testvm/testfile.vmdk", "wrong disk 1.vmdk", "wrong disk 2.vmdk", "wrong disk 1.vmdk", "VirtualDiskFlatVer2BackingInfo", false),
+		Entry("should find backing file on a VM, RawDiskVer1 backing", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile.vmdk", "", "", "VirtualDiskRawDiskMappingVer1BackingInfo", true),
+		Entry("should find backing file on a snapshot, RawDiskVer1 backing", "[teststore] testvm/testfile.vmdk", "wrong disk.vmdk", "[teststore] testvm/testfile.vmdk", "", "VirtualDiskRawDiskMappingVer1BackingInfo", true),
+		Entry("should find base backing file even if not listed as first snapshot, RawDiskVer1 backing", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile-000001.vmdk", "[teststore] testvm/testfile-000002.vmdk", "[teststore] testvm/testfile.vmdk", "VirtualDiskRawDiskMappingVer1BackingInfo", true),
+		Entry("should fail if backing file is not found in snapshot tree, RawDiskVer1 backing", "[teststore] testvm/testfile.vmdk", "wrong disk 1.vmdk", "wrong disk 2.vmdk", "wrong disk 1.vmdk", "VirtualDiskRawDiskMappingVer1BackingInfo", false),
 	)
 
 	It("should pass snapshot reference through to nbdkit", func() {
