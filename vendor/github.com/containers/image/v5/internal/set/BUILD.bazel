@@ -6,5 +6,4 @@ go_library(
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/internal/set",
     importpath = "github.com/containers/image/v5/internal/set",
     visibility = ["//vendor/github.com/containers/image/v5:__subpackages__"],
-    deps = ["//vendor/golang.org/x/exp/maps:go_default_library"],
 )

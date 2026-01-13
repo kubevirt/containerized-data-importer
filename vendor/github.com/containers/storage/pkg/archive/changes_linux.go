@@ -79,6 +79,7 @@ func walkchunk(path string, fi os.FileInfo, dir string, root *FileInfo) error {
 		children:   make(map[string]*FileInfo),
 		parent:     parent,
 		idMappings: root.idMappings,
+		target:     "",
 	}
 	cpath := filepath.Join(dir, path)
 	stat, err := system.FromStatT(fi.Sys().(*syscall.Stat_t))
@@ -87,11 +88,11 @@ func walkchunk(path string, fi os.FileInfo, dir string, root *FileInfo) error {
 	}
 	info.stat = stat
 	info.capability, err = system.Lgetxattr(cpath, "security.capability") // lgetxattr(2): fs access
-	if err != nil && !errors.Is(err, system.EOPNOTSUPP) {
+	if err != nil && !errors.Is(err, system.ENOTSUP) {
 		return err
 	}
 	xattrs, err := system.Llistxattr(cpath)
-	if err != nil && !errors.Is(err, system.EOPNOTSUPP) {
+	if err != nil && !errors.Is(err, system.ENOTSUP) {
 		return err
 	}
 	for _, key := range xattrs {
@@ -108,6 +109,12 @@ func walkchunk(path string, fi os.FileInfo, dir string, root *FileInfo) error {
 				info.xattrs = make(map[string]string)
 			}
 			info.xattrs[key] = string(value)
+		}
+	}
+	if fi.Mode()&os.ModeSymlink != 0 {
+		info.target, err = os.Readlink(cpath)
+		if err != nil {
+			return err
 		}
 	}
 	parent.children[info.name] = info
@@ -167,14 +174,7 @@ func (w *walker) walk(path string, i1, i2 os.FileInfo) (err error) {
 	ix1 := 0
 	ix2 := 0
 
-	for {
-		if ix1 >= len(names1) {
-			break
-		}
-		if ix2 >= len(names2) {
-			break
-		}
-
+	for ix1 < len(names1) && ix2 < len(names2) {
 		ni1 := names1[ix1]
 		ni2 := names2[ix2]
 
@@ -297,7 +297,7 @@ func parseDirent(buf []byte, names []nameIno) (consumed int, newnames []nameIno)
 			continue
 		}
 		builder := make([]byte, 0, dirent.Reclen)
-		for i := 0; i < len(dirent.Name); i++ {
+		for i := range len(dirent.Name) {
 			if dirent.Name[i] == 0 {
 				break
 			}

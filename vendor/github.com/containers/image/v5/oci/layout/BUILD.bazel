@@ -7,6 +7,7 @@ go_library(
         "oci_dest.go",
         "oci_src.go",
         "oci_transport.go",
+        "reader.go",
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/containers/image/v5/oci/layout",
     importpath = "github.com/containers/image/v5/oci/layout",

@@ -17,6 +17,7 @@ go_library(
     deps = [
         "//vendor/github.com/go-logr/logr:go_default_library",
         "//vendor/github.com/go-logr/stdr:go_default_library",
+        "//vendor/go.opentelemetry.io/auto/sdk:go_default_library",
         "//vendor/go.opentelemetry.io/otel/attribute:go_default_library",
         "//vendor/go.opentelemetry.io/otel/codes:go_default_library",
         "//vendor/go.opentelemetry.io/otel/metric:go_default_library",

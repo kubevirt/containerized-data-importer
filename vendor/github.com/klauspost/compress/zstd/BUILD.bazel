@@ -49,6 +49,7 @@ go_library(
     deps = [
         "//vendor/github.com/klauspost/compress:go_default_library",
         "//vendor/github.com/klauspost/compress/huff0:go_default_library",
+        "//vendor/github.com/klauspost/compress/internal/le:go_default_library",
         "//vendor/github.com/klauspost/compress/internal/snapref:go_default_library",
         "//vendor/github.com/klauspost/compress/zstd/internal/xxhash:go_default_library",
     ] + select({
