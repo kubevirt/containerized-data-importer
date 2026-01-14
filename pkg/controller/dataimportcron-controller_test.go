@@ -1627,6 +1627,176 @@ var _ = Describe("All DataImportCron Tests", func() {
 				Expect(*snap.Spec.Source.PersistentVolumeClaimName).To(Equal(dvName))
 				Expect(snap.Annotations[cc.AnnSourceVolumeMode]).To(Equal("dummyfromsp"))
 			})
+
+			It("Should use annotation snapshot class over storageProfile.Status.SnapshotClass", func() {
+				annotationSnapshotClass := "annotation-snapshot-class"
+				statusSnapshotClass := "status-snapshot-class"
+				sp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: storageClassName,
+						Annotations: map[string]string{
+							cc.AnnSnapshotClassForDataImportCron: annotationSnapshotClass,
+						},
+					},
+					Status: cdiv1.StorageProfileStatus{
+						SnapshotClass: &statusSnapshotClass,
+					},
+				}
+				reconciler = createDataImportCronReconciler(sc, sp)
+
+				pvc := cc.CreatePvc("test-pvc", metav1.NamespaceDefault, nil, nil)
+				snapshotClass, err := reconciler.getSnapshotClassForDataImportCron(pvc, sp)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(snapshotClass).ToNot(BeEmpty())
+				Expect(snapshotClass).To(Equal(annotationSnapshotClass))
+			})
+		})
+
+		Context("Boot source configuration", func() {
+			var sc *storagev1.StorageClass
+
+			BeforeEach(func() {
+				sc = cc.CreateStorageClass(storageClassName, map[string]string{cc.AnnDefaultStorageClass: "true"})
+			})
+
+			It("Should apply RWO access mode when AnnUseReadWriteOnceForDataImportCron annotation exists and no AccessModes configured", func() {
+				sp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: storageClassName,
+						Annotations: map[string]string{
+							cc.AnnUseReadWriteOnceForDataImportCron: "true",
+						},
+					},
+					Status: cdiv1.StorageProfileStatus{
+						ClaimPropertySets: []cdiv1.ClaimPropertySet{
+							{
+								AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
+								VolumeMode:  ptr.To[corev1.PersistentVolumeMode](corev1.PersistentVolumeFilesystem),
+							},
+						},
+					},
+				}
+				reconciler = createDataImportCronReconciler(sc, sp)
+
+				cron = newDataImportCron(cronName)
+				// Ensure no AccessModes are set in the template
+				cron.Spec.Template.Spec.Storage.AccessModes = nil
+				err := reconciler.client.Create(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+
+				cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
+				err = reconciler.client.Update(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				dataSource = &cdiv1.DataSource{}
+
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
+
+				imports := cron.Status.CurrentImports
+				Expect(imports).ToNot(BeNil())
+				Expect(imports).ToNot(BeEmpty())
+				dvName := imports[0].DataVolumeName
+
+				dv := &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(err).ToNot(HaveOccurred())
+				// Verify RWO was applied as default
+				Expect(dv.Spec.Storage.AccessModes).To(Equal([]corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}))
+			})
+
+			It("Should NOT override existing AccessModes when AnnUseReadWriteOnceForDataImportCron annotation exists", func() {
+				sp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: storageClassName,
+						Annotations: map[string]string{
+							cc.AnnUseReadWriteOnceForDataImportCron: "true",
+						},
+					},
+					Status: cdiv1.StorageProfileStatus{
+						ClaimPropertySets: []cdiv1.ClaimPropertySet{
+							{
+								AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
+								VolumeMode:  ptr.To[corev1.PersistentVolumeMode](corev1.PersistentVolumeFilesystem),
+							},
+						},
+					},
+				}
+				reconciler = createDataImportCronReconciler(sc, sp)
+
+				cron = newDataImportCron(cronName)
+				// Explicitly set RWX access mode in the template
+				cron.Spec.Template.Spec.Storage.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}
+				err := reconciler.client.Create(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+
+				cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
+				err = reconciler.client.Update(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				dataSource = &cdiv1.DataSource{}
+
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
+
+				imports := cron.Status.CurrentImports
+				Expect(imports).ToNot(BeNil())
+				Expect(imports).ToNot(BeEmpty())
+				dvName := imports[0].DataVolumeName
+
+				dv := &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(err).ToNot(HaveOccurred())
+				// Verify RWX was preserved and not overwritten
+				Expect(dv.Spec.Storage.AccessModes).To(Equal([]corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}))
+			})
+
+			It("Should NOT apply RWO when AnnUseReadWriteOnceForDataImportCron annotation is missing", func() {
+				sp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: storageClassName,
+					},
+					Status: cdiv1.StorageProfileStatus{
+						ClaimPropertySets: []cdiv1.ClaimPropertySet{
+							{
+								AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
+								VolumeMode:  ptr.To[corev1.PersistentVolumeMode](corev1.PersistentVolumeFilesystem),
+							},
+						},
+					},
+				}
+				reconciler = createDataImportCronReconciler(sc, sp)
+
+				cron = newDataImportCron(cronName)
+				// Ensure no AccessModes are set in the template
+				cron.Spec.Template.Spec.Storage.AccessModes = nil
+				err := reconciler.client.Create(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+
+				cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
+				err = reconciler.client.Update(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				dataSource = &cdiv1.DataSource{}
+
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
+
+				imports := cron.Status.CurrentImports
+				Expect(imports).ToNot(BeNil())
+				Expect(imports).ToNot(BeEmpty())
+				dvName := imports[0].DataVolumeName
+
+				dv := &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(err).ToNot(HaveOccurred())
+				// Verify AccessModes is still empty (not set to RWO)
+				Expect(dv.Spec.Storage.AccessModes).To(BeEmpty())
+			})
+
 		})
 	})
 })

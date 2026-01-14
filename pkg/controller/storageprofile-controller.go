@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strconv"
 
 	"github.com/go-logr/logr"
@@ -102,7 +103,11 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 	}
 	storageProfile.Status.CloneStrategy = r.reconcileCloneStrategy(sc, storageProfile.Spec.CloneStrategy, snapClass)
 	storageProfile.Status.DataImportCronSourceFormat = r.reconcileDataImportCronSourceFormat(sc, storageProfile.Spec.DataImportCronSourceFormat, snapClass)
+
+	// Reconcile StorageProfile annotations based on provisioner capabilities
 	r.reconcileMinimumSupportedPVCSize(sc, storageProfile)
+	r.reconcileUseReadWriteOnceForDataImportCron(context.TODO(), sc, storageProfile)
+	r.reconcileSnapshotClassForDataImportCron(context.TODO(), sc, storageProfile)
 
 	var claimPropertySets []cdiv1.ClaimPropertySet
 
@@ -283,6 +288,68 @@ func (r *StorageProfileReconciler) reconcileMinimumSupportedPVCSize(sc *storagev
 			sp.Annotations[cc.AnnMinimumSupportedPVCSize] = size
 		}
 	}
+}
+
+func (r *StorageProfileReconciler) reconcileUseReadWriteOnceForDataImportCron(ctx context.Context, sc *storagev1.StorageClass, sp *cdiv1.StorageProfile) {
+	if !storagecapabilities.ShouldUseReadWriteOnceForDataImportCron(sc) {
+		return
+	}
+
+	if _, exists := sp.Annotations[cc.AnnUseReadWriteOnceForDataImportCron]; exists {
+		return
+	}
+
+	if sp.Annotations == nil {
+		sp.Annotations = make(map[string]string)
+	}
+	sp.Annotations[cc.AnnUseReadWriteOnceForDataImportCron] = "true"
+}
+
+func (r *StorageProfileReconciler) reconcileSnapshotClassForDataImportCron(ctx context.Context, sc *storagev1.StorageClass, sp *cdiv1.StorageProfile) {
+	desiredClass, err := r.findSnapshotClassForDataImportCron(ctx, sc)
+	if err != nil {
+		r.log.V(3).Info("Error finding snapshot class for DataImportCron", "error", err)
+		return
+	}
+
+	if desiredClass == "" {
+		delete(sp.Annotations, cc.AnnSnapshotClassForDataImportCron)
+		return
+	}
+
+	if sp.Annotations == nil {
+		sp.Annotations = make(map[string]string)
+	}
+	sp.Annotations[cc.AnnSnapshotClassForDataImportCron] = desiredClass
+}
+
+// findSnapshotClassForDataImportCron finds a VolumeSnapshotClass that is suitable for DataImportCron snapshots.
+func (r *StorageProfileReconciler) findSnapshotClassForDataImportCron(ctx context.Context, sc *storagev1.StorageClass) (string, error) {
+	vscList := &snapshotv1.VolumeSnapshotClassList{}
+	if err := r.client.List(ctx, vscList); err != nil {
+		if meta.IsNoMatchError(err) {
+			return "", nil
+		}
+		return "", err
+	}
+
+	var candidates []string
+	for _, vsc := range vscList.Items {
+		if !storagecapabilities.MatchesDataImportCronVSC(sc, &vsc) {
+			continue
+		}
+		// Found a match - prefer default-annotated one
+		if vsc.Annotations[cc.AnnDefaultSnapshotClass] == "true" {
+			return vsc.Name, nil
+		}
+		candidates = append(candidates, vsc.Name)
+	}
+
+	if len(candidates) > 0 {
+		sort.Strings(candidates)
+		return candidates[0], nil
+	}
+	return "", nil
 }
 
 func (r *StorageProfileReconciler) createEmptyStorageProfile(sc *storagev1.StorageClass) (*cdiv1.StorageProfile, error) {

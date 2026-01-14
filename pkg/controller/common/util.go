@@ -225,6 +225,10 @@ const (
 
 	// AnnMinimumSupportedPVCSize annotation on a StorageProfile specifies its minimum supported PVC size
 	AnnMinimumSupportedPVCSize = AnnAPIGroup + "/minimumSupportedPvcSize"
+	// AnnUseReadWriteOnceForDataImportCron annotation on a StorageProfile signals that DataImportCron should use RWO for DataImportCron PVCs
+	AnnUseReadWriteOnceForDataImportCron = AnnAPIGroup + "/useReadWriteOnceForDataImportCron"
+	// AnnSnapshotClassForDataImportCron annotation on a StorageProfile specifies the VolumeSnapshotClass to use for DataImportCron snapshots
+	AnnSnapshotClassForDataImportCron = AnnAPIGroup + "/snapshotClassForDataImportCron"
 
 	// AnnDefaultStorageClass is the annotation indicating that a storage class is the default one
 	AnnDefaultStorageClass = "storageclass.kubernetes.io/is-default-class"
