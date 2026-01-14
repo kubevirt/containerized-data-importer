@@ -491,6 +491,73 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Entry("provisioner without minimum and StorageProfile not annotated", "prov", nil, nil),
 	)
 
+	Context("DataImportCron annotations", func() {
+		It("Should set useReadWriteOnceForDataImportCron annotation for provisioners requiring RWO", func() {
+			provisioner := "pd.csi.storage.gke.io/hyperdisk"
+			storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, provisioner)
+			reconciler = createStorageProfileReconciler(storageClass)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+			Expect(err).ToNot(HaveOccurred())
+
+			sp := &cdiv1.StorageProfile{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(sp.Annotations).To(HaveKeyWithValue(AnnUseReadWriteOnceForDataImportCron, "true"))
+		})
+
+		It("Should set snapshotClassForDataImportCron annotation when matching VolumeSnapshotClass exists", func() {
+			provisioner := "pd.csi.storage.gke.io/hyperdisk"
+			storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, provisioner)
+			vsc := createSnapshotClass(snapshotClassName, nil, provisioner)
+			vsc.Parameters = map[string]string{
+				"snapshot-type": "images",
+			}
+			reconciler = createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd(), vsc)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+			Expect(err).ToNot(HaveOccurred())
+
+			sp := &cdiv1.StorageProfile{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(sp.Annotations).To(HaveKeyWithValue(AnnUseReadWriteOnceForDataImportCron, "true"))
+			Expect(sp.Annotations).To(HaveKeyWithValue(AnnSnapshotClassForDataImportCron, snapshotClassName))
+		})
+
+		It("Should not set snapshotClassForDataImportCron when no matching VolumeSnapshotClass exists", func() {
+			provisioner := "pd.csi.storage.gke.io"
+			storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, provisioner)
+			vsc := createSnapshotClass(snapshotClassName, nil, provisioner)
+			vsc.Parameters = map[string]string{
+				"some-other-param": "value",
+			}
+			reconciler = createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd(), vsc)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+			Expect(err).ToNot(HaveOccurred())
+
+			sp := &cdiv1.StorageProfile{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(sp.Annotations).To(HaveKeyWithValue(AnnUseReadWriteOnceForDataImportCron, "true"))
+			Expect(sp.Annotations).NotTo(HaveKey(AnnSnapshotClassForDataImportCron))
+		})
+
+		It("Should not set annotations for provisioners that don't require DataImportCron config", func() {
+			provisioner := "some.other.provisioner"
+			storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, provisioner)
+			reconciler = createStorageProfileReconciler(storageClass)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+			Expect(err).ToNot(HaveOccurred())
+
+			sp := &cdiv1.StorageProfile{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			if sp.Annotations != nil {
+				Expect(sp.Annotations).NotTo(HaveKey(AnnUseReadWriteOnceForDataImportCron))
+				Expect(sp.Annotations).NotTo(HaveKey(AnnSnapshotClassForDataImportCron))
+			}
+		})
+	})
+
 	DescribeTable("should set cloneStrategy", func(provisioner string, expectedCloneStrategy cdiv1.CDICloneStrategy, deploySnapClass bool) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
 		reconciler = createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())

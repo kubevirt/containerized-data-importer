@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
@@ -207,6 +209,35 @@ var MinimumSupportedPVCSizeByProvisionerKey = map[string]string{
 	"csi.trident.netapp.io/gcnv-flex": "1Gi",
 }
 
+// UseReadWriteOnceForDataImportCronByProvisionerKey is a hash of provisioners which require RWO access mode for DataImportCron PVCs
+var UseReadWriteOnceForDataImportCronByProvisionerKey = map[string]struct{}{
+	"pd.csi.storage.gke.io":           {},
+	"pd.csi.storage.gke.io/hyperdisk": {},
+}
+
+// dataImportCronVSCMatcherByProvisionerKey maps provisioner keys to functions that match VolumeSnapshotClasses
+// suitable for DataImportCron snapshots based on provisioner-specific criteria.
+var dataImportCronVSCMatcherByProvisionerKey = map[string]func(sc *storagev1.StorageClass, vsc *snapshotv1.VolumeSnapshotClass) bool{
+	"pd.csi.storage.gke.io": func(sc *storagev1.StorageClass, vsc *snapshotv1.VolumeSnapshotClass) bool {
+		if vsc.Driver != sc.Provisioner {
+			return false
+		}
+		if vsc.Parameters == nil {
+			return false
+		}
+		return vsc.Parameters["snapshot-type"] == "images"
+	},
+	"pd.csi.storage.gke.io/hyperdisk": func(sc *storagev1.StorageClass, vsc *snapshotv1.VolumeSnapshotClass) bool {
+		if vsc.Driver != sc.Provisioner {
+			return false
+		}
+		if vsc.Parameters == nil {
+			return false
+		}
+		return vsc.Parameters["snapshot-type"] == "images"
+	},
+}
+
 const (
 	// ProvisionerNoobaa is the provisioner string for the Noobaa object bucket provisioner which does not work with CDI
 	ProvisionerNoobaa = "openshift-storage.noobaa.io/obc"
@@ -257,6 +288,24 @@ func GetMinimumSupportedPVCSize(sc *storagev1.StorageClass) (string, bool) {
 	provisionerKey := storageProvisionerKey(sc)
 	size, found := MinimumSupportedPVCSizeByProvisionerKey[provisionerKey]
 	return size, found
+}
+
+// ShouldUseReadWriteOnceForDataImportCron checks if the provisioner requires RWO access mode for DataImportCron PVCs
+func ShouldUseReadWriteOnceForDataImportCron(sc *storagev1.StorageClass) bool {
+	provisionerKey := storageProvisionerKey(sc)
+	_, found := UseReadWriteOnceForDataImportCronByProvisionerKey[provisionerKey]
+	return found
+}
+
+// MatchesDataImportCronVSC checks if a VolumeSnapshotClass matches the requirements for DataImportCron snapshots
+// for a given StorageClass based on provisioner-specific criteria.
+func MatchesDataImportCronVSC(sc *storagev1.StorageClass, vsc *snapshotv1.VolumeSnapshotClass) bool {
+	provisionerKey := storageProvisionerKey(sc)
+	matcher, found := dataImportCronVSCMatcherByProvisionerKey[provisionerKey]
+	if !found {
+		return false
+	}
+	return matcher(sc, vsc)
 }
 
 func capabilitiesForNoProvisioner(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
