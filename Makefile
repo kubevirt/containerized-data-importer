@@ -130,7 +130,7 @@ manifests: ## Generate a cdi-controller and operator manifests in '_out/manifest
 	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} CR_NAME=${CR_NAME} CDI_NAMESPACE=${CDI_NAMESPACE} ./hack/build/build-manifests.sh"
 
 release-description: ## Generate a release announcement detailing changes between 2 commits (typically tags).  Expects 'RELREF' and 'PREREF' to be set
-	./hack/build/release-description.sh ${RELREF} ${PREREF}
+	cd tools/release-notes; go run ./ ${RELREF} ${PREREF}
 
 builder-push: ## Build and push the builder container image, declared in docker/builder/Dockerfile.
 	./hack/build/bazel-build-builder.sh
