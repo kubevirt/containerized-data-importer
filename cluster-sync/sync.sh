@@ -241,9 +241,9 @@ fi
 mkdir -p ./_out/tests
 rm -f $OLD_CDI_VER_PODS $NEW_CDI_VER_PODS
 
-if [[ ! $KUBEVIRT_PROVIDER =~ kind.* ]]; then
-  seed_images
-fi
+# Seed images to all nodes to ensure latest images are pulled
+# This handles both kind and vagrant/kubevirtci providers
+seed_images
 
 # Install CDI
 install_cdi

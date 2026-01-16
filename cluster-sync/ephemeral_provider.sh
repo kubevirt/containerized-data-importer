@@ -15,14 +15,21 @@ function seed_images(){
       container="${container} registry:5000/${name}:${DOCKER_TAG}"
   done
 
-  # We don't need to seed the nodes, but in the case of the default dev setup we'll just leave this here
-  for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
-      until ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "echo \"${container}\" | xargs \-\-max-args=1 sudo crictl pull"; do sleep 1; done
-      # Temporary until image is updated with provisioner that sets this field
-      # This field is required by buildah tool
-      ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo sysctl \-w user.max_user_namespaces=1024"
-  done
-
+  if [[ $KUBEVIRT_PROVIDER =~ kind.* ]]; then
+      # For kind provider, use docker/podman exec to access nodes
+      for node in $(_get_nodes | awk '{print $1}'); do
+          echo "Seeding images on kind node: $node"
+          until echo "${container}" | xargs --max-args=1 ${CRI_BIN} exec $node crictl pull; do sleep 1; done
+      done
+  else
+      # For vagrant/kubevirtci provider, use ssh to access nodes
+      for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
+          until ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "echo \"${container}\" | xargs \-\-max-args=1 sudo crictl pull"; do sleep 1; done
+          # Temporary until image is updated with provisioner that sets this field
+          # This field is required by buildah tool
+          ./cluster-up/ssh.sh "node$(printf "%02d" ${i})" "sudo sysctl \-w user.max_user_namespaces=1024"
+      done
+  fi
 }
 
 # For the Kind provider, we need to configure hostname resolution for the local image registry in the CoreDNS service.
