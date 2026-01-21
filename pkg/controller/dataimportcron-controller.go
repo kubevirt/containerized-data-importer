@@ -434,6 +434,12 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 				cc.AddAnnotation(snapshot, cc.AnnSourceVolumeMode, string(*volMode))
 			}
 		}
+		if _, ok := snapshot.Annotations[cc.AnnAdvisedRestoreSize]; !ok {
+			size := inferAdvisedRestoreSizeForSnapshot(&dataImportCron.Spec.Template, snapshot, nil)
+			if size != nil {
+				cc.AddAnnotation(snapshot, cc.AnnAdvisedRestoreSize, size.String())
+			}
+		}
 		// Copy labels found on dataSource to the existing snapshot in case of upgrades.
 		dataSource, err := r.getDataSource(ctx, dataImportCron)
 		if err != nil {
@@ -1036,6 +1042,11 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 			return err
 		}
 		cc.AddAnnotation(desiredSnapshot, AnnLastUseTime, time.Now().UTC().Format(time.RFC3339Nano))
+		pvcSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		size := inferAdvisedRestoreSizeForSnapshot(&dataImportCron.Spec.Template, desiredSnapshot, &pvcSize)
+		if size != nil {
+			cc.AddAnnotation(desiredSnapshot, cc.AnnAdvisedRestoreSize, size.String())
+		}
 		if pvc.Spec.VolumeMode != nil {
 			cc.AddAnnotation(desiredSnapshot, cc.AnnSourceVolumeMode, string(*pvc.Spec.VolumeMode))
 		}
@@ -1864,4 +1875,28 @@ func getAccessModesFromDVSpec(dv *cdiv1.DataVolume) []corev1.PersistentVolumeAcc
 	}
 
 	return nil
+}
+
+func inferAdvisedRestoreSizeForSnapshot(dv *cdiv1.DataVolume, snapshot *snapshotv1.VolumeSnapshot, fallback *resource.Quantity) *resource.Quantity {
+	var dvSize resource.Quantity
+
+	if dv.Spec.PVC != nil {
+		dvSize = dv.Spec.PVC.Resources.Requests[corev1.ResourceStorage]
+	}
+
+	if dv.Spec.Storage != nil {
+		dvSize = dv.Spec.Storage.Resources.Requests[corev1.ResourceStorage]
+	}
+
+	if dvSize.IsZero() && fallback != nil {
+		return fallback
+	}
+
+	if snapshot.Status != nil {
+		if rs := snapshot.Status.RestoreSize; rs != nil && dvSize.Cmp(*rs) < 0 {
+			return snapshot.Status.RestoreSize
+		}
+	}
+
+	return &dvSize
 }

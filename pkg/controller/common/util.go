@@ -235,6 +235,8 @@ const (
 
 	// AnnSourceVolumeMode is the volume mode of the source PVC specified as an annotation on snapshots
 	AnnSourceVolumeMode = AnnAPIGroup + "/storage.import.sourceVolumeMode"
+	// AnnAdvisedRestoreSize is the advised restore size for disks restored from the snapshot
+	AnnAdvisedRestoreSize = AnnAPIGroup + "/storage.import.advisedRestoreSize"
 
 	// AnnOpenShiftImageLookup is the annotation for OpenShift image stream lookup
 	AnnOpenShiftImageLookup = "alpha.image.policy.openshift.io/resolve-names"
