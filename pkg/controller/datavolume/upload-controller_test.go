@@ -421,6 +421,22 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(dv.Status.Phase).To(Equal(dvPhase))
 		})
+
+		It("Should respect virt-default storage class", func() {
+			uploadDataVolume := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault, &cdiv1.DataVolumeSource{Upload: &cdiv1.DataVolumeSourceUpload{}}, createStorageSpec())
+			defaultStorageClass := CreateStorageClass("defaultSc", map[string]string{AnnDefaultStorageClass: "true"})
+			virtDefaultStorageClass := CreateStorageClass("virt-default", map[string]string{AnnDefaultVirtStorageClass: "true"})
+			reconciler = createUploadReconciler(defaultStorageClass, virtDefaultStorageClass, uploadDataVolume)
+
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Name).To(Equal("test-dv"))
+			Expect(pvc.Spec.StorageClassName).To(HaveValue(Equal("virt-default")))
+		})
 	})
 })
 

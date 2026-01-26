@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["main.go"],
+    importpath = "kubevirt.io/containerized-data-importer/tools/release-notes",
+    visibility = ["//visibility:private"],
+    deps = [
+        "//tools/release-notes/vendor/github.com/go-git/go-git/v5:go_default_library",
+        "//tools/release-notes/vendor/github.com/go-git/go-git/v5/plumbing:go_default_library",
+        "//tools/release-notes/vendor/github.com/go-git/go-git/v5/plumbing/object:go_default_library",
+        "//tools/release-notes/vendor/github.com/google/go-github/v57/github:go_default_library",
+    ],
+)
+
+go_binary(
+    name = "release-notes",
+    embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)

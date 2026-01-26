@@ -26,20 +26,32 @@ if [ -n "$DOCKER_CA_CERT_FILE" ]; then
     /usr/bin/update-ca-trust
 fi
 
-# Filter test targets based on architecture compatibility
-case "${ARCHITECTURE}" in
-  x86_64|crossbuild-x86_64)
-    TEST_PUSH_TARGETS=(${TEST_PUSH_TARGETS:-$FUNC_TEST_INIT $FUNC_TEST_HTTP $FUNC_TEST_REGISTRY $FUNC_TEST_REGISTRY_POPULATE $FUNC_TEST_REGISTRY_INIT $FUNC_TEST_BAD_WEBSERVER $FUNC_TEST_PROXY $FUNC_TEST_POPULATOR $FUNC_TEST_IMAGEIO $FUNC_TEST_IMAGEIO_INIT $FUNC_TEST_VCENTER_SIMULATOR $FUNC_TEST_TINYCORE $FUNC_TEST_VDDK_INIT $FUNC_TEST_VDDK_TEST $FUNC_TEST_CIRROS_QCOW2})
-    ;;
-  aarch64|crossbuild-aarch64)
-    TEST_PUSH_TARGETS=(${TEST_PUSH_TARGETS:-$FUNC_TEST_INIT $FUNC_TEST_HTTP $FUNC_TEST_REGISTRY $FUNC_TEST_REGISTRY_POPULATE $FUNC_TEST_REGISTRY_INIT $FUNC_TEST_BAD_WEBSERVER $FUNC_TEST_PROXY $FUNC_TEST_POPULATOR $FUNC_TEST_IMAGEIO $FUNC_TEST_IMAGEIO_INIT $FUNC_TEST_TINYCORE $FUNC_TEST_CIRROS_QCOW2})
-    ;;
-  s390x|crossbuild-s390x)
-    TEST_PUSH_TARGETS=(${TEST_PUSH_TARGETS:-$FUNC_TEST_INIT $FUNC_TEST_HTTP $FUNC_TEST_REGISTRY $FUNC_TEST_REGISTRY_POPULATE $FUNC_TEST_REGISTRY_INIT $FUNC_TEST_BAD_WEBSERVER $FUNC_TEST_PROXY $FUNC_TEST_POPULATOR $FUNC_TEST_TINYCORE $FUNC_TEST_CIRROS_QCOW2})
-    ;;
-esac
+BASE_TEST_IMAGES=(
+    "cdi-func-test-bad-webserver"
+    "cdi-func-test-proxy"
+    "cdi-func-test-sample-populator"
+    "cdi-func-test-file-host-init"
+    "cdi-func-test-file-host-http"
+    "cdi-func-test-registry-init"
+    "cdi-func-test-tinycore"
+    "cdi-func-test-registry-populate"
+    "cdi-func-test-registry"
+    "cdi-func-test-cirros-qcow2"
+)
+
+declare -A ARCH_ADDITIONAL_IMAGES
+ARCH_ADDITIONAL_IMAGES[x86_64]="imageio-init vddk-init vddk-test vcenter-simulator cdi-func-test-imageio "
+ARCH_ADDITIONAL_IMAGES[aarch64]="imageio-init"
+ARCH_ADDITIONAL_IMAGES[s390x]=""
+
+TEST_IMAGES=("${BASE_TEST_IMAGES[@]}")
+
+for img in ${ARCH_ADDITIONAL_IMAGES[$ARCHITECTURE]}; do
+    TEST_IMAGES+=("$img")
+done
 
 PUSH_TARGETS=(${PUSH_TARGETS:-$CONTROLLER_IMAGE_NAME $IMPORTER_IMAGE_NAME $CLONER_IMAGE_NAME $APISERVER_IMAGE_NAME $UPLOADPROXY_IMAGE_NAME $UPLOADSERVER_IMAGE_NAME $OPERATOR_IMAGE_NAME})
+PUSH_TARGETS+=("${TEST_IMAGES[@]}")
 
 
 echo "docker_prefix: $DOCKER_PREFIX, docker_tag: $DOCKER_TAG"
@@ -50,18 +62,7 @@ for target in ${PUSH_TARGETS[@]}; do
         --config=${ARCHITECTURE} \
         --define container_prefix=${DOCKER_PREFIX} \
         --define container_tag=${DOCKER_TAG} \
-        --host_force_python=PY3 \
-        //:push-${target}
-done
-
-# Push test images
-for target in ${TEST_PUSH_TARGETS[@]}; do
-    echo "Pushing test image: $target"
-    bazel run \
-        --verbose_failures \
-        --config=${ARCHITECTURE} \
-        --define container_prefix=${DOCKER_PREFIX} \
-        --define container_tag=${DOCKER_TAG} \
+        --define push_target=${target} \
         --host_force_python=PY3 \
         //:push-${target}
 done
@@ -69,8 +70,8 @@ done
 rm -rf ${DIGESTS_DIR}/${ARCHITECTURE}
 mkdir -p ${DIGESTS_DIR}/${ARCHITECTURE}
 
-for f in $(find bazel-bin/ -name '*.digest'); do
-    dir=${DIGESTS_DIR}/${ARCHITECTURE}/$(dirname $f)
+for target in ${PUSH_TARGETS[@]}; do
+    dir=${DIGESTS_DIR}/${ARCHITECTURE}/${target}
     mkdir -p ${dir}
-    cp -f ${f} ${dir}/$(basename ${f})
+    touch ${dir}/${target}.image
 done

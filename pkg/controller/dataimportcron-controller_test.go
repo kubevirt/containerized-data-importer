@@ -33,11 +33,13 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 
+	authorizationv1 "k8s.io/api/authorization/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -911,18 +913,86 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err.Error()).To(ContainSubstring("not found"))
 		})
 
-		It("Should succeed with existing source PVC", func() {
-			pvc := newPVC("test-pvc")
+		It("Should create DataVolume when source PVC is in the same namespace", func() {
+			sourcePvc := newPVC("source-pvc", metav1.NamespaceDefault)
 			cron := newDataImportCron(cronName)
 			cron.Spec.Template.Spec.Source = &cdiv1.DataVolumeSource{
 				PVC: &cdiv1.DataVolumeSourcePVC{
-					Name:      pvc.Name,
-					Namespace: pvc.Namespace,
+					Name:      sourcePvc.Name,
+					Namespace: sourcePvc.Namespace,
 				},
 			}
-			reconciler = createDataImportCronReconciler(cron, pvc)
+
+			reconciler = createDataImportCronReconciler(cron, sourcePvc,
+				&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: sourcePvc.Namespace}})
+			setFakeSarClient(reconciler, false)
 			_, err := reconciler.Reconcile(context.TODO(), cronReq)
 			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), cronKey, cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			imports := cron.Status.CurrentImports
+			Expect(imports).ToNot(BeEmpty())
+			dvName := imports[0].DataVolumeName
+			Expect(dvName).ToNot(BeEmpty())
+			dv := &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should create DataVolume with cross-namespace source PVC when ServiceAccount is authorized", func() {
+			sourcePvc := newPVC("source-pvc", "source-ns")
+			cron := newDataImportCron(cronName)
+			cron.Spec.Template.Spec.Source = &cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Name:      sourcePvc.Name,
+					Namespace: sourcePvc.Namespace,
+				},
+			}
+
+			reconciler = createDataImportCronReconciler(cron, sourcePvc,
+				&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: sourcePvc.Namespace}})
+			setFakeSarClient(reconciler, true)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), cronKey, cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			imports := cron.Status.CurrentImports
+			Expect(imports).ToNot(BeEmpty())
+			dvName := imports[0].DataVolumeName
+			Expect(dvName).ToNot(BeEmpty())
+			dv := &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("Should not create DataVolume with cross-namespace source PVC when ServiceAccount is not authorized", func() {
+			sourcePvc := newPVC("source-pvc", "source-ns")
+			cron := newDataImportCron(cronName)
+			cron.Spec.Template.Spec.Source = &cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Name:      sourcePvc.Name,
+					Namespace: sourcePvc.Namespace,
+				},
+			}
+
+			reconciler = createDataImportCronReconciler(cron, sourcePvc,
+				&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: sourcePvc.Namespace}})
+			setFakeSarClient(reconciler, false)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = reconciler.client.Get(context.TODO(), cronKey, cron)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronCond := FindDataImportCronConditionByType(cron, cdiv1.DataImportCronProgressing)
+			Expect(cronCond).ToNot(BeNil())
+			Expect(cronCond.ConditionState.Message).To(Equal("Not authorized to create DataVolume"))
+			Expect(cronCond.ConditionState.Reason).To(Equal("NotAuthorized"))
+			Expect(cron.Status.CurrentImports).To(BeEmpty())
 		})
 
 		It("Should succeed garbage collecting old version DVs", func() {
@@ -1322,6 +1392,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 				err = reconciler.client.Get(context.TODO(), dvKey(dvName), snap)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(snap.Annotations[cc.AnnSourceVolumeMode]).To(Equal("dummy"))
+				Expect(snap.Annotations[cc.AnnAdvisedRestoreSize]).To(Equal("1G"))
 				snap.Status = &snapshotv1.VolumeSnapshotStatus{
 					ReadyToUse: ptr.To[bool](true),
 				}
@@ -1498,66 +1569,281 @@ var _ = Describe("All DataImportCron Tests", func() {
 				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 			})
 
-			It("Should set snapshot source volume mode annotation on carried-over-upgrade snapshot", func() {
+			Context("Convenience snapshot annotations", func() {
+				var dvName string
+				var pvc *corev1.PersistentVolumeClaim
+
+				BeforeEach(func() {
+					cron = newDataImportCron(cronName)
+					cron.Spec.Template.Spec.Storage = &cdiv1.StorageSpec{
+						Resources: corev1.VolumeResourceRequirements{
+							Requests: corev1.ResourceList{
+								corev1.ResourceStorage: resource.MustParse("1Gi"),
+							},
+						},
+					}
+					dataSource = nil
+					retentionPolicy := cdiv1.DataImportCronRetainNone
+					cron.Spec.RetentionPolicy = &retentionPolicy
+					err := reconciler.client.Create(context.TODO(), cron)
+					Expect(err).ToNot(HaveOccurred())
+					verifyConditions("Before DesiredDigest is set", false, false, false, noImport, noDigest, "", &snapshotv1.VolumeSnapshot{})
+
+					cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
+					err = reconciler.client.Update(context.TODO(), cron)
+					Expect(err).ToNot(HaveOccurred())
+					dataSource = &cdiv1.DataSource{}
+					verifyConditions("After DesiredDigest is set", false, false, false, noImport, outdated, noSource, &snapshotv1.VolumeSnapshot{})
+
+					imports := cron.Status.CurrentImports
+					Expect(imports).ToNot(BeNil())
+					Expect(imports).ToNot(BeEmpty())
+					dvName = imports[0].DataVolumeName
+					Expect(dvName).ToNot(BeEmpty())
+					digest := imports[0].Digest
+					Expect(digest).To(Equal(testDigest))
+
+					dv := &cdiv1.DataVolume{}
+					err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(*dv.Spec.Source.Registry.URL).To(Equal(testRegistryURL + "@" + testDigest))
+					Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
+
+					// DV GCed after hitting succeeded
+					err = reconciler.client.Delete(context.TODO(), dv)
+					Expect(err).ToNot(HaveOccurred())
+					pvc = cc.CreatePvc(dv.Name, dv.Namespace, nil, nil)
+				})
+
+				It("Should set snapshot source volume mode annotation on carried-over-upgrade snapshot", func() {
+					// Snap already exists, without the source volume mode annotation
+					snap := &snapshotv1.VolumeSnapshot{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      pvc.Name,
+							Namespace: metav1.NamespaceDefault,
+						},
+						Spec: snapshotv1.VolumeSnapshotSpec{
+							Source: snapshotv1.VolumeSnapshotSource{
+								PersistentVolumeClaimName: &pvc.Name,
+							},
+						},
+						Status: &snapshotv1.VolumeSnapshotStatus{
+							ReadyToUse: ptr.To[bool](true),
+						},
+					}
+					err := reconciler.client.Create(context.TODO(), snap)
+					Expect(err).ToNot(HaveOccurred())
+
+					verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready, &snapshotv1.VolumeSnapshot{})
+
+					snap = &snapshotv1.VolumeSnapshot{}
+					err = reconciler.client.Get(context.TODO(), dvKey(dvName), snap)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(*snap.Status.ReadyToUse).To(BeTrue())
+					Expect(*snap.Spec.Source.PersistentVolumeClaimName).To(Equal(dvName))
+					Expect(snap.Annotations[cc.AnnSourceVolumeMode]).To(Equal("dummyfromsp"))
+				})
+
+				It("Should set snapshot advised restore size annotation on carried-over-upgrade snapshot", func() {
+					// Snap already exists, without the advised restore size annotation
+					snap := &snapshotv1.VolumeSnapshot{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      pvc.Name,
+							Namespace: metav1.NamespaceDefault,
+						},
+						Spec: snapshotv1.VolumeSnapshotSpec{
+							Source: snapshotv1.VolumeSnapshotSource{
+								PersistentVolumeClaimName: &pvc.Name,
+							},
+						},
+						Status: &snapshotv1.VolumeSnapshotStatus{
+							ReadyToUse:  ptr.To[bool](true),
+							RestoreSize: ptr.To[resource.Quantity](resource.MustParse("100Mi")),
+						},
+					}
+					err := reconciler.client.Create(context.TODO(), snap)
+					Expect(err).ToNot(HaveOccurred())
+
+					verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready, &snapshotv1.VolumeSnapshot{})
+
+					snap = &snapshotv1.VolumeSnapshot{}
+					err = reconciler.client.Get(context.TODO(), dvKey(dvName), snap)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(*snap.Status.ReadyToUse).To(BeTrue())
+					Expect(*snap.Spec.Source.PersistentVolumeClaimName).To(Equal(dvName))
+					Expect(snap.Annotations[cc.AnnAdvisedRestoreSize]).To(Equal("1Gi"), "advised restore size should be set to the size of the source PVC")
+				})
+			})
+
+			It("Should use annotation snapshot class over storageProfile.Status.SnapshotClass", func() {
+				annotationSnapshotClass := "annotation-snapshot-class"
+				statusSnapshotClass := "status-snapshot-class"
+				sp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: storageClassName,
+						Annotations: map[string]string{
+							cc.AnnSnapshotClassForDataImportCron: annotationSnapshotClass,
+						},
+					},
+					Status: cdiv1.StorageProfileStatus{
+						SnapshotClass: &statusSnapshotClass,
+					},
+				}
+				reconciler = createDataImportCronReconciler(sc, sp)
+
+				pvc := cc.CreatePvc("test-pvc", metav1.NamespaceDefault, nil, nil)
+				snapshotClass, err := reconciler.getSnapshotClassForDataImportCron(pvc, sp)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(snapshotClass).ToNot(BeEmpty())
+				Expect(snapshotClass).To(Equal(annotationSnapshotClass))
+			})
+		})
+
+		Context("Boot source configuration", func() {
+			var sc *storagev1.StorageClass
+
+			BeforeEach(func() {
+				sc = cc.CreateStorageClass(storageClassName, map[string]string{cc.AnnDefaultStorageClass: "true"})
+			})
+
+			It("Should apply RWO access mode when AnnUseReadWriteOnceForDataImportCron annotation exists and no AccessModes configured", func() {
+				sp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: storageClassName,
+						Annotations: map[string]string{
+							cc.AnnUseReadWriteOnceForDataImportCron: "true",
+						},
+					},
+					Status: cdiv1.StorageProfileStatus{
+						ClaimPropertySets: []cdiv1.ClaimPropertySet{
+							{
+								AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
+								VolumeMode:  ptr.To[corev1.PersistentVolumeMode](corev1.PersistentVolumeFilesystem),
+							},
+						},
+					},
+				}
+				reconciler = createDataImportCronReconciler(sc, sp)
+
 				cron = newDataImportCron(cronName)
-				dataSource = nil
-				retentionPolicy := cdiv1.DataImportCronRetainNone
-				cron.Spec.RetentionPolicy = &retentionPolicy
+				// Ensure no AccessModes are set in the template
+				cron.Spec.Template.Spec.Storage.AccessModes = nil
 				err := reconciler.client.Create(context.TODO(), cron)
 				Expect(err).ToNot(HaveOccurred())
-				verifyConditions("Before DesiredDigest is set", false, false, false, noImport, noDigest, "", &snapshotv1.VolumeSnapshot{})
 
 				cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
 				err = reconciler.client.Update(context.TODO(), cron)
 				Expect(err).ToNot(HaveOccurred())
 				dataSource = &cdiv1.DataSource{}
-				verifyConditions("After DesiredDigest is set", false, false, false, noImport, outdated, noSource, &snapshotv1.VolumeSnapshot{})
+
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
 
 				imports := cron.Status.CurrentImports
 				Expect(imports).ToNot(BeNil())
 				Expect(imports).ToNot(BeEmpty())
 				dvName := imports[0].DataVolumeName
-				Expect(dvName).ToNot(BeEmpty())
-				digest := imports[0].Digest
-				Expect(digest).To(Equal(testDigest))
 
 				dv := &cdiv1.DataVolume{}
 				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(*dv.Spec.Source.Registry.URL).To(Equal(testRegistryURL + "@" + testDigest))
-				Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
+				// Verify RWO was applied as default
+				Expect(dv.Spec.Storage.AccessModes).To(Equal([]corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}))
+			})
 
-				// DV GCed after hitting succeeded
-				err = reconciler.client.Delete(context.TODO(), dv)
-				Expect(err).ToNot(HaveOccurred())
-				pvc := cc.CreatePvc(dv.Name, dv.Namespace, nil, nil)
-				// Snap already exists, without the source volume mode annotation
-				snap := &snapshotv1.VolumeSnapshot{
+			It("Should NOT override existing AccessModes when AnnUseReadWriteOnceForDataImportCron annotation exists", func() {
+				sp := &cdiv1.StorageProfile{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      pvc.Name,
-						Namespace: metav1.NamespaceDefault,
-					},
-					Spec: snapshotv1.VolumeSnapshotSpec{
-						Source: snapshotv1.VolumeSnapshotSource{
-							PersistentVolumeClaimName: &pvc.Name,
+						Name: storageClassName,
+						Annotations: map[string]string{
+							cc.AnnUseReadWriteOnceForDataImportCron: "true",
 						},
 					},
-					Status: &snapshotv1.VolumeSnapshotStatus{
-						ReadyToUse: ptr.To[bool](true),
+					Status: cdiv1.StorageProfileStatus{
+						ClaimPropertySets: []cdiv1.ClaimPropertySet{
+							{
+								AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
+								VolumeMode:  ptr.To[corev1.PersistentVolumeMode](corev1.PersistentVolumeFilesystem),
+							},
+						},
 					},
 				}
-				err = reconciler.client.Create(context.TODO(), snap)
+				reconciler = createDataImportCronReconciler(sc, sp)
+
+				cron = newDataImportCron(cronName)
+				// Explicitly set RWX access mode in the template
+				cron.Spec.Template.Spec.Storage.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}
+				err := reconciler.client.Create(context.TODO(), cron)
 				Expect(err).ToNot(HaveOccurred())
 
-				verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready, &snapshotv1.VolumeSnapshot{})
-
-				snap = &snapshotv1.VolumeSnapshot{}
-				err = reconciler.client.Get(context.TODO(), dvKey(dvName), snap)
+				cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
+				err = reconciler.client.Update(context.TODO(), cron)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(*snap.Status.ReadyToUse).To(BeTrue())
-				Expect(*snap.Spec.Source.PersistentVolumeClaimName).To(Equal(dvName))
-				Expect(snap.Annotations[cc.AnnSourceVolumeMode]).To(Equal("dummyfromsp"))
+				dataSource = &cdiv1.DataSource{}
+
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
+
+				imports := cron.Status.CurrentImports
+				Expect(imports).ToNot(BeNil())
+				Expect(imports).ToNot(BeEmpty())
+				dvName := imports[0].DataVolumeName
+
+				dv := &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(err).ToNot(HaveOccurred())
+				// Verify RWX was preserved and not overwritten
+				Expect(dv.Spec.Storage.AccessModes).To(Equal([]corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany}))
 			})
+
+			It("Should NOT apply RWO when AnnUseReadWriteOnceForDataImportCron annotation is missing", func() {
+				sp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: storageClassName,
+					},
+					Status: cdiv1.StorageProfileStatus{
+						ClaimPropertySets: []cdiv1.ClaimPropertySet{
+							{
+								AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteMany},
+								VolumeMode:  ptr.To[corev1.PersistentVolumeMode](corev1.PersistentVolumeFilesystem),
+							},
+						},
+					},
+				}
+				reconciler = createDataImportCronReconciler(sc, sp)
+
+				cron = newDataImportCron(cronName)
+				// Ensure no AccessModes are set in the template
+				cron.Spec.Template.Spec.Storage.AccessModes = nil
+				err := reconciler.client.Create(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+
+				cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
+				err = reconciler.client.Update(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				dataSource = &cdiv1.DataSource{}
+
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
+
+				imports := cron.Status.CurrentImports
+				Expect(imports).ToNot(BeNil())
+				Expect(imports).ToNot(BeEmpty())
+				dvName := imports[0].DataVolumeName
+
+				dv := &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(err).ToNot(HaveOccurred())
+				// Verify AccessModes is still empty (not set to RWO)
+				Expect(dv.Spec.Storage.AccessModes).To(BeEmpty())
+			})
+
 		})
 	})
 })
@@ -1568,6 +1854,78 @@ var _ = Describe("untagURL", func() {
 		Expect(untagDigestedDockerURL(testRegistryURL + testTag + "@" + testDigest)).To(Equal(testDigestedURL))
 		Expect(untagDigestedDockerURL(testDigestedURL)).To(Equal(testDigestedURL))
 		Expect(untagDigestedDockerURL(testRegistryURL)).To(Equal(testRegistryURL))
+	})
+})
+
+var _ = Describe("inferAdvisedRestoreSizeForSnapshot", func() {
+	var (
+		dv       *cdiv1.DataVolume
+		snapshot *snapshotv1.VolumeSnapshot
+	)
+
+	BeforeEach(func() {
+		dv = &cdiv1.DataVolume{
+			Spec: cdiv1.DataVolumeSpec{
+				Storage: &cdiv1.StorageSpec{},
+			},
+		}
+		snapshot = &snapshotv1.VolumeSnapshot{}
+	})
+
+	DescribeTable("should return the correct size", func(dvSize, snapshotRestoreSize, fallbackSize, expectedSize string) {
+		if dvSize != "" {
+			dv.Spec.Storage = &cdiv1.StorageSpec{
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse(dvSize),
+					},
+				},
+			}
+		}
+
+		if snapshotRestoreSize != "" {
+			restoreSize := resource.MustParse(snapshotRestoreSize)
+			snapshot.Status = &snapshotv1.VolumeSnapshotStatus{
+				RestoreSize: &restoreSize,
+			}
+		}
+
+		var fallback *resource.Quantity
+		if fallbackSize != "" {
+			fb := resource.MustParse(fallbackSize)
+			fallback = &fb
+		}
+
+		result := inferAdvisedRestoreSizeForSnapshot(dv, snapshot, fallback)
+
+		if expectedSize == "" {
+			Expect(result.IsZero()).To(BeTrue())
+		} else {
+			Expect(result).NotTo(BeNil())
+			Expect(result.String()).To(Equal(expectedSize))
+		}
+	},
+		Entry("should return dvSize when snapshot restoreSize is nil", "1Gi", "", "", "1Gi"),
+		Entry("should return dvSize when dvSize is larger than snapshot restoreSize", "2Gi", "1Gi", "", "2Gi"),
+		Entry("should return snapshot restoreSize when it is larger than dvSize", "1Gi", "2Gi", "", "2Gi"),
+		Entry("should return snapshot restoreSize when dvSize equals snapshot restoreSize", "1Gi", "1Gi", "", "1Gi"),
+		Entry("should return fallback when dvSize is zero and fallback is provided", "", "", "500Mi", "500Mi"),
+		Entry("should return zero when dvSize is zero, no snapshot restoreSize, and no fallback", "", "", "", ""),
+		Entry("should return dvSize when dvSize is set even if fallback is provided", "1Gi", "", "500Mi", "1Gi"),
+	)
+
+	It("should handle nil snapshot status", func() {
+		dv.Spec.Storage = &cdiv1.StorageSpec{
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("1Gi"),
+				},
+			},
+		}
+		snapshot.Status = nil
+
+		result := inferAdvisedRestoreSizeForSnapshot(dv, snapshot, nil)
+		Expect(result.String()).To(Equal("1Gi"))
 	})
 })
 
@@ -1601,6 +1959,26 @@ func createDataImportCronReconcilerWithoutConfig(objects ...runtime.Object) *Dat
 	return r
 }
 
+func setFakeSarClient(reconciler *DataImportCronReconciler, allowed bool) {
+	client := &fakeSarClient{Client: reconciler.client, allowed: allowed}
+	reconciler.client = client
+	reconciler.uncachedClient = client
+}
+
+type fakeSarClient struct {
+	client.Client
+	allowed bool
+}
+
+func (s *fakeSarClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+	if sar, ok := obj.(*authorizationv1.SubjectAccessReview); ok {
+		sar.GenerateName = "test-sar"
+		sar.Status.Allowed = s.allowed
+		return s.Client.Create(ctx, sar, opts...)
+	}
+	return s.Client.Create(ctx, obj, opts...)
+}
+
 func newDataImportCronWithImageStream(dataImportCronName, taggedImageStreamName string) *cdiv1.DataImportCron {
 	cron := newDataImportCron(dataImportCronName)
 	cron.Spec.Template.Spec.Source.Registry.ImageStream = &taggedImageStreamName
@@ -1608,15 +1986,16 @@ func newDataImportCronWithImageStream(dataImportCronName, taggedImageStreamName 
 	return cron
 }
 
-func newPVC(name string) *corev1.PersistentVolumeClaim {
+func newPVC(name, namespace string) *corev1.PersistentVolumeClaim {
 	return &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: metav1.NamespaceDefault,
+			Namespace: namespace,
 			UID:       types.UID(metav1.NamespaceDefault + "-" + name),
 		},
 	}
 }
+
 func newImageStream(name string) *imagev1.ImageStream {
 	return &imagev1.ImageStream{
 		TypeMeta: metav1.TypeMeta{APIVersion: imagev1.SchemeGroupVersion.String()},

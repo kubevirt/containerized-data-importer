@@ -53,7 +53,13 @@ go_library(
         "@io_bazel_rules_go//go/platform:openbsd": [
             "-DUNSHARE_NO_CODE_AT_ALL",
         ],
+        "@io_bazel_rules_go//go/platform:osx": [
+            "-DUNSHARE_NO_CODE_AT_ALL",
+        ],
         "@io_bazel_rules_go//go/platform:plan9": [
+            "-DUNSHARE_NO_CODE_AT_ALL",
+        ],
+        "@io_bazel_rules_go//go/platform:qnx": [
             "-DUNSHARE_NO_CODE_AT_ALL",
         ],
         "@io_bazel_rules_go//go/platform:solaris": [
@@ -120,7 +126,15 @@ go_library(
             "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
             "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
         ],
+        "@io_bazel_rules_go//go/platform:osx": [
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
+        ],
         "@io_bazel_rules_go//go/platform:plan9": [
+            "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
+            "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:qnx": [
             "//vendor/github.com/containers/storage/pkg/idtools:go_default_library",
             "//vendor/github.com/opencontainers/runtime-spec/specs-go:go_default_library",
         ],

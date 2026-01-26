@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "strings.go",
+        "strings_pure.go",
         "strings_unsafe_go120.go",
         "strings_unsafe_go121.go",
     ],

@@ -33,6 +33,7 @@ import (
 	"github.com/pkg/errors"
 	cronexpr "github.com/robfig/cron/v3"
 
+	authorizationv1 "k8s.io/api/authorization/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -422,6 +423,16 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			r.log.Info("Snapshot is around even though format switched to PVC, requeueing")
 			return reconcile.Result{RequeueAfter: time.Second}, nil
 		}
+		// Check if snapshot class changed
+		if desiredStorageClass != nil {
+			changed, err := r.handleSnapshotClassChange(ctx, snapshot, desiredStorageClass.Name)
+			if err != nil {
+				return res, err
+			}
+			if changed {
+				return reconcile.Result{RequeueAfter: time.Second}, nil
+			}
+		}
 		// Below k8s 1.29 there's no way to know the source volume mode
 		// Let's at least expose this info on our own snapshots
 		if _, ok := snapshot.Annotations[cc.AnnSourceVolumeMode]; !ok {
@@ -431,6 +442,12 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			}
 			if volMode != nil {
 				cc.AddAnnotation(snapshot, cc.AnnSourceVolumeMode, string(*volMode))
+			}
+		}
+		if _, ok := snapshot.Annotations[cc.AnnAdvisedRestoreSize]; !ok {
+			size := inferAdvisedRestoreSizeForSnapshot(&dataImportCron.Spec.Template, snapshot, nil)
+			if size != nil {
+				cc.AddAnnotation(snapshot, cc.AnnAdvisedRestoreSize, size.String())
 			}
 		}
 		// Copy labels found on dataSource to the existing snapshot in case of upgrades.
@@ -488,7 +505,7 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 			}
 		}
 		if importSucceeded || len(imports) == 0 {
-			if err := r.createImportDataVolume(ctx, dataImportCron); err != nil {
+			if err := r.createImportDataVolume(ctx, dataImportCron, desiredStorageClass); err != nil {
 				return res, err
 			}
 		}
@@ -863,7 +880,7 @@ func updateLastExecutionTimestamp(cron *cdiv1.DataImportCron) error {
 	return nil
 }
 
-func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, dataImportCron *cdiv1.DataImportCron) error {
+func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, dataImportCron *cdiv1.DataImportCron, desiredStorageClass *storagev1.StorageClass) error {
 	dataSourceName := dataImportCron.Spec.ManagedDataSource
 	digest := dataImportCron.Annotations[AnnSourceDesiredDigest]
 	if digest == "" {
@@ -873,7 +890,6 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 	if err != nil {
 		return err
 	}
-	dataImportCron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: digest}}
 
 	sources := []client.Object{&snapshotv1.VolumeSnapshot{}, &corev1.PersistentVolumeClaim{}}
 	for _, src := range sources {
@@ -886,16 +902,76 @@ func (r *DataImportCronReconciler) createImportDataVolume(ctx context.Context, d
 				return err
 			}
 			// If source exists don't create DV
+			dataImportCron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: digest}}
 			return nil
 		}
 	}
 
-	dv := r.newSourceDataVolume(dataImportCron, dvName)
+	storageProfile := &cdiv1.StorageProfile{}
+	if desiredStorageClass != nil {
+		if err := r.client.Get(ctx, types.NamespacedName{Name: desiredStorageClass.Name}, storageProfile); err != nil {
+			return err
+		}
+	}
+	dv := r.newSourceDataVolume(dataImportCron, dvName, storageProfile)
+	if allowed, err := r.authorizeCloneDataVolume(dataImportCron, dv); err != nil {
+		return err
+	} else if !allowed {
+		updateDataImportCronCondition(dataImportCron, cdiv1.DataImportCronProgressing, corev1.ConditionFalse,
+			"Not authorized to create DataVolume", notAuthorized)
+		return nil
+	}
 	if err := r.client.Create(ctx, dv); err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
+	dataImportCron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: digest}}
 
 	return nil
+}
+
+func (r *DataImportCronReconciler) authorizeCloneDataVolume(dataImportCron *cdiv1.DataImportCron, dv *cdiv1.DataVolume) (bool, error) {
+	if !isPvcSource(dataImportCron) {
+		return true, nil
+	}
+	saName := "default"
+	if dataImportCron.Spec.ServiceAccountName != nil {
+		saName = *dataImportCron.Spec.ServiceAccountName
+	}
+	if resp, err := dv.AuthorizeSA(dv.Namespace, dv.Name, &authProxy{r.client}, dataImportCron.Namespace, saName); err != nil {
+		return false, err
+	} else if !resp.Allowed {
+		r.log.Info("Not authorized to create DataVolume", "cron", dataImportCron.Name, "reason", resp.Reason)
+		return false, nil
+	}
+
+	return true, nil
+}
+
+type authProxy struct {
+	client client.Client
+}
+
+func (p *authProxy) CreateSar(sar *authorizationv1.SubjectAccessReview) (*authorizationv1.SubjectAccessReview, error) {
+	if err := p.client.Create(context.TODO(), sar); err != nil {
+		return nil, err
+	}
+	return sar, nil
+}
+
+func (p *authProxy) GetNamespace(name string) (*corev1.Namespace, error) {
+	ns := &corev1.Namespace{}
+	if err := p.client.Get(context.TODO(), types.NamespacedName{Name: name}, ns); err != nil {
+		return nil, err
+	}
+	return ns, nil
+}
+
+func (p *authProxy) GetDataSource(namespace, name string) (*cdiv1.DataSource, error) {
+	das := &cdiv1.DataSource{}
+	if err := p.client.Get(context.TODO(), types.NamespacedName{Namespace: namespace, Name: name}, das); err != nil {
+		return nil, err
+	}
+	return das, nil
 }
 
 func (r *DataImportCronReconciler) handleStorageClassChange(ctx context.Context, dataImportCron *cdiv1.DataImportCron, desiredStorageClass string) error {
@@ -953,10 +1029,7 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 	if err := r.client.Get(ctx, types.NamespacedName{Name: desiredStorageClass.Name}, storageProfile); err != nil {
 		return err
 	}
-	className, err := cc.GetSnapshotClassForSmartClone(pvc, &desiredStorageClass.Name, storageProfile.Status.SnapshotClass, r.log, r.client, r.recorder)
-	if err != nil {
-		return err
-	}
+
 	desiredSnapshot := &snapshotv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      pvc.Name,
@@ -970,8 +1043,15 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 			Source: snapshotv1.VolumeSnapshotSource{
 				PersistentVolumeClaimName: &pvc.Name,
 			},
-			VolumeSnapshotClassName: &className,
 		},
+	}
+	// Select VolumeSnapshotClass for boot source snapshot
+	snapshotClassName, err := r.getSnapshotClassForDataImportCron(pvc, storageProfile)
+	if err != nil {
+		return err
+	}
+	if snapshotClassName != "" {
+		desiredSnapshot.Spec.VolumeSnapshotClassName = &snapshotClassName
 	}
 	r.setDataImportCronResourceLabels(dataImportCron, desiredSnapshot)
 	cc.CopyAllowedLabels(pvc.GetLabels(), desiredSnapshot, false)
@@ -982,6 +1062,11 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 			return err
 		}
 		cc.AddAnnotation(desiredSnapshot, AnnLastUseTime, time.Now().UTC().Format(time.RFC3339Nano))
+		pvcSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		size := inferAdvisedRestoreSizeForSnapshot(&dataImportCron.Spec.Template, desiredSnapshot, &pvcSize)
+		if size != nil {
+			cc.AddAnnotation(desiredSnapshot, cc.AnnAdvisedRestoreSize, size.String())
+		}
 		if pvc.Spec.VolumeMode != nil {
 			cc.AddAnnotation(desiredSnapshot, cc.AnnSourceVolumeMode, string(*pvc.Spec.VolumeMode))
 		}
@@ -999,6 +1084,39 @@ func (r *DataImportCronReconciler) handleSnapshot(ctx context.Context, dataImpor
 	}
 
 	return nil
+}
+
+func (r *DataImportCronReconciler) handleSnapshotClassChange(ctx context.Context, snapshot *snapshotv1.VolumeSnapshot, storageClassName string) (bool, error) {
+	sp := &cdiv1.StorageProfile{}
+	if err := r.client.Get(ctx, types.NamespacedName{Name: storageClassName}, sp); err != nil {
+		return false, client.IgnoreNotFound(err)
+	}
+
+	desiredVSC, err := r.getSnapshotClassForDataImportCron(nil, sp)
+	if err != nil {
+		return false, err
+	}
+	actualVSC := ""
+	if snapshot.Spec.VolumeSnapshotClassName != nil {
+		actualVSC = *snapshot.Spec.VolumeSnapshotClassName
+	}
+	if desiredVSC == "" || actualVSC == desiredVSC {
+		return false, nil
+	}
+
+	r.log.Info("Snapshot class changed, deleting", "name", snapshot.Name, "from", actualVSC, "to", desiredVSC)
+	if err := r.client.Delete(ctx, snapshot); err != nil {
+		return false, client.IgnoreNotFound(err)
+	}
+	return true, nil
+}
+
+// getSnapshotClassForDataImportCron returns the VolumeSnapshotClass name to use for DataImportCron snapshots.
+func (r *DataImportCronReconciler) getSnapshotClassForDataImportCron(pvc *corev1.PersistentVolumeClaim, storageProfile *cdiv1.StorageProfile) (string, error) {
+	if vscName := storageProfile.Annotations[cc.AnnSnapshotClassForDataImportCron]; vscName != "" {
+		return vscName, nil
+	}
+	return cc.GetSnapshotClassForSmartClone(pvc, &storageProfile.Name, storageProfile.Status.SnapshotClass, r.log, r.client, r.recorder)
 }
 
 func (r *DataImportCronReconciler) updateDataImportCronSuccessCondition(dataImportCron *cdiv1.DataImportCron, format cdiv1.DataImportCronSourceFormat, snapshot *snapshotv1.VolumeSnapshot) error {
@@ -1313,7 +1431,7 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 			CreateFunc: func(event.TypedCreateEvent[*cdiv1.StorageProfile]) bool { return true },
 			DeleteFunc: func(event.TypedDeleteEvent[*cdiv1.StorageProfile]) bool { return false },
 			UpdateFunc: func(e event.TypedUpdateEvent[*cdiv1.StorageProfile]) bool {
-				return e.ObjectOld.Status.DataImportCronSourceFormat != e.ObjectNew.Status.DataImportCronSourceFormat
+				return dicRelevantFieldsChanged(e.ObjectOld, e.ObjectNew)
 			},
 		},
 	)); err != nil {
@@ -1358,6 +1476,13 @@ func addDataImportCronControllerWatches(mgr manager.Manager, c controller.Contro
 	}
 
 	return nil
+}
+
+func dicRelevantFieldsChanged(oldSp, newSp *cdiv1.StorageProfile) bool {
+	sourceFormatChanged := oldSp.Status.DataImportCronSourceFormat != newSp.Status.DataImportCronSourceFormat
+	rwoAnnotationChanged := oldSp.Annotations[cc.AnnUseReadWriteOnceForDataImportCron] != newSp.Annotations[cc.AnnUseReadWriteOnceForDataImportCron]
+	snapshotClassChanged := oldSp.Annotations[cc.AnnSnapshotClassForDataImportCron] != newSp.Annotations[cc.AnnSnapshotClassForDataImportCron]
+	return sourceFormatChanged || rwoAnnotationChanged || snapshotClassChanged
 }
 
 // addDefaultStorageClassUpdateWatch watches for default/virt default storage class updates
@@ -1460,8 +1585,8 @@ func (r *DataImportCronReconciler) newCronJob(cron *cdiv1.DataImportCron) (*batc
 	return cronJob, nil
 }
 
-// InitPollerPodSpec inits poller PodSpec
-func InitPollerPodSpec(c client.Client, cron *cdiv1.DataImportCron, podSpec *corev1.PodSpec, image string, pullPolicy corev1.PullPolicy, log logr.Logger) error {
+// InitPollerPod inits poller Pod
+func InitPollerPod(c client.Client, cron *cdiv1.DataImportCron, pod *corev1.PodTemplateSpec, image string, pullPolicy corev1.PullPolicy, log logr.Logger) error {
 	regSource, err := getCronRegistrySource(cron)
 	if err != nil {
 		return err
@@ -1566,6 +1691,8 @@ func InitPollerPodSpec(c client.Client, cron *cdiv1.DataImportCron, podSpec *cor
 		return err
 	}
 
+	podSpec := &pod.Spec
+
 	podSpec.RestartPolicy = corev1.RestartPolicyNever
 	podSpec.TerminationGracePeriodSeconds = ptr.To[int64](0)
 	podSpec.Containers = []corev1.Container{container}
@@ -1585,6 +1712,11 @@ func InitPollerPodSpec(c client.Client, cron *cdiv1.DataImportCron, podSpec *cor
 		podSpec.Containers[0].SecurityContext.RunAsUser = nil
 	}
 
+	if pod.Labels == nil {
+		pod.Labels = map[string]string{}
+	}
+	pod.Labels[common.DataImportCronPollerLabel] = ""
+
 	return nil
 }
 
@@ -1600,8 +1732,8 @@ func (r *DataImportCronReconciler) initCronJob(cron *cdiv1.DataImportCron, cronJ
 	jobSpec.TTLSecondsAfterFinished = ptr.To[int32](10)
 	cc.AddAnnotation(&jobSpec.Template, secv1.RequiredSCCAnnotation, common.RestrictedSCCName)
 
-	podSpec := &jobSpec.Template.Spec
-	if err := InitPollerPodSpec(r.client, cron, podSpec, r.image, corev1.PullPolicy(r.pullPolicy), r.log); err != nil {
+	pod := &jobSpec.Template
+	if err := InitPollerPod(r.client, cron, pod, r.image, corev1.PullPolicy(r.pullPolicy), r.log); err != nil {
 		return err
 	}
 	if err := r.setJobCommon(cron, cronJob); err != nil {
@@ -1636,7 +1768,7 @@ func (r *DataImportCronReconciler) setJobCommon(cron *cdiv1.DataImportCron, obj 
 	return nil
 }
 
-func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string) *cdiv1.DataVolume {
+func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCron, dataVolumeName string, storageProfile *cdiv1.StorageProfile) *cdiv1.DataVolume {
 	dv := cron.Spec.Template.DeepCopy()
 	if isCronRegistrySource(cron) {
 		var digestedURL string
@@ -1661,6 +1793,14 @@ func (r *DataImportCronReconciler) newSourceDataVolume(cron *cdiv1.DataImportCro
 	}
 
 	passCronLabelToDv(cron, dv, cc.LabelDynamicCredentialSupport)
+
+	// Apply RWO access mode as default for DataImportCron (from StorageProfile annotation)
+	// Only applies if the DV doesn't already have AccessModes configured
+	if storageProfile != nil && storageProfile.Annotations[cc.AnnUseReadWriteOnceForDataImportCron] == "true" {
+		if dv.Spec.Storage != nil && len(dv.Spec.Storage.AccessModes) == 0 {
+			dv.Spec.Storage.AccessModes = []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}
+		}
+	}
 
 	return dv
 }
@@ -1803,4 +1943,28 @@ func getAccessModesFromDVSpec(dv *cdiv1.DataVolume) []corev1.PersistentVolumeAcc
 	}
 
 	return nil
+}
+
+func inferAdvisedRestoreSizeForSnapshot(dv *cdiv1.DataVolume, snapshot *snapshotv1.VolumeSnapshot, fallback *resource.Quantity) *resource.Quantity {
+	var dvSize resource.Quantity
+
+	if dv.Spec.PVC != nil {
+		dvSize = dv.Spec.PVC.Resources.Requests[corev1.ResourceStorage]
+	}
+
+	if dv.Spec.Storage != nil {
+		dvSize = dv.Spec.Storage.Resources.Requests[corev1.ResourceStorage]
+	}
+
+	if dvSize.IsZero() && fallback != nil {
+		return fallback
+	}
+
+	if snapshot.Status != nil {
+		if rs := snapshot.Status.RestoreSize; rs != nil && dvSize.Cmp(*rs) < 0 {
+			return snapshot.Status.RestoreSize
+		}
+	}
+
+	return &dvSize
 }

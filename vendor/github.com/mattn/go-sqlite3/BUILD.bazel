@@ -99,7 +99,13 @@ go_library(
             "-Ivendor/github.com/mattn/go-sqlite3",
             "-I/usr/local/include",
         ],
+        "@io_bazel_rules_go//go/platform:osx": [
+            "-Ivendor/github.com/mattn/go-sqlite3",
+        ],
         "@io_bazel_rules_go//go/platform:plan9": [
+            "-Ivendor/github.com/mattn/go-sqlite3",
+        ],
+        "@io_bazel_rules_go//go/platform:qnx": [
             "-Ivendor/github.com/mattn/go-sqlite3",
         ],
         "@io_bazel_rules_go//go/platform:solaris": [

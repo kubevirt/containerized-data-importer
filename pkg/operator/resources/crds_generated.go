@@ -5708,6 +5708,11 @@ spec:
                 description: Schedule specifies in cron format when and how often
                   to look for new imports
                 type: string
+              serviceAccountName:
+                description: ServiceAccountName is the name of the ServiceAccount
+                  for creating DataVolumes.
+                minLength: 1
+                type: string
               template:
                 description: Template specifies template for the DVs to be created
                 properties:
@@ -6034,6 +6039,10 @@ spec:
                               diskId:
                                 description: DiskID provides id of a disk to be imported
                                 type: string
+                              insecureSkipVerify:
+                                description: InsecureSkipVerify is a flag to skip
+                                  certificate verification
+                                type: boolean
                               secretRef:
                                 description: SecretRef provides the secret reference
                                   needed to access the ovirt-engine
@@ -7036,6 +7045,10 @@ spec:
                       diskId:
                         description: DiskID provides id of a disk to be imported
                         type: string
+                      insecureSkipVerify:
+                        description: InsecureSkipVerify is a flag to skip certificate
+                          verification
+                        type: boolean
                       secretRef:
                         description: SecretRef provides the secret reference needed
                           to access the ovirt-engine
@@ -8089,6 +8102,10 @@ spec:
                       diskId:
                         description: DiskID provides id of a disk to be imported
                         type: string
+                      insecureSkipVerify:
+                        description: InsecureSkipVerify is a flag to skip certificate
+                          verification
+                        type: boolean
                       secretRef:
                         description: SecretRef provides the secret reference needed
                           to access the ovirt-engine

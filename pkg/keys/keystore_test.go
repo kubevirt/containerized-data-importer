@@ -162,8 +162,6 @@ var _ = Describe("Create Private Key", func() {
 
 		checkActions(actions, client.Actions())
 
-		if !reflect.DeepEqual(privateKey, returnedPrivateKey) {
-			Fail("Keys do not match")
-		}
+		Expect(privateKey.Equal(returnedPrivateKey)).To(BeTrue(), "Keys should match")
 	})
 })

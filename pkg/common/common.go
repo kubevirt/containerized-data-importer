@@ -62,6 +62,8 @@ const (
 	DataImportCronLabel = CDIComponentLabel + "/dataImportCron"
 	// DataImportCronNsLabel has the namespace of the DataImportCron responsible for the labeled resource
 	DataImportCronNsLabel = CDIComponentLabel + "/dataImportCronNs"
+	// DataImportCronPollerLabel indicates that the pod is a DataImportCron poller pod
+	DataImportCronPollerLabel = CDIComponentLabel + "/dataImportCronPoller"
 	// DataImportCronCleanupLabel tells whether to delete the resource when its DataImportCron is deleted
 	DataImportCronCleanupLabel = DataImportCronLabel + ".cleanup"
 
@@ -314,6 +316,17 @@ const (
 
 	// The restricted SCC and particularly v2 is considered best practice for workloads that can manage without extended privileges
 	RestrictedSCCName = "restricted-v2"
+
+	// AllowAccessClusterServicesNPLabel is a pod label to be set by virt-components to indicate that they require
+	// access to cluster services otherwise blocked by the strict network policy (NP).
+	// This label will be applied to the following CDI pods:
+	// - cdi-operator
+	// - cdi-deployment
+	// - cdi-apiserver
+	// - cdi-uploadproxy
+	// - poller (DataImportCron poller pods that run in the CDI namespace)
+	// Copied from: https://github.com/kubevirt/kubevirt/blob/e5da5c9405d7f263ad70489a52747cc21a472489/staging/src/kubevirt.io/api/core/v1/types.go#L1369
+	AllowAccessClusterServicesNPLabel string = "np.kubevirt.io/allow-access-cluster-services"
 )
 
 // ProxyPaths are all supported paths

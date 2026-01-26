@@ -159,7 +159,7 @@ var _ = Describe("ALL Operator tests", func() {
 						nn := crclient.ObjectKey{Namespace: dv.Namespace, Name: dv.Name}
 						err = f.CrClient.Get(context.TODO(), nn, u)
 						return err
-					}, 1*time.Minute, 2*time.Second).Should(BeNil())
+					}, 1*time.Minute, 2*time.Second).Should(Succeed())
 
 					By("Scaling up CDI operator")
 					scaleDeployment(f, deploymentName, originalReplicaVal)
@@ -317,71 +317,6 @@ var _ = Describe("ALL Operator tests", func() {
 					return true
 				}, 5*time.Minute, 2*time.Second).Should(BeTrue())
 			})
-
-			It("should deploy components that tolerate CriticalAddonsOnly taint", func() {
-				cr := getCDI(f)
-				criticalAddonsToleration := corev1.Toleration{
-					Key:      "CriticalAddonsOnly",
-					Operator: corev1.TolerationOpExists,
-				}
-
-				if !tolerationExists(cr.Spec.Infra.NodePlacement.Tolerations, criticalAddonsToleration) {
-					Skip("Unexpected CDI CR (not from cdi-cr.yaml), doesn't tolerate CriticalAddonsOnly")
-				}
-
-				labelSelector := metav1.LabelSelector{MatchLabels: map[string]string{"cdi.kubevirt.io/testing": ""}}
-				cdiTestPods, err := f.K8sClient.CoreV1().Pods(f.CdiInstallNs).List(context.TODO(), metav1.ListOptions{
-					LabelSelector: labels.Set(labelSelector.MatchLabels).String(),
-				})
-				Expect(err).ToNot(HaveOccurred(), "failed listing cdi testing pods")
-				Expect(cdiTestPods.Items).ToNot(BeEmpty(), "no cdi testing pods found")
-
-				By("adding taints to all nodes")
-				criticalPodTaint := corev1.Taint{
-					Key:    "CriticalAddonsOnly",
-					Value:  "",
-					Effect: corev1.TaintEffectNoExecute,
-				}
-
-				for _, node := range nodes.Items {
-					Eventually(func() bool {
-						nodeCopy, err := f.K8sClient.CoreV1().Nodes().Get(context.TODO(), node.Name, metav1.GetOptions{})
-						Expect(err).ToNot(HaveOccurred())
-
-						if nodeHasTaint(*nodeCopy, criticalPodTaint) {
-							return true
-						}
-
-						nodeCopy.Spec.Taints = append(nodeCopy.Spec.Taints, criticalPodTaint)
-						_, _ = f.K8sClient.CoreV1().Nodes().Update(context.TODO(), nodeCopy, metav1.UpdateOptions{})
-						return false
-					}, 5*time.Minute, 2*time.Second).Should(BeTrue())
-				}
-
-				By("Waiting for all CDI testing pods to terminate")
-				Eventually(func() bool {
-					for _, cdiTestPod := range cdiTestPods.Items {
-						By(fmt.Sprintf("CDI test pod: %s", cdiTestPod.Name))
-						_, err := f.K8sClient.CoreV1().Pods(cdiTestPod.Namespace).Get(context.TODO(), cdiTestPod.Name, metav1.GetOptions{})
-						if !errors.IsNotFound(err) {
-							return false
-						}
-					}
-					return true
-				}, 5*time.Minute, 2*time.Second).Should(BeTrue())
-
-				By("Checking that all the non-testing pods are running")
-				for _, cdiPod := range cdiPods.Items {
-					if _, isTestingComponent := cdiPod.Labels["cdi.kubevirt.io/testing"]; isTestingComponent {
-						continue
-					}
-					By(fmt.Sprintf("Non-test CDI pod: %s", cdiPod.Name))
-					podUpdated, err := f.K8sClient.CoreV1().Pods(cdiPod.Namespace).Get(context.TODO(), cdiPod.Name, metav1.GetOptions{})
-					Expect(err).ToNot(HaveOccurred(), "failed setting taint on node")
-					Expect(podUpdated.Status.Phase).To(Equal(corev1.PodRunning))
-				}
-			})
-
 		})
 
 		var _ = Describe("Operator delete CDI CR tests", func() {
@@ -1191,7 +1126,7 @@ var _ = Describe("ALL Operator tests", func() {
 				Eventually(func() error {
 					_, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
 					return err
-				}, 2*time.Minute, 1*time.Second).Should(BeNil())
+				}, 2*time.Minute, 1*time.Second).Should(Succeed())
 
 				pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, cdiDeploymentPodPrefix, common.CDILabelSelector)
 				Expect(err).ToNot(HaveOccurred())
@@ -1354,24 +1289,6 @@ func waitCDI(f *framework.Framework, cr *cdiv1.CDI, cdiPods *corev1.PodList) {
 		err := utils.WaitTimeoutForPodReady(f.K8sClient, newCdiPod.Name, newCdiPod.Namespace, 20*time.Minute)
 		Expect(err).ToNot(HaveOccurred())
 	}
-}
-
-func tolerationExists(tolerations []corev1.Toleration, testValue corev1.Toleration) bool {
-	for _, toleration := range tolerations {
-		if reflect.DeepEqual(toleration, testValue) {
-			return true
-		}
-	}
-	return false
-}
-
-func nodeHasTaint(node corev1.Node, testedTaint corev1.Taint) bool {
-	for _, taint := range node.Spec.Taints {
-		if reflect.DeepEqual(taint, testedTaint) {
-			return true
-		}
-	}
-	return false
 }
 
 func infraDeploymentAvailable(f *framework.Framework, cr *cdiv1.CDI) bool {

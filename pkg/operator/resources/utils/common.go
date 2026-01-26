@@ -117,12 +117,6 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 		},
 		ImagePullSecrets: imagePullSecrets,
 		NodeSelector:     map[string]string{"kubernetes.io/os": "linux"},
-		Tolerations: []corev1.Toleration{
-			{
-				Key:      "CriticalAddonsOnly",
-				Operator: corev1.TolerationOpExists,
-			},
-		},
 		Affinity: &corev1.Affinity{
 			PodAffinity: &corev1.PodAffinity{
 				PreferredDuringSchedulingIgnoredDuringExecution: []corev1.WeightedPodAffinityTerm{
@@ -145,7 +139,11 @@ func CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAcco
 		},
 	}
 	deployment := ResourceBuilder.CreateOperatorDeployment(name, namespace, matchKey, matchValue, serviceAccount, numReplicas, podSpec)
-	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{common.PrometheusLabelKey: common.PrometheusLabelValue, common.CDIComponentLabel: common.CDIOperatorName})
+	labels := util.MergeLabels(deployment.Spec.Template.GetLabels(), map[string]string{
+		common.PrometheusLabelKey:                common.PrometheusLabelValue,
+		common.CDIComponentLabel:                 common.CDIOperatorName,
+		common.AllowAccessClusterServicesNPLabel: "true",
+	})
 	deployment.SetLabels(labels)
 	deployment.Spec.Template.SetLabels(labels)
 	if deployment.Spec.Template.Annotations == nil {

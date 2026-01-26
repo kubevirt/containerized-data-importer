@@ -175,10 +175,19 @@ func validateGCSSource(gcs *cdiv1.DataVolumeSourceGCS, field *field.Path) []meta
 }
 
 func validateImageIOSource(imageio *cdiv1.DataVolumeSourceImageIO, field *field.Path) []metav1.StatusCause {
-	if imageio.SecretRef == "" || imageio.CertConfigMap == "" || imageio.DiskID == "" {
+	// SecretRef and DiskID are required
+	if imageio.SecretRef == "" || imageio.DiskID == "" {
 		return []metav1.StatusCause{{
 			Type:    metav1.CauseTypeFieldValueInvalid,
 			Message: fmt.Sprintf("%s source Imageio is not valid", field.Child("source", "Imageio").String()),
+			Field:   field.Child("source", "Imageio").String(),
+		}}
+	}
+	// CertConfigMap is required unless InsecureSkipVerify is true
+	if imageio.CertConfigMap == "" && (imageio.InsecureSkipVerify == nil || !*imageio.InsecureSkipVerify) {
+		return []metav1.StatusCause{{
+			Type:    metav1.CauseTypeFieldValueInvalid,
+			Message: fmt.Sprintf("%s source Imageio requires CertConfigMap or InsecureSkipVerify", field.Child("source", "Imageio").String()),
 			Field:   field.Child("source", "Imageio").String(),
 		}}
 	}

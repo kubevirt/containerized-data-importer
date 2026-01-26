@@ -265,6 +265,8 @@ type DataVolumeSourceImageIO struct {
 	SecretRef string `json:"secretRef,omitempty"`
 	//CertConfigMap provides a reference to the CA cert
 	CertConfigMap string `json:"certConfigMap,omitempty"`
+	// InsecureSkipVerify is a flag to skip certificate verification
+	InsecureSkipVerify *bool `json:"insecureSkipVerify,omitempty"`
 }
 
 // DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source
@@ -594,6 +596,10 @@ type DataImportCronSpec struct {
 	// RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RatainAll.
 	// +optional
 	RetentionPolicy *DataImportCronRetentionPolicy `json:"retentionPolicy,omitempty"`
+	// ServiceAccountName is the name of the ServiceAccount for creating DataVolumes.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	ServiceAccountName *string `json:"serviceAccountName,omitempty"`
 }
 
 // DataImportCronGarbageCollect represents the DataImportCron garbage collection mode

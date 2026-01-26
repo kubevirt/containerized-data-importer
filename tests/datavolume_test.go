@@ -31,6 +31,7 @@ import (
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
@@ -1360,112 +1361,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Entry("[test_id:8045]for clone DataVolume", createCloneDataVolume, fillCommand),
 		)
 
-		Context("default virt storage class", Serial, func() {
-			var defaultVirtStorageClass *storagev1.StorageClass
-			var dummyStorageClass *storagev1.StorageClass
-			var defaultStorageClass *storagev1.StorageClass
-
-			getDefaultStorageClassName := func() string {
-				return utils.DefaultStorageClass.GetName()
-			}
-			getDefaultVirtStorageClassName := func() string {
-				return defaultVirtStorageClass.GetName()
-			}
-			getDummyStorageClassName := func() string {
-				return dummyStorageClass.GetName()
-			}
-			importFunc := func() *cdiv1.DataVolume {
-				return utils.NewDataVolumeWithHTTPImportAndStorageSpec("dv-virt-sc-test-import", "1Gi", tinyCoreIsoURL())
-			}
-			importFuncPVCAPI := func() *cdiv1.DataVolume {
-				return utils.NewDataVolumeWithHTTPImport("dv-virt-sc-test-import", "1Gi", tinyCoreIsoURL())
-			}
-			importExplicitScFunc := func() *cdiv1.DataVolume {
-				dv := utils.NewDataVolumeWithHTTPImportAndStorageSpec("dv-virt-sc-test-import", "1Gi", tinyCoreIsoURL())
-				sc := getDummyStorageClassName()
-				dv.Spec.Storage.StorageClassName = &sc
-				return dv
-			}
-			uploadFunc := func() *cdiv1.DataVolume {
-				return utils.NewDataVolumeForUploadWithStorageAPI("dv-virt-sc-test-upload", "1Gi")
-			}
-			cloneFunc := func() *cdiv1.DataVolume {
-				sourcePodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
-				pvcDef := utils.NewPVCDefinition(pvcName, "1Gi", nil, nil)
-				sourcePvc := f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand)
-
-				By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
-				return utils.NewDataVolumeForImageCloningAndStorageSpec("dv-virt-sc-test-clone", "1Gi", f.Namespace.Name, sourcePvc.Name, nil, nil)
-			}
-			archiveFunc := func() *cdiv1.DataVolume {
-				return utils.NewDataVolumeWithArchiveContentStorage("dv-virt-sc-test-archive", "1Gi", tarArchiveURL())
-			}
-
-			BeforeEach(func() {
-				addVirtParam := func(sc *storagev1.StorageClass) {
-					if len(sc.Parameters) == 0 {
-						sc.Parameters = map[string]string{}
-					}
-					sc.Parameters["better.for.kubevirt.io"] = "true"
-					controller.AddAnnotation(sc, controller.AnnDefaultVirtStorageClass, "true")
-				}
-				addDummyAnn := func(sc *storagev1.StorageClass) {
-					controller.AddAnnotation(sc, "dummy", "true")
-				}
-				sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), getDefaultStorageClassName(), metav1.GetOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				defaultStorageClass = sc
-				defaultVirtStorageClass, err = f.CreateNonDefaultVariationOfStorageClass(sc, addVirtParam)
-				Expect(err).ToNot(HaveOccurred())
-				dummyStorageClass, err = f.CreateNonDefaultVariationOfStorageClass(sc, addDummyAnn)
-				Expect(err).ToNot(HaveOccurred())
-			})
-
-			AfterEach(func() {
-				err := f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), defaultVirtStorageClass.Name, metav1.DeleteOptions{})
-				Expect(err).ToNot(HaveOccurred())
-				err = f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), dummyStorageClass.Name, metav1.DeleteOptions{})
-				Expect(err).ToNot(HaveOccurred())
-
-				if defaultStorageClass.Annotations[controller.AnnDefaultStorageClass] != "true" {
-					controller.AddAnnotation(defaultStorageClass, controller.AnnDefaultStorageClass, "true")
-					_, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), defaultStorageClass, metav1.UpdateOptions{})
-					Expect(err).ToNot(HaveOccurred())
-				}
-			})
-
-			DescribeTable("Should", func(dvFunc func() *cdiv1.DataVolume, getExpectedStorageClassName func() string, removeDefault bool) {
-				var err error
-				// Default storage class exists check
-				_ = utils.GetDefaultStorageClass(f.K8sClient)
-				if removeDefault {
-					controller.AddAnnotation(defaultStorageClass, controller.AnnDefaultStorageClass, "false")
-					defaultStorageClass, err = f.K8sClient.StorageV1().StorageClasses().Update(context.TODO(), defaultStorageClass, metav1.UpdateOptions{})
-					Expect(err).ToNot(HaveOccurred())
-				}
-
-				dataVolume := dvFunc()
-				By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
-				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-				Expect(err).ToNot(HaveOccurred())
-
-				// verify PVC was created
-				By("verifying pvc was created")
-				pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-				Expect(err).ToNot(HaveOccurred())
-
-				Expect(pvc.Spec.StorageClassName).To(HaveValue(Equal(getExpectedStorageClassName())))
-			},
-				Entry("[test_id:10505]respect default virt storage class for import DataVolume", importFunc, getDefaultVirtStorageClassName, false),
-				Entry("[test_id:10506]respect default virt storage class for upload DataVolume", uploadFunc, getDefaultVirtStorageClassName, false),
-				Entry("[test_id:10507]respect default virt storage class for clone DataVolume", cloneFunc, getDefaultVirtStorageClassName, false),
-				Entry("[test_id:10508]respect default virt storage class even if no k8s default exists", importFunc, getDefaultVirtStorageClassName, true),
-				Entry("[test_id:10509]not respect default virt storage class for contenType other than kubevirt", archiveFunc, getDefaultStorageClassName, false),
-				Entry("[test_id:10510]not respect default virt storage class for PVC api", importFuncPVCAPI, getDefaultStorageClassName, false),
-				Entry("[test_id:10511]not respect default virt storage class if explicit storage class provided", importExplicitScFunc, getDummyStorageClassName, false),
-			)
-		})
-
 		It("Should handle a pre populated DV", func() {
 			By(fmt.Sprintf("initializing dataVolume marked as prePopulated %s", dataVolumeName))
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", cirrosURL())
@@ -1866,7 +1761,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Expect(err).ToNot(HaveOccurred())
 				storageProfile.Spec = spec
 				return client.Update(context.TODO(), storageProfile)
-			}, 15*time.Second, time.Second).Should(BeNil())
+			}, 15*time.Second, time.Second).Should(Succeed())
 		}
 
 		configureStorageProfile := func(client client.Client,
@@ -2414,12 +2309,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 	Describe("Verify that when the required storage class is missing", Serial, func() {
 		var (
-			testSc *storagev1.StorageClass
-			pvName string
+			testSc     *storagev1.StorageClass
+			testScName string
+			pvName     string
 		)
 		const (
-			testScName  = "test-sc"
-			blankDVName = "blank-source"
+			testScNamePrefix = "test-sc"
+			blankDVName      = "blank-source"
 		)
 
 		updatePV := func(updateFunc func(*v1.PersistentVolume)) {
@@ -2474,7 +2370,18 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 			testSc, err = f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
+
+			By(fmt.Sprintf("verifying storage class %s created", testSc.Name))
+			Eventually(func() error {
+				_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), testSc.Name, metav1.GetOptions{})
+				return err
+			}, timeout, pollingInterval).Should(Succeed())
 		}
+
+		BeforeEach(func() {
+			testScName = fmt.Sprintf("%s-%s", testScNamePrefix, strings.ToLower(util.RandAlphaNum(8)))
+			By(fmt.Sprintf("init test storage class name: %s", testScName))
+		})
 
 		AfterEach(func() {
 			if testSc != nil {
@@ -2533,7 +2440,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			utils.WaitForConditions(f, dv.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
 		}
 
-		DescribeTable("import DV using StorageSpec without AccessModes, PVC is created only when", func(webhookRenderingLabel, scName string, dvFunc func(*cdiv1.DataVolume), scFunc func(string)) {
+		DescribeTable("import DV using StorageSpec without AccessModes, PVC is created only when", func(webhookRenderingLabel string, isScEmpty bool, dvFunc func(*cdiv1.DataVolume), scFunc func(string)) {
+
+			scName := ""
+			if !isScEmpty {
+				scName = testScName
+			}
+
 			if utils.IsDefaultSCNoProvisioner() {
 				Skip("Default storage class has no provisioner. The new storage class won't work")
 			}
@@ -2573,12 +2486,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 		},
-			Entry("[test_id:9922]the storage class is created (controller rendering)", "false", testScName, verifyControllerRenderingEventAndConditions, createStorageClass),
-			Entry("[test_id:9924]PV with the SC name is created (controller rendering)", "false", testScName, verifyControllerRenderingEventAndConditions, createPV),
-			Entry("[test_id:9925]PV with the SC name (\"\" blank) is created (controller rendering)", "false", "", verifyControllerRenderingEventAndConditions, createPV),
-			Entry("[rfe_id:10985][crit:high][test_id:11049]the storage class is created (webhook rendering)", "true", testScName, verifyWebhookRenderingEventAndConditions, createStorageClass),
-			Entry("[rfe_id:10985][crit:high][test_id:11050]PV with the SC name is created (webhook rendering)", "true", testScName, verifyWebhookRenderingEventAndConditions, createPV),
-			Entry("[rfe_id:10985][crit:high][test_id:11051]PV with the SC name (\"\" blank) is created (webhook rendering)", "true", "", verifyWebhookRenderingEventAndConditions, createPV),
+			Entry("[test_id:9922]the storage class is created (controller rendering)", "false", false, verifyControllerRenderingEventAndConditions, createStorageClass),
+			Entry("[test_id:9924]PV with the SC name is created (controller rendering)", "false", false, verifyControllerRenderingEventAndConditions, createPV),
+			Entry("[test_id:9925]PV with the SC name (\"\" blank) is created (controller rendering)", "false", true, verifyControllerRenderingEventAndConditions, createPV),
+			Entry("[rfe_id:10985][crit:high][test_id:11049]the storage class is created (webhook rendering)", "true", false, verifyWebhookRenderingEventAndConditions, createStorageClass),
+			Entry("[rfe_id:10985][crit:high][test_id:11050]PV with the SC name is created (webhook rendering)", "true", false, verifyWebhookRenderingEventAndConditions, createPV),
+			Entry("[rfe_id:10985][crit:high][test_id:11051]PV with the SC name (\"\" blank) is created (webhook rendering)", "true", true, verifyWebhookRenderingEventAndConditions, createPV),
 		)
 
 		newDataVolumeWithStorageSpec := func(scName string) *cdiv1.DataVolume {
@@ -2594,7 +2507,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return dv
 		}
 
-		DescribeTable("import DV with AccessModes, PVC is pending until", func(scName string, scFunc func(string), dvFunc func(string) *cdiv1.DataVolume) {
+		DescribeTable("import DV with AccessModes, PVC is pending until", func(isScEmpty bool, scFunc func(string), dvFunc func(string) *cdiv1.DataVolume) {
+			scName := ""
+			if !isScEmpty {
+				scName = testScName
+			}
+
 			if utils.IsDefaultSCNoProvisioner() {
 				Skip("Default storage class has no provisioner. The new storage class won't work")
 			}
@@ -2640,12 +2558,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			err = utils.WaitForDataVolumePhase(f, dataVolume.Namespace, cdiv1.Succeeded, dataVolume.Name)
 			Expect(err).ToNot(HaveOccurred())
 		},
-			Entry("[test_id:9926]the storage class is created (PvcSpec)", testScName, createStorageClass, newDataVolumeWithPvcSpec),
-			Entry("[test_id:9927]PV with the SC name is created (PvcSpec)", testScName, createPV, newDataVolumeWithPvcSpec),
-			Entry("[test_id:9928]PV with the SC name (\"\" blank) is created (PvcSpec)", "", createPV, newDataVolumeWithPvcSpec),
-			Entry("[test_id:9929]the storage class is created (StorageSpec)", testScName, createStorageClass, newDataVolumeWithStorageSpec),
-			Entry("[test_id:9930]PV with the SC name is created (StorageSpec)", testScName, createPV, newDataVolumeWithStorageSpec),
-			Entry("[test_id:9931]PV with the SC name (\"\" blank) is created (StorageSpec)", "", createPV, newDataVolumeWithStorageSpec),
+			Entry("[test_id:9926]the storage class is created (PvcSpec)", false, createStorageClass, newDataVolumeWithPvcSpec),
+			Entry("[test_id:9927]PV with the SC name is created (PvcSpec)", false, createPV, newDataVolumeWithPvcSpec),
+			Entry("[test_id:9928]PV with the SC name (\"\" blank) is created (PvcSpec)", true, createPV, newDataVolumeWithPvcSpec),
+			Entry("[test_id:9929]the storage class is created (StorageSpec)", false, createStorageClass, newDataVolumeWithStorageSpec),
+			Entry("[test_id:9930]PV with the SC name is created (StorageSpec)", false, createPV, newDataVolumeWithStorageSpec),
+			Entry("[test_id:9931]PV with the SC name (\"\" blank) is created (StorageSpec)", true, createPV, newDataVolumeWithStorageSpec),
 		)
 	})
 

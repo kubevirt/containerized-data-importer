@@ -380,6 +380,25 @@ var _ = Describe("All DataVolume Tests", func() {
 				Expect(err).To(HaveOccurred())
 				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 			})
+
+			It("Should respect virt-default storage class for clone", func() {
+				dv := newCloneDataVolume("test-dv")
+				dv.Spec.Storage = createStorageSpec()
+				dv.Spec.PVC = nil
+				defaultStorageClass := CreateStorageClass("defaultSc", map[string]string{AnnDefaultStorageClass: "true"})
+				virtDefaultStorageClass := CreateStorageClass("virt-default", map[string]string{AnnDefaultVirtStorageClass: "true"})
+				srcPvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+				reconciler = createCloneReconciler(defaultStorageClass, virtDefaultStorageClass, dv, srcPvc)
+
+				_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+				Expect(err).ToNot(HaveOccurred())
+
+				pvc := &corev1.PersistentVolumeClaim{}
+				err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(pvc.Name).To(Equal("test-dv"))
+				Expect(pvc.Spec.StorageClassName).To(HaveValue(Equal("virt-default")))
+			})
 		})
 	})
 
@@ -493,12 +512,13 @@ var _ = Describe("All DataVolume Tests", func() {
 		sourcePvc := CreatePvc("testPVC", "default", map[string]string{}, nil)
 		blockVM := corev1.PersistentVolumeBlock
 		fsVM := corev1.PersistentVolumeFilesystem
+		r := createCloneReconciler()
 
 		It("Should reject the clone if source and target have different content types", func() {
 			sourcePvc.Annotations[AnnContentType] = string(cdiv1.DataVolumeKubeVirt)
 			dvSpec := &cdiv1.DataVolumeSpec{ContentType: cdiv1.DataVolumeArchive}
 
-			err := validateClone(sourcePvc, dvSpec)
+			err := r.validateClone(sourcePvc, dvSpec)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(
 				fmt.Sprintf("Source contentType (%s) and target contentType (%s) do not match", cdiv1.DataVolumeKubeVirt, cdiv1.DataVolumeArchive)))
@@ -516,7 +536,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 			dvSpec := &cdiv1.DataVolumeSpec{Storage: storageSpec}
 
-			err := validateClone(sourcePvc, dvSpec)
+			err := r.validateClone(sourcePvc, dvSpec)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("target resources requests storage size is smaller than the source"))
 		})
@@ -533,7 +553,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 			dvSpec := &cdiv1.DataVolumeSpec{Storage: storageSpec}
 
-			err := validateClone(sourcePvc, dvSpec)
+			err := r.validateClone(sourcePvc, dvSpec)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -543,7 +563,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			storageSpec := &cdiv1.StorageSpec{}
 			dvSpec := &cdiv1.DataVolumeSpec{Storage: storageSpec}
 
-			err := validateClone(sourcePvc, dvSpec)
+			err := r.validateClone(sourcePvc, dvSpec)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -558,7 +578,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 			dvSpec := &cdiv1.DataVolumeSpec{PVC: pvcSpec}
 
-			err := validateClone(sourcePvc, dvSpec)
+			err := r.validateClone(sourcePvc, dvSpec)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("target resources requests storage size is smaller than the source"))
 
@@ -575,7 +595,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 			dvSpec := &cdiv1.DataVolumeSpec{PVC: pvcSpec}
 
-			err := validateClone(sourcePvc, dvSpec)
+			err := r.validateClone(sourcePvc, dvSpec)
 			Expect(err).ToNot(HaveOccurred())
 		})
 	})

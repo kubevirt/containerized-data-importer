@@ -36,7 +36,7 @@ FUNC_TEST_TINYCORE="cdi-func-test-tinycore"
 FUNC_TEST_CIRROS_QCOW2="cdi-func-test-cirros-qcow2"
 
 # update this whenever new builder tag is created
-BUILDER_IMAGE=${BUILDER_IMAGE:-quay.io/kubevirt/kubevirt-cdi-bazel-builder:2503021312-67d1f3d4d}
+BUILDER_IMAGE=${BUILDER_IMAGE:-quay.io/kubevirt/kubevirt-cdi-bazel-builder:2512251744-a38f16d34}
 
 BINARIES="cmd/${OPERATOR} cmd/${CONTROLLER} cmd/${IMPORTER} cmd/${CLONER} cmd/${APISERVER} cmd/${UPLOADPROXY} cmd/${UPLOADSERVER} cmd/${OPERATOR} tools/${FUNC_TEST_INIT} tools/${FUNC_TEST_REGISTRY_INIT} tools/${FUNC_TEST_BAD_WEBSERVER} tools/${FUNC_TEST_PROXY} tools/${FUNC_TEST_POPULATOR}"
 CDI_PKGS="cmd/ pkg/ test/"

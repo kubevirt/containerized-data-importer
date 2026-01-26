@@ -1,9 +1,9 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
-load("@io_bazel_rules_docker//container:container.bzl", "container_image")
 load("@bazel_gazelle//:def.bzl", "gazelle")
 load("@bazel_tools//tools/python:toolchain.bzl", "py_runtime_pair")
 load("@bazeldnf//:def.bzl", "bazeldnf")
-load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
+load("@rules_oci//oci:defs.bzl", "oci_push", "oci_image")
 
 py_runtime(
     name = "python2_runtime",
@@ -34,6 +34,11 @@ gazelle(name = "gazelle")
 
 bazeldnf(name = "bazeldnf")
 
+alias(
+    name = "buildozer",
+    actual = "@buildifier_prebuilt//:buildozer",
+)
+
 go_library(
     name = "go_default_library",
     srcs = ["doc.go"],
@@ -41,211 +46,176 @@ go_library(
     visibility = ["//visibility:public"],
 )
 
-load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_bundle",
-    "container_image",
-    "container_push",
+load("@aspect_bazel_lib//lib:expand_template.bzl", "expand_template")
+
+expand_template(
+    name = "tags",
+    template = ["0.0.0"],
+    substitutions = {
+        "0.0.0": "$(container_tag)",
+    },
 )
 
-load("@io_bazel_rules_docker//contrib:push-all.bzl", "docker_push")
-
-container_push(
-    name = "push-cdi-func-test-bad-webserver",
-    format = "Docker",
-    image = "//tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-func-test-bad-webserver",
-    tag = "$(container_tag)",
+expand_template(
+    name = "repository",
+    template = ["repository"],
+    substitutions = {
+            "repository": "$(container_prefix)/$(push_target)",
+    }
 )
 
-container_push(
-    name = "push-cdi-func-test-proxy",
-    format = "Docker",
-    image = "//tools/cdi-func-test-proxy:cdi-func-test-proxy-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-func-test-proxy",
-    tag = "$(container_tag)",
-)
-
-container_push(
-    name = "push-cdi-func-test-sample-populator",
-    format = "Docker",
-    image = "//tools/cdi-func-test-sample-populator:cdi-func-test-sample-populator-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-func-test-sample-populator",
-    tag = "$(container_tag)",
-)
-
-container_push(
-    name = "push-cdi-func-test-file-host-init",
-    format = "Docker",
-    image = "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-func-test-file-host-init",
-    tag = "$(container_tag)",
-)
-
-container_push(
-    name = "push-cdi-func-test-file-host-http",
-    format = "Docker",
-    image = "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-func-test-file-host-http",
-    tag = "$(container_tag)",
-)
-
-container_push(
-    name = "push-cdi-func-test-registry-init",
-    format = "Docker",
-    image = "//tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-func-test-registry-init",
-    tag = "$(container_tag)",
-)
-
-container_push(
-    name = "push-cdi-func-test-registry-populate",
-    format = "Docker",
-    image = "//tools/cdi-func-test-registry-init:cdi-func-test-registry-populate-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-func-test-registry-populate",
-    tag = "$(container_tag)",
-)
-
-container_push(
-    name = "push-cdi-func-test-registry",
-    format = "Docker",
-    image = "//tools/cdi-func-test-registry-init:cdi-func-test-registry-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-func-test-registry",
-    tag = "$(container_tag)",
-)
-
-container_push(
-    name = "push-imageio-init",
-    format = "Docker",
-    image = "//tools/imageio-init:imageio-init-image",
-    registry = "$(container_prefix)",
-    repository = "imageio-init",
-    tag = "$(container_tag)",
-)
-
-container_push(
-    name = "push-vcenter-simulator",
-    format = "Docker",
-    image = "//tools/vddk-test:vcenter-simulator",
-    registry = "$(container_prefix)",
-    repository = "vcenter-simulator",
-    tag = "$(container_tag)",
-)
-
-container_push(
-    name = "push-vddk-init",
-    format = "Docker",
-    image = "//tools/vddk-init:vddk-init-image",
-    registry = "$(container_prefix)",
-    repository = "vddk-init",
-    tag = "$(container_tag)",
-)
-
-container_push(
-    name = "push-vddk-test",
-    format = "Docker",
-    image = "//tools/vddk-test:vddk-test-image",
-    registry = "$(container_prefix)",
-    repository = "vddk-test",
-    tag = "$(container_tag)",
-)
-
-container_push(
-    name = "push-cdi-func-test-tinycore",
-    format = "Docker",
-    image = "//tests:cdi-func-test-tinycore",
-    registry = "$(container_prefix)",
-    repository = "cdi-func-test-tinycore",
-    tag = "$(container_tag)",
-)
-
-container_push(
-    name = "push-cdi-func-test-imageio",
-    format = "Docker",
-    image = "//tools/image-io:cdi-func-test-imageio-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-func-test-imageio",
-    tag = "$(container_tag)",
-)
-
-container_push(
-    name = "push-cdi-func-test-cirros-qcow2",
-    format = "Docker",
-    image = "//tests:cdi-func-test-cirros-qcow2",
-    registry = "$(container_prefix)",
-    repository = "cdi-func-test-cirros-qcow2",
-    tag = "$(container_tag)",
-)
-
-container_push(
+oci_push(
     name = "push-cdi-operator",
-    format = "Docker",
+    remote_tags = ":tags",
     image = "//cmd/cdi-operator:cdi-operator-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-operator",
-    tag = "$(container_tag)",
+    repository_file = ":repository",
 )
 
-container_push(
+oci_push(
     name = "push-cdi-controller",
-    format = "Docker",
+    remote_tags = ":tags",
     image = "//cmd/cdi-controller:cdi-controller-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-controller",
-    tag = "$(container_tag)",
+    repository_file = ":repository",
 )
 
-container_push(
+oci_push(
     name = "push-cdi-apiserver",
-    format = "Docker",
+    remote_tags = ":tags",
     image = "//cmd/cdi-apiserver:cdi-apiserver-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-apiserver",
-    tag = "$(container_tag)",
+    repository_file = ":repository",
 )
 
-container_push(
+oci_push(
     name = "push-cdi-cloner",
-    format = "Docker",
+    remote_tags = ":tags",
     image = "//cmd/cdi-cloner:cdi-cloner-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-cloner",
-    tag = "$(container_tag)",
+    repository_file = ":repository",
 )
 
-container_push(
+oci_push(
     name = "push-cdi-importer",
-    format = "Docker",
+    remote_tags = ":tags",
     image = "//cmd/cdi-importer:cdi-importer-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-importer",
-    tag = "$(container_tag)",
+    repository_file = ":repository",
 )
 
-container_push(
+oci_push(
     name = "push-cdi-uploadproxy",
-    format = "Docker",
+    remote_tags = ":tags",
     image = "//cmd/cdi-uploadproxy:cdi-uploadproxy-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-uploadproxy",
-    tag = "$(container_tag)",
+    repository_file = ":repository",
 )
 
-container_push(
+oci_push(
     name = "push-cdi-uploadserver",
-    format = "Docker",
+    remote_tags = ":tags",
     image = "//cmd/cdi-uploadserver:cdi-uploadserver-image",
-    registry = "$(container_prefix)",
-    repository = "cdi-uploadserver",
-    tag = "$(container_tag)",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-vcenter-simulator",
+    remote_tags = ":tags",
+    image = "//tools/vddk-test:vcenter-simulator-image",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-cdi-func-test-bad-webserver",
+    remote_tags = ":tags",
+    image = "//tools/cdi-func-test-bad-webserver:cdi-func-test-bad-webserver-image",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-cdi-func-test-proxy",
+    remote_tags = ":tags",
+    image = "//tools/cdi-func-test-proxy:cdi-func-test-proxy-image",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-cdi-func-test-sample-populator",
+    remote_tags = ":tags",
+    image = "//tools/cdi-func-test-sample-populator:cdi-func-test-sample-populator-image",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-cdi-func-test-file-host-init",
+    remote_tags = ":tags",
+    image = "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-init-image",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-cdi-func-test-file-host-http",
+    remote_tags = ":tags",
+    image = "//tools/cdi-func-test-file-host-init:cdi-func-test-file-host-http-image",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-cdi-func-test-registry-init",
+    remote_tags = ":tags",
+    image = "//tools/cdi-func-test-registry-init:cdi-func-test-registry-init-image",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-cdi-func-test-registry-populate",
+    remote_tags = ":tags",
+    image = "//tools/cdi-func-test-registry-init:cdi-func-test-registry-populate-image",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-cdi-func-test-registry",
+    remote_tags = ":tags",
+    image = "//tools/cdi-func-test-registry-init:cdi-func-test-registry-image",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-cdi-func-test-tinycore",
+    remote_tags = ":tags",
+    image = "//tests:cdi-func-test-tinycore",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-cdi-func-test-cirros-qcow2",
+    remote_tags = ":tags",
+    image = "//tests:cdi-func-test-cirros-qcow2",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-imageio-init",
+    remote_tags = ":tags",
+    image = "//tools/imageio-init:imageio-init-image",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-cdi-func-test-imageio",
+    remote_tags = ":tags",
+    image = "//tools/image-io:cdi-func-test-imageio-image",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-vddk-init",
+    remote_tags = ":tags",
+    image = "//tools/vddk-init:vddk-init-image",
+    repository_file = ":repository",
+)
+
+oci_push(
+    name = "push-vddk-test",
+    remote_tags = ":tags",
+    image = "//tools/vddk-test:vddk-test-image",
+    repository_file = ":repository",
 )
 
 filegroup(
@@ -274,8 +244,13 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
-container_image(
+oci_image(
     name = "testimage_base",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": [
             "//rpm:testimage_s390x",
@@ -287,11 +262,17 @@ container_image(
             "//rpm:testimage_x86_64",
         ],
     }),
+    os = "linux",
     visibility = ["//visibility:public"],
 )
 
-container_image(
+oci_image(
     name = "centos_base",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": [
             "//rpm:centos_base_s390x",
@@ -303,13 +284,8 @@ container_image(
             "//rpm:centos_base_x86_64",
         ],
     }),
+    os = "linux",
     visibility = ["//visibility:public"],
-)
-
-genrule(
-    name = "ca_anchors",
-    outs = ["tls-ca-bundle.pem"],
-    cmd = "/usr/bin/p11-kit extract --format=pem-bundle --filter=ca-anchors --overwrite --comment --purpose server-auth $@",
 )
 
 genrule(
@@ -320,11 +296,4 @@ genrule(
     outs = ["ginkgo-copier"],
     cmd = "echo '#!/bin/sh\n\ncp -f $(SRCS) $$1' > \"$@\"",
     executable = 1,
-)
-
-pkg_tar(
-    name = "ca_anchors_tar",
-    srcs = [":ca_anchors"],
-    package_dir = "/etc/pki/ca-trust/extracted/pem",
-    visibility = ["//visibility:public"],
 )

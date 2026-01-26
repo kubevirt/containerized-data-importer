@@ -181,6 +181,8 @@ const (
 	AnnDiskID = AnnAPIGroup + "/storage.import.diskId"
 	// AnnUUID provides a const for our PVC uuid annotation
 	AnnUUID = AnnAPIGroup + "/storage.import.uuid"
+	// AnnInsecureSkipVerify provides a const for skipping certificate verification
+	AnnInsecureSkipVerify = AnnAPIGroup + "/storage.import.insecureSkipVerify"
 	// AnnBackingFile provides a const for our PVC backing file annotation
 	AnnBackingFile = AnnAPIGroup + "/storage.import.backingFile"
 	// AnnThumbprint provides a const for our PVC backing thumbprint annotation
@@ -223,6 +225,10 @@ const (
 
 	// AnnMinimumSupportedPVCSize annotation on a StorageProfile specifies its minimum supported PVC size
 	AnnMinimumSupportedPVCSize = AnnAPIGroup + "/minimumSupportedPvcSize"
+	// AnnUseReadWriteOnceForDataImportCron annotation on a StorageProfile signals that DataImportCron should use RWO for DataImportCron PVCs
+	AnnUseReadWriteOnceForDataImportCron = AnnAPIGroup + "/useReadWriteOnceForDataImportCron"
+	// AnnSnapshotClassForDataImportCron annotation on a StorageProfile specifies the VolumeSnapshotClass to use for DataImportCron snapshots
+	AnnSnapshotClassForDataImportCron = AnnAPIGroup + "/snapshotClassForDataImportCron"
 
 	// AnnDefaultStorageClass is the annotation indicating that a storage class is the default one
 	AnnDefaultStorageClass = "storageclass.kubernetes.io/is-default-class"
@@ -233,6 +239,8 @@ const (
 
 	// AnnSourceVolumeMode is the volume mode of the source PVC specified as an annotation on snapshots
 	AnnSourceVolumeMode = AnnAPIGroup + "/storage.import.sourceVolumeMode"
+	// AnnAdvisedRestoreSize is the advised restore size for disks restored from the snapshot
+	AnnAdvisedRestoreSize = AnnAPIGroup + "/storage.import.advisedRestoreSize"
 
 	// AnnOpenShiftImageLookup is the annotation for OpenShift image stream lookup
 	AnnOpenShiftImageLookup = "alpha.image.policy.openshift.io/resolve-names"
@@ -1099,6 +1107,51 @@ func AddImportVolumeMounts() []corev1.VolumeMount {
 	return volumeMounts
 }
 
+// GetEffectiveStorageResources returns the maximum of the passed storageResources and the storageProfile minimumSupportedPVCSize.
+// If the passed storageResources has no size, it is returned as-is.
+func GetEffectiveStorageResources(ctx context.Context, client client.Client, storageResources corev1.VolumeResourceRequirements,
+	storageClassName *string, contentType cdiv1.DataVolumeContentType, log logr.Logger) (corev1.VolumeResourceRequirements, error) {
+	sc, err := GetStorageClassByNameWithVirtFallback(ctx, client, storageClassName, contentType)
+	if err != nil || sc == nil {
+		return storageResources, err
+	}
+
+	requestedSize, hasSize := storageResources.Requests[corev1.ResourceStorage]
+	if !hasSize {
+		return storageResources, nil
+	}
+
+	if requestedSize, err = GetEffectiveVolumeSize(ctx, client, requestedSize, sc.Name, &log); err != nil {
+		return storageResources, err
+	}
+
+	return corev1.VolumeResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceStorage: requestedSize,
+		},
+	}, nil
+}
+
+// GetEffectiveVolumeSize returns the maximum of the passed requestedSize and the storageProfile minimumSupportedPVCSize.
+func GetEffectiveVolumeSize(ctx context.Context, client client.Client, requestedSize resource.Quantity, storageClassName string, log *logr.Logger) (resource.Quantity, error) {
+	storageProfile := &cdiv1.StorageProfile{}
+	if err := client.Get(ctx, types.NamespacedName{Name: storageClassName}, storageProfile); err != nil {
+		return requestedSize, IgnoreNotFound(err)
+	}
+
+	if val, exists := storageProfile.Annotations[AnnMinimumSupportedPVCSize]; exists {
+		if minSize, err := resource.ParseQuantity(val); err == nil {
+			if requestedSize.Cmp(minSize) == -1 {
+				return minSize, nil
+			}
+		} else if log != nil {
+			log.V(1).Info("Invalid minimum PVC size in annotation", "value", val, "error", err)
+		}
+	}
+
+	return requestedSize, nil
+}
+
 // ValidateRequestedCloneSize validates the clone size requirements on block
 func ValidateRequestedCloneSize(sourceResources, targetResources corev1.VolumeResourceRequirements) error {
 	sourceRequest, hasSource := sourceResources.Requests[corev1.ResourceStorage]
@@ -1732,6 +1785,9 @@ func UpdateImageIOAnnotations(annotations map[string]string, imageio *cdiv1.Data
 	annotations[AnnSecret] = imageio.SecretRef
 	annotations[AnnCertConfigMap] = imageio.CertConfigMap
 	annotations[AnnDiskID] = imageio.DiskID
+	if imageio.InsecureSkipVerify != nil && *imageio.InsecureSkipVerify {
+		annotations[AnnInsecureSkipVerify] = "true"
+	}
 }
 
 // IsPVBoundToPVC checks if a PV is bound to a specific PVC
@@ -2218,4 +2274,54 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 	}
 
 	return nil
+}
+
+// CopyEvents gets srcPvc events and re-emits them on the target PVC with the src name prefix
+func CopyEvents(srcPVC, targetPVC client.Object, c client.Client, recorder record.EventRecorder) {
+	srcPrefixMsg := fmt.Sprintf("[%s] : ", srcPVC.GetName())
+
+	newEvents := &corev1.EventList{}
+	err := c.List(context.TODO(), newEvents,
+		client.InNamespace(srcPVC.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": srcPVC.GetName(),
+			"involvedObject.uid": string(srcPVC.GetUID())},
+	)
+
+	if err != nil {
+		klog.Error(err, "Could not retrieve srcPVC list of Events")
+	}
+
+	currEvents := &corev1.EventList{}
+	err = c.List(context.TODO(), currEvents,
+		client.InNamespace(targetPVC.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": targetPVC.GetName(),
+			"involvedObject.uid": string(targetPVC.GetUID())},
+	)
+
+	if err != nil {
+		klog.Error(err, "Could not retrieve targetPVC list of Events")
+	}
+
+	// use this to hash each message for quick lookup, value is unused
+	eventMap := map[string]struct{}{}
+
+	for _, event := range currEvents.Items {
+		eventMap[event.Message] = struct{}{}
+	}
+
+	for _, newEvent := range newEvents.Items {
+		msg := newEvent.Message
+
+		// check if target PVC already has this equivalent event
+		if _, exists := eventMap[msg]; exists {
+			continue
+		}
+
+		formattedMsg := srcPrefixMsg + msg
+		// check if we already emitted this event with the src prefix
+		if _, exists := eventMap[formattedMsg]; exists {
+			continue
+		}
+		recorder.Event(targetPVC, newEvent.Type, newEvent.Reason, formattedMsg)
+	}
 }

@@ -384,11 +384,11 @@ func (vmware *VMwareClient) FindDiskInRootSnapshotParent(snapshots []types.Virtu
 						}
 					case *types.VirtualDiskFlatVer2BackingInfo:
 						if info := disk.Backing.(*types.VirtualDiskFlatVer2BackingInfo); info != nil && info.Parent != nil {
-							parent = &info.VirtualDeviceFileBackingInfo
+							parent = &info.Parent.VirtualDeviceFileBackingInfo
 						}
 					case *types.VirtualDiskRawDiskMappingVer1BackingInfo:
 						if info := disk.Backing.(*types.VirtualDiskRawDiskMappingVer1BackingInfo); info != nil && info.Parent != nil {
-							parent = &info.VirtualDeviceFileBackingInfo
+							parent = &info.Parent.VirtualDeviceFileBackingInfo
 						}
 					}
 					if parent != nil && parent.FileName == fileName {

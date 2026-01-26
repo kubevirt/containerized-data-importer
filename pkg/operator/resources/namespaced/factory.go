@@ -65,6 +65,10 @@ var factoryFunctions = map[string]factoryFunc{
 	"cronjob":     createCronJobResources,
 }
 
+var additionalFactoryFunctions = map[string]factoryFunc{
+	"networkpolicies": createNetworkPolicies,
+}
+
 // CreateAllResources creates all namespaced resources
 func CreateAllResources(args *FactoryArgs) ([]client.Object, error) {
 	var resources []client.Object
@@ -80,7 +84,7 @@ func CreateAllResources(args *FactoryArgs) ([]client.Object, error) {
 
 // CreateResourceGroup creates namespaced resources for a specific group/component
 func CreateResourceGroup(group string, args *FactoryArgs) ([]client.Object, error) {
-	f, ok := factoryFunctions[group]
+	f, ok := getFactoryFunc(group)
 	if !ok {
 		return nil, fmt.Errorf("group %s does not exist", group)
 	}
@@ -110,4 +114,14 @@ func GetRolePolicyRules() []rbacv1.PolicyRule {
 	result = append(result, getUploadProxyNamespacedRules()...)
 	result = append(result, GetPrometheusNamespacedRules()...)
 	return result
+}
+
+func getFactoryFunc(group string) (factoryFunc, bool) {
+	if f, ok := factoryFunctions[group]; ok {
+		return f, true
+	}
+	if f, ok := additionalFactoryFunctions[group]; ok {
+		return f, true
+	}
+	return nil, false
 }

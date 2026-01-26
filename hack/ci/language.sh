@@ -11,6 +11,7 @@ PHRASES='master|slave|whitelist|blacklist'
 
 VIOLATIONS=$(git grep -iI -E $PHRASES -- \
     ':!vendor' \
+    ':!**/vendor/**' \
     ':!cluster-up' \
     ':!cluster-sync' \
     ':!*generated*' \

@@ -617,7 +617,7 @@ github.com/prometheus/common/model
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/rhobs/operator-observability-toolkit v0.0.29
+# github.com/rhobs/operator-observability-toolkit v0.0.30
 ## explicit; go 1.21
 github.com/rhobs/operator-observability-toolkit/pkg/docs
 github.com/rhobs/operator-observability-toolkit/pkg/operatormetrics
@@ -1587,7 +1587,7 @@ k8s.io/utils/ptr
 k8s.io/utils/strings/slices
 k8s.io/utils/trace
 # kubevirt.io/containerized-data-importer-api v0.0.0 => ./staging/src/kubevirt.io/containerized-data-importer-api
-## explicit; go 1.23.0
+## explicit; go 1.24.0
 kubevirt.io/containerized-data-importer-api/pkg/apis/core
 kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1
 kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1

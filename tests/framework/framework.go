@@ -796,5 +796,5 @@ func (f *Framework) updateCDIConfig() {
 		return utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 			config.FeatureGates = f.FeatureGates
 		})
-	}, timeout, pollingInterval).Should(gomega.BeNil())
+	}, timeout, pollingInterval).Should(gomega.Succeed())
 }

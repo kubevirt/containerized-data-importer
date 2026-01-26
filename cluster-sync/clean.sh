@@ -80,6 +80,7 @@ for n in ${NAMESPACES[@]}; do
     _kubectl -n ${n} delete rolebinding -l ${label}
     _kubectl -n ${n} delete roles -l ${label}
     _kubectl -n ${n} delete serviceaccounts -l ${label}
+    _kubectl -n ${n} delete networkpolicies -l ${label}
   done
 done
 

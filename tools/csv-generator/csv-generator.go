@@ -16,6 +16,7 @@ import (
 	"flag"
 	"os"
 
+	cdinamespaced "kubevirt.io/containerized-data-importer/pkg/operator/resources/namespaced"
 	cdioperator "kubevirt.io/containerized-data-importer/pkg/operator/resources/operator"
 	"kubevirt.io/containerized-data-importer/tools/util"
 )
@@ -40,6 +41,7 @@ var (
 	uploadServerImage   = flag.String("uploadserver-image", "", "")
 	ovirtPopulatorImage = flag.String("ovirt-populator-image", "", "")
 	dumpCRDs            = flag.Bool("dump-crds", false, "optional - dumps cdi-operator related crd manifests to stdout")
+	dumpNetworkPolicies = flag.Bool("dump-network-policies", false, "optional - dumps cdi related network policies")
 )
 
 func main() {
@@ -74,9 +76,23 @@ func main() {
 	}
 
 	if *dumpCRDs {
-		cidCrd := cdioperator.NewCdiCrd()
-		if err = util.MarshallObject(cidCrd, os.Stdout); err != nil {
+		cdiCrd := cdioperator.NewCdiCrd()
+		if err = util.MarshallObject(cdiCrd, os.Stdout); err != nil {
 			panic(err)
+		}
+	}
+
+	if *dumpNetworkPolicies {
+		cdiNps, err := cdinamespaced.CreateResourceGroup("networkpolicies", &cdinamespaced.FactoryArgs{
+			Namespace: *namespace,
+		})
+		if err != nil {
+			panic(err)
+		}
+		for _, np := range cdiNps {
+			if err = util.MarshallObject(np, os.Stdout); err != nil {
+				panic(err)
+			}
 		}
 	}
 }

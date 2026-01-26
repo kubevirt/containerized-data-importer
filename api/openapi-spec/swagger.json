@@ -4400,6 +4400,10 @@
       "type": "string",
       "default": ""
      },
+     "serviceAccountName": {
+      "description": "ServiceAccountName is the name of the ServiceAccount for creating DataVolumes.",
+      "type": "string"
+     },
      "template": {
       "description": "Template specifies template for the DVs to be created",
       "default": {},
@@ -4821,6 +4825,10 @@
       "description": "DiskID provides id of a disk to be imported",
       "type": "string",
       "default": ""
+     },
+     "insecureSkipVerify": {
+      "description": "InsecureSkipVerify is a flag to skip certificate verification",
+      "type": "boolean"
      },
      "secretRef": {
       "description": "SecretRef provides the secret reference needed to access the ovirt-engine",

@@ -1,42 +1,6 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
-load("@io_bazel_rules_docker//go:image.bzl", "go_image")
-load("@io_bazel_rules_docker//container:container.bzl", "container_image")
-
-container_image(
-    name = "cdi-func-test-sample-populator-image-base",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    tars = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": [
-            "//rpm:testimage_s390x",
-        ],
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "//rpm:testimage_aarch64",
-        ],
-        "//conditions:default": [
-            "//rpm:testimage_x86_64",
-        ],
-    }),
-)
-
-go_image(
-    name = "cdi-func-test-sample-populator-image",
-    srcs = ["main.go"],
-    base = ":cdi-func-test-sample-populator-image-base",
-    importpath = "kubevirt.io/containerized-data-importer/tools/cdi-func-test-sample-populator",
-    visibility = ["//visibility:public"],
-    deps = [
-        "//vendor/github.com/kubernetes-csi/lib-volume-populator/populator-machinery:go_default_library",
-        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1:go_default_library",
-        "//vendor/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured:go_default_library",
-        "//vendor/k8s.io/apimachinery/pkg/runtime:go_default_library",
-        "//vendor/k8s.io/apimachinery/pkg/runtime/schema:go_default_library",
-        "//vendor/k8s.io/klog/v2:go_default_library",
-    ],
-)
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 go_library(
     name = "go_default_library",
@@ -56,5 +20,21 @@ go_library(
 go_binary(
     name = "cdi-func-test-sample-populator",
     embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_tar(
+    name = "cdi-func-test-sample-populator-bin",
+    srcs = [":cdi-func-test-sample-populator"],
+    extension = "tar.gz",
+    package_dir = "/usr/bin/",
+    visibility = ["//visibility:private"],
+)
+
+oci_image(
+    name = "cdi-func-test-sample-populator-image",
+    base = "//:testimage_base",
+    entrypoint = ["/usr/bin/cdi-func-test-sample-populator"],
+    tars = [":cdi-func-test-sample-populator-bin"],
     visibility = ["//visibility:public"],
 )

@@ -1,6 +1,6 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
-load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
-load("@io_bazel_rules_docker//container:container.bzl", "container_image")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 # Init
 go_library(
@@ -19,130 +19,15 @@ go_library(
 go_binary(
     name = "cdi-func-test-registry-init",
     embed = [":go_default_library"],
-    visibility = ["//visibility:public"],
-)
-
-container_image(
-    name = "cdi-func-test-registry-init-file-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    directory = "/",
-    tars = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": [
-            ":test-img-tar",
-            "//rpm:testimage_s390x",
-        ],
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            ":test-img-tar",
-            "//rpm:testimage_aarch64",
-        ],
-        "//conditions:default": [
-            ":test-img-tar",
-            "//rpm:testimage_x86_64",
-        ],
-    }),
-)
-
-container_image(
-    name = "cdi-func-test-registry-exec-init-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    base = ":cdi-func-test-registry-init-file-image",
-    directory = "/usr/bin",
-    files = [":cdi-func-test-registry-init"],
-    visibility = ["//visibility:public"],
-)
-
-container_image(
-    name = "cdi-func-test-registry-init-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    base = ":cdi-func-test-registry-exec-init-image",
-    directory = "/usr/bin",
-    entrypoint = [
-        "cdi-func-test-registry-init",
-        "-alsologtostderr",
-    ],
-    visibility = ["//visibility:public"],
+    visibility = ["//visibility:private"],
 )
 
 pkg_tar(
-    name = "test-img-tar",
-    srcs = ["//:test-images"],
-    mode = "644",
-    package_dir = "/tmp/source",
-)
-
-container_image(
-    name = "cdi-func-test-registry-populate-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    directory = "/",
-    entrypoint = ["./populate-registry.sh"],
-    tars = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": [
-            ":populate-script-tar",
-            "//rpm:testimage_s390x",
-        ],
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            ":populate-script-tar",
-            "//rpm:testimage_aarch64",
-        ],
-        "//conditions:default": [
-            ":populate-script-tar",
-            "//rpm:testimage_x86_64",
-        ],
-    }),
-    visibility = ["//visibility:public"],
-)
-
-filegroup(
-    name = "populate-script",
-    srcs = [
-        ":populate-registry.sh",
-    ],
-)
-
-pkg_tar(
-    name = "populate-script-tar",
-    srcs = [":populate-script"],
-    mode = "755",
-    package_dir = "/",
-)
-
-#Registry image
-container_image(
-    name = "cdi-func-test-registry-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    base = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": "@registry-s390x//image",
-        "@io_bazel_rules_go//go/platform:linux_arm64": "@registry-aarch64//image",
-        "//conditions:default": "@registry//image",
-    }),
-    directory = "/",
-    entrypoint = ["/start-registry.sh"],
-    ports = ["443"],
-    tars = [
-        ":registry-script-tar",
-        "registry-config-tar",
-    ],
-    visibility = ["//visibility:public"],
+    name = "cdi-func-test-registry-init-bin",
+    srcs = [":cdi-func-test-registry-init"],
+    extension = "tar.gz",
+    package_dir = "/usr/bin/",
+    visibility = ["//visibility:private"],
 )
 
 filegroup(
@@ -157,20 +42,94 @@ filegroup(
 pkg_tar(
     name = "registry-config-tar",
     srcs = [":registry-config"],
+    extension = "tar.gz",
     mode = "644",
     package_dir = "/etc/docker/registry",
 )
 
 filegroup(
     name = "registry-script",
-    srcs = [
-        ":start-registry.sh",
-    ],
+    srcs = [":start-registry.sh"],
 )
 
 pkg_tar(
     name = "registry-script-tar",
     srcs = [":registry-script"],
+    extension = "tar.gz",
     mode = "755",
     package_dir = "/",
+)
+
+pkg_tar(
+    name = "test-img-tar",
+    srcs = ["//:test-images"],
+    extension = "tar.gz",
+    mode = "644",
+    package_dir = "/tmp/source",
+)
+
+filegroup(
+    name = "populate-script",
+    srcs = [
+        ":populate-registry.sh",
+    ],
+)
+
+pkg_tar(
+    name = "populate-script-tar",
+    srcs = [":populate-script"],
+    extension = "tar.gz",
+    mode = "755",
+    package_dir = "/",
+)
+
+oci_image(
+    name = "cdi-func-test-registry-init-base-image",
+    base = "//:testimage_base",
+    tars = [
+        ":test-img-tar",
+    ],
+    visibility = ["//visibility:private"],
+)
+
+oci_image(
+    name = "cdi-func-test-registry-exec-init-image",
+    base = ":cdi-func-test-registry-init-base-image",
+    tars = [":cdi-func-test-registry-init-bin"],
+    visibility = ["//visibility:private"],
+)
+
+oci_image(
+    name = "cdi-func-test-registry-init-image",
+    base = ":cdi-func-test-registry-exec-init-image",
+    entrypoint = [
+        "cdi-func-test-registry-init",
+        "-alsologtostderr",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+oci_image(
+    name = "cdi-func-test-registry-populate-image",
+    base = "//:testimage_base",
+    entrypoint = ["./populate-registry.sh"],
+    tars = [":populate-script-tar"],
+    visibility = ["//visibility:public"],
+)
+
+#Registry image
+oci_image(
+    name = "cdi-func-test-registry-image",
+    base = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "@registry-s390x",
+        "@io_bazel_rules_go//go/platform:linux_arm64": "@registry-aarch64",
+        "//conditions:default": "@registry",
+    }),
+    entrypoint = ["/start-registry.sh"],
+    exposed_ports = ["443"],
+    tars = [
+        ":registry-script-tar",
+        ":registry-config-tar",
+    ],
+    visibility = ["//visibility:public"],
 )

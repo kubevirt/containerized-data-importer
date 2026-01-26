@@ -1,4 +1,5 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 go_library(
     name = "go_default_library",
@@ -15,5 +16,13 @@ go_library(
 go_binary(
     name = "ovirt-populator",
     embed = [":go_default_library"],
+    visibility = ["//visibility:private"],
+)
+
+pkg_tar(
+    name = "ovirt-populator-bin",
+    srcs = [":ovirt-populator"],
+    extension = "tar.gz",
+    package_dir = "/usr/bin/",
     visibility = ["//visibility:public"],
 )

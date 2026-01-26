@@ -45,7 +45,13 @@ go_library(
         "@io_bazel_rules_go//go/platform:openbsd": [
             "//vendor/google.golang.org/grpc/grpclog:go_default_library",
         ],
+        "@io_bazel_rules_go//go/platform:osx": [
+            "//vendor/google.golang.org/grpc/grpclog:go_default_library",
+        ],
         "@io_bazel_rules_go//go/platform:plan9": [
+            "//vendor/google.golang.org/grpc/grpclog:go_default_library",
+        ],
+        "@io_bazel_rules_go//go/platform:qnx": [
             "//vendor/google.golang.org/grpc/grpclog:go_default_library",
         ],
         "@io_bazel_rules_go//go/platform:solaris": [
