@@ -455,6 +455,23 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 		}
 
+		It("[rfe_id:XXXX][crit:high][posneg:negative][test_id:XXXX]should fail creating import dv due to invalid checksum format", func() {
+			By("Creating DataVolume with invalid checksum format")
+			dataVolume := utils.NewDataVolumeWithHTTPImport("dv-http-import-invalid-checksum-format", "1Gi", tinyCoreIsoURL())
+			dataVolume.Spec.Source.HTTP.Checksum = "invalid-format-without-colon"
+
+			By("Verifying webhook rejects the creation")
+			_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("Invalid checksum format"))
+
+			By("Verifying DataVolume was not created")
+			Eventually(func() bool {
+				_, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				return k8serrors.IsNotFound(err)
+			}, timeout, pollingInterval).Should(BeTrue())
+		})
+
 		DescribeTable("should", testDataVolume,
 			Entry("[rfe_id:1115][crit:high][test_id:1357]succeed creating import dv with given valid url", dataVolumeTestArguments{
 				name:             "dv-http-import",
@@ -1165,6 +1182,69 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Status:  v1.ConditionFalse,
 					Message: "Import Complete",
 					Reason:  "Completed",
+				}}),
+			Entry("[rfe_id:XXXX][crit:high][test_id:XXXX]succeed creating import dv with valid checksum", dataVolumeTestArguments{
+				name: "dv-http-import-valid-checksum",
+				size: "1Gi",
+				url:  tinyCoreIsoURL,
+				dvFunc: func(name, size, url string) *cdiv1.DataVolume {
+					dv := utils.NewDataVolumeWithHTTPImport(name, size, url)
+					// sha256 checksum for tinyCore.iso: 11d74aa12309da7240f171c140394729bb9b407e8fa3cb52c6dcbf7009352fab
+					dv.Spec.Source.HTTP.Checksum = "sha256:11d74aa12309da7240f171c140394729bb9b407e8fa3cb52c6dcbf7009352fab"
+					return dv
+				},
+				eventReason:      dvc.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-http-import-valid-checksum Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
+			Entry("[rfe_id:XXXX][crit:high][posneg:negative][test_id:XXXX]fail creating import dv due to checksum mismatch", dataVolumeTestArguments{
+				name: "dv-http-import-checksum-mismatch",
+				size: "1Gi",
+				url:  tinyCoreIsoURL,
+				dvFunc: func(name, size, url string) *cdiv1.DataVolume {
+					dv := utils.NewDataVolumeWithHTTPImport(name, size, url)
+					dv.Spec.Source.HTTP.Checksum = "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+					return dv
+				},
+				errorMessage: "checksum validation failed",
+				eventReason:  dvc.ImportFailed,
+				phase:        cdiv1.Failed,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionFalse,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-http-import-checksum-mismatch Bound",
+					Reason:  "Bound",
+				},
+				boundConditionWithPopulators: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionFalse,
+					Message: "PVC dv-http-import-checksum-mismatch Pending",
+					Reason:  "Pending",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "checksum validation failed",
+					Reason:  "ChecksumError",
 				}}),
 		)
 

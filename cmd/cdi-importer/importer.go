@@ -188,8 +188,25 @@ func handleImport(
 	err := processor.ProcessData()
 
 	scratchSpaceRequired := errors.Is(err, importer.ErrRequiresScratchSpace)
+	checksumMismatch := errors.Is(err, importer.ErrChecksumMismatch)
 	if err != nil && !scratchSpaceRequired {
 		klog.Errorf("%+v", err)
+		// Special-case checksum validation failures: exit 0 to avoid kubelet restart loops
+		// and let the controller read termination message to mark fatal.
+		if checksumMismatch {
+			// Write JSON-formatted termination message so parseTerminationMessage can unmarshal it
+			termMsgStruct := &common.TerminationMessage{
+				Message: ptr.To(fmt.Sprintf("Unable to process data: %v", err.Error())),
+			}
+			if err := writeTerminationMessage(termMsgStruct); err != nil {
+				klog.Errorf("%+v", err)
+			}
+			// Exiting instead of returning 0 as normally to avoid clashing
+			// with cleanup functions (fsyncDataFile) that assume the imported
+			// file will be there during regular exit.
+			os.Exit(0)
+		}
+		// For other errors, write plain text and exit with error code
 		if err := util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %v", err.Error())); err != nil {
 			klog.Errorf("%+v", err)
 		}
@@ -267,10 +284,11 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 	currentCheckpoint, _ := util.ParseEnvVar(common.ImporterCurrentCheckpoint, false)
 	previousCheckpoint, _ := util.ParseEnvVar(common.ImporterPreviousCheckpoint, false)
 	finalCheckpoint, _ := util.ParseEnvVar(common.ImporterFinalCheckpoint, false)
+	checksum, _ := util.ParseEnvVar(common.ImporterChecksum, false)
 
 	switch source {
 	case cc.SourceHTTP:
-		ds, err := importer.NewHTTPDataSource(getHTTPEp(ep), acc, sec, certDir, cdiv1.DataVolumeContentType(contentType))
+		ds, err := importer.NewHTTPDataSource(getHTTPEp(ep), acc, sec, certDir, cdiv1.DataVolumeContentType(contentType), checksum)
 		if err != nil {
 			errorCannotConnectDataSource(err, "http")
 		}
