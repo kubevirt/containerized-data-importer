@@ -17524,6 +17524,13 @@ func schema_pkg_apis_core_v1beta1_DataImportCronStatus(ref common.ReferenceCallb
 							Format:      "",
 						},
 					},
+					"importsToKeep": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ImportsToKeep is the effective number of imports to keep when garbage collecting",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
 					"conditions": {
 						SchemaProps: spec.SchemaProps{
 							Type: []string{"array"},
