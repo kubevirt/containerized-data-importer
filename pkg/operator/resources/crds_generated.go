@@ -5691,7 +5691,7 @@ spec:
                 type: string
               importsToKeep:
                 description: Number of import PVCs to keep when garbage collecting.
-                  Default is 3.
+                  Default is 1.
                 format: int32
                 type: integer
               managedDataSource:

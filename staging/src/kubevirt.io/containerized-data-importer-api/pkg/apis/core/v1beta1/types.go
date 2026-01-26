@@ -587,7 +587,7 @@ type DataImportCronSpec struct {
 	// Options are currently "Outdated" and "Never", defaults to "Outdated".
 	// +optional
 	GarbageCollect *DataImportCronGarbageCollect `json:"garbageCollect,omitempty"`
-	// Number of import PVCs to keep when garbage collecting. Default is 3.
+	// Number of import PVCs to keep when garbage collecting. Default is 1.
 	// +optional
 	ImportsToKeep *int32 `json:"importsToKeep,omitempty"`
 	// ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.
