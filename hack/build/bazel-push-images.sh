@@ -40,7 +40,7 @@ BASE_TEST_IMAGES=(
 )
 
 declare -A ARCH_ADDITIONAL_IMAGES
-ARCH_ADDITIONAL_IMAGES[x86_64]="imageio-init vddk-init vddk-test vcenter-simulator cdi-func-test-imageio "
+ARCH_ADDITIONAL_IMAGES[x86_64]="imageio-init vddk-init vddk-test vcenter-simulator cdi-func-test-imageio"
 ARCH_ADDITIONAL_IMAGES[aarch64]="imageio-init"
 ARCH_ADDITIONAL_IMAGES[s390x]=""
 
@@ -52,7 +52,6 @@ done
 
 PUSH_TARGETS=(${PUSH_TARGETS:-$CONTROLLER_IMAGE_NAME $IMPORTER_IMAGE_NAME $CLONER_IMAGE_NAME $APISERVER_IMAGE_NAME $UPLOADPROXY_IMAGE_NAME $UPLOADSERVER_IMAGE_NAME $OPERATOR_IMAGE_NAME})
 PUSH_TARGETS+=("${TEST_IMAGES[@]}")
-
 
 echo "docker_prefix: $DOCKER_PREFIX, docker_tag: $DOCKER_TAG"
 for target in ${PUSH_TARGETS[@]}; do
