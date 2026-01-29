@@ -40,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	importMetrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
@@ -172,6 +173,7 @@ func (r *ImportPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		return reconcile.Result{}, err
 	}
 
+	r.log.WithValues("PVC", pvc.Namespace, "Name", pvc.Name).V(1).Info("[bb] Reconciling import populator PVC based on PVC Prime", "phase", phase)
 	switch phase {
 	case string(corev1.PodRunning):
 		if err = cc.MaybeSetPvcMultiStageAnnotation(pvcPrime, r.getCheckpointArgs(source)); err != nil {
@@ -287,6 +289,7 @@ func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, p
 	// Just set 100.0% if pod is succeeded
 	if podPhase == string(corev1.PodSucceeded) {
 		cc.AddAnnotation(pvc, cc.AnnPopulatorProgress, "100.0%")
+		cc.AddAnnotation(pvc, cc.AnnPopulatorPhase, common.ProcessingPhaseComplete)
 		return nil
 	}
 
@@ -319,13 +322,19 @@ func (r *ImportPopulatorReconciler) updateImportProgress(podPhase string, pvc, p
 		return err
 	}
 
-	// We fetch the import progress from the import pod metrics
 	httpClient = cc.BuildHTTPClient(httpClient)
-	progressReport, err := cc.GetProgressReportFromURL(context.TODO(), url, httpClient, importMetrics.ImportProgressMetricName, string(pvc.UID))
+	body, err := cc.GetMetricsResponseBody(context.TODO(), url, httpClient)
 	if err != nil {
 		return err
 	}
-	if progressReport != "" {
+
+	// Fetch the current processing phase from the import pod metrics
+	if phaseReport := cc.GetPhaseReportFromBody(body, importMetrics.ImportPhaseMetricName, string(pvc.UID)); phaseReport != "" {
+		cc.AddAnnotation(pvc, cc.AnnPopulatorPhase, phaseReport)
+	}
+
+	// Fetch the import progress from the import pod metrics
+	if progressReport := cc.GetProgressReportFromBody(body, importMetrics.ImportProgressMetricName, string(pvc.UID)); progressReport != "" {
 		if strings.HasPrefix(progressReport, "100") {
 			// Hold on with reporting 100% since that may not be accounting for resize/convert etc
 			return nil

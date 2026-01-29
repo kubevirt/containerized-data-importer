@@ -308,8 +308,9 @@ type DataVolumeStatus struct {
 	// ClaimName is the name of the underlying PVC used by the DataVolume.
 	ClaimName string `json:"claimName,omitempty"`
 	//Phase is the current phase of the data volume
-	Phase    DataVolumePhase    `json:"phase,omitempty"`
-	Progress DataVolumeProgress `json:"progress,omitempty"`
+	Phase          DataVolumePhase    `json:"phase,omitempty"`
+	Progress       DataVolumeProgress `json:"progress,omitempty"`
+	PopulatorPhase string             `json:"populatorPhase,omitempty"`
 	// RestartCount is the number of times the pod populating the DataVolume has restarted
 	RestartCount int32                 `json:"restartCount,omitempty"`
 	Conditions   []DataVolumeCondition `json:"conditions,omitempty" optional:"true"`
