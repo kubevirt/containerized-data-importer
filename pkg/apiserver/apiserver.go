@@ -82,6 +82,9 @@ const (
 	populatorValidatePath = "/populator-validate"
 
 	healthzPath = "/healthz"
+
+	xContentTypeOptions = "X-Content-Type-Options"
+	nosniff             = "nosniff"
 )
 
 var uploadTokenVersions = []string{"v1beta1"}
@@ -363,6 +366,7 @@ func (app *cdiAPIApp) uploadHandler(request *restful.Request, response *restful.
 	}
 
 	uploadToken.Status.Token = tkn
+	response.Header().Set(xContentTypeOptions, nosniff)
 	writeJSONResponse(response, uploadToken)
 }
 
@@ -441,6 +445,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 					Verbs:        []string{"create"},
 					ShortNames:   []string{"utr", "utrs"},
 				})
+				response.Header().Set(xContentTypeOptions, nosniff)
 				writeJSONResponse(response, list)
 			}).
 			Operation("getAPIResources-"+v).
@@ -463,6 +468,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 	ws.Route(ws.GET("/").
 		Produces("application/json").Writes(metav1.RootPaths{}).
 		To(func(request *restful.Request, response *restful.Response) {
+			response.Header().Set(xContentTypeOptions, nosniff)
 			writeJSONResponse(response, &metav1.RootPaths{
 				Paths: paths,
 			})
@@ -476,6 +482,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 	ws.Route(ws.GET(groupPath).
 		Produces("application/json").Writes(metav1.APIGroup{}).
 		To(func(request *restful.Request, response *restful.Response) {
+			response.Header().Set(xContentTypeOptions, nosniff)
 			writeJSONResponse(response, uploadTokenAPIGroup())
 		}).
 		Operation("getUploadAPIGroup").
@@ -491,7 +498,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 			list.Kind = "APIGroupList"
 			list.APIVersion = "v1"
 			list.Groups = append(list.Groups, uploadTokenAPIGroup())
-
+			response.Header().Set(xContentTypeOptions, nosniff)
 			writeJSONResponse(response, list)
 		}).
 		Operation("getUploadAPIs").
@@ -513,6 +520,7 @@ func (app *cdiAPIApp) composeUploadTokenAPI() {
 				}
 				openapispec.Info.Version = cdiversion.Get().String()
 			})
+			response.Header().Set(xContentTypeOptions, nosniff)
 			writeJSONResponse(response, openapispec)
 		}))
 
