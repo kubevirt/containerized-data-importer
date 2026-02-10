@@ -144,6 +144,9 @@ openapi-gen \
 ${SCRIPT_ROOT}/bin/openapi-spec-generator >${SCRIPT_ROOT}/api/openapi-spec/swagger.json
 
 echo "************* running controller-gen to generate schema yaml ********************"
+# controller-gen fails on vendored k8s.io/api/core/v1/doc.go due to empty +groupName= marker (see https://github.com/kubernetes/kubernetes/issues)
+# Patch it so schema generation can resolve core API types (PullPolicy, ResourceRequirements, etc.)
+sed -i 's|^// +groupName=$|// +groupName=core|' "${SCRIPT_ROOT}/vendor/k8s.io/api/core/v1/doc.go" 2>/dev/null || true
 (
     mkdir -p "${SCRIPT_ROOT}/_out/manifests/schema"
     find "${SCRIPT_ROOT}/_out/manifests/schema/" -type f -exec rm {} -f \;
