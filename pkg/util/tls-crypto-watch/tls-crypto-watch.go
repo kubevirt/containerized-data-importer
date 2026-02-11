@@ -22,6 +22,7 @@ package tlscryptowatch
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"sync"
 
 	ocpcrypto "github.com/openshift/library-go/pkg/crypto"
@@ -29,6 +30,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
+
+	runtimecache "sigs.k8s.io/controller-runtime/pkg/cache"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
@@ -123,6 +126,49 @@ func (ctw *cdiConfigTLSWatcher) updateConfig(config *cdiv1.CDIConfig) {
 	ctw.mutex.Lock()
 	defer ctw.mutex.Unlock()
 	ctw.config = newConfig
+}
+
+type managedTLSWatcher struct {
+	client  cdiclient.Interface
+	cache   runtimecache.Cache
+	mu      sync.RWMutex
+	watcher CdiConfigTLSWatcher
+}
+
+func NewManagedTLSWatcher(cdiClient cdiclient.Interface) *managedTLSWatcher {
+	return &managedTLSWatcher{
+		client: cdiClient,
+	}
+}
+
+func (m *managedTLSWatcher) Start(ctx context.Context) error {
+	if !m.cache.WaitForCacheSync(ctx) {
+		return fmt.Errorf("failed to wait for caches to sync")
+	}
+
+	w, err := NewCdiConfigTLSWatcher(ctx, m.client)
+	if err != nil {
+		return fmt.Errorf("failed to create TLS watcher: %w", err)
+	}
+
+	m.mu.Lock()
+	m.watcher = w
+	m.mu.Unlock()
+
+	<-ctx.Done()
+	return nil
+}
+
+func (m *managedTLSWatcher) Watcher() CdiConfigTLSWatcher {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.watcher
+}
+
+func (m *managedTLSWatcher) SetCache(cache runtimecache.Cache) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.cache = cache
 }
 
 // SelectCipherSuitesAndMinTLSVersion returns cipher names and minimal TLS version according to the input profile

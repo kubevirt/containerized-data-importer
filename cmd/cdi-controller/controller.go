@@ -41,6 +41,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	forklift "kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
+	cdiclient "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
@@ -51,6 +52,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
+	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 )
 
 const (
@@ -193,6 +195,8 @@ func start() {
 		klog.Fatalf("Unable to get uncached client: %v\n", errors.WithStack(err))
 	}
 
+	managedTLSWatcher := cryptowatch.NewManagedTLSWatcher(cdiclient.NewForConfigOrDie(cfg))
+
 	opts := manager.Options{
 		LeaderElection:             true,
 		LeaderElectionNamespace:    namespace,
@@ -207,6 +211,15 @@ func start() {
 			// See CVE-2023-44487, CVE-2023-39325
 			TLSOpts: []func(*tls.Config){func(c *tls.Config) {
 				c.NextProtos = []string{"http/1.1"}
+				c.GetConfigForClient = func(t *tls.ClientHelloInfo) (*tls.Config, error) {
+					config := c.Clone()
+					if w := managedTLSWatcher.Watcher(); w != nil {
+						cryptoConfig := w.GetCdiTLSConfig()
+						config.CipherSuites = cryptoConfig.CipherSuites
+						config.MinVersion = cryptoConfig.MinVersion
+					}
+					return config, nil
+				}
 			}},
 		},
 	}
@@ -319,6 +332,12 @@ func start() {
 	}
 	if _, err := populators.NewForkliftPopulator(ctx, mgr, log, importerImage, ovirtPopulatorImage, installerLabels); err != nil {
 		klog.Errorf("Unable to setup forklift populator: %v", err)
+		os.Exit(1)
+	}
+
+	managedTLSWatcher.SetCache(mgr.GetCache())
+	if err := mgr.Add(managedTLSWatcher); err != nil {
+		log.Error(err, "unable to add watcher to manager")
 		os.Exit(1)
 	}
 
