@@ -34,7 +34,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
