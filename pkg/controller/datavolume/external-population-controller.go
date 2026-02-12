@@ -25,6 +25,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -213,7 +214,120 @@ func (r *PopulatorReconciler) syncExternalPopulation(log logr.Logger, req reconc
 	if err := r.handlePvcCreation(log, &syncState, r.updateAnnotations); err != nil {
 		syncErr = err
 	}
+	if syncErr == nil && syncState.pvc != nil {
+		if err := r.ensureImmediateBindingForWFFC(log, syncState.pvc); err != nil {
+			syncErr = err
+		}
+	}
 	return syncState, syncErr
+}
+
+// ensureImmediateBindingForWFFC sets the selected-node annotation on an externally
+// populated PVC when immediate binding is requested and the storage class uses
+// WaitForFirstConsumer binding mode. Without this, the PVC stays Pending because
+// no consumer pod is created to trigger node selection in the external population path.
+func (r *PopulatorReconciler) ensureImmediateBindingForWFFC(log logr.Logger, pvc *corev1.PersistentVolumeClaim) error {
+	if pvc.Status.Phase != corev1.ClaimPending {
+		return nil
+	}
+	if !cc.ImmediateBindingRequested(pvc) {
+		return nil
+	}
+	if pvc.Annotations[cc.AnnSelectedNode] != "" {
+		return nil
+	}
+	wffc, err := r.storageClassWaitForFirstConsumer(pvc.Spec.StorageClassName)
+	if err != nil || !wffc {
+		return err
+	}
+
+	nodeName, err := r.selectNodeForImmediateBinding(pvc)
+	if err != nil {
+		return err
+	}
+	if nodeName == "" {
+		return nil
+	}
+
+	log.V(3).Info("Setting selected-node for immediate WFFC binding on externally populated PVC",
+		"pvc", pvc.Name, "node", nodeName)
+	if pvc.Annotations == nil {
+		pvc.Annotations = make(map[string]string)
+	}
+	pvc.Annotations[cc.AnnSelectedNode] = nodeName
+	return r.client.Update(context.TODO(), pvc)
+}
+
+// selectNodeForImmediateBinding selects a node for WFFC binding.
+// For PVC clones, it uses the node where the source PV is located.
+// Otherwise, it picks any schedulable Ready node.
+func (r *PopulatorReconciler) selectNodeForImmediateBinding(pvc *corev1.PersistentVolumeClaim) (string, error) {
+	// For PVC-to-PVC clones, try to use the source PVC's node for data locality
+	if isPvcPopulation(pvc) {
+		sourceName := ""
+		if pvc.Spec.DataSourceRef != nil {
+			sourceName = pvc.Spec.DataSourceRef.Name
+		} else if pvc.Spec.DataSource != nil {
+			sourceName = pvc.Spec.DataSource.Name
+		}
+		if sourceName != "" {
+			sourcePvc := &corev1.PersistentVolumeClaim{}
+			if err := r.client.Get(context.TODO(), types.NamespacedName{
+				Name:      sourceName,
+				Namespace: pvc.Namespace,
+			}, sourcePvc); err == nil && sourcePvc.Spec.VolumeName != "" {
+				pv := &corev1.PersistentVolume{}
+				if err := r.client.Get(context.TODO(), types.NamespacedName{
+					Name: sourcePvc.Spec.VolumeName,
+				}, pv); err == nil {
+					if nodeName := nodeNameFromPV(pv); nodeName != "" {
+						return nodeName, nil
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback: pick any schedulable Ready node
+	nodeList := &corev1.NodeList{}
+	if err := r.client.List(context.TODO(), nodeList); err != nil {
+		return "", err
+	}
+	for i := range nodeList.Items {
+		node := &nodeList.Items[i]
+		if isNodeSchedulable(node) {
+			return node.Name, nil
+		}
+	}
+	return "", nil
+}
+
+// nodeNameFromPV extracts a node name from a PersistentVolume's node affinity.
+func nodeNameFromPV(pv *corev1.PersistentVolume) string {
+	if pv.Spec.NodeAffinity == nil || pv.Spec.NodeAffinity.Required == nil {
+		return ""
+	}
+	for _, term := range pv.Spec.NodeAffinity.Required.NodeSelectorTerms {
+		for _, expr := range term.MatchExpressions {
+			if expr.Key == corev1.LabelHostname && expr.Operator == corev1.NodeSelectorOpIn && len(expr.Values) > 0 {
+				return expr.Values[0]
+			}
+		}
+	}
+	return ""
+}
+
+// isNodeSchedulable returns true if a node is Ready and not unschedulable.
+func isNodeSchedulable(node *corev1.Node) bool {
+	if node.Spec.Unschedulable {
+		return false
+	}
+	for _, cond := range node.Status.Conditions {
+		if cond.Type == corev1.NodeReady && cond.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *PopulatorReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {

@@ -203,6 +203,94 @@ var _ = Describe("All external-population tests", func() {
 		})
 	})
 
+	var _ = Describe("WFFC immediate binding", func() {
+		It("Should set selected-node annotation on PVC when WFFC and immediate binding requested", func() {
+			wffcBindingMode := storagev1.VolumeBindingWaitForFirstConsumer
+			wffcSCName := "wffc-sc"
+			wffcSC := &storagev1.StorageClass{
+				VolumeBindingMode: &wffcBindingMode,
+				Provisioner:       "csi-plugin",
+				ObjectMeta: metav1.ObjectMeta{
+					Name: wffcSCName,
+				},
+			}
+
+			// Source PVC (bound) and its PV with node affinity
+			sourcePvc := CreatePvcInStorageClass("source-pvc", metav1.NamespaceDefault, &wffcSCName, nil, nil, corev1.ClaimBound)
+			sourcePvc.Spec.VolumeName = "source-pv"
+
+			sourcePv := &corev1.PersistentVolume{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "source-pv",
+				},
+				Spec: corev1.PersistentVolumeSpec{
+					NodeAffinity: &corev1.VolumeNodeAffinity{
+						Required: &corev1.NodeSelector{
+							NodeSelectorTerms: []corev1.NodeSelectorTerm{
+								{
+									MatchExpressions: []corev1.NodeSelectorRequirement{
+										{
+											Key:      corev1.LabelHostname,
+											Operator: corev1.NodeSelectorOpIn,
+											Values:   []string{"node01"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			node := &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "node01",
+				},
+				Status: corev1.NodeStatus{
+					Conditions: []corev1.NodeCondition{
+						{Type: corev1.NodeReady, Status: corev1.ConditionTrue},
+					},
+				},
+			}
+
+			// DV with DataSourceRef pointing to source PVC and immediate binding annotation
+			pvcDataSourceRef := &corev1.TypedObjectReference{
+				Kind: "PersistentVolumeClaim",
+				Name: "source-pvc",
+			}
+			dv := newPopulatorDataVolume("test-dv", nil, pvcDataSourceRef)
+			dv.Annotations[AnnImmediateBinding] = ""
+
+			// Target PVC (Pending, created by CDI)
+			targetPvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &wffcSCName,
+				map[string]string{
+					AnnImmediateBinding:    "",
+					AnnExternalPopulation:  "true",
+					AnnCreatedForDataVolume: string(dv.UID),
+				}, nil, corev1.ClaimPending)
+			targetPvc.OwnerReferences = append(targetPvc.OwnerReferences, metav1.OwnerReference{
+				Kind:       "DataVolume",
+				Controller: &controller,
+				Name:       "test-dv",
+				UID:        dv.UID,
+			})
+			targetPvc.Spec.DataSourceRef = pvcDataSourceRef
+
+			reconciler = createPopulatorReconciler(dv, targetPvc, sourcePvc, sourcePv, node, storageProfile, wffcSC, csiDriver)
+
+			By("Reconcile")
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Verifying that selected-node annotation is set on PVC")
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Annotations[AnnSelectedNode]).To(Equal("node01"))
+		})
+	})
+
 	var _ = Describe("Legacy population", func() {
 		// DataSources for PVC and Snapshot
 		pvcDataSource := &corev1.TypedLocalObjectReference{
