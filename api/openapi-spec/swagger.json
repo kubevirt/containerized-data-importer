@@ -5060,6 +5060,9 @@
       "description": "Phase is the current phase of the data volume",
       "type": "string"
      },
+     "populatorPhase": {
+      "type": "string"
+     },
      "progress": {
       "type": "string"
      },

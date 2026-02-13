@@ -6,6 +6,7 @@
 | kubevirt_cdi_cr_ready | Metric | Gauge | CDI install ready |
 | kubevirt_cdi_dataimportcron_outdated | Metric | Gauge | DataImportCron has an outdated import |
 | kubevirt_cdi_datavolume_pending | Metric | Gauge | Number of DataVolumes pending for default storage class to be configured |
+| kubevirt_cdi_import_phase_info | Metric | Gauge | The current processing phase of the import |
 | kubevirt_cdi_import_progress_total | Metric | Counter | The import progress in percentage |
 | kubevirt_cdi_openstack_populator_progress_total | Metric | Counter | Progress of volume population |
 | kubevirt_cdi_ovirt_progress_total | Metric | Counter | Progress of volume population |
