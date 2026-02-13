@@ -76,6 +76,9 @@ kubectl() { cluster-up/kubectl.sh "$@"; }
 
 export CDI_NAMESPACE="${CDI_NAMESPACE:-cdi}"
 
+# Skip destructive tests by default
+export CDI_LABEL_FILTER="${CDI_LABEL_FILTER:-!Destructive}"
+
 make cluster-down
 # Create .bazelrc to use remote cache
 cat >ci.bazelrc <<EOF
@@ -108,7 +111,7 @@ fi
 echo "Nodes are ready:"
 kubectl get nodes
 
-if [ "$KUBEVIRT_STORAGE" == "hpp" ] && [ "$CDI_E2E_FOCUS" == "Destructive" ]; then
+if [ "$KUBEVIRT_STORAGE" == "hpp" ] && [ "$CDI_LABEL_FILTER" == "Destructive" ]; then
   kubectl apply -f tests/manifests/snapshot
 fi
 
