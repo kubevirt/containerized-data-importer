@@ -110,6 +110,7 @@ spec:
          url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img" # S3 or GCS
          secretRef: "" # Optional
          certConfigMap: "" # Optional
+         checksum: "" # Optional, e.g., "sha256:abc123..."
   storage:
     volumeMode: Block
     resources:
@@ -143,6 +144,40 @@ spec:
 [Get secret example](../manifests/example/endpoint-secret.yaml)
 [Get certificate example](../manifests/example/cert-configmap.yaml)
 
+#### Checksum Validation
+For HTTP/HTTPS sources, you can specify a checksum to verify the integrity of the downloaded data. This helps ensure that the image has not been tampered with during transmission. The checksum field is optional but recommended for production environments.
+
+> [!NOTE]
+> Checksum validation is currently supported only for HTTP/HTTPS sources. S3 and GCS sources have built-in integrity verification mechanisms (ETag for S3, MD5Hash for GCS) and do not require explicit checksum specification.
+
+> [!WARNING]
+> HTTP checksum validation is **not** supported when using the registry **node pull** mode (`ImporterPullMethod=RegistryPullNode`). In that path, data is converted via nbdkit/qemu-img without going through the streaming transfer, so checksum is not verified. To validate HTTP import integrity, use the default pod pull method or avoid node pull for HTTP sources.
+
+Supported hash algorithms: `md5`, `sha1`, `sha256`, `sha512`
+
+The checksum format is: `algorithm:hash_value`
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "example-import-dv-with-checksum"
+spec:
+  source:
+      http:
+         url: "https://download.cirros-cloud.net/0.4.0/cirros-0.4.0-x86_64-disk.img"
+         checksum: "sha256:e3c1b309d9203604922d6e255c2c5d098a309c2d46215d8fc026954f3c5c27a0"
+  storage:
+    resources:
+      requests:
+        storage: "64Mi"
+```
+
+If the checksum validation fails, the import will be aborted and the DataVolume will enter a `Failed` state with an error message indicating the mismatch.
+
+> [!TIP]
+> For production environments, prefer using SHA256 or SHA512 for better security. MD5 and SHA1 are supported for compatibility but are cryptographically weak.
+
 Alternatively, if your certificate is stored in a local file, you can create the `ConfigMap` like this:
 
 ```bash
@@ -166,6 +201,7 @@ spec:
       http:
          url: "http://server/archive.tar"
          secretRef: "" # Optional
+         checksum: "" # Optional
    contentType: "archive"
   storage:
     resources:
@@ -187,6 +223,7 @@ spec:
          extraHeaders:
          - "X-First-Header: 12345"
          - "X-Another-Header: abcde"
+         checksum: "" # Optional
   storage:
     resources:
       requests:
@@ -209,6 +246,7 @@ spec:
          secretExtraHeaders:
            - "first-secret"
            - "second-secret"
+         checksum: "" # Optional
   storage:
     resources:
       requests:
