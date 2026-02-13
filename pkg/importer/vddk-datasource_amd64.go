@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"container/ring"
 	"context"
-	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -34,6 +33,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
@@ -979,7 +979,8 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 		// Make sure file exists before applying deltas.
 		_, err := MockableStat(fileName)
 		if os.IsNotExist(err) {
-			klog.Infof("Disk image does not exist, cannot apply deltas for warm migration: %v", err)
+			err = errors.Wrapf(err, "Disk image does not exist, cannot apply deltas for warm migration")
+			klog.Error(err)
 			return ProcessingPhaseError, err
 		}
 	}
@@ -1033,7 +1034,8 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 		// Find disk object for backingFile disk image path
 		backingFileObject, err := vs.VMware.FindDiskFromName(vs.BackingFile)
 		if err != nil {
-			klog.Errorf("Could not find VM disk %s: %v", vs.BackingFile, err)
+			err = errors.Wrapf(err, "Could not find VM disk %s", vs.BackingFile)
+			klog.Error(err)
 			return ProcessingPhaseError, err
 		}
 
@@ -1042,14 +1044,16 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 		if vs.CurrentSnapshot != "" {
 			currentSnapshot, err = vs.VMware.vm.FindSnapshot(vs.VMware.context, vs.CurrentSnapshot)
 			if err != nil {
-				klog.Errorf("Could not find current snapshot %s: %v", vs.CurrentSnapshot, err)
+				err = errors.Wrapf(err, "Could not find current snapshot %s", vs.CurrentSnapshot)
+				klog.Error(err)
 				return ProcessingPhaseError, err
 			}
 		}
 
 		disk, err := vs.VMware.FindSnapshotDisk(currentSnapshot, backingFileObject.DiskObjectId)
 		if err != nil {
-			klog.Errorf("Could not find matching disk in current snapshot: %v", err)
+			err = errors.Wrapf(err, "Could not find matching disk in current snapshot")
+			klog.Error(err)
 			return ProcessingPhaseError, err
 		}
 
@@ -1061,7 +1065,8 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 		if !isChangeID {
 			previousSnapshot, err = vs.VMware.vm.FindSnapshot(vs.VMware.context, vs.PreviousSnapshot)
 			if err != nil {
-				klog.Errorf("Could not find previous snapshot %s: %v", vs.PreviousSnapshot, err)
+				err = errors.Wrapf(err, "Could not find previous snapshot %s", vs.PreviousSnapshot)
+				klog.Error(err)
 				return ProcessingPhaseError, err
 			}
 			if previousSnapshot == nil {
@@ -1087,7 +1092,8 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 				}
 				response, err := QueryChangedDiskAreas(vs.VMware.context, vs.VMware.vm.Client(), &request)
 				if err != nil {
-					klog.Errorf("Failed to query changed areas: %s", err)
+					err = errors.Wrapf(err, "Failed to query changed areas")
+					klog.Error(err)
 					return ProcessingPhaseError, err
 				}
 				klog.Infof("%d changed areas reported at offset %d with data length %d", len(response.Returnval.ChangedArea), response.Returnval.StartOffset, response.Returnval.Length)
@@ -1100,7 +1106,8 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 			} else { // Previous checkpoint is a snapshot
 				changedAreas, err := vs.VMware.vm.QueryChangedDiskAreas(vs.VMware.context, previousSnapshot, currentSnapshot, backingFileObject, changed.Length)
 				if err != nil {
-					klog.Errorf("Unable to query changed areas: %s", err)
+					err = errors.Wrapf(err, "Unable to query changed areas")
+					klog.Error(err)
 					return ProcessingPhaseError, err
 				}
 				klog.Infof("%d changed areas reported at offset %d with data length %d", len(changedAreas.ChangedArea), changedAreas.StartOffset, changedAreas.Length)
@@ -1124,7 +1131,8 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 				for _, block := range blocks {
 					err := CopyRange(vs.NbdKit.Handle, sink, block, updateProgress)
 					if err != nil {
-						klog.Errorf("Unable to copy block at offset %d: %v", block.Offset, err)
+						err = errors.Wrapf(err, "Unable to copy block at offset %d", block.Offset)
+						klog.Error(err)
 						return ProcessingPhaseError, err
 					}
 				}
@@ -1154,7 +1162,8 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 			for _, block := range blocks {
 				err := CopyRange(vs.NbdKit.Handle, sink, block, updateProgress)
 				if err != nil {
-					klog.Errorf("Unable to copy block at offset %d: %v", block.Offset, err)
+					err = errors.Wrapf(err, "Unable to copy block at offset %d", block.Offset)
+					klog.Error(err)
 					return ProcessingPhaseError, err
 				}
 			}
