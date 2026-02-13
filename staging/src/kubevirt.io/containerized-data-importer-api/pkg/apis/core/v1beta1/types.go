@@ -20,6 +20,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
+
+	"kubevirt.io/containerized-data-importer-api/pkg/apis/core"
 )
 
 // DataVolume is an abstraction on top of PersistentVolumeClaims to allow easy population of those PersistentVolumeClaims with relation to VirtualMachines
@@ -107,6 +109,11 @@ type StorageSpec struct {
 
 // PersistentVolumeFromStorageProfile means the volume mode will be auto selected by CDI according to a matching StorageProfile
 const PersistentVolumeFromStorageProfile corev1.PersistentVolumeMode = "FromStorageProfile"
+
+// LabelApplyStorageProfile is a PVC label that tells the CDI mutating webhook to modify the PVC
+// according to the storage profile. When set to "true", the webhook will process the PVC based on
+// its associated StorageProfile (e.g., minimumSupportedPvcSize).
+const LabelApplyStorageProfile = core.GroupName + "/applyStorageProfile"
 
 // DataVolumeCheckpoint defines a stage in a warm migration.
 type DataVolumeCheckpoint struct {
