@@ -352,6 +352,8 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 	imports := dataImportCron.Status.CurrentImports
 	importSucceeded := false
 
+	dataImportCron.Status.ImportsToKeep = int32(GetImportsToKeep(dataImportCron))
+
 	dataVolume := dataImportCron.Spec.Template
 	explicitScName := cc.GetStorageClassFromDVSpec(&dataVolume)
 	desiredStorageClass, err := cc.GetStorageClassByNameWithVirtFallback(ctx, r.client, explicitScName, dataVolume.Spec.ContentType)
@@ -1168,11 +1170,7 @@ func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context,
 		return err
 	}
 
-	maxImports := defaultImportsToKeepPerCron
-
-	if cron.Spec.ImportsToKeep != nil && *cron.Spec.ImportsToKeep >= 0 {
-		maxImports = int(*cron.Spec.ImportsToKeep)
-	}
+	maxImports := GetImportsToKeep(cron)
 
 	if err := r.garbageCollectPVCs(ctx, cron.Namespace, cron.Name, selector, maxImports); err != nil {
 		return err
@@ -1182,6 +1180,14 @@ func (r *DataImportCronReconciler) garbageCollectOldImports(ctx context.Context,
 	}
 
 	return nil
+}
+
+func GetImportsToKeep(cron *cdiv1.DataImportCron) int {
+	maxImports := defaultImportsToKeepPerCron
+	if cron.Spec.ImportsToKeep != nil && *cron.Spec.ImportsToKeep >= 0 {
+		maxImports = int(*cron.Spec.ImportsToKeep)
+	}
+	return maxImports
 }
 
 func (r *DataImportCronReconciler) garbageCollectPVCs(ctx context.Context, namespace, cronName string, selector labels.Selector, maxImports int) error {

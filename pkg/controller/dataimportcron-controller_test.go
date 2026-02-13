@@ -133,6 +133,7 @@ var _ = Describe("All DataImportCron Tests", func() {
 			cronCond = FindDataImportCronConditionByType(cron, cdiv1.DataImportCronUpToDate)
 			Expect(cronCond).ToNot(BeNil())
 			verifyConditionState(string(cdiv1.DataImportCronUpToDate), cronCond.ConditionState, isUpToDate, reasonUpToDate)
+			Expect(cron.Status.ImportsToKeep).To(Equal(int32(GetImportsToKeep(cron))))
 			if dataSource != nil {
 				imports := cron.Status.CurrentImports
 				Expect(imports).ToNot(BeNil())
