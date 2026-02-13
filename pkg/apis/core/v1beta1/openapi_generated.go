@@ -17442,7 +17442,7 @@ func schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref common.ReferenceCallbac
 					},
 					"importsToKeep": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Number of import PVCs to keep when garbage collecting. Default is 3.",
+							Description: "Number of import PVCs to keep when garbage collecting. Default is 1.",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},

@@ -4382,7 +4382,7 @@
       "type": "string"
      },
      "importsToKeep": {
-      "description": "Number of import PVCs to keep when garbage collecting. Default is 3.",
+      "description": "Number of import PVCs to keep when garbage collecting. Default is 1.",
       "type": "integer",
       "format": "int32"
      },
