@@ -451,7 +451,7 @@ var _ = Describe("Controller", func() {
 				duration := promv1.Duration("10m")
 				cdiDownAlert := promv1.Rule{
 					Alert: "CDIOperatorDown",
-					Expr:  intstr.FromString("kubevirt_cdi_operator_up == 0"),
+					Expr:  intstr.FromString("cluster:kubevirt_cdi_operator_up:sum == 0"),
 					For:   &duration,
 					Annotations: map[string]string{
 						"summary":     "CDI operator is down",
