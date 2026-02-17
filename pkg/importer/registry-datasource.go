@@ -188,9 +188,11 @@ func CreateCertificateDir(registryCertDir string) (string, error) {
 		return allCerts, err
 	}
 
-	klog.Info("Copying proxy certs")
-	if err := collectCerts(common.ImporterProxyCertDir, allCerts, "proxy-"); err != nil {
-		return allCerts, err
+	if _, err := os.Stat(common.ImporterProxyCertDir); err == nil {
+		klog.Info("Copying proxy certs")
+		if err := collectCerts(common.ImporterProxyCertDir, allCerts, "proxy-"); err != nil {
+			return allCerts, err
+		}
 	}
 
 	if registryCertDir == "" {
@@ -215,10 +217,21 @@ func collectCerts(certDir, targetDir, targetPrefix string) error {
 		return err
 	}
 	for _, obj := range objects {
-		if !strings.HasSuffix(obj.Name(), ".crt") {
+		if !strings.HasSuffix(obj.Name(), ".crt") && !strings.HasSuffix(obj.Name(), ".pem") {
+			klog.Warningf("Unable to collect cert: %s Must have file extension .crt or .pem", obj.Name())
 			continue
 		}
-		if err := LinkFile(filepath.Join(certDir, obj.Name()), filepath.Join(targetDir, targetPrefix+obj.Name())); err != nil {
+
+		targetName := targetPrefix + obj.Name()
+		if strings.HasSuffix(obj.Name(), ".pem") {
+			// the containers library is currently filtering out any certs that don't have .crt file extension
+			// https://github.com/containers/image/blob/df7e80d2d19872b61f352a8a182ec934dc0c2346/pkg/tlsclientconfig/tlsclientconfig.go#L36
+			//
+			// append .crt extension here so .pem certs can be accepted
+			targetName = strings.TrimSuffix(targetName, ".pem") + ".crt"
+		}
+
+		if err := LinkFile(filepath.Join(certDir, obj.Name()), filepath.Join(targetDir, targetName)); err != nil {
 			return err
 		}
 	}
