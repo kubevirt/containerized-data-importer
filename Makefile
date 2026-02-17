@@ -93,7 +93,10 @@ apidocs: ## Generate client-go code (same as 'make generate') and swagger docs
 ##@ Dependency management
 deps-update: gomod-update bazel-generate ## Runs 'go mod tidy' and 'go mod vendor'
 
-deps-verify: deps-update ## Verify dependencies are up to date
+revert-deps-replace:
+	git checkout -- ${PWD}/vendor/k8s.io/api/core/v1/doc.go
+
+deps-verify: deps-update revert-deps-replace ## Verify dependencies are up to date
 	git difftool -y --trust-exit-code --extcmd=./hack/diff-csv.sh
 
 rpm-deps: ## Update RPM dependencies
