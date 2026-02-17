@@ -10,7 +10,7 @@ import (
 var operatorAlerts = []promv1.Rule{
 	{
 		Alert: "CDIOperatorDown",
-		Expr:  intstr.FromString("kubevirt_cdi_operator_up == 0"),
+		Expr:  intstr.FromString("cluster:kubevirt_cdi_operator_up:sum == 0"),
 		For:   (*promv1.Duration)(ptr.To("10m")),
 		Annotations: map[string]string{
 			"summary": "CDI operator is down",
@@ -34,7 +34,7 @@ var operatorAlerts = []promv1.Rule{
 	},
 	{
 		Alert: "CDIDataVolumeUnusualRestartCount",
-		Expr:  intstr.FromString("kubevirt_cdi_import_pods_high_restart > 0 or kubevirt_cdi_upload_pods_high_restart > 0 or kubevirt_cdi_clone_pods_high_restart > 0"),
+		Expr:  intstr.FromString("cluster:kubevirt_cdi_import_pods_high_restart:count > 0 or cluster:kubevirt_cdi_upload_pods_high_restart:count > 0 or cluster:kubevirt_cdi_clone_pods_high_restart:count > 0"),
 		For:   (*promv1.Duration)(ptr.To("5m")),
 		Annotations: map[string]string{
 			"summary": "Some CDI population workloads have an unusual restart count, meaning they are probably failing and need to be investigated",

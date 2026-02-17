@@ -71,10 +71,10 @@ tests:
         alertname: CDIDataImportCronOutdated
         exp_alerts: []
 
-  # CDIOperatorDown should fire when kubevirt_cdi_operator_up == 0 for 10m
+  # CDIOperatorDown should fire when cluster:kubevirt_cdi_operator_up:sum == 0 for 10m
   - interval: 1m
     input_series:
-      - series: 'kubevirt_cdi_operator_up'
+      - series: 'cluster:kubevirt_cdi_operator_up:sum'
         values: "0 0 0 0 0 0 0 0 0 0 0 0"
     alert_rule_test:
       - eval_time: 11m

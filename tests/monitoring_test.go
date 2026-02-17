@@ -483,9 +483,9 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 				return dep.Status.Replicas == 0
 			}, 20*time.Second, 1*time.Second).Should(BeTrue())
 
-			By("Waiting for kubevirt_cdi_operator_up metric to be 0")
+			By("Waiting for cluster:kubevirt_cdi_operator_up:sum metric to be 0")
 			Eventually(func() int {
-				return getMetricValue(f, "kubevirt_cdi_operator_up")
+				return getMetricValue(f, "cluster:kubevirt_cdi_operator_up:sum")
 			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", 0))
 
 			waitForPrometheusAlert(f, "CDIOperatorDown")
@@ -531,7 +531,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 func dataVolumeUnusualRestartTest(f *framework.Framework) {
 	By("Test metric for unusual restart count")
 	Eventually(func() bool {
-		return getMetricValue(f, "kubevirt_cdi_import_pods_high_restart") == 1
+		return getMetricValue(f, "cluster:kubevirt_cdi_import_pods_high_restart:count") == 1
 	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 
 	waitForPrometheusAlert(f, "CDIDataVolumeUnusualRestartCount")
@@ -540,7 +540,7 @@ func dataVolumeUnusualRestartTest(f *framework.Framework) {
 func dataVolumeNoUnusualRestartTest(f *framework.Framework) {
 	By("Test metric for no unusual restart count")
 	Eventually(func() bool {
-		return getMetricValue(f, "kubevirt_cdi_import_pods_high_restart") == 0
+		return getMetricValue(f, "cluster:kubevirt_cdi_import_pods_high_restart:count") == 0
 	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 
 	waitForNoPrometheusAlert(f, "CDIDataVolumeUnusualRestartCount")
