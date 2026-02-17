@@ -36,6 +36,7 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"k8s.io/klog/v2"
 
@@ -48,6 +49,7 @@ import (
 
 const (
 	healthzPath = "/healthz"
+	metricsPath = "/metrics"
 )
 
 type Config struct {
@@ -143,6 +145,7 @@ func NewUploadServer(config *Config) UploadServer {
 		errChan:   make(chan error),
 	}
 
+	server.mux.Handle(metricsPath, promhttp.Handler())
 	server.mux.HandleFunc(healthzPath, server.healthzHandler)
 	for _, path := range common.SyncUploadPaths {
 		server.mux.HandleFunc(path, server.uploadHandler(bodyReadCloser))

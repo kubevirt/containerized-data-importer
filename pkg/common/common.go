@@ -327,6 +327,32 @@ const (
 	// - poller (DataImportCron poller pods that run in the CDI namespace)
 	// Copied from: https://github.com/kubevirt/kubevirt/blob/e5da5c9405d7f263ad70489a52747cc21a472489/staging/src/kubevirt.io/api/core/v1/types.go#L1369
 	AllowAccessClusterServicesNPLabel string = "np.kubevirt.io/allow-access-cluster-services"
+
+	// ProcessingPhaseInfo is the first phase, during this phase the source obtains information needed to determine which phase to go to next.
+	ProcessingPhaseInfo = "Info"
+	// ProcessingPhaseTransferScratch is the phase in which the data source writes data to the scratch space.
+	ProcessingPhaseTransferScratch = "TransferScratch"
+	// ProcessingPhaseTransferDataDir is the phase in which the data source writes data directly to the target path without conversion.
+	ProcessingPhaseTransferDataDir = "TransferDataDir"
+	// ProcessingPhaseTransferDataFile is the phase in which the data source writes data directly to the target file without conversion.
+	ProcessingPhaseTransferDataFile = "TransferDataFile"
+	// ProcessingPhaseValidatePause is the phase in which the data processor should validate and then pause.
+	ProcessingPhaseValidatePause = "ValidatePause"
+	// ProcessingPhaseValidatePreScratch is the phase in which the data processor should validate available storage before transferring to scratch space.
+	ProcessingPhaseValidatePreScratch = "ValidatePreScratch"
+	// ProcessingPhaseConvert is the phase in which the data is taken from the url provided by the source, and it is converted to the target RAW disk image format.
+	// The url can be an http end point or file system end point.
+	ProcessingPhaseConvert = "Convert"
+	// ProcessingPhaseResize the disk image, this is only needed when the target contains a file system (block device do not need a resize)
+	ProcessingPhaseResize = "Resize"
+	// ProcessingPhaseComplete is the phase where the entire process completed successfully and we can exit gracefully.
+	ProcessingPhaseComplete = "Complete"
+	// ProcessingPhasePause is the phase where we pause processing and end the loop, and expect something to call the process loop again.
+	ProcessingPhasePause = "Pause"
+	// ProcessingPhaseError is the phase in which we encountered an error and need to exit ungracefully.
+	ProcessingPhaseError = GenericError
+	// ProcessingPhaseMergeDelta is the phase in a multi-stage import where a delta image downloaded to scratch is applied to the base image
+	ProcessingPhaseMergeDelta = "MergeDelta"
 )
 
 // ProxyPaths are all supported paths
@@ -363,6 +389,22 @@ var SyncUploadFormPaths = []string{
 var AsyncUploadFormPaths = []string{
 	UploadFormAsync,
 	"/v1alpha1/upload-form-async",
+}
+
+// AllProcessingPhases contains all possible processing phases
+var AllProcessingPhases = []string{
+	ProcessingPhaseInfo,
+	ProcessingPhaseTransferScratch,
+	ProcessingPhaseTransferDataDir,
+	ProcessingPhaseTransferDataFile,
+	ProcessingPhaseValidatePause,
+	ProcessingPhaseValidatePreScratch,
+	ProcessingPhaseConvert,
+	ProcessingPhaseResize,
+	ProcessingPhaseComplete,
+	ProcessingPhasePause,
+	ProcessingPhaseError,
+	ProcessingPhaseMergeDelta,
 }
 
 // VddkInfo holds VDDK version and connection information returned by an importer pod

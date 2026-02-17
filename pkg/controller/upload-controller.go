@@ -62,7 +62,7 @@ const (
 	AnnUploadClientName = "cdi.kubevirt.io/uploadClientName"
 
 	// AnnUploadPod name of the upload pod
-	AnnUploadPod = "cdi.kubevirt.io/storage.uploadPodName"
+	AnnUploadPod = cc.AnnUploadPodName
 
 	annCreatedByUpload = "cdi.kubevirt.io/storage.createdByUploadController"
 
@@ -854,6 +854,10 @@ func (r *UploadReconciler) makeUploadPodContainers(args UploadPodArgs, resourceR
 					Name:  common.MinVersionTLSVar,
 					Value: args.CryptoEnvVars.MinTLSVersion,
 				},
+				{
+					Name:  common.OwnerUID,
+					Value: string(getPVCOwnerUID(args)),
+				},
 			},
 			Args: []string{"-v=" + r.verbose},
 			ReadinessProbe: &corev1.Probe{
@@ -877,6 +881,13 @@ func (r *UploadReconciler) makeUploadPodContainers(args UploadPodArgs, resourceR
 				},
 			},
 			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+			Ports: []corev1.ContainerPort{
+				{
+					Name:          "metrics",
+					ContainerPort: 8443,
+					Protocol:      corev1.ProtocolTCP,
+				},
+			},
 		},
 	}
 	if args.Deadline != nil {
@@ -944,4 +955,11 @@ func (r *UploadReconciler) makeUploadPodVolumes(args UploadPodArgs) []corev1.Vol
 		})
 	}
 	return volumes
+}
+
+func getPVCOwnerUID(args UploadPodArgs) types.UID {
+	if len(args.PVC.OwnerReferences) == 1 {
+		return args.PVC.OwnerReferences[0].UID
+	}
+	return args.PVC.UID
 }
