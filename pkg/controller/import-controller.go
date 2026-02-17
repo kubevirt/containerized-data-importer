@@ -103,6 +103,7 @@ type importPodEnvVar struct {
 	secretExtraHeaders        []string
 	cacheMode                 string
 	registryImageArchitecture string
+	checksum                  string
 }
 
 type importerPodArgs struct {
@@ -255,6 +256,9 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 		if cc.IsPVCComplete(pvc) {
 			// Don't create the POD if the PVC is completed already
 			log.V(1).Info("PVC is already complete")
+		} else if pvc.Annotations[cc.AnnImportFatalError] == "true" {
+			// Don't create the POD if there was a fatal error (e.g., checksum mismatch)
+			log.V(1).Info("PVC has fatal error annotation, will not create pod")
 		} else if pvc.DeletionTimestamp == nil {
 			podsUsingPVC, err := cc.GetPodsUsingPVCs(context.TODO(), r.client, pvc.Namespace, sets.New(pvc.Name), false)
 			if err != nil {
@@ -384,6 +388,22 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	}
 	setAnnotationsFromPodWithPrefix(anno, pod, termMsg, cc.AnnRunningCondition)
 
+	// Handle fatal errors reported via termination message even when the container exited with code 0.
+	// In this branch we intentionally override the actual Pod phase (Succeeded) and mark the PVC as Failed + fatal
+	// to stop retries; this keeps DV status aligned with the fatal outcome rather than the Pod phase.
+	// Check for "checksum mismatch" which is the error message from ErrChecksumMismatch.
+	if termMsg != nil && termMsg.Message != nil && strings.Contains(*termMsg.Message, "checksum mismatch") {
+		log.Info("Checksum validation failed via termination message (permanent error, will not retry)", "pod.Name", pod.Name)
+		anno[cc.AnnPodPhase] = string(corev1.PodFailed) // override Succeeded to reflect fatal state
+		anno[cc.AnnImportFatalError] = "true"
+		anno[cc.AnnRunningCondition] = "false"
+		if anno[cc.AnnRunningConditionMessage] == "" {
+			anno[cc.AnnRunningConditionMessage] = simplifyKnownMessage(*termMsg.Message)
+		}
+		anno[cc.AnnRunningConditionReason] = "ChecksumError"
+		r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, simplifyKnownMessage(*termMsg.Message))
+	}
+
 	scratchSpaceRequired := termMsg != nil && termMsg.ScratchSpaceRequired != nil && *termMsg.ScratchSpaceRequired
 	if scratchSpaceRequired {
 		log.V(1).Info("Pod requires scratch space, terminating pod, and restarting with scratch space", "pod.Name", pod.Name)
@@ -396,6 +416,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			podModificationsNeeded = true
 			anno[cc.AnnRequiresDirectIO] = "true"
 		}
+
 		if terminated := statuses[0].State.Terminated; terminated != nil && terminated.ExitCode > 0 {
 			log.Info("Pod termination code", "pod.Name", pod.Name, "ExitCode", terminated.ExitCode)
 			r.recorder.Event(pvc, corev1.EventTypeWarning, ErrImportFailedPVC, terminated.Message)
@@ -407,7 +428,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	}
 
 	anno[cc.AnnImportPod] = pod.Name
-	if !podModificationsNeeded {
+	if !podModificationsNeeded && anno[cc.AnnImportFatalError] != "true" {
 		// No scratch space required, update the phase based on the pod. If we require scratch space we don't want to update the
 		// phase, because the pod might terminate cleanly and mistakenly mark the import complete.
 		anno[cc.AnnPodPhase] = string(pod.Status.Phase)
@@ -458,6 +479,15 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			return err
 		}
 		log.V(1).Info("Updated PVC", "pvc.anno.Phase", anno[cc.AnnPodPhase], "pvc.anno.Restarts", anno[cc.AnnPodRestarts])
+	}
+
+	// If fatal error detected, delete pod immediately to stop K8s restart loop
+	if anno[cc.AnnImportFatalError] == "true" {
+		log.V(1).Info("Deleting pod due to fatal error", "pod.Name", pod.Name)
+		if err := r.cleanup(pvc, pod, log); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	if cc.IsPVCComplete(pvc) || podModificationsNeeded {
@@ -618,6 +648,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, cc.AnnCurrentCheckpoint)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, cc.AnnFinalCheckpoint)
 		podEnvVar.registryImageArchitecture = getValueFromAnnotation(pvc, cc.AnnRegistryImageArchitecture)
+		podEnvVar.checksum = getValueFromAnnotation(pvc, cc.AnnChecksum)
 
 		for annotation, value := range pvc.Annotations {
 			if strings.HasPrefix(annotation, cc.AnnExtraHeaders) {
@@ -1335,6 +1366,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.ImporterRegistryImageArchitecture,
 			Value: podEnvVar.registryImageArchitecture,
+		},
+		{
+			Name:  common.ImporterChecksum,
+			Value: podEnvVar.checksum,
 		},
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source != cc.SourceGCS {
