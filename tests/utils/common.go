@@ -49,6 +49,8 @@ const (
 	HTTPSNoAuthPort = 443
 	// RegistryCertConfigMap is the ConfigMap where the cert for the docker registry is stored
 	RegistryCertConfigMap = "cdi-docker-registry-host-certs"
+	// RegistryPemCertConfigMap is the ConfigMap where .pem certs are stored
+	RegistryPemCertConfigMap = "cdi-docker-registry-pem-certs"
 	// FileHostCertConfigMap is the ConfigMap where the cert fir the file host is stored
 	FileHostCertConfigMap = "cdi-file-host-certs"
 	// ImageIOCertConfigMap is the ConfigMap where the cert fir the file host is stored
