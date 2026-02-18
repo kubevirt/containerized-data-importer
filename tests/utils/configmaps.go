@@ -66,6 +66,19 @@ func CopyConfigMap(client kubernetes.Interface, srcNamespace, srcName, destNames
 		Data: src.Data,
 	}
 
+	// Create new ConfigMap with .pem extension instead of .crt
+	if destName == RegistryPemCertConfigMap {
+		var certBytes string
+		for _, value := range src.Data {
+			certBytes = value
+			break
+		}
+
+		dst.Data = map[string]string{
+			"ca-bundle.pem": certBytes,
+		}
+	}
+
 	// Use this when overriding the default key when copying the configmap.
 	if destKey != "" {
 		data := make(map[string]string, 0)

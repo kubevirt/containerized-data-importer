@@ -126,7 +126,7 @@ Create a `ConfigMap`  in the same namespace as the DataVolume containing all cer
 kubectl create configmap my-registry-certs --from-file=my-registry.crt
 ```
 
-The `ConfigMap` may contain multiple entries if necessary.  Key name is irrelevant but should have suffix `.crt`.
+The `ConfigMap` may contain multiple entries if necessary.  Key name is irrelevant but should have suffix `.crt` or `.pem`
 
 Add `certConfigMap` to `DataVolume` spec.
 

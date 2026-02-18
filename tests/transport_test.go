@@ -80,8 +80,15 @@ var _ = Describe("Transport Tests", func() {
 		}
 
 		if certConfigMap != "" {
-			n, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, certConfigMap, ns, "", "")
-			Expect(err).ToNot(HaveOccurred())
+			var n string
+			// Special handling for testing .pem certificate files
+			if certConfigMap == utils.RegistryPemCertConfigMap {
+				n, err = utils.CopyRegistryCertConfigMapDestName(f.K8sClient, ns, f.CdiInstallNs, certConfigMap)
+				Expect(err).ToNot(HaveOccurred())
+			} else {
+				n, err = utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, certConfigMap, ns, "", "")
+				Expect(err).ToNot(HaveOccurred())
+			}
 			pvcAnn[controller.AnnCertConfigMap] = n
 		}
 
@@ -169,5 +176,6 @@ var _ = Describe("Transport Tests", func() {
 		Entry("[test_id:5074]should connect to https endpoint with cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "cdi-file-host-certs", "", false, true),
 		Entry("[test_id:5075]should not connect to https endpoint with bad cert", httpsNoAuthEp, targetFile, "", "", "", controller.SourceHTTP, "cdi-docker-registry-host-certs", "", false, false),
 		Entry("[test_id:7240]should succeed to node pull import from registry when image contains valid iso file, no auth", trustedRegistryEp, targetNodePullImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, "", string(cdiv1.RegistryPullNode), false, true),
+		Entry("should succeed to import from registry with .pem certificate", registryNoAuthEp, targetQCOWImage, utils.UploadFileMD5, "", "", controller.SourceRegistry, utils.RegistryPemCertConfigMap, "", false, true),
 	)
 })
