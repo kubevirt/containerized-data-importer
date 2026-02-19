@@ -1081,7 +1081,10 @@ func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy 
 	}
 	// Update status subresource only if changed
 	if !reflect.DeepEqual(dataVolume.Status, dataVolumeCopy.Status) {
-		if err := r.client.Status().Update(context.TODO(), dataVolumeCopy); err != nil {
+		// Use patch instead of update to reduce conflicts when multiple controllers
+		// are acting on the same resource
+		patch := client.MergeFrom(dataVolume)
+		if err := r.client.Status().Patch(context.TODO(), dataVolumeCopy, patch); err != nil {
 			r.log.Error(err, "unable to update datavolume status", "name", dataVolumeCopy.Name)
 			return err
 		}
