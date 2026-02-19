@@ -6142,6 +6142,11 @@ spec:
                                 description: BackingFile is the path to the virtual
                                   hard disk to migrate from vCenter/ESXi
                                 type: string
+                              certConfigMap:
+                                description: CertConfigMap provides a reference to a
+                                  ConfigMap containing the certificate authority (CA)
+                                  certificate for the vCenter or ESXi host
+                                type: string
                               extraArgs:
                                 description: ExtraArgs is a reference to a ConfigMap
                                   containing extra arguments to pass directly to the
@@ -7146,6 +7151,11 @@ spec:
                       backingFile:
                         description: BackingFile is the path to the virtual hard disk
                           to migrate from vCenter/ESXi
+                        type: string
+                      certConfigMap:
+                        description: CertConfigMap provides a reference to a ConfigMap
+                          containing the certificate authority (CA) certificate for
+                          the vCenter or ESXi host
                         type: string
                       extraArgs:
                         description: ExtraArgs is a reference to a ConfigMap containing
@@ -8171,6 +8181,11 @@ spec:
                       backingFile:
                         description: BackingFile is the path to the virtual hard disk
                           to migrate from vCenter/ESXi
+                        type: string
+                      certConfigMap:
+                        description: CertConfigMap provides a reference to a ConfigMap
+                          containing the certificate authority (CA) certificate for
+                          the vCenter or ESXi host
                         type: string
                       extraArgs:
                         description: ExtraArgs is a reference to a ConfigMap containing
