@@ -909,7 +909,10 @@ func createMockVddkDataSource(endpoint string, accessKey string, secKey string, 
 		Handle: handle,
 	}
 
-	vmware, err := newVMwareClient(endpoint, accessKey, secKey, thumbprint, uuid, "", false)
+	vmware, err := newVMwareClient(VMwareClientConfig{
+		Endpoint: endpoint, AccessKey: accessKey, SecKey: secKey,
+		Thumbprint: thumbprint, UUID: uuid, CertDir: "", InsecureTLS: false,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -1021,18 +1024,18 @@ func (ops *mockVMwareVMOperations) Client() *vim25.Client {
 	return currentVMwareFunctions.Client()
 }
 
-func createMockVMwareClient(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, certDir string, insecureTLS bool) (*VMwareClient, error) {
-	ep, _ := url.Parse(endpoint)
+func createMockVMwareClient(cfg VMwareClientConfig) (*VMwareClient, error) {
+	ep, _ := url.Parse(cfg.Endpoint)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &VMwareClient{
-		conn:       &mockVMwareConnectionOperations{endpoint},
+		conn:       &mockVMwareConnectionOperations{cfg.Endpoint},
 		cancel:     cancel,
 		context:    ctx,
 		moref:      "vm-1",
-		thumbprint: thumbprint,
-		username:   accessKey,
-		password:   secKey,
+		thumbprint: cfg.Thumbprint,
+		username:   cfg.AccessKey,
+		password:   cfg.SecKey,
 		url:        ep,
 		vm:         &mockVMwareVMOperations{},
 	}, nil

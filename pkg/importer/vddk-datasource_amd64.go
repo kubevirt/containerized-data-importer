@@ -263,24 +263,35 @@ type VMwareClient struct {
 	vm         VMwareVMOperations // *object.VirtualMachine
 }
 
+// VMwareClientConfig holds parameters for creating a VMware API client
+type VMwareClientConfig struct {
+	Endpoint     string
+	AccessKey    string
+	SecKey       string
+	Thumbprint   string
+	UUID         string
+	CertDir      string
+	InsecureTLS  bool
+}
+
 // createVMwareClient creates a govmomi handle and finds the VM with the given UUID
-func createVMwareClient(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, certDir string, insecureTLS bool) (*VMwareClient, error) {
-	vmwURL, err := url.Parse(endpoint)
+func createVMwareClient(cfg VMwareClientConfig) (*VMwareClient, error) {
+	vmwURL, err := url.Parse(cfg.Endpoint)
 	if err != nil {
-		klog.Errorf("Unable to parse endpoint: %v", endpoint)
+		klog.Errorf("Unable to parse endpoint: %v", cfg.Endpoint)
 		return nil, err
 	}
 
-	vmwURL.User = url.UserPassword(accessKey, secKey)
+	vmwURL.User = url.UserPassword(cfg.AccessKey, cfg.SecKey)
 	vmwURL.Path = "sdk"
 
 	// Determine actual TLS mode: if no certDir is provided, fall back to insecure mode
 	// since we can't validate certificates. This maintains backward compatibility with
 	// the previous behavior where VDDK always used insecure connections.
-	actualInsecureTLS := insecureTLS
-	if certDir == "" {
+	actualInsecureTLS := cfg.InsecureTLS
+	if cfg.CertDir == "" {
 		actualInsecureTLS = true
-		if !insecureTLS {
+		if !cfg.InsecureTLS {
 			klog.Warningf("No certificate directory provided, falling back to insecure TLS connection")
 		}
 	}
@@ -295,25 +306,25 @@ func createVMwareClient(endpoint string, accessKey string, secKey string, thumbp
 	}
 
 	// Configure certificate validation if certDir is provided and not using insecure mode
-	if certDir != "" && !insecureTLS {
-		certPool, err := createCertPool(certDir)
+	if cfg.CertDir != "" && !cfg.InsecureTLS {
+		certPool, err := createCertPool(cfg.CertDir)
 		if err != nil {
-			klog.Errorf("Unable to create certificate pool from %s: %v", certDir, err)
+			klog.Errorf("Unable to create certificate pool from %s: %v", cfg.CertDir, err)
 			cancel()
 			return nil, err
 		}
 		// Set the RootCAs on the soap client's TLS config
 		if certPool != nil {
 			conn.Client.DefaultTransport().TLSClientConfig.RootCAs = certPool
-			klog.Infof("Configured VMware client with certificates from %s", certDir)
+			klog.Infof("Configured VMware client with certificates from %s", cfg.CertDir)
 		}
 	} else if actualInsecureTLS {
 		klog.Warningf("Connecting to VMware with insecure TLS (certificate validation disabled)")
 	}
 
-	moref, vm, err := FindVM(ctx, conn, uuid)
+	moref, vm, err := FindVM(ctx, conn, cfg.UUID)
 	if err != nil {
-		klog.Errorf("Unable to find MORef for VM with UUID %s!", uuid)
+		klog.Errorf("Unable to find MORef for VM with UUID %s!", cfg.UUID)
 		cancel()
 		return nil, err
 	}
@@ -331,9 +342,9 @@ func createVMwareClient(endpoint string, accessKey string, secKey string, thumbp
 		cancel:     cancel,
 		context:    ctx,
 		moref:      moref,
-		thumbprint: thumbprint,
-		username:   accessKey,
-		password:   secKey,
+		thumbprint: cfg.Thumbprint,
+		username:   cfg.AccessKey,
+		password:   cfg.SecKey,
 		url:        vmwURL,
 		vm:         vm,
 	}
@@ -871,7 +882,10 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	}
 
 	// Log in to VMware to make sure disks and snapshots are present
-	vmware, err := newVMwareClient(endpoint, accessKey, secKey, thumbprint, uuid, certDir, insecureTLS)
+	vmware, err := newVMwareClient(VMwareClientConfig{
+		Endpoint: endpoint, AccessKey: accessKey, SecKey: secKey,
+		Thumbprint: thumbprint, UUID: uuid, CertDir: certDir, InsecureTLS: insecureTLS,
+	})
 	if err != nil {
 		klog.Errorf("Unable to log in to VMware: %v", err)
 		return nil, err
