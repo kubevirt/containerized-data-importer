@@ -781,39 +781,54 @@ func ModifyDataVolumeWithImportToBlockPV(dataVolume *cdiv1.DataVolume, storageCl
 	return dataVolume
 }
 
+// VDDKImportParams holds parameters for creating a DataVolume with VDDK import.
+type VDDKImportParams struct {
+	DataVolumeName string
+	Size           string
+	BackingFile    string
+	SecretRef      string
+	Thumbprint     string
+	HTTPURL        string
+	UUID           string
+	CertConfigMap  string
+}
+
 // NewDataVolumeWithVddkImport initializes a DataVolume struct for importing disks from vCenter/ESX
 func NewDataVolumeWithVddkImport(dataVolumeName string, size string, backingFile string, secretRef string, thumbprint string, httpURL string, uuid string) *cdiv1.DataVolume {
-	return NewDataVolumeWithVddkImportAndCertConfigMap(dataVolumeName, size, backingFile, secretRef, thumbprint, httpURL, uuid, "")
+	return NewDataVolumeWithVddkImportAndCertConfigMap(VDDKImportParams{
+		DataVolumeName: dataVolumeName, Size: size, BackingFile: backingFile, SecretRef: secretRef,
+		Thumbprint: thumbprint, HTTPURL: httpURL, UUID: uuid, CertConfigMap: "",
+	})
 }
 
 // NewDataVolumeWithVddkImportAndCertConfigMap initializes a DataVolume struct for importing disks from vCenter/ESX with optional certConfigMap
-func NewDataVolumeWithVddkImportAndCertConfigMap(dataVolumeName string, size string, backingFile string, secretRef string, thumbprint string, httpURL string, uuid string, certConfigMap string) *cdiv1.DataVolume {
+func NewDataVolumeWithVddkImportAndCertConfigMap(p VDDKImportParams) *cdiv1.DataVolume {
 	dv := &cdiv1.DataVolume{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: dataVolumeName,
+			Name: p.DataVolumeName,
 		},
 		Spec: cdiv1.DataVolumeSpec{
 			Source: &cdiv1.DataVolumeSource{
 				VDDK: &cdiv1.DataVolumeSourceVDDK{
-					BackingFile: backingFile,
-					SecretRef:   secretRef,
-					Thumbprint:  thumbprint,
-					URL:         httpURL,
-					UUID:        uuid,
+					BackingFile: p.BackingFile,
+					SecretRef:   p.SecretRef,
+					Thumbprint:  p.Thumbprint,
+					URL:         p.HTTPURL,
+					UUID:        p.UUID,
 				},
 			},
 			PVC: &k8sv1.PersistentVolumeClaimSpec{
 				AccessModes: []k8sv1.PersistentVolumeAccessMode{k8sv1.ReadWriteOnce},
 				Resources: k8sv1.VolumeResourceRequirements{
 					Requests: k8sv1.ResourceList{
-						k8sv1.ResourceStorage: resource.MustParse(size),
+						k8sv1.ResourceStorage: resource.MustParse(p.Size),
 					},
 				},
 			},
 		},
 	}
-	if certConfigMap != "" {
-		dv.Spec.Source.VDDK.CertConfigMap = certConfigMap
+	if p.CertConfigMap != "" {
+		dv.Spec.Source.VDDK.CertConfigMap = p.CertConfigMap
 	}
 	return dv
 }

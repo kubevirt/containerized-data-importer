@@ -1289,7 +1289,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Expect(err).ToNot(HaveOccurred())
 				}
 
-				return utils.NewDataVolumeWithVddkImportAndCertConfigMap(dataVolumeName, size, backingFile, s.Name, thumbprint, url, vmid.String(), certCM)
+				return utils.NewDataVolumeWithVddkImportAndCertConfigMap(utils.VDDKImportParams{
+					DataVolumeName: dataVolumeName, Size: size, BackingFile: backingFile, SecretRef: s.Name,
+					Thumbprint: thumbprint, HTTPURL: url, UUID: vmid.String(), CertConfigMap: certCM,
+				})
 			}
 
 			dataVolumeName := "dv-import-vddk-cert-test"

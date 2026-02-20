@@ -869,22 +869,22 @@ func init() {
 }
 
 // NewVDDKDataSource creates a new instance of the vddk data provider.
-func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode, certDir string, insecureTLS bool) (*VDDKDataSource, error) {
-	return newVddkDataSource(endpoint, accessKey, secKey, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, volumeMode, certDir, insecureTLS)
+func NewVDDKDataSource(cfg VDDKDataSourceConfig) (*VDDKDataSource, error) {
+	return newVddkDataSource(cfg)
 }
 
-func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode, certDir string, insecureTLS bool) (*VDDKDataSource, error) {
-	klog.Infof("Creating VDDK data source: backingFile [%s], currentCheckpoint [%s], previousCheckpoint [%s], finalCheckpoint [%s], certDir [%s], insecureTLS [%v]", backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, certDir, insecureTLS)
+func createVddkDataSource(cfg VDDKDataSourceConfig) (*VDDKDataSource, error) {
+	klog.Infof("Creating VDDK data source: backingFile [%s], currentCheckpoint [%s], previousCheckpoint [%s], finalCheckpoint [%s], certDir [%s], insecureTLS [%v]", cfg.BackingFile, cfg.CurrentCheckpoint, cfg.PreviousCheckpoint, cfg.FinalCheckpoint, cfg.CertDir, cfg.InsecureTLS)
 
-	if currentCheckpoint == "" && previousCheckpoint != "" {
+	if cfg.CurrentCheckpoint == "" && cfg.PreviousCheckpoint != "" {
 		// Not sure what to do with just previous set by itself, return error
 		return nil, errors.New("previous checkpoint set without current")
 	}
 
 	// Log in to VMware to make sure disks and snapshots are present
 	vmware, err := newVMwareClient(VMwareClientConfig{
-		Endpoint: endpoint, AccessKey: accessKey, SecKey: secKey,
-		Thumbprint: thumbprint, UUID: uuid, CertDir: certDir, InsecureTLS: insecureTLS,
+		Endpoint: cfg.Endpoint, AccessKey: cfg.AccessKey, SecKey: cfg.SecKey,
+		Thumbprint: cfg.Thumbprint, UUID: cfg.UUID, CertDir: cfg.CertDir, InsecureTLS: cfg.InsecureTLS,
 	})
 	if err != nil {
 		klog.Errorf("Unable to log in to VMware: %v", err)
@@ -892,23 +892,23 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	}
 
 	// Find disk object for backingFile disk image path
-	backingFileObject, err := vmware.FindDiskFromName(backingFile)
+	backingFileObject, err := vmware.FindDiskFromName(cfg.BackingFile)
 	if err != nil {
-		klog.Errorf("Could not find VM disk %s: %v", backingFile, err)
+		klog.Errorf("Could not find VM disk %s: %v", cfg.BackingFile, err)
 		return nil, err
 	}
 
 	// Find current snapshot object if requested
 	var currentSnapshot *types.ManagedObjectReference
-	if currentCheckpoint != "" {
-		currentSnapshot, err = vmware.vm.FindSnapshot(vmware.context, currentCheckpoint)
+	if cfg.CurrentCheckpoint != "" {
+		currentSnapshot, err = vmware.vm.FindSnapshot(vmware.context, cfg.CurrentCheckpoint)
 		if err != nil {
-			klog.Errorf("Could not find current snapshot %s: %v", currentCheckpoint, err)
+			klog.Errorf("Could not find current snapshot %s: %v", cfg.CurrentCheckpoint, err)
 			return nil, err
 		}
 	}
 
-	diskFileName := backingFile // By default, just set the nbdkit file name to the given backingFile path
+	diskFileName := cfg.BackingFile // By default, just set the nbdkit file name to the given backingFile path
 	if currentSnapshot != nil {
 		// When copying from a snapshot, set the nbdkit file name to the name of the disk in the snapshot
 		// that matches the ID of the given backing file, like "[iSCSI] vm/vmdisk-000001.vmdk".
@@ -919,7 +919,7 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		}
 		klog.Infof("Set disk file name from current snapshot: %s", diskFileName)
 	}
-	nbdkit, err := newNbdKitWrapper(vmware, diskFileName, currentCheckpoint)
+	nbdkit, err := newNbdKitWrapper(vmware, diskFileName, cfg.CurrentCheckpoint)
 	if err != nil {
 		klog.Errorf("Unable to start nbdkit: %v", err)
 		return nil, err
@@ -941,12 +941,12 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 
 	source := &VDDKDataSource{
 		VMware:           vmware,
-		BackingFile:      backingFile,
+		BackingFile:      cfg.BackingFile,
 		NbdKit:           nbdkit,
-		CurrentSnapshot:  currentCheckpoint,
-		PreviousSnapshot: previousCheckpoint,
+		CurrentSnapshot:  cfg.CurrentCheckpoint,
+		PreviousSnapshot: cfg.PreviousCheckpoint,
 		Size:             size,
-		VolumeMode:       volumeMode,
+		VolumeMode:       cfg.VolumeMode,
 	}
 
 	terminationChannel := newTerminationChannel()
