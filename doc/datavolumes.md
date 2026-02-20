@@ -356,7 +356,7 @@ spec:
 [Get certificate example](../manifests/example/cert-configmap.yaml)
 
 ### VDDK Data Volume
-VDDK sources come from VMware vCenter or ESX endpoints. You will need a secret containing administrative credentials for the API provided by the VMware endpoint, as well as a special sidecar image containing the non-redistributable VDDK library folder. Instructions for creating a VDDK image can be found [here](https://docs.openshift.com/container-platform/4.3/cnv/cnv_virtual_machines/cnv_importing_vms/cnv-importing-vmware-vm.html#cnv-creating-vddk-image_cnv-importing-vmware-vm), with the addendum that the ConfigMap should exist in the current CDI namespace and not 'openshift-cnv'. The image URL may also be specified in an optional `initImageURL` field as show below. This field will override the previous ConfigMap.
+VDDK sources come from VMware vCenter or ESX endpoints. You will need a secret containing administrative credentials for the API provided by the VMware endpoint, as well as a special sidecar image containing the non-redistributable VDDK library folder. Optionally, you can specify a `certConfigMap` referencing a ConfigMap that contains the CA certificate(s) for the vCenter or ESXi host to enable TLS certificate validation; if omitted, the connection uses insecure TLS (no certificate verification). Instructions for creating a VDDK image can be found [here](https://docs.openshift.com/container-platform/4.3/cnv/cnv_virtual_machines/cnv_importing_vms/cnv-importing-vmware-vm.html#cnv-creating-vddk-image_cnv-importing-vmware-vm), with the addendum that the ConfigMap should exist in the current CDI namespace and not 'openshift-cnv'. The image URL may also be specified in an optional `initImageURL` field as show below. This field will override the previous ConfigMap.
 
 ```yaml
 apiVersion: cdi.kubevirt.io/v1beta1
@@ -371,6 +371,7 @@ spec:
            uuid: "52260566-b032-36cb-55b1-79bf29e30490"
            thumbprint: "20:6C:8A:5D:44:40:B3:79:4B:28:EA:76:13:60:90:6E:49:D9:D9:A3" # SSL fingerprint of vCenter/ESX host
            secretRef: "vddk-credentials"
+           certConfigMap: "vddk-ca-cert" # Optional: ConfigMap containing CA certificate for TLS validation
            initImageURL: "registry:5000/vddk-init:latest"
     storage:
        accessModes:
