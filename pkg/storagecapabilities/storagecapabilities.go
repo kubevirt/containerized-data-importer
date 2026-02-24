@@ -259,6 +259,16 @@ var UnsupportedProvisioners = map[string]struct{}{
 	storagehelpers.NotSupportedProvisioner: {},
 }
 
+// IsRecognized checks if the storage class provisioner and parameters are recognized so capabilities are available
+func IsRecognized(sc *storagev1.StorageClass) (bool, bool) {
+	provisionerKey := storageProvisionerKey(sc)
+	if provisionerKey == "UNKNOWN" {
+		return true, false
+	}
+	_, found := CapabilitiesByProvisionerKey[provisionerKey]
+	return found, found
+}
+
 // GetCapabilities finds and returns a predefined StorageCapabilities for a given StorageClass
 func GetCapabilities(cl client.Client, sc *storagev1.StorageClass) ([]StorageCapabilities, bool) {
 	provisionerKey := storageProvisionerKey(sc)
