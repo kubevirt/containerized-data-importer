@@ -29,7 +29,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	"kubevirt.io/containerized-data-importer/pkg/common"
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 )
 
@@ -52,7 +52,7 @@ func (wh *pvcMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1
 	}
 
 	// Note the webhook LabelSelector should not pass us such pvcs
-	if pvc.Labels[common.PvcApplyStorageProfileLabel] != "true" {
+	if pvc.Labels[cdiv1.LabelApplyStorageProfile] != "true" {
 		klog.Warningf("Got PVC %s/%s which was not labeled for rendering", pvc.Namespace, pvc.Name)
 		return allowedAdmissionResponse()
 	}
