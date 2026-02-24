@@ -53,9 +53,9 @@ const (
 	counterLabelSmartClone       = "smartclone"
 	counterLabelDegraded         = "degraded"
 
-	reasonRecognizedProvisioner              = "RecognizedProvisioner"
-	reasonUnrecognizedProvisioner            = "UnrecognizedProvisioner"
-	reasonUnrecognizedStorageClassParameters = "UnrecognizedStorageClassParameters"
+	recognizedProvisionerMessage              = "Provisioner is recognized"
+	unrecognizedProvisionerMessage            = "Provisioner is not recognized"
+	unrecognizedStorageClassParametersMessage = "Storage class parameters are not recognized"
 )
 
 // StorageProfileReconciler members
@@ -208,14 +208,13 @@ func (r *StorageProfileReconciler) reconcileConditions(ctx context.Context, sc *
 		Type: cdiv1.StorageProfileRecognized,
 	}
 
-	provisionerRecognized, parametersRecognized := storagecapabilities.IsRecognized(sc)
-	switch {
-	case provisionerRecognized && parametersRecognized:
-		updateConditionState(&cond.ConditionState, v1.ConditionTrue, "Provisioner is recognized", reasonRecognizedProvisioner)
-	case !provisionerRecognized:
-		updateConditionState(&cond.ConditionState, v1.ConditionFalse, "Provisioner is not recognized", reasonUnrecognizedProvisioner)
-	default:
-		updateConditionState(&cond.ConditionState, v1.ConditionFalse, "Storage class parameters are not recognized", reasonUnrecognizedStorageClassParameters)
+	switch storagecapabilities.IsRecognized(sc) {
+	case storagecapabilities.RecognizedProvisioner:
+		updateConditionState(&cond.ConditionState, v1.ConditionTrue, recognizedProvisionerMessage, string(storagecapabilities.RecognizedProvisioner))
+	case storagecapabilities.UnrecognizedProvisioner:
+		updateConditionState(&cond.ConditionState, v1.ConditionFalse, unrecognizedProvisionerMessage, string(storagecapabilities.UnrecognizedProvisioner))
+	case storagecapabilities.UnrecognizedStorageClassParameters:
+		updateConditionState(&cond.ConditionState, v1.ConditionFalse, unrecognizedStorageClassParametersMessage, string(storagecapabilities.UnrecognizedStorageClassParameters))
 	}
 
 	sp.Status.Conditions = []cdiv1.StorageProfileCondition{cond}

@@ -671,13 +671,13 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 	},
 		Entry("recognized provisioner",
 			cephProvisioner, nil,
-			v1.ConditionTrue, reasonRecognizedProvisioner, "Provisioner is recognized"),
+			v1.ConditionTrue, string(storagecapabilities.RecognizedProvisioner), recognizedProvisionerMessage),
 		Entry("unrecognized provisioner",
 			"unknown-provisioner", nil,
-			v1.ConditionFalse, reasonUnrecognizedProvisioner, "Provisioner is not recognized"),
+			v1.ConditionFalse, string(storagecapabilities.UnrecognizedProvisioner), unrecognizedProvisionerMessage),
 		Entry("recognized provisioner with unrecognized parameters",
 			"infinibox-csi-driver", map[string]string{"storage_protocol": "unsupported"},
-			v1.ConditionFalse, reasonUnrecognizedStorageClassParameters, "Storage class parameters are not recognized"),
+			v1.ConditionFalse, string(storagecapabilities.UnrecognizedStorageClassParameters), unrecognizedStorageClassParametersMessage),
 	)
 
 })

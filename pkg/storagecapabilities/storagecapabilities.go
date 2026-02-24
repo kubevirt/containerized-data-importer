@@ -259,14 +259,25 @@ var UnsupportedProvisioners = map[string]struct{}{
 	storagehelpers.NotSupportedProvisioner: {},
 }
 
+// StorageClassRecognitionResult represents whether a storage class provisioner and its parameters are recognized
+type StorageClassRecognitionResult string
+
+const (
+	RecognizedProvisioner              StorageClassRecognitionResult = "RecognizedProvisioner"
+	UnrecognizedProvisioner            StorageClassRecognitionResult = "UnrecognizedProvisioner"
+	UnrecognizedStorageClassParameters StorageClassRecognitionResult = "UnrecognizedStorageClassParameters"
+)
+
 // IsRecognized checks if the storage class provisioner and parameters are recognized so capabilities are available
-func IsRecognized(sc *storagev1.StorageClass) (bool, bool) {
+func IsRecognized(sc *storagev1.StorageClass) StorageClassRecognitionResult {
 	provisionerKey := storageProvisionerKey(sc)
 	if provisionerKey == "UNKNOWN" {
-		return true, false
+		return UnrecognizedStorageClassParameters
 	}
-	_, found := CapabilitiesByProvisionerKey[provisionerKey]
-	return found, found
+	if _, found := CapabilitiesByProvisionerKey[provisionerKey]; found {
+		return RecognizedProvisioner
+	}
+	return UnrecognizedProvisioner
 }
 
 // GetCapabilities finds and returns a predefined StorageCapabilities for a given StorageClass
