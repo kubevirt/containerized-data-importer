@@ -20,6 +20,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -30,6 +31,8 @@ import (
 	"github.com/pkg/errors"
 
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -37,7 +40,8 @@ import (
 	"k8s.io/klog/v2"
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 
-	"sigs.k8s.io/controller-runtime/pkg/cluster"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -57,6 +61,55 @@ const (
 	// Default address api listens on.
 	defaultHost = "0.0.0.0"
 )
+
+// semiCachingClient is a controller-runtime client that uses a cache for
+// PersistentVolume, StorageClass and StorageProfile reads and direct API calls for everything else.
+type semiCachingClient struct {
+	crclient.Client
+	cache cache.Cache
+}
+
+func (c *semiCachingClient) Get(ctx context.Context, key crclient.ObjectKey, obj crclient.Object, opts ...crclient.GetOption) error {
+	switch obj.(type) {
+	case *corev1.PersistentVolume, *storagev1.StorageClass, *cdiv1.StorageProfile:
+		return c.cache.Get(ctx, key, obj, opts...)
+	}
+	return c.Client.Get(ctx, key, obj, opts...)
+}
+
+func (c *semiCachingClient) List(ctx context.Context, list crclient.ObjectList, opts ...crclient.ListOption) error {
+	switch list.(type) {
+	case *corev1.PersistentVolumeList, *storagev1.StorageClassList, *cdiv1.StorageProfileList:
+		return c.cache.List(ctx, list, opts...)
+	}
+	return c.Client.List(ctx, list, opts...)
+}
+
+// pvTransform replaces each PersistentVolume in the informer cache with a
+// stripped copy that only contains the fields used by renderPvcSpecFromAvailablePv
+// and CheckVolumeSatisfyClaim, reducing the memory footprint.
+func pvTransform(obj interface{}) (interface{}, error) {
+	pv, ok := obj.(*corev1.PersistentVolume)
+	if !ok {
+		return obj, nil
+	}
+	return &corev1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              pv.Name,
+			ResourceVersion:   pv.ResourceVersion,
+			DeletionTimestamp: pv.DeletionTimestamp,
+		},
+		Spec: corev1.PersistentVolumeSpec{
+			StorageClassName: pv.Spec.StorageClassName,
+			Capacity:         pv.Spec.Capacity,
+			AccessModes:      pv.Spec.AccessModes,
+			VolumeMode:       pv.Spec.VolumeMode,
+		},
+		Status: corev1.PersistentVolumeStatus{
+			Phase: pv.Status.Phase,
+		},
+	}, nil
+}
 
 var (
 	configPath      string
@@ -131,17 +184,34 @@ func main() {
 
 	snapClient := snapclient.NewForConfigOrDie(cfg)
 
-	cluster, err := cluster.New(cfg)
+	uncachedClient, err := crclient.New(cfg, crclient.Options{
+		Scheme: scheme.Scheme,
+	})
 	if err != nil {
-		klog.Fatalf("Unable to create controller runtime cluster: %v\n", errors.WithStack(err))
+		klog.Fatalf("Unable to create controller runtime client: %v\n", errors.WithStack(err))
 	}
 
-	if err := cdiv1.AddToScheme(cluster.GetScheme()); err != nil {
-		klog.Fatalf("Unable to add to scheme: %v\n", errors.WithStack(err))
+	semiCache, err := cache.New(cfg, cache.Options{
+		Scheme: scheme.Scheme,
+		ByObject: map[crclient.Object]cache.ByObject{
+			&corev1.PersistentVolume{}: {
+				Transform: pvTransform,
+			},
+			&storagev1.StorageClass{}: {},
+			&cdiv1.StorageProfile{}:   {},
+		},
+	})
+	if err != nil {
+		klog.Fatalf("Unable to create informer cache: %v\n", errors.WithStack(err))
 	}
 
-	if err := dvc.CreateAvailablePersistentVolumeIndex(cluster.GetFieldIndexer()); err != nil {
+	if err := dvc.CreateAvailablePersistentVolumeIndex(semiCache); err != nil {
 		klog.Fatalf("Unable to create field index: %v\n", errors.WithStack(err))
+	}
+
+	controllerRuntimeClient := &semiCachingClient{
+		Client: uncachedClient,
+		cache:  semiCache,
 	}
 
 	ctx := signals.SetupSignalHandler()
@@ -172,7 +242,7 @@ func main() {
 		aggregatorClient,
 		cdiClient,
 		snapClient,
-		cluster.GetClient(),
+		controllerRuntimeClient,
 		authorizor,
 		authConfigWatcher,
 		cdiConfigTLSWatcher,
@@ -183,10 +253,14 @@ func main() {
 	}
 
 	go func() {
-		if err := cluster.Start(ctx); err != nil {
-			klog.Errorf("cluster failed: %v\n", errors.WithStack(err))
+		if err := semiCache.Start(ctx); err != nil {
+			klog.Fatalf("cache failed: %v\n", errors.WithStack(err))
 		}
 	}()
+
+	if !semiCache.WaitForCacheSync(ctx) {
+		klog.Fatalf("Failed to sync cache\n")
+	}
 
 	go func() {
 		if err := certWatcher.Start(ctx.Done()); err != nil {

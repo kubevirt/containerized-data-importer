@@ -34,7 +34,7 @@ import (
 )
 
 type pvcMutatingWebhook struct {
-	cachedClient client.Client
+	client client.Client
 }
 
 func (wh *pvcMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
@@ -58,7 +58,7 @@ func (wh *pvcMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1
 	}
 
 	pvcCpy := pvc.DeepCopy()
-	if err := dvc.RenderPvc(context.TODO(), wh.cachedClient, pvcCpy); err != nil {
+	if err := dvc.RenderPvc(context.TODO(), wh.client, pvcCpy); err != nil {
 		return toAdmissionResponseError(err)
 	}
 

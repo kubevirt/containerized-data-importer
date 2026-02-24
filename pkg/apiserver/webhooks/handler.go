@@ -72,8 +72,8 @@ func NewDataVolumeMutatingWebhook(k8sClient kubernetes.Interface, cdiClient cdic
 }
 
 // NewPvcMutatingWebhook creates a new PvcMutation webhook
-func NewPvcMutatingWebhook(cachedClient client.Client) http.Handler {
-	return newAdmissionHandler(&pvcMutatingWebhook{cachedClient: cachedClient})
+func NewPvcMutatingWebhook(client client.Client) http.Handler {
+	return newAdmissionHandler(&pvcMutatingWebhook{client: client})
 }
 
 // NewCDIValidatingWebhook creates a new CDI validating webhook

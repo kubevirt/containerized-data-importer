@@ -291,15 +291,10 @@ func renderClonePvcVolumeSizeFromSource(ctx context.Context, client client.Clien
 	// If target has the source volume mode and storage class, it can request the source requested volume size.
 	// Otherwise try using the source capacity.
 	volSize := sourcePvc.Spec.Resources.Requests[v1.ResourceStorage]
-	if sourcePvc.Status.Phase != v1.ClaimBound {
-		return errors.Errorf("source pvc is not bound")
-	}
 	if targetVolumeMode != sourceVolumeMode || targetSC.Name != sourceSC.Name {
-		capacity, exists := sourcePvc.Status.Capacity[v1.ResourceStorage]
-		if !exists {
-			return errors.Errorf("source pvc has no status.capacity[storage]")
+		if capacity, exists := sourcePvc.Status.Capacity[v1.ResourceStorage]; exists {
+			volSize = capacity
 		}
-		volSize = capacity
 	}
 	setRequestedVolumeSize(&pvc.Spec, volSize)
 

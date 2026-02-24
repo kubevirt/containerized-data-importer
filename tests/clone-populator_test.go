@@ -190,16 +190,11 @@ var _ = Describe("Clone Populator tests", func() {
 		pvc := generateTargetPVCWithStrategy(size, vm, strategy, scName)
 		pvc.Spec.AccessModes = nil
 		cc.AddLabel(pvc, common.PvcApplyStorageProfileLabel, "true")
-		Eventually(func() error {
-			err := f.CrClient.Create(context.Background(), pvc)
-			if err != nil {
-				By(fmt.Sprintf("PVC create error %v", err))
-			}
-			return err
-		}, timeout, pollingInterval).ShouldNot(HaveOccurred())
+		err := f.CrClient.Create(context.Background(), pvc)
+		Expect(err).ToNot(HaveOccurred())
 		f.ForceSchedulingIfWaitForFirstConsumerPopulationPVC(pvc)
 		result := &corev1.PersistentVolumeClaim{}
-		err := f.CrClient.Get(context.Background(), client.ObjectKeyFromObject(pvc), result)
+		err = f.CrClient.Get(context.Background(), client.ObjectKeyFromObject(pvc), result)
 		Expect(err).ToNot(HaveOccurred())
 		return result
 	}
