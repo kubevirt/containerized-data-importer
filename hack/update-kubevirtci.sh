@@ -25,4 +25,4 @@ rm -rf ${SCRIPT_ROOT}/cluster-up
 # download and extract the cluster-up dir from a specific hash in kubevirtci
 curl -L https://github.com/kubevirt/kubevirtci/archive/${kubevirtci_release_tag}/kubevirtci.tar.gz | tar xz kubevirtci-${kubevirtci_release_tag}/cluster-up --strip-component 1
 
-echo "KUBEVIRTCI_TAG=${kubevirtci_release_tag}" >>${SCRIPT_ROOT}/cluster-up/hack/common.sh
+echo "KUBEVIRTCI_TAG="'${KUBEVIRTCI_TAG:-'"${kubevirtci_release_tag}}" >>${SCRIPT_ROOT}/cluster-up/hack/common.sh
