@@ -2,12 +2,12 @@
 
 set -e
 
-DEFAULT_CLUSTER_NAME="kind-1.31"
+DEFAULT_CLUSTER_NAME="kind-1.34-dra"
 DEFAULT_HOST_PORT=5000
 ALTERNATE_HOST_PORT=5001
 export CLUSTER_NAME=${CLUSTER_NAME:-$DEFAULT_CLUSTER_NAME}
 
-if [ $CLUSTER_NAME == $DEFAULT_CLUSTER_NAME ]; then
+if [ "$CLUSTER_NAME" = "$DEFAULT_CLUSTER_NAME" ]; then
     export HOST_PORT=$DEFAULT_HOST_PORT
 else
     export HOST_PORT=$ALTERNATE_HOST_PORT
@@ -16,7 +16,6 @@ fi
 function set_kind_params() {
     version=$(cat "${KUBEVIRTCI_PATH}/cluster/$KUBEVIRT_PROVIDER/version")
     export KIND_VERSION="${KIND_VERSION:-$version}"
-
     image=$(cat "${KUBEVIRTCI_PATH}/cluster/$KUBEVIRT_PROVIDER/image")
     export KIND_NODE_IMAGE="${KIND_NODE_IMAGE:-$image}"
 }
@@ -34,9 +33,7 @@ function configure_registry_proxy() {
 }
 
 function up() {
-    cp $KIND_MANIFESTS_DIR/kind.yaml ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
-    _add_kubeadm_cpu_manager_config_patch
-    _add_extra_mounts
+    cp ${KUBEVIRTCI_PATH}/cluster/${KUBEVIRT_PROVIDER}/kind.yaml ${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml
     _add_extra_portmapping
     export CONFIG_WORKER_CPU_MANAGER=true
     kind_up
@@ -44,7 +41,7 @@ function up() {
     configure_registry_proxy
 
     # remove the rancher.io kind default storageClass
-    _kubectl delete sc standard
+    _kubectl delete sc standard --ignore-not-found
 
     echo "$KUBEVIRT_PROVIDER cluster '$CLUSTER_NAME' is ready"
 }
