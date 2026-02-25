@@ -1066,7 +1066,7 @@ func (handle *mockNbdOperations) BlockStatus(length uint64, offset uint64, callb
 	return currentMockNbdFunctions.BlockStatus(length, offset, callback, optargs)
 }
 
-func createMockVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode, certDir string, insecureTLS bool) (*VDDKDataSource, error) {
+func createMockVddkDataSource(cfg VDDKDataSourceConfig) (*VDDKDataSource, error) {
 	socketURL, err := url.Parse(socketPath)
 	if err != nil {
 		return nil, err
@@ -1081,8 +1081,13 @@ func createMockVddkDataSource(endpoint string, accessKey string, secKey string, 
 	}
 
 	vmware, err := newVMwareClient(VMwareClientConfig{
-		Endpoint: endpoint, AccessKey: accessKey, SecKey: secKey,
-		Thumbprint: thumbprint, UUID: uuid, CertDir: "", InsecureTLS: false,
+		Endpoint:   cfg.Endpoint,
+		AccessKey:  cfg.AccessKey,
+		SecKey:     cfg.SecKey,
+		Thumbprint: cfg.Thumbprint,
+		UUID:       cfg.UUID,
+		CertDir:    cfg.CertDir,
+		InsecureTLS: cfg.InsecureTLS,
 	})
 	if err != nil {
 		return nil, err
@@ -1091,10 +1096,10 @@ func createMockVddkDataSource(endpoint string, accessKey string, secKey string, 
 	return &VDDKDataSource{
 		VMware:           vmware,
 		NbdKit:           nbdkit,
-		CurrentSnapshot:  currentCheckpoint,
-		PreviousSnapshot: previousCheckpoint,
+		CurrentSnapshot:  cfg.CurrentCheckpoint,
+		PreviousSnapshot: cfg.PreviousCheckpoint,
 		Size:             0,
-		VolumeMode:       volumeMode,
+		VolumeMode:       cfg.VolumeMode,
 	}, nil
 }
 
