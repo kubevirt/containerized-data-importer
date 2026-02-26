@@ -18585,6 +18585,12 @@ func schema_pkg_apis_core_v1beta1_DataVolumeStatus(ref common.ReferenceCallback)
 							Format: "",
 						},
 					},
+					"populatorPhase": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 					"restartCount": {
 						SchemaProps: spec.SchemaProps{
 							Description: "RestartCount is the number of times the pod populating the DataVolume has restarted",
