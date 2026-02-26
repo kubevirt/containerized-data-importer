@@ -467,7 +467,23 @@ type StorageProfileStatus struct {
 	DataImportCronSourceFormat *DataImportCronSourceFormat `json:"dataImportCronSourceFormat,omitempty"`
 	// SnapshotClass is optional specific VolumeSnapshotClass for CloneStrategySnapshot. If not set, a VolumeSnapshotClass is chosen according to the provisioner.
 	SnapshotClass *string `json:"snapshotClass,omitempty"`
+	// Conditions contains the current conditions observed for the StorageProfile
+	Conditions []StorageProfileCondition `json:"conditions,omitempty" optional:"true"`
 }
+
+// StorageProfileCondition represents the state of a storage profile condition
+type StorageProfileCondition struct {
+	Type           StorageProfileConditionType `json:"type" description:"type of condition ie. Recognized"`
+	ConditionState `json:",inline"`
+}
+
+// StorageProfileConditionType is the string representation of known condition types
+type StorageProfileConditionType string
+
+const (
+	// StorageProfileRecognized is the condition that indicates if the storage class provisioner and parameters are recognized by CDI
+	StorageProfileRecognized StorageProfileConditionType = "Recognized"
+)
 
 // ClaimPropertySet is a set of properties applicable to PVC
 type ClaimPropertySet struct {
