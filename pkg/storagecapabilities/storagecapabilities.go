@@ -38,9 +38,10 @@ const (
 // CapabilitiesByProvisionerKey defines default capabilities for different storage classes
 var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// hostpath-provisioner
-	"kubevirt.io.hostpath-provisioner": {{rwo, file}},
-	"kubevirt.io/hostpath-provisioner": {{rwo, file}},
-	"k8s.io/minikube-hostpath":         {{rwo, file}},
+	ProvisionerHPPCSI:          {{rwo, file}},
+	ProvisionerHPPOverlayCSI:   {{rwx, file}},
+	ProvisionerHPPLegacy:       {{rwo, file}},
+	"k8s.io/minikube-hostpath": {{rwo, file}},
 	// nfs-csi
 	"nfs.csi.k8s.io": {{rwx, file}},
 	"k8s-sigs.io/nfs-subdir-external-provisioner": {{rwx, file}},
@@ -247,6 +248,12 @@ const (
 	ProvisionerRookCephBucket = "rook-ceph.ceph.rook.io/bucket"
 	// ProvisionerStorkSnapshot is the provisioner string for the Stork snapshot provisoner which does not work with CDI
 	ProvisionerStorkSnapshot = "stork-snapshot"
+	// ProvisionerHPPCSI is the CSI variant for the hostpath-provisioner
+	ProvisionerHPPCSI = "kubevirt.io.hostpath-provisioner"
+	// ProvisionerHPPOverlayCSI is the CSI overlay variant for the hostpath-provisioner
+	ProvisionerHPPOverlayCSI = "kubevirt.io.hostpath-provisioner/overlay"
+	// ProvisionerHPPLegacy is the Legacy variant for the hostpath-provisioner
+	ProvisionerHPPLegacy = "kubevirt.io/hostpath-provisioner"
 )
 
 // UnsupportedProvisioners is a hash of provisioners which are known not to work with CDI
@@ -351,6 +358,12 @@ func storageProvisionerKey(sc *storagev1.StorageClass) string {
 }
 
 var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageClass) string{
+	ProvisionerHPPCSI: func(sc *storagev1.StorageClass) string {
+		if _, exists := sc.Parameters["overlayCSI"]; exists {
+			return ProvisionerHPPOverlayCSI
+		}
+		return ProvisionerHPPCSI
+	},
 	"kubernetes.io/portworx-volume": func(sc *storagev1.StorageClass) string {
 		opts := strings.Split(sc.Parameters["sharedv4_mount_options"], ",")
 		if slices.Contains(opts, "vers=3.0") && slices.Contains(opts, "nolock") {
