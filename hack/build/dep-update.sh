@@ -12,7 +12,8 @@ export GO111MODULE=on
 
 rm -f go.sum
 go mod tidy
-go mod vendor
+go work vendor
+go work sync
 
 (
     cd vendor/kubevirt.io

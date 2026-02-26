@@ -1,3 +1,4 @@
+## workspace
 # cloud.google.com/go v0.112.1
 ## explicit; go 1.19
 cloud.google.com/go/internal
@@ -1588,14 +1589,6 @@ k8s.io/utils/strings/slices
 k8s.io/utils/trace
 # kubevirt.io/containerized-data-importer-api v0.0.0 => ./staging/src/kubevirt.io/containerized-data-importer-api
 ## explicit; go 1.24.0
-kubevirt.io/containerized-data-importer-api/pkg/apis/core
-kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1alpha1
-kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1
-kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1/utils
-kubevirt.io/containerized-data-importer-api/pkg/apis/forklift
-kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1
-kubevirt.io/containerized-data-importer-api/pkg/apis/upload
-kubevirt.io/containerized-data-importer-api/pkg/apis/upload/v1beta1
 # kubevirt.io/controller-lifecycle-operator-sdk v0.2.7
 ## explicit; go 1.22.0
 kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk
@@ -1704,6 +1697,5 @@ sigs.k8s.io/yaml/goyaml.v2
 # k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.31.5
 # k8s.io/sample-cli-plugin => k8s.io/sample-cli-plugin v0.31.5
 # k8s.io/sample-controller => k8s.io/sample-controller v0.31.5
-# kubevirt.io/containerized-data-importer-api => ./staging/src/kubevirt.io/containerized-data-importer-api
 # kubevirt.io/controller-lifecycle-operator-sdk/api => kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90
 # sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.19.5
