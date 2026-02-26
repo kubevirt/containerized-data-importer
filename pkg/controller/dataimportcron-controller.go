@@ -106,7 +106,7 @@ const (
 	digestUIDPrefix             = "uid:"
 	digestDvNameSuffixLength    = 12
 	cronJobUIDSuffixLength      = 8
-	defaultImportsToKeepPerCron = 3
+	defaultImportsToKeepPerCron = 1
 )
 
 var ErrNotManagedByCron = errors.New("DataSource is not managed by this DataImportCron")
