@@ -246,7 +246,8 @@ type updatePVCAnnotationsFunc func(pvc, pvcPrime *corev1.PersistentVolumeClaim)
 
 var desiredAnnotations = []string{cc.AnnPodPhase, cc.AnnPodReady, cc.AnnPodRestarts,
 	cc.AnnPreallocationRequested, cc.AnnPreallocationApplied, cc.AnnCurrentCheckpoint, cc.AnnMultiStageImportDone,
-	cc.AnnRunningCondition, cc.AnnRunningConditionMessage, cc.AnnRunningConditionReason, cc.AnnPodSchedulable}
+	cc.AnnRunningCondition, cc.AnnRunningConditionMessage, cc.AnnRunningConditionReason, cc.AnnPodSchedulable,
+	cc.AnnImportFatalError}
 
 func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim, updateFunc updatePVCAnnotationsFunc) (*corev1.PersistentVolumeClaim, error) {
 	pvcCopy := pvc.DeepCopy()

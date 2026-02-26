@@ -43,7 +43,7 @@ func NewUploadDataSource(stream io.ReadCloser, contentType cdiv1.DataVolumeConte
 func (ud *UploadDataSource) Info() (ProcessingPhase, error) {
 	var err error
 	// Hardcoded to only accept kubevirt content type.
-	ud.readers, err = NewFormatReaders(ud.stream, uint64(0))
+	ud.readers, err = NewFormatReaders(ud.stream, uint64(0), nil)
 	if err != nil {
 		klog.Errorf("Error creating readers: %v", err)
 		return ProcessingPhaseError, err

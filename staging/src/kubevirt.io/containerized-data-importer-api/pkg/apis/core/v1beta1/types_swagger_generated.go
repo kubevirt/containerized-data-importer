@@ -131,6 +131,7 @@ func (DataVolumeSourceHTTP) SwaggerDoc() map[string]string {
 		"certConfigMap":      "CertConfigMap is a configmap reference, containing a Certificate Authority(CA) public key, and a base64 encoded pem certificate\n+optional",
 		"extraHeaders":       "ExtraHeaders is a list of strings containing extra headers to include with HTTP transfer requests\n+optional",
 		"secretExtraHeaders": "SecretExtraHeaders is a list of Secret references, each containing an extra HTTP header that may include sensitive information\n+optional",
+		"checksum":           "Checksum is the expected checksum of the file. Format: \"algorithm:hash\", e.g., \"sha256:1234abcd...\" or \"md5:5678efgh...\"\nSupported algorithms: md5, sha1, sha256, sha512\nIf specified, the importer will verify the downloaded content matches this checksum\n+optional",
 	}
 }
 
