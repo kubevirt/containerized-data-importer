@@ -36,12 +36,13 @@ BASE_TEST_IMAGES=(
     "cdi-func-test-tinycore"
     "cdi-func-test-registry-populate"
     "cdi-func-test-registry"
+    "cdi-func-test-cirros-qcow2"
 )
 
 declare -A ARCH_ADDITIONAL_IMAGES
-ARCH_ADDITIONAL_IMAGES[x86_64]="imageio-init vddk-init vddk-test vcenter-simulator cdi-func-test-imageio cdi-func-test-cirros-qcow2"
-ARCH_ADDITIONAL_IMAGES[aarch64]="imageio-init cdi-func-test-cirros-qcow2"
-ARCH_ADDITIONAL_IMAGES[s390x]="vcenter-simulator"
+ARCH_ADDITIONAL_IMAGES[x86_64]="imageio-init vddk-init vddk-test vcenter-simulator cdi-func-test-imageio"
+ARCH_ADDITIONAL_IMAGES[aarch64]="imageio-init"
+ARCH_ADDITIONAL_IMAGES[s390x]=""
 
 TEST_IMAGES=("${BASE_TEST_IMAGES[@]}")
 
