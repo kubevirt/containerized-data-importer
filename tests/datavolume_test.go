@@ -1253,7 +1253,15 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		// Certificate validation tests for VDDK
 		DescribeTable("VDDK certificate validation", Label("VDDK"), func(certConfigMap string, shouldSucceed bool) {
-			createVddkDataVolumeWithCert := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			// Use unique DV name per entry to avoid conflicts when table runs multiple entries
+			dataVolumeName := "dv-import-vddk-cert-test"
+			if certConfigMap != "" {
+				dataVolumeName = "dv-import-vddk-cert-test-with-cert"
+			} else {
+				dataVolumeName = "dv-import-vddk-cert-test-insecure"
+			}
+
+			createVddkDataVolumeWithCert := func(dvName, size, url string) *cdiv1.DataVolume {
 				// Find vcenter-simulator pod
 				pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "vcenter-deployment", "app=vcenter")
 				Expect(err).ToNot(HaveOccurred())
@@ -1281,21 +1289,20 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				thumbprint := "testprint"
 				s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, secretRef))
 
-				// Create cert ConfigMap if specified
+				// Create cert ConfigMap if specified. File host CA does not sign vcsim's cert,
+				// so when certConfigMap is set the import is expected to fail (TLS verification).
 				var certCM string
 				if certConfigMap != "" {
-					// Use file host certs as a test certificate (vcsim uses insecure anyway)
 					certCM, err = utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
 					Expect(err).ToNot(HaveOccurred())
 				}
 
 				return utils.NewDataVolumeWithVddkImportAndCertConfigMap(utils.VDDKImportParams{
-					DataVolumeName: dataVolumeName, Size: size, BackingFile: backingFile, SecretRef: s.Name,
+					DataVolumeName: dvName, Size: size, BackingFile: backingFile, SecretRef: s.Name,
 					Thumbprint: thumbprint, HTTPURL: url, UUID: vmid.String(), CertConfigMap: certCM,
 				})
 			}
 
-			dataVolumeName := "dv-import-vddk-cert-test"
 			dataVolume := createVddkDataVolumeWithCert(dataVolumeName, "100Mi", vcenterURL())
 
 			By(fmt.Sprintf("creating new datavolume %s with certConfigMap=%s", dataVolumeName, certConfigMap))
@@ -1321,7 +1328,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		},
 			Entry("[test_id:XXXX]succeed importing VDDK data volume without certConfigMap (fallback to insecure)", "", true),
-			Entry("[test_id:XXXX]succeed importing VDDK data volume with certConfigMap", "vddk-ca-cert", true),
+			Entry("[test_id:XXXX]fail importing VDDK data volume when certConfigMap CA does not sign vcsim", "vddk-ca-cert", false),
 		)
 
 		// similar to other tables but with check of quota
