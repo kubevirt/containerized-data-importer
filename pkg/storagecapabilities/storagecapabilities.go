@@ -87,8 +87,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"kubernetes.io/azure-file": {{rwx, file}},
 	"file.csi.azure.com":       {{rwx, file}},
 	// GCE Persistent Disk
-	"kubernetes.io/gce-pd":            {{rwo, block}},
-	"pd.csi.storage.gke.io":           {{rwo, block}},
+	"kubernetes.io/gce-pd":            {{rwo, block}, {rwo, file}},
+	"pd.csi.storage.gke.io":           {{rwo, block}, {rwo, file}},
 	"pd.csi.storage.gke.io/hyperdisk": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// Hitachi
 	"hspc.csi.hitachi.com": {{rwx, block}, {rwo, block}, {rwo, file}},
