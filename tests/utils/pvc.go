@@ -27,7 +27,7 @@ const (
 	defaultPollPeriodFast = 30 * time.Second
 
 	// DefaultPvcMountPath is the default mount path used
-	DefaultPvcMountPath = "/dev/pvc"
+	DefaultPvcMountPath = "/pvc"
 
 	// DefaultImagePath is the default destination for images created by CDI
 	DefaultImagePath = DefaultPvcMountPath + "/disk.img"
