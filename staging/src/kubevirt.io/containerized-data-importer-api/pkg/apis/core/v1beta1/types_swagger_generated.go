@@ -214,6 +214,13 @@ func (StorageProfileStatus) SwaggerDoc() map[string]string {
 		"claimPropertySets":          "ClaimPropertySets computed from the spec and detected in the system\n+kubebuilder:validation:MaxItems=8",
 		"dataImportCronSourceFormat": "DataImportCronSourceFormat defines the format of the DataImportCron-created disk image sources",
 		"snapshotClass":              "SnapshotClass is optional specific VolumeSnapshotClass for CloneStrategySnapshot. If not set, a VolumeSnapshotClass is chosen according to the provisioner.",
+		"conditions":                 "Conditions contains the current conditions observed for the StorageProfile",
+	}
+}
+
+func (StorageProfileCondition) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"": "StorageProfileCondition represents the state of a storage profile condition",
 	}
 }
 

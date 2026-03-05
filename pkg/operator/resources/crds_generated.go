@@ -7845,6 +7845,34 @@ spec:
                 description: CloneStrategy defines the preferred method for performing
                   a CDI clone
                 type: string
+              conditions:
+                description: Conditions contains the current conditions observed for
+                  the StorageProfile
+                items:
+                  description: StorageProfileCondition represents the state of a storage
+                    profile condition
+                  properties:
+                    lastHeartbeatTime:
+                      format: date-time
+                      type: string
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      description: StorageProfileConditionType is the string representation
+                        of known condition types
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
               dataImportCronSourceFormat:
                 description: DataImportCronSourceFormat defines the format of the
                   DataImportCron-created disk image sources

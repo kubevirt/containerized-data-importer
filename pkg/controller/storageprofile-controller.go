@@ -52,6 +52,10 @@ const (
 	counterLabelRWX              = "rwx"
 	counterLabelSmartClone       = "smartclone"
 	counterLabelDegraded         = "degraded"
+
+	recognizedProvisionerMessage              = "Provisioner is recognized"
+	unrecognizedProvisionerMessage            = "Provisioner is not recognized"
+	unrecognizedStorageClassParametersMessage = "Storage class parameters are not recognized"
 )
 
 // StorageProfileReconciler members
@@ -125,6 +129,7 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 	}
 
 	storageProfile.Status.ClaimPropertySets = claimPropertySets
+	r.reconcileConditions(context.TODO(), sc, storageProfile)
 
 	util.SetRecommendedLabels(storageProfile, r.installerLabels, "cdi-controller")
 	if err := r.updateStorageProfile(prevStorageProfile, storageProfile, log); err != nil {
@@ -196,6 +201,23 @@ func (r *StorageProfileReconciler) getStorageProfile(sc *storagev1.StorageClass)
 	}
 
 	return storageProfile, prevStorageProfile, nil
+}
+
+func (r *StorageProfileReconciler) reconcileConditions(ctx context.Context, sc *storagev1.StorageClass, sp *cdiv1.StorageProfile) {
+	cond := cdiv1.StorageProfileCondition{
+		Type: cdiv1.StorageProfileRecognized,
+	}
+
+	switch storagecapabilities.IsRecognized(sc) {
+	case storagecapabilities.RecognizedProvisioner:
+		updateConditionState(&cond.ConditionState, v1.ConditionTrue, recognizedProvisionerMessage, string(storagecapabilities.RecognizedProvisioner))
+	case storagecapabilities.UnrecognizedProvisioner:
+		updateConditionState(&cond.ConditionState, v1.ConditionFalse, unrecognizedProvisionerMessage, string(storagecapabilities.UnrecognizedProvisioner))
+	case storagecapabilities.UnrecognizedStorageClassParameters:
+		updateConditionState(&cond.ConditionState, v1.ConditionFalse, unrecognizedStorageClassParametersMessage, string(storagecapabilities.UnrecognizedStorageClassParameters))
+	}
+
+	sp.Status.Conditions = []cdiv1.StorageProfileCondition{cond}
 }
 
 func (r *StorageProfileReconciler) reconcilePropertySets(sc *storagev1.StorageClass) []cdiv1.ClaimPropertySet {

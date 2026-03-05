@@ -651,6 +651,35 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Entry("Without RWX, on SNO, not degraded", v1.ReadWriteOnce, true, false),
 	)
 
+	DescribeTable("Should set Recognized condition", func(provisioner string, scParameters map[string]string, expectedStatus v1.ConditionStatus, expectedReason, expectedMessage string) {
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, provisioner)
+		storageClass.Parameters = scParameters
+		reconciler = createStorageProfileReconciler(storageClass)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+
+		sp := &cdiv1.StorageProfile{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(sp.Status.Conditions).To(HaveLen(1))
+		cond := sp.Status.Conditions[0]
+		Expect(cond.Type).To(Equal(cdiv1.StorageProfileRecognized))
+		Expect(cond.Status).To(Equal(expectedStatus))
+		Expect(cond.Reason).To(Equal(expectedReason))
+		Expect(cond.Message).To(Equal(expectedMessage))
+	},
+		Entry("recognized provisioner",
+			cephProvisioner, nil,
+			v1.ConditionTrue, string(storagecapabilities.RecognizedProvisioner), recognizedProvisionerMessage),
+		Entry("unrecognized provisioner",
+			"unknown-provisioner", nil,
+			v1.ConditionFalse, string(storagecapabilities.UnrecognizedProvisioner), unrecognizedProvisionerMessage),
+		Entry("recognized provisioner with unrecognized parameters",
+			"infinibox-csi-driver", map[string]string{"storage_protocol": "unsupported"},
+			v1.ConditionFalse, string(storagecapabilities.UnrecognizedStorageClassParameters), unrecognizedStorageClassParametersMessage),
+	)
+
 })
 
 func createStorageProfileReconciler(objects ...runtime.Object) *StorageProfileReconciler {
