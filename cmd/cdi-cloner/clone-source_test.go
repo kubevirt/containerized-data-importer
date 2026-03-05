@@ -29,6 +29,25 @@ var _ = Describe("Prometheus Endpoint", func() {
 	})
 })
 
+var _ = Describe("SEEK_HOLE Detection", func() {
+	It("Should detect SEEK_HOLE support on tmpfs", func() {
+		tmpDir, err := os.MkdirTemp("", "seekhole_test")
+		Expect(err).NotTo(HaveOccurred())
+		defer os.RemoveAll(tmpDir)
+
+		// This should return true on most modern linux systems with tmpfs
+		Expect(filesystemSupportsSeekHole(tmpDir)).To(BeTrue())
+	})
+
+	It("Should handle inaccessible directory gracefully", func() {
+		nonExistentDir := "/nonexistent/seekhole/test"
+
+		// Should return false when it can't create test file
+		result := filesystemSupportsSeekHole(nonExistentDir)
+		Expect(result).To(BeFalse())
+	})
+})
+
 func isDirEmpty(dirName string) (bool, error) {
 	f, err := os.Open(dirName)
 	if err != nil {
