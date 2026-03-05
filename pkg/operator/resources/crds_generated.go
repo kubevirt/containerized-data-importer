@@ -6455,6 +6455,11 @@ spec:
                   - Digest
                   type: object
                 type: array
+              importsToKeep:
+                description: ImportsToKeep is the effective number of imports to keep
+                  when garbage collecting
+                format: int32
+                type: integer
               lastExecutionTimestamp:
                 description: LastExecutionTimestamp is the time of the last polling
                 format: date-time
