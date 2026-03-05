@@ -27,6 +27,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -37,30 +38,30 @@ type ProcessingPhase string
 
 const (
 	// ProcessingPhaseInfo is the first phase, during this phase the source obtains information needed to determine which phase to go to next.
-	ProcessingPhaseInfo ProcessingPhase = "Info"
+	ProcessingPhaseInfo ProcessingPhase = common.ProcessingPhaseInfo
 	// ProcessingPhaseTransferScratch is the phase in which the data source writes data to the scratch space.
-	ProcessingPhaseTransferScratch ProcessingPhase = "TransferScratch"
+	ProcessingPhaseTransferScratch ProcessingPhase = common.ProcessingPhaseTransferScratch
 	// ProcessingPhaseTransferDataDir is the phase in which the data source writes data directly to the target path without conversion.
-	ProcessingPhaseTransferDataDir ProcessingPhase = "TransferDataDir"
+	ProcessingPhaseTransferDataDir ProcessingPhase = common.ProcessingPhaseTransferDataDir
 	// ProcessingPhaseTransferDataFile is the phase in which the data source writes data directly to the target file without conversion.
-	ProcessingPhaseTransferDataFile ProcessingPhase = "TransferDataFile"
+	ProcessingPhaseTransferDataFile ProcessingPhase = common.ProcessingPhaseTransferDataFile
 	// ProcessingPhaseValidatePause is the phase in which the data processor should validate and then pause.
-	ProcessingPhaseValidatePause ProcessingPhase = "ValidatePause"
+	ProcessingPhaseValidatePause ProcessingPhase = common.ProcessingPhaseValidatePause
 	// ProcessingPhaseValidatePreScratch is the phase in which the data processor should validate available storage before transferring to scratch space.
-	ProcessingPhaseValidatePreScratch ProcessingPhase = "ValidatePreScratch"
+	ProcessingPhaseValidatePreScratch ProcessingPhase = common.ProcessingPhaseValidatePreScratch
 	// ProcessingPhaseConvert is the phase in which the data is taken from the url provided by the source, and it is converted to the target RAW disk image format.
 	// The url can be an http end point or file system end point.
-	ProcessingPhaseConvert ProcessingPhase = "Convert"
+	ProcessingPhaseConvert ProcessingPhase = common.ProcessingPhaseConvert
 	// ProcessingPhaseResize the disk image, this is only needed when the target contains a file system (block device do not need a resize)
-	ProcessingPhaseResize ProcessingPhase = "Resize"
+	ProcessingPhaseResize ProcessingPhase = common.ProcessingPhaseResize
 	// ProcessingPhaseComplete is the phase where the entire process completed successfully and we can exit gracefully.
-	ProcessingPhaseComplete ProcessingPhase = "Complete"
+	ProcessingPhaseComplete ProcessingPhase = common.ProcessingPhaseComplete
 	// ProcessingPhasePause is the phase where we pause processing and end the loop, and expect something to call the process loop again.
-	ProcessingPhasePause ProcessingPhase = "Pause"
+	ProcessingPhasePause ProcessingPhase = common.ProcessingPhasePause
 	// ProcessingPhaseError is the phase in which we encountered an error and need to exit ungracefully.
-	ProcessingPhaseError ProcessingPhase = common.GenericError
+	ProcessingPhaseError ProcessingPhase = common.ProcessingPhaseError
 	// ProcessingPhaseMergeDelta is the phase in a multi-stage import where a delta image downloaded to scratch is applied to the base image
-	ProcessingPhaseMergeDelta ProcessingPhase = "MergeDelta"
+	ProcessingPhaseMergeDelta ProcessingPhase = common.ProcessingPhaseMergeDelta
 )
 
 // may be overridden in tests
@@ -116,10 +117,18 @@ type DataProcessor struct {
 	// cacheMode is the mode in which we choose the qemu-img cache mode:
 	// TRY_NONE = bypass page cache if the target supports it, otherwise, fall back to using page cache
 	cacheMode string
+	// phaseMetric is used to report current processing phase to Prometheus
+	phaseMetric *metrics.ImportPhase
+}
+
+// updatePhaseMetric updates the phase metric if set
+func (dp *DataProcessor) updatePhaseMetric() {
+	dp.phaseMetric.Set(string(dp.currentPhase))
 }
 
 // NewDataProcessor create a new instance of a data processor using the passed in data provider.
 func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratchDataDir, requestImageSize string, filesystemOverhead float64, preallocation bool, cacheMode string) *DataProcessor {
+	ownerUID, _ := util.ParseEnvVar(common.OwnerUID, false)
 	dp := &DataProcessor{
 		currentPhase:       ProcessingPhaseInfo,
 		source:             dataSource,
@@ -130,10 +139,12 @@ func NewDataProcessor(dataSource DataSourceInterface, dataFile, dataDir, scratch
 		filesystemOverhead: filesystemOverhead,
 		preallocation:      preallocation,
 		cacheMode:          cacheMode,
+		phaseMetric:        metrics.Phase(ownerUID),
 	}
 	// Calculate available space before doing anything.
 	dp.availableSpace = dp.calculateTargetSize()
 	dp.initDefaultPhases()
+	dp.updatePhaseMetric()
 	return dp
 }
 
@@ -258,6 +269,7 @@ func (dp *DataProcessor) ProcessDataWithPause() error {
 		}
 		dp.currentPhase = nextPhase
 		klog.V(1).Infof("New phase: %s\n", dp.currentPhase)
+		dp.updatePhaseMetric()
 	}
 	return nil
 }

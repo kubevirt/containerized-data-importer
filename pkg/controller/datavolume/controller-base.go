@@ -812,6 +812,10 @@ func (r *ReconcilerBase) reconcileProgressUpdate(datavolume *cdiv1.DataVolume, p
 		} else {
 			datavolume.Status.Progress = "N/A"
 		}
+
+		if populatorPhase, ok := pvc.Annotations[cc.AnnPopulatorPhase]; ok {
+			datavolume.Status.PopulatorPhase = populatorPhase
+		}
 		return nil
 	}
 

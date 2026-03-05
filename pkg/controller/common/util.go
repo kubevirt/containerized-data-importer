@@ -115,6 +115,8 @@ const (
 
 	// AnnPopulatorProgress is a standard annotation that can be used progress reporting
 	AnnPopulatorProgress = AnnAPIGroup + "/storage.populator.progress"
+	// AnnPopulatorPhase is a standard annotation that can be used for phase reporting
+	AnnPopulatorPhase = AnnAPIGroup + "/storage.populator.phase"
 
 	// AnnPreallocationRequested provides a const to indicate whether preallocation should be performed on the PV
 	AnnPreallocationRequested = AnnAPIGroup + "/storage.preallocation.requested"
@@ -361,6 +363,9 @@ const (
 
 	// AnnPVCPrimeName annotation is the name of the PVC' that is used to populate the PV which is then rebound to the target PVC
 	AnnPVCPrimeName = AnnAPIGroup + "/storage.populator.pvcPrime"
+
+	// AnnUploadPod name of the upload pod
+	AnnUploadPodName = "cdi.kubevirt.io/storage.uploadPodName"
 )
 
 // Size-detection pod error codes
@@ -1658,9 +1663,7 @@ func GetMetricsURL(pod *corev1.Pod) (string, error) {
 	return url, nil
 }
 
-// GetProgressReportFromURL fetches the progress report from the passed URL according to an specific metric expression and ownerUID
-func GetProgressReportFromURL(ctx context.Context, url string, httpClient *http.Client, metricExp, ownerUID string) (string, error) {
-	regExp := regexp.MustCompile(fmt.Sprintf("(%s)\\{ownerUID\\=%q\\} (\\d{1,3}\\.?\\d*)", metricExp, ownerUID))
+func GetMetricsResponseBody(ctx context.Context, url string, httpClient *http.Client) (string, error) {
 	// pod could be gone, don't block an entire thread for 30 seconds
 	// just to get back an i/o timeout
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
@@ -1681,14 +1684,51 @@ func GetProgressReportFromURL(ctx context.Context, url string, httpClient *http.
 	if err != nil {
 		return "", err
 	}
+	return string(body), nil
+}
 
+// GetProgressReportFromURL fetches the progress report from the passed URL according to an specific metric expression and ownerUID
+func GetProgressReportFromURL(ctx context.Context, url string, httpClient *http.Client, metricExp, ownerUID string) (string, error) {
+	body, err := GetMetricsResponseBody(ctx, url, httpClient)
+	if err != nil {
+		return "", err
+	}
+	return GetProgressReportFromBody(body, metricExp, ownerUID), nil
+}
+
+func GetProgressReportFromBody(body string, metricExp, ownerUID string) string {
+	regExp := regexp.MustCompile(fmt.Sprintf("(%s)\\{ownerUID\\=%q\\} (\\d{1,3}\\.?\\d*)", metricExp, ownerUID))
 	// Parse the progress from the body
 	progressReport := ""
 	match := regExp.FindStringSubmatch(string(body))
 	if match != nil {
 		progressReport = match[len(match)-1]
 	}
-	return progressReport, nil
+	return progressReport
+}
+
+// GetPhaseReportFromURL fetches the phase report from the passed URL according to an specific metric expression and ownerUID
+func GetPhaseReportFromURL(ctx context.Context, url string, httpClient *http.Client, metricExp, ownerUID string) (string, error) {
+	body, err := GetMetricsResponseBody(ctx, url, httpClient)
+	if err != nil {
+		return "", err
+	}
+	return GetPhaseReportFromBody(body, metricExp, ownerUID), nil
+}
+
+func GetPhaseReportFromBody(body string, metricExp, ownerUID string) string {
+	// Match pattern: kubevirt_cdi_import_phase_info{ownerUID="xxx",phase="Convert"} 1
+	regExp := regexp.MustCompile(fmt.Sprintf(`(%s)\{ownerUID=%q,phase="(\w+)"\} 1`, metricExp, ownerUID))
+	// Parse the phase from the body
+	phaseReport := ""
+	match := regExp.FindStringSubmatch(string(body))
+	if len(match) >= 3 {
+		phaseReport = match[2] // The phase name is in the second capture group
+	}
+
+	// TODO: remove this debug msg
+	klog.Infof("[bb] Parsed phase report: %s", phaseReport)
+	return phaseReport
 }
 
 // UpdateHTTPAnnotations updates the passed annotations for proper http import

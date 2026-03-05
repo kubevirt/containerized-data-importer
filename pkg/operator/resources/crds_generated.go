@@ -6388,6 +6388,8 @@ spec:
                       phase:
                         description: Phase is the current phase of the data volume
                         type: string
+                      populatorPhase:
+                        type: string
                       progress:
                         description: DataVolumeProgress is the current progress of
                           the DataVolume transfer operation. Value between 0 and 100
@@ -7388,6 +7390,8 @@ spec:
                 type: array
               phase:
                 description: Phase is the current phase of the data volume
+                type: string
+              populatorPhase:
                 type: string
               progress:
                 description: DataVolumeProgress is the current progress of the DataVolume
