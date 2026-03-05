@@ -143,6 +143,8 @@ const (
 	ImporterPreviousCheckpoint = "IMPORTER_PREVIOUS_CHECKPOINT"
 	// ImporterFinalCheckpoint provides a constant to capture our env variable "IMPORTER_FINAL_CHECKPOINT"
 	ImporterFinalCheckpoint = "IMPORTER_FINAL_CHECKPOINT"
+	// ImporterChecksum provides a constant to capture our env variable "IMPORTER_CHECKSUM"
+	ImporterChecksum = "IMPORTER_CHECKSUM"
 	// CacheMode provides a constant to capture our env variable "CACHE_MODE"
 	CacheMode = "CACHE_MODE"
 	// CacheModeTryNone provides a constant to capture our env variable value for "CACHE_MODE" that tries O_DIRECT writing if target supports it

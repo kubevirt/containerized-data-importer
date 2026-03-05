@@ -94,7 +94,7 @@ func NewGCSDataSource(endpoint, keyFile string) (*GCSDataSource, error) {
 // Info is called to get initial information about the data.
 func (sd *GCSDataSource) Info() (ProcessingPhase, error) {
 	var err error
-	sd.readers, err = NewFormatReaders(sd.gcsReader, uint64(0))
+	sd.readers, err = NewFormatReaders(sd.gcsReader, uint64(0), nil)
 	if err != nil {
 		klog.Errorf("GCS Importer: Error creating readers: %v", err)
 		return ProcessingPhaseError, err

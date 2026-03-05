@@ -22,6 +22,7 @@ go_library(
         "//pkg/controller/common:go_default_library",
         "//pkg/controller/datavolume:go_default_library",
         "//pkg/token:go_default_library",
+        "//pkg/util/checksum:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/appscode/jsonpatch:go_default_library",
         "//vendor/github.com/docker/go-units:go_default_library",

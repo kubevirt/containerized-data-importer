@@ -253,6 +253,11 @@ type DataVolumeSourceHTTP struct {
 	// SecretExtraHeaders is a list of Secret references, each containing an extra HTTP header that may include sensitive information
 	// +optional
 	SecretExtraHeaders []string `json:"secretExtraHeaders,omitempty"`
+	// Checksum is the expected checksum of the file. Format: "algorithm:hash", e.g., "sha256:1234abcd..." or "md5:5678efgh..."
+	// Supported algorithms: md5, sha1, sha256, sha512
+	// If specified, the importer will verify the downloaded content matches this checksum
+	// +optional
+	Checksum string `json:"checksum,omitempty"`
 }
 
 // DataVolumeSourceImageIO provides the parameters to create a Data Volume from an imageio source

@@ -110,7 +110,7 @@ func NewImageioDataSource(endpoint string, accessKey string, secKey string, cert
 // Info is called to get initial information about the data.
 func (is *ImageioDataSource) Info() (ProcessingPhase, error) {
 	var err error
-	is.readers, err = NewFormatReaders(is.imageioReader, is.contentLength)
+	is.readers, err = NewFormatReaders(is.imageioReader, is.contentLength, nil)
 	if err != nil {
 		klog.Errorf("Error creating readers: %v", err)
 		return ProcessingPhaseError, err
