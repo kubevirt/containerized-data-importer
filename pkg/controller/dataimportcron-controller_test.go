@@ -995,10 +995,9 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(cron.Status.CurrentImports).To(BeEmpty())
 		})
 
-		It("Should succeed garbage collecting old version DVs", func() {
+		DescribeTable("Should succeed garbage collecting old version DVs", func(importsToKeep *int32) {
 			cron = newDataImportCron(cronName)
-			importsToKeep := int32(1)
-			cron.Spec.ImportsToKeep = &importsToKeep
+			cron.Spec.ImportsToKeep = importsToKeep
 			reconciler = createDataImportCronReconciler(cron)
 
 			// Labeled DV and unlabeled PVC
@@ -1050,7 +1049,11 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			err = reconciler.client.Get(context.TODO(), dvKey(pvc3.Name), pvc3)
 			Expect(err).ToNot(HaveOccurred())
-		})
+
+		},
+			Entry("ImportsToKeep set to nil to use default", nil),
+			Entry("ImportsToKeep set to 1", ptr.To(int32(1))),
+		)
 
 		It("should pass through metadata to DataVolume", func() {
 			cron = newDataImportCron(cronName)
