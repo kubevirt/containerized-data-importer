@@ -1254,7 +1254,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		// Certificate validation tests for VDDK
 		DescribeTable("VDDK certificate validation", Label("VDDK"), func(certConfigMap string, shouldSucceed bool) {
 			// Use unique DV name per entry to avoid conflicts when table runs multiple entries
-			dataVolumeName := "dv-import-vddk-cert-test"
+			var dataVolumeName string
 			if certConfigMap != "" {
 				dataVolumeName = "dv-import-vddk-cert-test-with-cert"
 			} else {
