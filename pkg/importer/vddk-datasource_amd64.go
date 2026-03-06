@@ -265,13 +265,13 @@ type VMwareClient struct {
 
 // VMwareClientConfig holds parameters for creating a VMware API client
 type VMwareClientConfig struct {
-	Endpoint     string
-	AccessKey    string
-	SecKey       string
-	Thumbprint   string
-	UUID         string
-	CertDir      string
-	InsecureTLS  bool
+	Endpoint    string
+	AccessKey   string
+	SecKey      string
+	Thumbprint  string
+	UUID        string
+	CertDir     string
+	InsecureTLS bool
 }
 
 // createVMwareClient creates a govmomi handle and finds the VM with the given UUID

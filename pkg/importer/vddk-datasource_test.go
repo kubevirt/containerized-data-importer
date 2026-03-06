@@ -918,12 +918,12 @@ func createMockVddkDataSource(cfg VDDKDataSourceConfig) (*VDDKDataSource, error)
 	}
 
 	vmware, err := newVMwareClient(VMwareClientConfig{
-		Endpoint:   cfg.Endpoint,
-		AccessKey:  cfg.AccessKey,
-		SecKey:     cfg.SecKey,
-		Thumbprint: cfg.Thumbprint,
-		UUID:       cfg.UUID,
-		CertDir:    cfg.CertDir,
+		Endpoint:    cfg.Endpoint,
+		AccessKey:   cfg.AccessKey,
+		SecKey:      cfg.SecKey,
+		Thumbprint:  cfg.Thumbprint,
+		UUID:        cfg.UUID,
+		CertDir:     cfg.CertDir,
 		InsecureTLS: cfg.InsecureTLS,
 	})
 	if err != nil {
