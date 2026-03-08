@@ -867,14 +867,12 @@ func createUploadService(pvc *corev1.PersistentVolumeClaim) *corev1.Service {
 			},
 		},
 		Spec: corev1.ServiceSpec{
+			ClusterIP: corev1.ClusterIPNone,
 			Ports: []corev1.ServicePort{
 				{
-					Protocol: "TCP",
-					Port:     443,
-					TargetPort: intstr.IntOrString{
-						Type:   intstr.Int,
-						IntVal: 8443,
-					},
+					Protocol:   corev1.ProtocolTCP,
+					Port:       8443,
+					TargetPort: intstr.FromInt32(8443),
 				},
 			},
 			Selector: map[string]string{
