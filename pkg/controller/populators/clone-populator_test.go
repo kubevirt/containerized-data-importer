@@ -393,6 +393,21 @@ var _ = Describe("Clone populator tests", func() {
 		Expect(pvc.Finalizers).ToNot(ContainElement(cloneFinalizer))
 		Expect(fp.cleanupCalled).To(BeTrue())
 	})
+
+	It("should skip cleanup for cross namespace host-assisted clone with pod retain annotation", func() {
+		target := succeededTarget()
+		target.Annotations[cc.AnnCloneType] = string(cdiv1.CloneStrategyHostAssisted)
+		target.Annotations[cc.AnnPodRetainAfterCompletion] = "true"
+		target.Annotations[AnnDataSourceNamespace] = "other-ns"
+		reconciler := createClonePopulatorReconciler(target)
+		fp := &fakePlanner{}
+		reconciler.planner = fp
+		result, err := reconciler.Reconcile(context.Background(), nn)
+		isDefaultResult(result, err)
+		pvc := getTarget(reconciler.client)
+		Expect(pvc.Finalizers).ToNot(ContainElement(cloneFinalizer))
+		Expect(fp.cleanupCalled).To(BeFalse())
+	})
 })
 
 // fakePlanner implements Plan interface
