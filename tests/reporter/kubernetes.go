@@ -72,6 +72,8 @@ func (r *KubernetesReporter) Dump(kubeCli *kubernetes.Clientset, cdiClient *cdiC
 
 	r.logCSIDrivers(kubeCli)
 	r.logDVs(cdiClient)
+	r.logDataImportCrons(cdiClient)
+	r.logDataSources(cdiClient)
 	r.logEvents(kubeCli, since)
 	r.logNodes(kubeCli)
 	r.logPVCs(kubeCli)
@@ -204,6 +206,26 @@ func (r *KubernetesReporter) logDVs(cdiClientset *cdiClientset.Clientset) {
 	}
 
 	r.logObjects(dvs, "dvs")
+}
+
+func (r *KubernetesReporter) logDataSources(cdiClientset *cdiClientset.Clientset) {
+	dataSources, err := cdiClientset.CdiV1beta1().DataSources(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to fetch datasources: %v\n", err)
+		return
+	}
+
+	r.logObjects(dataSources, "datasources")
+}
+
+func (r *KubernetesReporter) logDataImportCrons(cdiClientset *cdiClientset.Clientset) {
+	dataImportCrons, err := cdiClientset.CdiV1beta1().DataImportCrons(v1.NamespaceAll).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to fetch dataimportcrons: %v\n", err)
+		return
+	}
+
+	r.logObjects(dataImportCrons, "dataimportcrons")
 }
 
 func (r *KubernetesReporter) logCSIDrivers(kubeCli *kubernetes.Clientset) {
