@@ -52,6 +52,10 @@ const (
 	counterLabelRWX              = "rwx"
 	counterLabelSmartClone       = "smartclone"
 	counterLabelDegraded         = "degraded"
+
+	recognizedProvisionerMessage              = "Provisioner is recognized"
+	unrecognizedProvisionerMessage            = "Provisioner is not recognized"
+	unrecognizedStorageClassParametersMessage = "Storage class parameters are not recognized"
 )
 
 // StorageProfileReconciler members
@@ -125,6 +129,7 @@ func (r *StorageProfileReconciler) reconcileStorageProfile(sc *storagev1.Storage
 	}
 
 	storageProfile.Status.ClaimPropertySets = claimPropertySets
+	r.reconcileConditions(context.TODO(), sc, storageProfile)
 
 	util.SetRecommendedLabels(storageProfile, r.installerLabels, "cdi-controller")
 	if err := r.updateStorageProfile(prevStorageProfile, storageProfile, log); err != nil {
@@ -196,6 +201,32 @@ func (r *StorageProfileReconciler) getStorageProfile(sc *storagev1.StorageClass)
 	}
 
 	return storageProfile, prevStorageProfile, nil
+}
+
+func (r *StorageProfileReconciler) reconcileConditions(ctx context.Context, sc *storagev1.StorageClass, sp *cdiv1.StorageProfile) {
+	cond := findStorageProfileConditionByType(sp, cdiv1.StorageProfileRecognized)
+	if cond == nil {
+		sp.Status.Conditions = append(sp.Status.Conditions, cdiv1.StorageProfileCondition{Type: cdiv1.StorageProfileRecognized})
+		cond = &sp.Status.Conditions[len(sp.Status.Conditions)-1]
+	}
+
+	switch reason := storagecapabilities.IsRecognized(sc); reason {
+	case storagecapabilities.RecognizedProvisioner:
+		updateConditionState(&cond.ConditionState, v1.ConditionTrue, recognizedProvisionerMessage, string(reason))
+	case storagecapabilities.UnrecognizedProvisioner:
+		updateConditionState(&cond.ConditionState, v1.ConditionFalse, unrecognizedProvisionerMessage, string(reason))
+	case storagecapabilities.UnrecognizedStorageClassParameters:
+		updateConditionState(&cond.ConditionState, v1.ConditionFalse, unrecognizedStorageClassParametersMessage, string(reason))
+	}
+}
+
+func findStorageProfileConditionByType(sp *cdiv1.StorageProfile, condType cdiv1.StorageProfileConditionType) *cdiv1.StorageProfileCondition {
+	for i := range sp.Status.Conditions {
+		if sp.Status.Conditions[i].Type == condType {
+			return &sp.Status.Conditions[i]
+		}
+	}
+	return nil
 }
 
 func (r *StorageProfileReconciler) reconcilePropertySets(sc *storagev1.StorageClass) []cdiv1.ClaimPropertySet {

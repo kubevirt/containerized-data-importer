@@ -376,6 +376,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.OldTLSProfile":                 schema_pkg_apis_core_v1beta1_OldTLSProfile(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.PlatformOptions":               schema_pkg_apis_core_v1beta1_PlatformOptions(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfile":                schema_pkg_apis_core_v1beta1_StorageProfile(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileCondition":       schema_pkg_apis_core_v1beta1_StorageProfileCondition(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileList":            schema_pkg_apis_core_v1beta1_StorageProfileList(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileSpec":            schema_pkg_apis_core_v1beta1_StorageProfileSpec(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileStatus":          schema_pkg_apis_core_v1beta1_StorageProfileStatus(ref),
@@ -19163,6 +19164,58 @@ func schema_pkg_apis_core_v1beta1_StorageProfile(ref common.ReferenceCallback) c
 	}
 }
 
+func schema_pkg_apis_core_v1beta1_StorageProfileCondition(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "StorageProfileCondition represents the state of a storage profile condition",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"lastHeartbeatTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"type", "status"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
 func schema_pkg_apis_core_v1beta1_StorageProfileList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -19319,11 +19372,25 @@ func schema_pkg_apis_core_v1beta1_StorageProfileStatus(ref common.ReferenceCallb
 							Format:      "",
 						},
 					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Conditions contains the current conditions observed for the StorageProfile",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileCondition"),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ClaimPropertySet"},
+			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ClaimPropertySet", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.StorageProfileCondition"},
 	}
 }
 
