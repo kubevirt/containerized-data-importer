@@ -8,6 +8,7 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/cmd/cdi-controller",
     visibility = ["//visibility:private"],
     deps = [
+        "//pkg/client/clientset/versioned:go_default_library",
         "//pkg/common:go_default_library",
         "//pkg/controller:go_default_library",
         "//pkg/controller/datavolume:go_default_library",
@@ -18,6 +19,7 @@ go_library(
         "//pkg/util/cert:go_default_library",
         "//pkg/util/cert/fetcher:go_default_library",
         "//pkg/util/cert/generator:go_default_library",
+        "//pkg/util/tls-crypto-watch:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1:go_default_library",
         "//vendor/github.com/kelseyhightower/envconfig:go_default_library",
