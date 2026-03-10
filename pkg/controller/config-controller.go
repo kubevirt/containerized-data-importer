@@ -40,6 +40,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
@@ -413,20 +414,35 @@ func (r *CDIConfigReconciler) reconcileStorageClass(config *cdiv1.CDIConfig) err
 			}
 		}
 	}
-	// Check for default storage class.
-	for _, storageClass := range storageClassList.Items {
-		if defaultClassValue, ok := storageClass.Annotations[cc.AnnDefaultStorageClass]; ok {
-			if defaultClassValue == "true" {
-				log.Info("Setting scratch space to default", "storageClass.Name", storageClass.Name)
-				config.Status.ScratchSpaceStorageClass = storageClass.Name
-				return nil
+
+	// if feature gate is enabled, scratch space PVCs will inherit sc from the target PVC
+	if isInheritScratchSpaceStorageClassEnabled(config.Spec.FeatureGates) {
+		log.Info("InheritScratchSpaceStorageClass is enabled, setting scratch space to blank")
+	} else {
+		// Check for default storage class.
+		for _, storageClass := range storageClassList.Items {
+			if defaultClassValue, ok := storageClass.Annotations[cc.AnnDefaultStorageClass]; ok {
+				if defaultClassValue == "true" {
+					log.Info("Setting scratch space to default", "storageClass.Name", storageClass.Name)
+					config.Status.ScratchSpaceStorageClass = storageClass.Name
+					return nil
+				}
 			}
 		}
+		log.Info("No default storage class found, setting scratch space to blank")
 	}
-	log.Info("No default storage class found, setting scratch space to blank")
-	// No storage class found, blank it out.
+	// blank it out storage class, scratch space will default to using the sc of target resource
 	config.Status.ScratchSpaceStorageClass = ""
 	return nil
+}
+
+func isInheritScratchSpaceStorageClassEnabled(featureGates []string) bool {
+	for _, gate := range featureGates {
+		if gate == featuregates.InheritScratchSpaceStorageClass {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *CDIConfigReconciler) reconcileImagePullSecrets(config *cdiv1.CDIConfig) error {

@@ -1450,6 +1450,110 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			Expect(md5Match).To(BeTrue())
 		})
+
+		Describe("using scratch space PVC", func() {
+			AfterEach(func() {
+				_, err := utils.DisableFeatureGate(f.CrClient, featuregates.InheritScratchSpaceStorageClass)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			DescribeTable("with InheritScratchSpaceStorageClass feature gate", Serial, func(enabled bool) {
+				storageClasses, err := f.K8sClient.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				if len(storageClasses.Items) < 2 {
+					Skip("Test requires two distinct storage classes")
+				}
+
+				if enabled {
+					By("Enabling InheritScratchSpaceStorageClass feature gate")
+					_, err := utils.EnableFeatureGate(f.CrClient, featuregates.InheritScratchSpaceStorageClass)
+					Expect(err).ToNot(HaveOccurred())
+				}
+
+				defaultScName := utils.DefaultStorageClass.GetName()
+				By(fmt.Sprintf("Default Storage Class: %s", defaultScName))
+				utils.DefaultStorageClass, err = f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), defaultScName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				// Find a non-default storage classes
+				var targetScName string
+				for i := range storageClasses.Items {
+					sc := &storageClasses.Items[i]
+					if sc.Name != defaultScName {
+						targetScName = sc.Name
+						break
+					}
+				}
+
+				Expect(targetScName).ToNot(BeEmpty())
+
+				if enabled {
+					By("Verifying CDIConfig ScratchSpaceStorageClass is blank")
+					Eventually(func() string {
+						config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						return config.Status.ScratchSpaceStorageClass
+					}, timeout, pollingInterval).Should(Equal(""), "ScratchSpaceStorageClass should be blank when feature gate is enabled")
+				} else {
+					By("Verifying CDIConfig ScratchSpaceStorageClass is equal to default sc")
+					Eventually(func() string {
+						config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+						Expect(err).ToNot(HaveOccurred())
+						return config.Status.ScratchSpaceStorageClass
+					}, timeout, pollingInterval).Should(Equal(defaultScName), "ScratchSpaceStorageClass should use default sc when feature gate is disabled")
+				}
+
+				By(fmt.Sprintf("Creating DataVolume with storage class %s", targetScName))
+
+				dataVolume := createUploadDataVolume("test-dv", "100M", tinyCoreIsoURL())
+				dataVolume.Spec.PVC.StorageClassName = &targetScName
+				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Waiting for target PVC to be created")
+				targetPvc, err := utils.WaitForPVC(f.K8sClient, f.Namespace.Name, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(targetPvc.Spec.StorageClassName).ToNot(BeNil())
+				Expect(*targetPvc.Spec.StorageClassName).To(Equal(targetScName))
+				f.ForceBindIfWaitForFirstConsumer(targetPvc)
+
+				By("Waiting for import to start (pod running)")
+				err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.UploadReady, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Finding scratch PVC")
+				var scratchPvc *v1.PersistentVolumeClaim
+				Eventually(func() bool {
+					pvcList, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).List(context.TODO(), metav1.ListOptions{})
+					if err != nil {
+						return false
+					}
+					for i := range pvcList.Items {
+						pvc := &pvcList.Items[i]
+						if strings.Contains(pvc.Name, "-scratch") {
+							scratchPvc = pvc
+							return true
+						}
+					}
+					return false
+				}, timeout, pollingInterval).Should(BeTrue(), "Scratch PVC should be found")
+
+				Expect(scratchPvc.Spec.StorageClassName).ToNot(BeNil(), "Scratch PVC should have a storage class")
+
+				if enabled {
+					By("Verifying scratch PVC inherits target PVC storage class")
+					Expect(*scratchPvc.Spec.StorageClassName).To(Equal(targetScName))
+				} else {
+					By("Verifying scratch PVC uses default storage class")
+					Expect(*scratchPvc.Spec.StorageClassName).To(Equal(defaultScName))
+				}
+
+			},
+				Entry("enabled, scratch PVC storage class should equal to the target PVC", true),
+				Entry("diabled, scratch PVC storage class should equal to default storage class", false),
+			)
+		})
+
 	})
 
 	Describe("[rfe_id:1111][test_id:2001][crit:low][vendor:cnv-qe@redhat.com][level:component]Verify multiple blank disk creations in parallel", Serial, func() {
