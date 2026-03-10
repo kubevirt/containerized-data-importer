@@ -413,18 +413,8 @@ func (r *CDIConfigReconciler) reconcileStorageClass(config *cdiv1.CDIConfig) err
 			}
 		}
 	}
-	// Check for default storage class.
-	for _, storageClass := range storageClassList.Items {
-		if defaultClassValue, ok := storageClass.Annotations[cc.AnnDefaultStorageClass]; ok {
-			if defaultClassValue == "true" {
-				log.Info("Setting scratch space to default", "storageClass.Name", storageClass.Name)
-				config.Status.ScratchSpaceStorageClass = storageClass.Name
-				return nil
-			}
-		}
-	}
-	log.Info("No default storage class found, setting scratch space to blank")
-	// No storage class found, blank it out.
+
+	// If config not set, scratch space will default to using the storage class of target resource
 	config.Status.ScratchSpaceStorageClass = ""
 	return nil
 }

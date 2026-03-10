@@ -357,29 +357,28 @@ var _ = Describe("Controller storage class reconcile loop", func() {
 		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal(""))
 	})
 
-	It("Should set the scratchspaceStorageClass to the default without override", func() {
+	It("Should set the scratchspaceStorageClass to blank if there is default sc", func() {
 		reconciler, cdiConfig := createConfigReconciler(createStorageClassList(
-			*CreateStorageClass("test-default-sc", map[string]string{
-				AnnDefaultStorageClass: "true",
-			},
-			)))
-		err := reconciler.reconcileStorageClass(cdiConfig)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal("test-default-sc"))
-	})
-
-	It("Should set the scratchspaceStorageClass to the default without override and multiple sc", func() {
-		reconciler, cdiConfig := createConfigReconciler(createStorageClassList(
-			*CreateStorageClass("test-sc3", nil),
 			*CreateStorageClass("test-default-sc", map[string]string{
 				AnnDefaultStorageClass: "true",
 			}),
-			*CreateStorageClass("test-sc", nil),
-			*CreateStorageClass("test-sc2", nil),
 		))
 		err := reconciler.reconcileStorageClass(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal("test-default-sc"))
+		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal(""))
+	})
+
+	It("Should clear the scratchspaceStorageClass when only the CDIConfig status was previously set", func() {
+		reconciler, cdiConfig := createConfigReconciler(createStorageClassList(
+			*CreateStorageClass("test-default-sc", map[string]string{
+				AnnDefaultStorageClass: "true",
+			}),
+		))
+		// status was leftover, but spec is not set
+		cdiConfig.Status.ScratchSpaceStorageClass = "test"
+		err := reconciler.reconcileStorageClass(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal(""))
 	})
 
 	It("Should set the scratchspaceStorageClass to the override even with default", func() {
@@ -398,7 +397,7 @@ var _ = Describe("Controller storage class reconcile loop", func() {
 		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal(override))
 	})
 
-	It("Should set the scratchspaceStorageClass to the default with invalid override", func() {
+	It("Should set the scratchspaceStorageClass to empty with invalid override", func() {
 		reconciler, cdiConfig := createConfigReconciler(createStorageClassList(
 			*CreateStorageClass("test-sc3", nil),
 			*CreateStorageClass("test-default-sc", map[string]string{
@@ -411,7 +410,7 @@ var _ = Describe("Controller storage class reconcile loop", func() {
 		cdiConfig.Spec.ScratchSpaceStorageClass = &override
 		err := reconciler.reconcileStorageClass(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal("test-default-sc"))
+		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal(""))
 	})
 })
 
