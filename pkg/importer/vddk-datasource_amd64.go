@@ -370,60 +370,75 @@ func (vmware *VMwareClient) FindDiskInSnapshotTree(snapshots []types.VirtualMach
 // There are cases where the first listed disk is a delta, so other search methods can't find the right disk.
 // It also looks through backing files that haven't been consolidated yet, which show up in a chain of parent backing files.
 func (vmware *VMwareClient) FindDiskInRootSnapshotParent(snapshots []types.VirtualMachineSnapshotTree, fileName string) (*types.VirtualDisk, error) {
-	if len(snapshots) > 0 {
-		first := snapshots[0].Snapshot
-		var snapshot mo.VirtualMachineSnapshot
-		err := vmware.vm.Properties(vmware.context, first, []string{"config.hardware.device"}, &snapshot)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error getting snapshot properties")
-		}
+	if len(snapshots) < 1 {
+		return nil, fmt.Errorf("No snapshots to search through on %s", fileName)
+	}
 
-		for _, device := range snapshot.Config.Hardware.Device {
-			switch disk := device.(type) {
-			case *types.VirtualDisk:
-				switch disk.Backing.(type) {
-				case *types.VirtualDiskFlatVer1BackingInfo:
-					if info := disk.Backing.(*types.VirtualDiskFlatVer1BackingInfo); info != nil && info.Parent != nil {
-						for range maxParents {
-							info = info.Parent
-							if info != nil && info.FileName == fileName {
-								return disk, nil
-							}
-							if info.Parent == nil {
-								break
-							}
-						}
-					}
-				case *types.VirtualDiskFlatVer2BackingInfo:
-					if info := disk.Backing.(*types.VirtualDiskFlatVer2BackingInfo); info != nil && info.Parent != nil {
-						for range maxParents {
-							info = info.Parent
-							if info != nil && info.FileName == fileName {
-								return disk, nil
-							}
-							if info.Parent == nil {
-								break
-							}
-						}
-					}
-				case *types.VirtualDiskRawDiskMappingVer1BackingInfo:
-					if info := disk.Backing.(*types.VirtualDiskRawDiskMappingVer1BackingInfo); info != nil && info.Parent != nil {
-						for range maxParents {
-							info = info.Parent
-							if info != nil && info.FileName == fileName {
-								return disk, nil
-							}
-							if info.Parent == nil {
-								break
-							}
-						}
-					}
-				}
+	first := snapshots[0].Snapshot
+	var snapshot mo.VirtualMachineSnapshot
+	if err := vmware.vm.Properties(vmware.context, first, []string{"config.hardware.device"}, &snapshot); err != nil {
+		return nil, errors.Wrap(err, "Error getting snapshot properties")
+	}
+
+	for _, device := range snapshot.Config.Hardware.Device {
+		switch disk := device.(type) {
+		case *types.VirtualDisk:
+			if parent := searchDiskBackingChain(disk, fileName); parent != nil {
+				return parent, nil
 			}
 		}
 	}
 
-	return nil, fmt.Errorf("Disk %s not found within %d levels of parent disks", fileName, maxParents)
+	return nil, fmt.Errorf("Disk %s not found in any root snapshot ancestor", fileName)
+}
+
+// Helper function for FindDiskInRootSnapshotParent, split up to reduce rated complexity.
+func searchDiskBackingChain(disk *types.VirtualDisk, fileName string) *types.VirtualDisk {
+	switch disk.Backing.(type) {
+	case *types.VirtualDiskFlatVer1BackingInfo:
+		info := disk.Backing.(*types.VirtualDiskFlatVer1BackingInfo)
+		if info == nil || info.Parent == nil {
+			break
+		}
+		for range maxParents {
+			info = info.Parent
+			if info != nil && info.FileName == fileName {
+				return disk
+			}
+			if info.Parent == nil {
+				break
+			}
+		}
+	case *types.VirtualDiskFlatVer2BackingInfo:
+		info := disk.Backing.(*types.VirtualDiskFlatVer2BackingInfo)
+		if info == nil || info.Parent == nil {
+			break
+		}
+		for range maxParents {
+			info = info.Parent
+			if info != nil && info.FileName == fileName {
+				return disk
+			}
+			if info.Parent == nil {
+				break
+			}
+		}
+	case *types.VirtualDiskRawDiskMappingVer1BackingInfo:
+		info := disk.Backing.(*types.VirtualDiskRawDiskMappingVer1BackingInfo)
+		if info == nil || info.Parent == nil {
+			break
+		}
+		for range maxParents {
+			info = info.Parent
+			if info != nil && info.FileName == fileName {
+				return disk
+			}
+			if info.Parent == nil {
+				break
+			}
+		}
+	}
+	return nil
 }
 
 // FindDiskFromName finds a disk object with the given file name, usable by QueryChangedDiskAreas.
