@@ -1089,6 +1089,7 @@ func (r *ReconcilerBase) emitEvent(dataVolume *cdiv1.DataVolume, dataVolumeCopy 
 		if event.eventType != "" && curPhase != dataVolumeCopy.Status.Phase {
 			r.recorder.Event(dataVolumeCopy, event.eventType, event.reason, event.message)
 		}
+
 		r.emitConditionEvent(dataVolumeCopy, originalCond)
 	}
 	return nil
