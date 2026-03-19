@@ -23,6 +23,10 @@ const (
 
 	// WebhookPvcRendering - if enabled will deploy PVC mutating webhook for PVC rendering instead of the DV controller
 	WebhookPvcRendering = "WebhookPvcRendering"
+
+	// InheritScratchSpaceStorageClass - if enabled, scratch space PVCs will inherit the storage class from target resource
+	// instead of using the default storage class.
+	InheritScratchSpaceStorageClass = "InheritScratchSpaceStorageClass"
 )
 
 // FeatureGates is a util for determining whether an optional feature is enabled or not.
@@ -83,6 +87,11 @@ func (f *CDIConfigFeatureGates) ClaimAdoptionEnabled() (bool, error) {
 // WebhookPvcRenderingEnabled tells if webhook PVC rendering is enabled
 func (f *CDIConfigFeatureGates) WebhookPvcRenderingEnabled() (bool, error) {
 	return f.isFeatureGateEnabled(WebhookPvcRendering)
+}
+
+// InheritScratchSpaceStorageClass tells if webhook PVC rendering is enabled
+func (f *CDIConfigFeatureGates) InheritScratchSpaceStorageClassEnabled() (bool, error) {
+	return f.isFeatureGateEnabled(InheritScratchSpaceStorageClass)
 }
 
 // IsWebhookPvcRenderingEnabled tells if webhook PVC rendering is enabled

@@ -46,6 +46,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 )
@@ -352,6 +353,20 @@ var _ = Describe("Controller storage class reconcile loop", func() {
 		reconciler, cdiConfig := createConfigReconciler(createStorageClassList(
 			*CreateStorageClass("test-default-sc", nil),
 		))
+		err := reconciler.reconcileStorageClass(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal(""))
+	})
+
+	It("Should set the scratchspaceStorageClass to blank if InheritScratchSpaceStorageClass FG enabled", func() {
+		reconciler, cdiConfig := createConfigReconciler(createStorageClassList(
+			*CreateStorageClass("test-default-sc", map[string]string{
+				AnnDefaultStorageClass: "true",
+			}),
+		))
+
+		featureGates := []string{featuregates.InheritScratchSpaceStorageClass}
+		cdiConfig.Spec.FeatureGates = featureGates
 		err := reconciler.reconcileStorageClass(cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(cdiConfig.Status.ScratchSpaceStorageClass).To(Equal(""))
