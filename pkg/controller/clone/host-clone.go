@@ -201,12 +201,73 @@ func (p *HostClonePhase) createClaim(ctx context.Context) (*corev1.PersistentVol
 	}
 	cc.AddLabel(claim, cc.LabelExcludeFromVeleroBackup, "true")
 
+	if err := p.MakeSureTargetPVCHasSufficientSpace(ctx, claim); err != nil {
+		return nil, err
+	}
+
 	if err := p.Client.Create(ctx, claim); err != nil {
 		checkQuotaExceeded(p.Recorder, p.Owner, err)
 		return nil, err
 	}
 
 	return claim, nil
+}
+
+// The purpose of this check is to make sure the target PVC to have sufficient space
+// before the cloning actually happens.
+func (p *HostClonePhase) MakeSureTargetPVCHasSufficientSpace(ctx context.Context, targetPvc *corev1.PersistentVolumeClaim) error {
+	sourcePvc := &corev1.PersistentVolumeClaim{}
+	sourcePvcKey := client.ObjectKey{Namespace: p.Namespace, Name: p.SourceName}
+
+	if err := p.Client.Get(ctx, sourcePvcKey, sourcePvc); err != nil {
+		return err
+	}
+
+	if targetPvc.Spec.Resources.Requests == nil {
+		return fmt.Errorf("no target resource request specified")
+	}
+	targetSize, ok := targetPvc.Spec.Resources.Requests[corev1.ResourceStorage]
+
+	if !ok {
+		return fmt.Errorf("no target size specified")
+	}
+
+	unInflatedSourceSize := sourcePvc.Spec.Resources.Requests[corev1.ResourceStorage]
+	sourceVolumeMode := cc.GetVolumeMode(sourcePvc)
+	targetVolumeMode := cc.GetVolumeMode(targetPvc)
+	var err error
+
+	// For filesystem source PVCs, we need to get the original DV size to account for
+	if sourceVolumeMode == corev1.PersistentVolumeFilesystem {
+		original, err := cc.GetHostCloneOriginalSourceDVSize(ctx, p.Client, sourcePvc)
+		if err != nil {
+			return err
+		}
+		if !original.IsZero() {
+			unInflatedSourceSize = original
+		}
+	}
+
+	targetSizeUpdated := false
+	if unInflatedSourceSize.Cmp(targetSize) >= 0 {
+		targetSizeUpdated = true
+		targetSize = unInflatedSourceSize
+	}
+
+	// if target is filesystem, inflate the original size if target
+	if targetVolumeMode == corev1.PersistentVolumeFilesystem && targetSizeUpdated {
+		// when only sourc pvc size is available (snapshot case) we have no
+		// way to trace back to its original DV size (because the DV probably
+		// doesn't exist anymore), so we use source pvc size to just inflate
+		// the target size with overhead
+		targetSize, err = cc.InflateSizeWithOverhead(ctx, p.Client, unInflatedSourceSize.Value(), &targetPvc.Spec)
+		if err != nil {
+			return err
+		}
+	}
+
+	targetPvc.Spec.Resources.Requests[corev1.ResourceStorage] = targetSize
+	return nil
 }
 
 func (p *HostClonePhase) hostCloneComplete(pvc *corev1.PersistentVolumeClaim) bool {
