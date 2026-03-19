@@ -147,23 +147,10 @@ func addWatchers(mgr manager.Manager, c controller.Controller, log logr.Logger, 
 		return err
 	}
 
-	mapDataSourceRefToPVC := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
-		var pvcs corev1.PersistentVolumeClaimList
-		matchingFields := client.MatchingFields{
-			dataSourceRefField: getPopulatorIndexKey(apiGroup, sourceKind, obj.GetNamespace(), obj.GetName()),
-		}
-		if err := mgr.GetClient().List(ctx, &pvcs, matchingFields); err != nil {
-			log.Error(err, "Unable to list PVCs", "matchingFields", matchingFields)
-			return reqs
-		}
-		for _, pvc := range pvcs.Items {
-			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: pvc.Namespace, Name: pvc.Name}})
-		}
-		return reqs
-	}
-
 	if err := c.Watch(source.Kind(mgr.GetCache(), sourceType,
-		handler.EnqueueRequestsFromMapFunc(mapDataSourceRefToPVC),
+		handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+			return mapSourceToPVCs(ctx, mgr.GetClient(), log, apiGroup, sourceKind, obj)
+		}),
 	)); err != nil {
 		return err
 	}
