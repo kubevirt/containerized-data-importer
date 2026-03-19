@@ -18,6 +18,7 @@ package clone
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -146,7 +147,7 @@ var _ = Describe("SnapshotClonePhase test", func() {
 			}
 		}
 
-		It("should do nothing if snapshot not ready", func() {
+		It("should requeue if snapshot not ready", func() {
 			snapshot := getSnapshot()
 			snapshot.Status.ReadyToUse = ptr.To[bool](false)
 
@@ -154,7 +155,7 @@ var _ = Describe("SnapshotClonePhase test", func() {
 			result, err := p.Reconcile(context.Background())
 			Expect(err).ToNot(HaveOccurred())
 			Expect(result).ToNot(BeNil())
-			Expect(result.RequeueAfter).To(BeZero())
+			Expect(result.RequeueAfter).To(Equal(2 * time.Second))
 
 			_, err = getDesiredClaim(p)
 			assertNotFound(err)
