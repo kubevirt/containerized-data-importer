@@ -790,14 +790,15 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			},
 		},
 		Spec: corev1.PodSpec{
-			Containers:        r.makeUploadPodContainers(args, resourceRequirements),
-			Volumes:           r.makeUploadPodVolumes(args),
-			RestartPolicy:     corev1.RestartPolicyOnFailure,
-			NodeSelector:      workloadNodePlacement.NodeSelector,
-			Tolerations:       workloadNodePlacement.Tolerations,
-			Affinity:          workloadNodePlacement.Affinity,
-			PriorityClassName: cc.GetPriorityClass(args.PVC),
-			ImagePullSecrets:  imagePullSecrets,
+			Containers:         r.makeUploadPodContainers(args, resourceRequirements),
+			Volumes:            r.makeUploadPodVolumes(args),
+			RestartPolicy:      corev1.RestartPolicyOnFailure,
+			NodeSelector:       workloadNodePlacement.NodeSelector,
+			Tolerations:        workloadNodePlacement.Tolerations,
+			Affinity:           workloadNodePlacement.Affinity,
+			PriorityClassName:  cc.GetPriorityClass(args.PVC),
+			ServiceAccountName: cc.GetPodServiceAccount(args.PVC),
+			ImagePullSecrets:   imagePullSecrets,
 		},
 	}
 

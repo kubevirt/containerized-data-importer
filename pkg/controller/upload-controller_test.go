@@ -277,7 +277,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 	})
 
 	It("Should return nil and create a pod and service when a clone pvc", func() {
-		testPvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnCloneRequest: "default/testPvc2", AnnUploadPod: createUploadResourceName("testPvc1"), cc.AnnPriorityClassName: "p0"}, nil)
+		testPvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnCloneRequest: "default/testPvc2", AnnUploadPod: createUploadResourceName("testPvc1"), cc.AnnPriorityClassName: "p0", cc.AnnPodServiceAccount: "my-sa"}, nil)
 		testPvcSource := cc.CreatePvc("testPvc2", "default", map[string]string{}, nil)
 		reconciler := createUploadReconciler(testPvc, testPvcSource)
 		By("Verifying the pod and service do not exist")
@@ -297,6 +297,7 @@ var _ = Describe("Upload controller reconcile loop", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uploadPod.Name).To(Equal(createUploadResourceName(testPvc.Name)))
 		Expect(uploadPod.Spec.PriorityClassName).To(Equal("p0"))
+		Expect(uploadPod.Spec.ServiceAccountName).To(Equal("my-sa"))
 		Expect(uploadPod.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 
 		uploadService = &corev1.Service{}
