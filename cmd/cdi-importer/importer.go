@@ -17,6 +17,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -188,8 +189,27 @@ func handleImport(
 	err := processor.ProcessData()
 
 	scratchSpaceRequired := errors.Is(err, importer.ErrRequiresScratchSpace)
+	checksumMismatch := errors.Is(err, importer.ErrChecksumMismatch)
 	if err != nil && !scratchSpaceRequired {
 		klog.Errorf("%+v", err)
+		// Special-case checksum validation failures: exit 0 to avoid kubelet restart loops
+		// and let the controller read termination message to mark fatal.
+		if checksumMismatch {
+			// Remove the downloaded file(s) so we do not leave potentially malicious or corrupt data on the PVC.
+			removeDownloadedFileOnChecksumFailure(contentType, volumeMode)
+			// Write JSON-formatted termination message so parseTerminationMessage can unmarshal it
+			termMsgStruct := &common.TerminationMessage{
+				Message: ptr.To(fmt.Sprintf("Unable to process data: %v", err.Error())),
+			}
+			if err := writeTerminationMessage(termMsgStruct); err != nil {
+				klog.Errorf("%+v", err)
+			}
+			// Exiting instead of returning 0 as normally to avoid clashing
+			// with cleanup functions (fsyncDataFile) that assume the imported
+			// file will be there during regular exit.
+			os.Exit(0)
+		}
+		// For other errors, write plain text and exit with error code
 		if err := util.WriteTerminationMessage(fmt.Sprintf("Unable to process data: %v", err.Error())); err != nil {
 			klog.Errorf("%+v", err)
 		}
@@ -267,10 +287,11 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 	currentCheckpoint, _ := util.ParseEnvVar(common.ImporterCurrentCheckpoint, false)
 	previousCheckpoint, _ := util.ParseEnvVar(common.ImporterPreviousCheckpoint, false)
 	finalCheckpoint, _ := util.ParseEnvVar(common.ImporterFinalCheckpoint, false)
+	checksum, _ := util.ParseEnvVar(common.ImporterChecksum, false)
 
 	switch source {
 	case cc.SourceHTTP:
-		ds, err := importer.NewHTTPDataSource(getHTTPEp(ep), acc, sec, certDir, cdiv1.DataVolumeContentType(contentType))
+		ds, err := importer.NewHTTPDataSource(getHTTPEp(ep), acc, sec, certDir, cdiv1.DataVolumeContentType(contentType), checksum)
 		if err != nil {
 			errorCannotConnectDataSource(err, "http")
 		}
@@ -360,6 +381,58 @@ func errorEmptyDiskWithContentTypeArchive() {
 		klog.Errorf("%+v", err)
 	}
 	os.Exit(1)
+}
+
+// removeDownloadedFileOnChecksumFailure removes the downloaded data from the PVC when checksum
+// validation fails, so we do not leave potentially malicious or corrupt data.
+// It handles three cases:
+//   - Scratch: the temp file written by Transfer() (scratchDataDir/tmpimage) is always removed.
+//   - File (kubevirt, filesystem): the single data file (e.g. /data/disk.img) is removed.
+//   - Archive (filesystem): the archive is extracted into the data dir; all contents of that
+//     directory are removed (the directory itself is left intact as it is the volume mount).
+//   - Block: only the scratch temp file is removed; the block device cannot be removed.
+func removeDownloadedFileOnChecksumFailure(contentType string, volumeMode v1.PersistentVolumeMode) {
+	const scratchTempFile = "tmpimage" // same name used by Transfer() in pkg/importer
+
+	// 1) Scratch: remove temp file from Transfer() path (e.g. /scratch/tmpimage)
+	scratchFile := filepath.Join(common.ScratchDataDir, scratchTempFile)
+	if err := os.Remove(scratchFile); err != nil && !os.IsNotExist(err) {
+		klog.Warningf("Failed to remove scratch file %s on checksum failure: %v", scratchFile, err)
+	}
+
+	if volumeMode != v1.PersistentVolumeFilesystem {
+		return
+	}
+
+	// 2) Archive: Transfer() extracts into data dir; remove all contents, not the mount point
+	if contentType == string(cdiv1.DataVolumeArchive) {
+		removeDirContents(common.ImporterVolumePath)
+		return
+	}
+
+	// 3) File (kubevirt): single data file (e.g. /data/disk.img)
+	dataFile := getImporterDestPath(contentType, volumeMode)
+	if err := os.Remove(dataFile); err != nil && !os.IsNotExist(err) {
+		klog.Warningf("Failed to remove data file %s on checksum failure: %v", dataFile, err)
+	}
+}
+
+// removeDirContents removes all files and subdirectories under dir, but not dir itself.
+// Used for archive cleanup where the volume is mounted at dir.
+func removeDirContents(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			klog.Warningf("Failed to list directory %s on checksum failure cleanup: %v", dir, err)
+		}
+		return
+	}
+	for _, e := range entries {
+		p := filepath.Join(dir, e.Name())
+		if err := os.RemoveAll(p); err != nil {
+			klog.Warningf("Failed to remove %s on checksum failure cleanup: %v", p, err)
+		}
+	}
 }
 
 func fsyncDataFile(contentType string, volumeMode v1.PersistentVolumeMode) {

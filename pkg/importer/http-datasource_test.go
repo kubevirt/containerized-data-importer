@@ -2,8 +2,11 @@ package importer
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -29,10 +32,11 @@ import (
 var (
 	cirrosFileName          = "cirros-qcow2.img"
 	diskimageTarFileName    = "cirros.tar"
+	diskimageTarFilePath    = filepath.Join(imageDir, diskimageTarFileName)
 	tinyCoreGz              = "tinyCore.iso.gz"
 	tinyCoreXz              = "tinyCore.iso.xz"
 	cirrosData, _           = readFile(cirrosFilePath)
-	diskimageArchiveData, _ = readFile(diskimageTarFileName)
+	diskimageArchiveData, _ = readFile(diskimageTarFilePath)
 )
 
 var _ = Describe("Http data source", func() {
@@ -72,14 +76,14 @@ var _ = Describe("Http data source", func() {
 	})
 
 	It("NewHTTPDataSource should fail when called with an invalid endpoint", func() {
-		_, err = NewHTTPDataSource("httpd://!@#$%^&*()dgsdd&3r53/invalid", "", "", "", cdiv1.DataVolumeKubeVirt)
+		_, err = NewHTTPDataSource("httpd://!@#$%^&*()dgsdd&3r53/invalid", "", "", "", cdiv1.DataVolumeKubeVirt, "")
 		Expect(err).To(HaveOccurred())
 		Expect(strings.Contains(err.Error(), "unable to parse endpoint")).To(BeTrue())
 	})
 
 	It("NewHTTPDataSource should fail when called with an invalid certdir", func() {
 		image := ts.URL + "/" + cirrosFileName
-		_, err = NewHTTPDataSource(image, "", "", "/invaliddir", cdiv1.DataVolumeKubeVirt)
+		_, err = NewHTTPDataSource(image, "", "", "/invaliddir", cdiv1.DataVolumeKubeVirt, "")
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -88,7 +92,7 @@ var _ = Describe("Http data source", func() {
 		if image != "" {
 			image = ts.URL + "/" + image
 		}
-		dp, err = NewHTTPDataSource(image, "", "", "", contentType)
+		dp, err = NewHTTPDataSource(image, "", "", "", contentType, "")
 		dp.brokenForQemuImg = brokenForQemuImg
 		Expect(err).NotTo(HaveOccurred())
 		newPhase, err := dp.Info()
@@ -113,7 +117,7 @@ var _ = Describe("Http data source", func() {
 		if image != "" {
 			image = ts.URL + "/" + image
 		}
-		dp, err = NewHTTPDataSource(image, "", "", "", contentType)
+		dp, err = NewHTTPDataSource(image, "", "", "", contentType, "")
 		Expect(err).NotTo(HaveOccurred())
 		_, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
@@ -148,7 +152,7 @@ var _ = Describe("Http data source", func() {
 	)
 
 	DescribeTable("should succeed when writing to a valid file with phase", func(expectedPhase ProcessingPhase, brokenForQemuImg bool, imageType string) {
-		dp, err = NewHTTPDataSource(ts.URL+"/"+imageType, "", "", "", cdiv1.DataVolumeKubeVirt)
+		dp, err = NewHTTPDataSource(ts.URL+"/"+imageType, "", "", "", cdiv1.DataVolumeKubeVirt, "")
 		dp.brokenForQemuImg = brokenForQemuImg
 		Expect(err).NotTo(HaveOccurred())
 		result, err := dp.Info()
@@ -178,10 +182,169 @@ var _ = Describe("Http data source", func() {
 				w.WriteHeader(http.StatusInternalServerError)
 			}
 		}))
-		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
+		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt, "")
 		Expect(err).NotTo(HaveOccurred())
 		_, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
+	})
+
+	Context("Checksum validation", func() {
+		var (
+			testData          []byte
+			testDataSHA256    string
+			archiveData       []byte
+			archiveDataSHA256 string
+		)
+
+		BeforeEach(func() {
+			// Use cirrosData as test data and calculate its SHA256
+			testData = cirrosData
+			hash := sha256.Sum256(testData)
+			testDataSHA256 = hex.EncodeToString(hash[:])
+
+			// Use diskimageArchiveData and calculate its SHA256
+			archiveData = diskimageArchiveData
+			archiveHash := sha256.Sum256(archiveData)
+			archiveDataSHA256 = hex.EncodeToString(archiveHash[:])
+
+			// Print actual hashes for debugging
+			By(fmt.Sprintf("cirrosData SHA256: %s, length: %d bytes", testDataSHA256, len(testData)))
+			By(fmt.Sprintf("diskimageArchiveData SHA256: %s, length: %d bytes", archiveDataSHA256, len(archiveData)))
+		})
+
+		It("should fail when created with invalid checksum format", func() {
+			image := ts.URL + "/" + cirrosFileName
+			// Invalid format: missing colon
+			_, err := NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, "sha256abc123")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid checksum"))
+		})
+
+		It("should fail when created with unsupported checksum algorithm", func() {
+			image := ts.URL + "/" + cirrosFileName
+			// Unsupported algorithm
+			_, err := NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, "crc32:12345678")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("invalid checksum"))
+		})
+
+		It("should succeed with valid checksum during transfer", func() {
+			image := ts.URL + "/" + cirrosFileName
+			checksum := "sha256:" + testDataSHA256
+			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, checksum)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err := dp.Info()
+			Expect(err).NotTo(HaveOccurred())
+
+			qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, nil}, nil, nil, nil)
+			replaceQEMUOperations(qemuOperations, func() {
+				newPhase, err := dp.Transfer(tmpDir, false)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(newPhase).To(Equal(ProcessingPhaseConvert))
+
+				// Verify file was written correctly
+				file, err := os.Open(filepath.Join(tmpDir, tempFile))
+				Expect(err).NotTo(HaveOccurred())
+				defer file.Close()
+				resultBuffer, err := io.ReadAll(file)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(reflect.DeepEqual(resultBuffer, testData)).To(BeTrue())
+			})
+		})
+
+		It("should fail with incorrect checksum during transfer", func() {
+			image := ts.URL + "/" + cirrosFileName
+			// Use an incorrect checksum (all zeros)
+			incorrectChecksum := "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, incorrectChecksum)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err := dp.Info()
+			Expect(err).NotTo(HaveOccurred())
+
+			qemuOperations := NewFakeQEMUOperations(nil, nil, fakeInfoOpRetVal{&fakeZeroImageInfo, nil}, nil, nil, nil)
+			replaceQEMUOperations(qemuOperations, func() {
+				newPhase, err := dp.Transfer(tmpDir, false)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("checksum validation failed"))
+				Expect(newPhase).To(Equal(ProcessingPhaseError))
+			})
+		})
+
+		It("should succeed with valid checksum during transfer for archive content", func() {
+			// Use the pre-calculated archive data SHA256
+			archiveChecksum := "sha256:" + archiveDataSHA256
+
+			image := ts.URL + "/" + diskimageTarFileName
+			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeArchive, archiveChecksum)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err := dp.Info()
+			Expect(err).NotTo(HaveOccurred())
+
+			newPhase, err := dp.Transfer(tmpDir, false)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(newPhase).To(Equal(ProcessingPhaseComplete))
+		})
+
+		It("should fail with incorrect checksum during transfer for archive content", func() {
+			image := ts.URL + "/" + diskimageTarFileName
+			// Use an incorrect checksum
+			incorrectChecksum := "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeArchive, incorrectChecksum)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err := dp.Info()
+			Expect(err).NotTo(HaveOccurred())
+
+			newPhase, err := dp.Transfer(tmpDir, false)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("checksum validation failed"))
+			Expect(newPhase).To(Equal(ProcessingPhaseError))
+		})
+
+		It("should succeed with valid checksum during TransferFile", func() {
+			image := ts.URL + "/" + cirrosFileName
+			checksum := "sha256:" + testDataSHA256
+			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, checksum)
+			dp.brokenForQemuImg = true // Force TransferFile path
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err := dp.Info()
+			Expect(err).NotTo(HaveOccurred())
+
+			testFile := filepath.Join(tmpDir, "test-output.img")
+			newPhase, err := dp.TransferFile(testFile, false)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(newPhase).To(Equal(ProcessingPhaseResize))
+
+			// Verify file was written correctly
+			file, err := os.Open(testFile)
+			Expect(err).NotTo(HaveOccurred())
+			defer file.Close()
+			resultBuffer, err := io.ReadAll(file)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(reflect.DeepEqual(resultBuffer, testData)).To(BeTrue())
+		})
+
+		It("should fail with incorrect checksum during TransferFile", func() {
+			image := ts.URL + "/" + cirrosFileName
+			// Use an incorrect checksum
+			incorrectChecksum := "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, incorrectChecksum)
+			dp.brokenForQemuImg = true // Force TransferFile path
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err := dp.Info()
+			Expect(err).NotTo(HaveOccurred())
+
+			testFile := filepath.Join(tmpDir, "test-output.img")
+			newPhase, err := dp.TransferFile(testFile, false)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("checksum validation failed"))
+			Expect(newPhase).To(Equal(ProcessingPhaseError))
+		})
 	})
 
 	It("GetTerminationMessage should return nil when pullMethod is not node", func() {
@@ -190,7 +353,7 @@ var _ = Describe("Http data source", func() {
 			Expect(os.Unsetenv(common.ImporterPullMethod)).To(Succeed())
 		})
 
-		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
+		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt, "")
 		Expect(err).NotTo(HaveOccurred())
 
 		termMsg := dp.GetTerminationMessage()
@@ -205,7 +368,7 @@ var _ = Describe("Http data source", func() {
 
 		ts2 := createTestServer(imageDir, emptyEnv)
 
-		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
+		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt, "")
 		Expect(err).NotTo(HaveOccurred())
 
 		termMsg := dp.GetTerminationMessage()
@@ -227,7 +390,7 @@ var _ = Describe("Http data source", func() {
 			"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE=fedora",
 		})
 
-		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt)
+		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt, "")
 		Expect(err).NotTo(HaveOccurred())
 
 		termMsg := dp.GetTerminationMessage()
