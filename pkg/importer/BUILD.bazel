@@ -15,6 +15,7 @@ go_library(
         "transport.go",
         "upload-datasource.go",
         "util.go",
+        "vddk-datasource.go",
         "vddk-datasource_amd64.go",
         "vddk-datasource_arm64.go",
         "vddk-datasource_s390x.go",
