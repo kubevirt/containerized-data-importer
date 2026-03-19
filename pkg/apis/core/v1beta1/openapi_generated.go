@@ -18515,6 +18515,13 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSpec(ref common.ReferenceCallback) c
 							Format:      "",
 						},
 					},
+					"serviceAccountName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ServiceAccountName for Importer and Uploader pod",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"contentType": {
 						SchemaProps: spec.SchemaProps{
 							Description: "DataVolumeContentType options: \"kubevirt\", \"archive\"",

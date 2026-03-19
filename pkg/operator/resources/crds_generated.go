@@ -5971,6 +5971,10 @@ spec:
                               PersistentVolume backing this claim.
                             type: string
                         type: object
+                      serviceAccountName:
+                        description: ServiceAccountName for Importer and Uploader
+                          pod
+                        type: string
                       source:
                         description: Source is the src of the data for the requested
                           DataVolume
@@ -6979,6 +6983,9 @@ spec:
                       backing this claim.
                     type: string
                 type: object
+              serviceAccountName:
+                description: ServiceAccountName for Importer and Uploader pod
+                type: string
               source:
                 description: Source is the src of the data for the requested DataVolume
                 properties:

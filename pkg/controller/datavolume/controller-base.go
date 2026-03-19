@@ -1152,6 +1152,9 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 	if dataVolume.Spec.PriorityClassName != "" {
 		annotations[cc.AnnPriorityClassName] = dataVolume.Spec.PriorityClassName
 	}
+	if dataVolume.Spec.ServiceAccountName != "" {
+		annotations[cc.AnnPodServiceAccount] = dataVolume.Spec.ServiceAccountName
+	}
 	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, dataVolume.Spec.Preallocation))
 	annotations[cc.AnnCreatedForDataVolume] = string(dataVolume.UID)
 
