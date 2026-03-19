@@ -3,6 +3,7 @@ package clone
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
@@ -60,7 +61,8 @@ func (p *SnapshotClonePhase) Reconcile(ctx context.Context) (*reconcile.Result, 
 		}
 
 		if !cc.IsSnapshotReady(snapshot) {
-			return &reconcile.Result{}, nil
+			p.Log.V(3).Info("Snapshot not ready yet, requeueing", "snapshot", p.SourceName)
+			return &reconcile.Result{RequeueAfter: 2 * time.Second}, nil
 		}
 
 		pvc, err = p.createClaim(ctx, snapshot)
