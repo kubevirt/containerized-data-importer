@@ -93,6 +93,8 @@ const (
 	AnnPrePopulated = AnnAPIGroup + "/storage.prePopulated"
 	// AnnPriorityClassName is PVC annotation to indicate the priority class name for importer, cloner and uploader pod
 	AnnPriorityClassName = AnnAPIGroup + "/storage.pod.priorityclassname"
+	// AnnPodServiceAccount is a PVC annotation to indicate the service account name for importer and uploader pod
+	AnnPodServiceAccount = AnnAPIGroup + "/storage.pod.serviceAccountName"
 	// AnnExternalPopulation annotation marks a PVC as "externally populated", allowing the import-controller to skip it
 	AnnExternalPopulation = AnnAPIGroup + "/externalPopulation"
 
@@ -397,6 +399,7 @@ var (
 		AnnPodSidecarInjectionIstio:   AnnPodSidecarInjectionIstioDefault,
 		AnnPodSidecarInjectionLinkerd: AnnPodSidecarInjectionLinkerdDefault,
 		AnnPriorityClassName:          "",
+		AnnPodServiceAccount:          "",
 		AnnPodMultusDefaultNetwork:    "",
 	}
 
@@ -862,6 +865,12 @@ func ImmediateBindingRequested(obj metav1.Object) bool {
 func GetPriorityClass(pvc *corev1.PersistentVolumeClaim) string {
 	anno := pvc.GetAnnotations()
 	return anno[AnnPriorityClassName]
+}
+
+// GetPodServiceAccount gets PVC service account name
+func GetPodServiceAccount(pvc *corev1.PersistentVolumeClaim) string {
+	anno := pvc.GetAnnotations()
+	return anno[AnnPodServiceAccount]
 }
 
 // ShouldDeletePod returns whether the PVC workload pod should be deleted

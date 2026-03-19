@@ -5027,6 +5027,10 @@
       "description": "PVC is the PVC specification",
       "$ref": "#/definitions/v1.PersistentVolumeClaimSpec"
      },
+     "serviceAccountName": {
+      "description": "ServiceAccountName for Importer and Uploader pod",
+      "type": "string"
+     },
      "source": {
       "description": "Source is the src of the data for the requested DataVolume",
       "$ref": "#/definitions/v1beta1.DataVolumeSource"

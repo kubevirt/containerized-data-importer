@@ -56,6 +56,9 @@ type DataVolumeSpec struct {
 	Storage *StorageSpec `json:"storage,omitempty"`
 	//PriorityClassName for Importer, Cloner and Uploader pod
 	PriorityClassName string `json:"priorityClassName,omitempty"`
+	// ServiceAccountName for Importer and Uploader pod
+	// +optional
+	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 	//DataVolumeContentType options: "kubevirt", "archive"
 	// +kubebuilder:validation:Enum="kubevirt";"archive"
 	ContentType DataVolumeContentType `json:"contentType,omitempty"`
