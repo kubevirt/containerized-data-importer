@@ -88,7 +88,7 @@ func NewUploadController(
 			recorder:             mgr.GetEventRecorderFor(uploadControllerName),
 			featureGates:         featuregates.NewFeatureGates(client),
 			installerLabels:      installerLabels,
-			shouldUpdateProgress: false,
+			shouldUpdateProgress: true,
 		},
 	}
 
