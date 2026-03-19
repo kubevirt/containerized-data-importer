@@ -315,8 +315,14 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *corev1.Pod, te
 		anno[cc.AnnPodRestarts] = strconv.Itoa(podRestarts)
 	}
 
-	containerState := pod.Status.ContainerStatuses[0].State
-	if containerState.Running != nil {
+	running := true
+	for _, status := range pod.Status.ContainerStatuses {
+		if status.State.Running == nil {
+			running = false
+			break
+		}
+	}
+	if running {
 		anno[prefix] = "true"
 		anno[prefix+".message"] = ""
 		anno[prefix+".reason"] = PodRunningReason
@@ -336,6 +342,7 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *corev1.Pod, te
 		}
 	}
 
+	containerState := pod.Status.ContainerStatuses[0].State
 	if containerState.Waiting != nil && containerState.Waiting.Reason != "CrashLoopBackOff" {
 		anno[prefix+".message"] = simplifyKnownMessage(containerState.Waiting.Message)
 		anno[prefix+".reason"] = containerState.Waiting.Reason
