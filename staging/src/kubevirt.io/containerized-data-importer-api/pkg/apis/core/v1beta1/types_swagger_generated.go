@@ -11,16 +11,17 @@ func (DataVolume) SwaggerDoc() map[string]string {
 
 func (DataVolumeSpec) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"":                  "DataVolumeSpec defines the DataVolume type specification",
-		"source":            "Source is the src of the data for the requested DataVolume\n+optional",
-		"sourceRef":         "SourceRef is an indirect reference to the source of data for the requested DataVolume\n+optional",
-		"pvc":               "PVC is the PVC specification",
-		"storage":           "Storage is the requested storage specification",
-		"priorityClassName": "PriorityClassName for Importer, Cloner and Uploader pod",
-		"contentType":       "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
-		"checkpoints":       "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
-		"finalCheckpoint":   "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
-		"preallocation":     "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
+		"":                   "DataVolumeSpec defines the DataVolume type specification",
+		"source":             "Source is the src of the data for the requested DataVolume\n+optional",
+		"sourceRef":          "SourceRef is an indirect reference to the source of data for the requested DataVolume\n+optional",
+		"pvc":                "PVC is the PVC specification",
+		"storage":            "Storage is the requested storage specification",
+		"priorityClassName":  "PriorityClassName for Importer, Cloner and Uploader pod",
+		"serviceAccountName": "ServiceAccountName for Importer and Uploader pod\n+optional",
+		"contentType":        "DataVolumeContentType options: \"kubevirt\", \"archive\"\n+kubebuilder:validation:Enum=\"kubevirt\";\"archive\"",
+		"checkpoints":        "Checkpoints is a list of DataVolumeCheckpoints, representing stages in a multistage import.",
+		"finalCheckpoint":    "FinalCheckpoint indicates whether the current DataVolumeCheckpoint is the final checkpoint.",
+		"preallocation":      "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 	}
 }
 
