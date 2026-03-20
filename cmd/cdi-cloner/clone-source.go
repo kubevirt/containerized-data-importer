@@ -13,6 +13,7 @@ import (
 	"strconv"
 
 	"github.com/golang/snappy"
+	"golang.org/x/sys/unix"
 
 	"k8s.io/klog/v2"
 
@@ -21,6 +22,30 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
+
+// seekHoleChecker includes SEEK_HOLE-detection functions, abstracted for testing purposes
+type seekHoleChecker interface {
+	createTempFile(dir, pattern string) (seekHoleFile, error)
+	removeFile(name string) error
+}
+
+// seekHoleFile includes file functions needed for SEEK_HOLE detection, abstracted for testing purposes
+type seekHoleFile interface {
+	Write(p []byte) (n int, err error)
+	Seek(offset int64, whence int) (int64, error)
+	Name() string
+	Close() error
+}
+
+type osSeekHoleChecker struct{}
+
+func (o *osSeekHoleChecker) createTempFile(dir, pattern string) (seekHoleFile, error) {
+	return os.CreateTemp(dir, pattern)
+}
+
+func (o *osSeekHoleChecker) removeFile(name string) error {
+	return os.Remove(name)
+}
 
 var (
 	contentType string
@@ -144,6 +169,33 @@ func validateMount() {
 	}
 }
 
+// filesystemSupportsSeekHole checks if the filesystem supports SEEK_HOLE by testing it in a small temporary file.
+// This is important because tar's -S flag can cause severe performance issues on filesystems that don't support it.
+func filesystemSupportsSeekHole(path string, checker seekHoleChecker) bool {
+	// Create a small test file
+	testFile, err := checker.createTempFile(path, ".seek_hole_test")
+	if err != nil {
+		klog.V(3).Infof("Failed to create test file for SEEK_HOLE detection: %v, assuming no support", err)
+		return false
+	}
+	defer func() { _ = checker.removeFile(testFile.Name()) }()
+	defer testFile.Close()
+
+	if _, err := testFile.Write([]byte("test")); err != nil {
+		klog.V(3).Infof("Failed to write to test file: %v, assuming no SEEK_HOLE support", err)
+		return false
+	}
+
+	// if this fails, the filesystem doesn't support SEEK_HOLE
+	if _, err := testFile.Seek(0, unix.SEEK_HOLE); err != nil {
+		klog.V(3).Infof("Filesystem does not support SEEK_HOLE, will use tar without -S flag: %v", err)
+		return false
+	}
+
+	klog.V(3).Infof("Filesystem supports SEEK_HOLE")
+	return true
+}
+
 func newTarReader(preallocation bool) (io.ReadCloser, error) {
 	excludeMap := map[string]struct{}{
 		"lost+found": {},
@@ -152,8 +204,12 @@ func newTarReader(preallocation bool) (io.ReadCloser, error) {
 	const path = "/usr/bin/tar"
 	args := []string{"cv"}
 	if !preallocation {
-		// -S is used to handle sparse files. It can only be used when preallocation is not requested
-		args = append(args, "-S")
+		// -S is used to handle sparse files efficiently, but only works well on filesystems that support SEEK_HOLE.
+		if filesystemSupportsSeekHole(mountPoint, &osSeekHoleChecker{}) {
+			args = append(args, "-S")
+		} else {
+			klog.Infof("Filesystem does not support SEEK_HOLE, skipping tar -S flag to avoid performance issues")
+		}
 	}
 
 	files, err := os.ReadDir(mountPoint)
