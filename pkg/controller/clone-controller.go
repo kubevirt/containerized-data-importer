@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -630,6 +631,10 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 			},
 			ImagePullSecrets: imagePullSecrets,
 			RestartPolicy:    corev1.RestartPolicyOnFailure,
+			// https://kubernetes.io/docs/concepts/services-networking/service/#environment-variables
+			// Disable service environment variable injection to avoid 'argument list too long'
+			// errors in namespaces with many Services (each injects ~7 env vars).
+			EnableServiceLinks: ptr.To(false),
 			Volumes: []corev1.Volume{
 				{
 					Name: cc.DataVolName,

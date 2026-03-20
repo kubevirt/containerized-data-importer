@@ -622,6 +622,10 @@ func makePopulatePodSpec(pvcPrimeName, secretName string) corev1.PodSpec {
 			},
 		},
 		RestartPolicy: corev1.RestartPolicyOnFailure,
+		// https://kubernetes.io/docs/concepts/services-networking/service/#environment-variables
+		// Disable service environment variable injection to avoid 'argument list too long'
+		// errors in namespaces with many Services (each injects ~7 env vars).
+		EnableServiceLinks: ptr.To(false),
 		Volumes: []corev1.Volume{
 			{
 				Name: populatorPodVolumeName,

@@ -1375,8 +1375,9 @@ func CreateImporterTestPod(pvc *corev1.PersistentVolumeClaim, dvname string, scr
 					},
 				},
 			},
-			RestartPolicy: corev1.RestartPolicyOnFailure,
-			Volumes:       volumes,
+			RestartPolicy:      corev1.RestartPolicyOnFailure,
+			Volumes:            volumes,
+			EnableServiceLinks: ptr.To(false),
 		},
 	}
 
