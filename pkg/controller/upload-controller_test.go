@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -832,6 +833,7 @@ func createUploadClonePod(pvc *corev1.PersistentVolumeClaim, clientName string) 
 					},
 				},
 			},
+			EnableServiceLinks: ptr.To(false),
 		},
 	}
 	return pod

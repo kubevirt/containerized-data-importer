@@ -799,6 +799,10 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			PriorityClassName:  cc.GetPriorityClass(args.PVC),
 			ServiceAccountName: cc.GetPodServiceAccount(args.PVC),
 			ImagePullSecrets:   imagePullSecrets,
+			// https://kubernetes.io/docs/concepts/services-networking/service/#environment-variables
+			// Disable service environment variable injection to avoid 'argument list too long'
+			// errors in namespaces with many Services (each injects ~7 env vars).
+			EnableServiceLinks: ptr.To(false),
 		},
 	}
 
