@@ -397,48 +397,70 @@ func searchDiskBackingChain(disk *types.VirtualDisk, fileName string) *types.Vir
 	switch disk.Backing.(type) {
 	case *types.VirtualDiskFlatVer1BackingInfo:
 		info := disk.Backing.(*types.VirtualDiskFlatVer1BackingInfo)
-		if info == nil || info.Parent == nil {
-			break
-		}
-		for range maxParents {
-			info = info.Parent
-			if info != nil && info.FileName == fileName {
-				return disk
-			}
-			if info.Parent == nil {
-				break
-			}
+		if searchDiskBackingChainFlatVer1(info, fileName) {
+			return disk
 		}
 	case *types.VirtualDiskFlatVer2BackingInfo:
 		info := disk.Backing.(*types.VirtualDiskFlatVer2BackingInfo)
-		if info == nil || info.Parent == nil {
-			break
-		}
-		for range maxParents {
-			info = info.Parent
-			if info != nil && info.FileName == fileName {
-				return disk
-			}
-			if info.Parent == nil {
-				break
-			}
+		if searchDiskBackingChainFlatVer2(info, fileName) {
+			return disk
 		}
 	case *types.VirtualDiskRawDiskMappingVer1BackingInfo:
 		info := disk.Backing.(*types.VirtualDiskRawDiskMappingVer1BackingInfo)
-		if info == nil || info.Parent == nil {
-			break
-		}
-		for range maxParents {
-			info = info.Parent
-			if info != nil && info.FileName == fileName {
-				return disk
-			}
-			if info.Parent == nil {
-				break
-			}
+		if searchDiskBackingChainRawDiskVer1(info, fileName) {
+			return disk
 		}
 	}
 	return nil
+}
+
+// Further flatten indentation levels to reduce complexity rating
+func searchDiskBackingChainFlatVer1(info *types.VirtualDiskFlatVer1BackingInfo, fileName string) bool {
+	if info == nil || info.Parent == nil {
+		return false
+	}
+	for range maxParents {
+		info = info.Parent
+		if info != nil && info.FileName == fileName {
+			return true
+		}
+		if info.Parent == nil {
+			break
+		}
+	}
+	return false
+}
+
+func searchDiskBackingChainFlatVer2(info *types.VirtualDiskFlatVer2BackingInfo, fileName string) bool {
+	if info == nil || info.Parent == nil {
+		return false
+	}
+	for range maxParents {
+		info = info.Parent
+		if info != nil && info.FileName == fileName {
+			return true
+		}
+		if info.Parent == nil {
+			break
+		}
+	}
+	return false
+}
+
+func searchDiskBackingChainRawDiskVer1(info *types.VirtualDiskRawDiskMappingVer1BackingInfo, fileName string) bool {
+	if info == nil || info.Parent == nil {
+		return false
+	}
+	for range maxParents {
+		info = info.Parent
+		if info != nil && info.FileName == fileName {
+			return true
+		}
+		if info.Parent == nil {
+			break
+		}
+	}
+	return false
 }
 
 // FindDiskFromName finds a disk object with the given file name, usable by QueryChangedDiskAreas.
