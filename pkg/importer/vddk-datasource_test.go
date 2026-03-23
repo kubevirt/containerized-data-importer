@@ -977,6 +977,10 @@ type mockVMwareConnectionOperations struct {
 	Endpoint string
 }
 
+func (ops *mockVMwareConnectionOperations) Login(context.Context, *url.Userinfo) error {
+	return nil
+}
+
 func (ops *mockVMwareConnectionOperations) Logout(context.Context) error {
 	return nil
 }

@@ -40,6 +40,7 @@ import (
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/methods"
 	"github.com/vmware/govmomi/vim25/mo"
+	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vim25/types"
 	"golang.org/x/sys/unix"
 	libnbd "libguestfs.org/libnbd"
@@ -234,6 +235,7 @@ func dumpLogs(ringEntry interface{}) {
 
 // VMwareConnectionOperations provides a mockable interface for the things needed from VMware client objects.
 type VMwareConnectionOperations interface {
+	Login(context.Context, *url.Userinfo) error
 	Logout(context.Context) error
 	IsVC() bool
 }
@@ -360,6 +362,42 @@ func (vmware *VMwareClient) Close() error {
 
 	klog.Info("Logged out of VMware.")
 	return nil
+}
+
+// isSessionNotAuthenticated reports whether err indicates the vSphere session expired or was invalidated.
+func isSessionNotAuthenticated(err error) bool {
+	for err != nil {
+		if soap.IsVimFault(err) {
+			switch soap.ToVimFault(err).(type) {
+			case *types.NotAuthenticated, *types.NotAuthenticatedFault:
+				return true
+			}
+		}
+		if strings.Contains(strings.ToLower(err.Error()), "not authenticated") {
+			return true
+		}
+		err = errors.Unwrap(err)
+	}
+	return false
+}
+
+// withVMwareReloginRetry runs fn once; if VMware returns a not-authenticated fault (e.g. session timeout
+// during a long warm-migration delta copy), re-logs in and runs fn a second time.
+func (vmware *VMwareClient) withVMwareReloginRetry(fn func() error) error {
+	err := fn()
+	if err == nil {
+		return nil
+	}
+	if !isSessionNotAuthenticated(err) {
+		return err
+	}
+	klog.Warningf("VMware session is not authenticated (likely timed out), re-logging in: %v", err)
+	u := url.UserPassword(vmware.username, vmware.password)
+	if loginErr := vmware.conn.Login(vmware.context, u); loginErr != nil {
+		return fmt.Errorf("failed to re-authenticate VMware session: %w", loginErr)
+	}
+	klog.Infof("Re-authenticated to VMware successfully, retrying operation.")
+	return fn()
 }
 
 // getDiskFileName returns the name of a disk's backing file
@@ -1073,7 +1111,12 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 
 	if vs.IsDeltaCopy() { // Warm migration delta copy
 		// Find disk object for backingFile disk image path
-		backingFileObject, err := vs.VMware.FindDiskFromName(vs.BackingFile)
+		var backingFileObject *types.VirtualDisk
+		err := vs.VMware.withVMwareReloginRetry(func() error {
+			var inner error
+			backingFileObject, inner = vs.VMware.FindDiskFromName(vs.BackingFile)
+			return inner
+		})
 		if err != nil {
 			klog.Errorf("Could not find VM disk %s: %v", vs.BackingFile, err)
 			return ProcessingPhaseError, err
@@ -1082,14 +1125,23 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 		// Find current snapshot object if requested
 		var currentSnapshot *types.ManagedObjectReference
 		if vs.CurrentSnapshot != "" {
-			currentSnapshot, err = vs.VMware.vm.FindSnapshot(vs.VMware.context, vs.CurrentSnapshot)
+			err = vs.VMware.withVMwareReloginRetry(func() error {
+				var inner error
+				currentSnapshot, inner = vs.VMware.vm.FindSnapshot(vs.VMware.context, vs.CurrentSnapshot)
+				return inner
+			})
 			if err != nil {
 				klog.Errorf("Could not find current snapshot %s: %v", vs.CurrentSnapshot, err)
 				return ProcessingPhaseError, err
 			}
 		}
 
-		disk, err := vs.VMware.FindSnapshotDisk(currentSnapshot, backingFileObject.DiskObjectId)
+		var disk *types.VirtualDisk
+		err = vs.VMware.withVMwareReloginRetry(func() error {
+			var inner error
+			disk, inner = vs.VMware.FindSnapshotDisk(currentSnapshot, backingFileObject.DiskObjectId)
+			return inner
+		})
 		if err != nil {
 			klog.Errorf("Could not find matching disk in current snapshot: %v", err)
 			return ProcessingPhaseError, err
@@ -1101,7 +1153,11 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 		isChangeID, _ := regexp.MatchString(changeIDPattern, vs.PreviousSnapshot)
 		var previousSnapshot *types.ManagedObjectReference
 		if !isChangeID {
-			previousSnapshot, err = vs.VMware.vm.FindSnapshot(vs.VMware.context, vs.PreviousSnapshot)
+			err = vs.VMware.withVMwareReloginRetry(func() error {
+				var inner error
+				previousSnapshot, inner = vs.VMware.vm.FindSnapshot(vs.VMware.context, vs.PreviousSnapshot)
+				return inner
+			})
 			if err != nil {
 				klog.Errorf("Could not find previous snapshot %s: %v", vs.PreviousSnapshot, err)
 				return ProcessingPhaseError, err
@@ -1127,7 +1183,12 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 					StartOffset: offset,
 					This:        vs.VMware.vm.Reference(),
 				}
-				response, err := QueryChangedDiskAreas(vs.VMware.context, vs.VMware.vm.Client(), &request)
+				var response *types.QueryChangedDiskAreasResponse
+				err := vs.VMware.withVMwareReloginRetry(func() error {
+					var inner error
+					response, inner = QueryChangedDiskAreas(vs.VMware.context, vs.VMware.vm.Client(), &request)
+					return inner
+				})
 				if err != nil {
 					klog.Errorf("Failed to query changed areas: %s", err)
 					return ProcessingPhaseError, err
@@ -1140,7 +1201,12 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 				changed.StartOffset = response.Returnval.StartOffset
 				changed.Length = response.Returnval.Length
 			} else { // Previous checkpoint is a snapshot
-				changedAreas, err := vs.VMware.vm.QueryChangedDiskAreas(vs.VMware.context, previousSnapshot, currentSnapshot, backingFileObject, changed.Length)
+				var changedAreas types.DiskChangeInfo
+				err := vs.VMware.withVMwareReloginRetry(func() error {
+					var inner error
+					changedAreas, inner = vs.VMware.vm.QueryChangedDiskAreas(vs.VMware.context, previousSnapshot, currentSnapshot, backingFileObject, changed.Length)
+					return inner
+				})
 				if err != nil {
 					klog.Errorf("Unable to query changed areas: %s", err)
 					return ProcessingPhaseError, err
