@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -886,6 +887,7 @@ func createSourcePod(pvc *corev1.PersistentVolumeClaim, pvcUID string) *corev1.P
 					},
 				},
 			},
+			EnableServiceLinks: ptr.To(false),
 		},
 	}
 
