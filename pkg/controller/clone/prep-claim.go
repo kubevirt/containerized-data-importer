@@ -173,9 +173,10 @@ func (p *PrepClaimPhase) createPod(ctx context.Context, name string, pvc *corev1
 					},
 				},
 			},
-			NodeSelector: workloadNodePlacement.NodeSelector,
-			Tolerations:  workloadNodePlacement.Tolerations,
-			Affinity:     workloadNodePlacement.Affinity,
+			NodeSelector:      workloadNodePlacement.NodeSelector,
+			Tolerations:       workloadNodePlacement.Tolerations,
+			Affinity:          workloadNodePlacement.Affinity,
+			PriorityClassName: cc.GetPriorityClass(pvc),
 		},
 	}
 	util.SetRecommendedLabels(pod, p.InstallerLabels, "cdi-controller")

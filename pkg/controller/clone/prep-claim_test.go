@@ -244,6 +244,24 @@ var _ = Describe("PrepClaimPhase test", func() {
 			Expect(pod.Spec.NodeName).To(Equal("node1"))
 		})
 
+		It("should create pod with priority class from PVC annotations but not service account", func() {
+			claim := getClaim()
+			cc.AddAnnotation(claim, cc.AnnPriorityClassName, "high-priority")
+			cc.AddAnnotation(claim, cc.AnnPodServiceAccount, "my-sa")
+			claim.Spec.Resources.Requests[corev1.ResourceStorage] = defaultRequestSize
+			claim.Status.Phase = corev1.ClaimPending
+
+			p := createPrepClaimPhase(claim)
+
+			result, err := p.Reconcile(context.Background())
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result).ToNot(BeNil())
+
+			pod := getCreatedPod(p)
+			Expect(pod.Spec.PriorityClassName).To(Equal("high-priority"))
+			Expect(pod.Spec.ServiceAccountName).To(BeEmpty())
+		})
+
 		It("should create pod if desired is bigger", func() {
 			claim := getClaim()
 			claim.Spec.Resources.Requests[corev1.ResourceStorage] = defaultRequestSize

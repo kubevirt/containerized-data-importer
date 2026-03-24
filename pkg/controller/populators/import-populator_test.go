@@ -277,6 +277,7 @@ var _ = Describe("Import populator tests", func() {
 			Entry("No extra annotations", "", "", ""),
 			Entry("Invalid extra annotation is not passed", "invalid", "test", ""),
 			Entry("Priority class is passed", AnnPriorityClassName, "test", "test"),
+			Entry("Service account is passed", AnnPodServiceAccount, "test", "test"),
 			Entry("pod network is passed", AnnPodNetwork, "test", "test"),
 			Entry("istio side car injection is passed", AnnPodSidecarInjectionIstio, AnnPodSidecarInjectionIstioDefault, AnnPodSidecarInjectionIstioDefault),
 			Entry("linkerd side car injection is passed", AnnPodSidecarInjectionLinkerd, AnnPodSidecarInjectionLinkerdDefault, AnnPodSidecarInjectionLinkerdDefault),
