@@ -456,3 +456,25 @@ func newFormRequest(path string) *http.Request {
 
 	return req
 }
+
+var _ = Describe("Content type handling", func() {
+	Context("isCloneTarget", func() {
+		It("should return true for filesystem-clone", func() {
+			Expect(isCloneTarget(common.FilesystemCloneContentType)).To(BeTrue())
+		})
+
+		It("should return true for blockdevice-clone", func() {
+			Expect(isCloneTarget(common.BlockdeviceClone)).To(BeTrue())
+		})
+
+		It("should return true for disk-image-clone", func() {
+			Expect(isCloneTarget(common.FilesystemCloneSingleDiskContentType)).To(BeTrue())
+		})
+
+		It("should return false for other content types", func() {
+			Expect(isCloneTarget("kubevirt")).To(BeFalse())
+			Expect(isCloneTarget("archive")).To(BeFalse())
+			Expect(isCloneTarget("")).To(BeFalse())
+		})
+	})
+})

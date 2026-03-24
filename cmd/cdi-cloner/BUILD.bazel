@@ -60,6 +60,7 @@ go_test(
     ],
     embed = [":go_default_library"],
     deps = [
+        "//pkg/common:go_default_library",
         "//pkg/util/prometheus:go_default_library",
         "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",

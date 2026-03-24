@@ -47,7 +47,17 @@ else
     fi
     echo "UPLOAD_BYTES=$UPLOAD_BYTES"
 
-    /usr/bin/cdi-cloner -v=3 -alsologtostderr -content-type filesystem-clone -upload-bytes $UPLOAD_BYTES -mount $MOUNT_POINT
+    # Check if we have only disk.img (ignoring lost+found)
+    # This allows us to skip tar entirely and avoid SEEK_HOLE performance issues
+    file_count=$(find . -maxdepth 1 -type f ! -path "./lost+found" | wc -l)
+    if [ "$file_count" -eq 1 ] && [ -f "disk.img" ]; then
+        echo "Detected single disk.img, using direct copy to avoid tar overhead"
+        CONTENT_TYPE="disk-image-clone"
+    else
+        CONTENT_TYPE="filesystem-clone"
+    fi
+
+    /usr/bin/cdi-cloner -v=3 -alsologtostderr -content-type $CONTENT_TYPE -upload-bytes $UPLOAD_BYTES -mount $MOUNT_POINT
 
     popd
 fi

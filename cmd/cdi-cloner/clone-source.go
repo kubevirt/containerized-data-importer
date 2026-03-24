@@ -132,7 +132,7 @@ func pipeToSnappy(reader io.ReadCloser) io.ReadCloser {
 
 func validateContentType() {
 	switch contentType {
-	case "filesystem-clone", "blockdevice-clone":
+	case "filesystem-clone", "disk-image-clone", "blockdevice-clone":
 	default:
 		klog.Fatalf("Invalid content-type %q", contentType)
 	}
@@ -201,6 +201,14 @@ func getInputStream(preallocation bool) io.ReadCloser {
 		rc, err := newTarReader(preallocation)
 		if err != nil {
 			klog.Fatalf("Error creating tar reader for %q: %+v", mountPoint, err)
+		}
+		return rc
+	case "disk-image-clone":
+		// Direct copy of disk.img without tar
+		diskImgPath := mountPoint + "/" + common.DiskImageName
+		rc, err := os.Open(diskImgPath)
+		if err != nil {
+			klog.Fatalf("Error opening disk image %q: %+v", diskImgPath, err)
 		}
 		return rc
 	case "blockdevice-clone":

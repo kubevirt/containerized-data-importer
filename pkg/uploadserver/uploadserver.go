@@ -129,7 +129,9 @@ func formReadCloser(r *http.Request) (io.ReadCloser, error) {
 }
 
 func isCloneTarget(contentType string) bool {
-	return contentType == common.BlockdeviceClone || contentType == common.FilesystemCloneContentType
+	return contentType == common.BlockdeviceClone ||
+		contentType == common.FilesystemCloneContentType ||
+		contentType == common.FilesystemCloneSingleDiskContentType
 }
 
 // NewUploadServer returns a new instance of uploadServerApp
@@ -484,6 +486,18 @@ func cloneProcessor(stream io.ReadCloser, contentType, dest string, preallocate 
 			return false, err
 		}
 		stream = tarImageReader
+	} else if contentType == common.FilesystemCloneSingleDiskContentType {
+		// Direct disk.img copy without tar extraction
+		if dest != common.WriteBlockPath {
+			// For filesystem destination, write disk.img directly
+			defer stream.Close()
+			diskImgPath := common.ImporterVolumePath + "/" + common.DiskImageName
+			_, _, err := importer.StreamDataToFile(stream, diskImgPath, preallocate)
+			if err != nil {
+				return false, err
+			}
+			return false, nil
+		}
 	}
 
 	defer stream.Close()

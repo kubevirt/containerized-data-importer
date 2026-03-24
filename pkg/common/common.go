@@ -274,6 +274,9 @@ const (
 	// BlockdeviceClone is the content type when cloning a block device
 	BlockdeviceClone = "blockdevice-clone"
 
+	// FilesystemCloneSingleDiskContentType is the content type when cloning a filesystem with a single disk.img (no tar needed)
+	FilesystemCloneSingleDiskContentType = "disk-image-clone"
+
 	// UploadPathSync is the path to POST CDI uploads
 	UploadPathSync = "/v1beta1/upload"
 
