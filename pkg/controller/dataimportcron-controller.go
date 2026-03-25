@@ -359,19 +359,21 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		return res, err
 	}
 	if desiredStorageClass != nil {
-		if deleted, err := r.deleteOutdatedPendingPvc(ctx, pvc, desiredStorageClass.Name, dataImportCron.Name); deleted || err != nil {
+		desiredSc := desiredStorageClass.Name
+		if deleted, err := r.deleteOutdatedPendingPvc(ctx, pvc, desiredSc, dataImportCron.Name); deleted || err != nil {
 			return res, err
 		}
-		currentSc, hasCurrent := dataImportCron.Annotations[AnnStorageClass]
-		desiredSc := desiredStorageClass.Name
-		if hasCurrent && currentSc != desiredSc {
-			r.log.Info("Storage class changed, delete most recent source on the old sc as it's no longer the desired", "currentSc", currentSc, "desiredSc", desiredSc)
-			if err := r.handleStorageClassChange(ctx, dataImportCron, desiredSc); err != nil {
+		outdated, err := r.importOutdated(ctx, dataImportCron, dv, desiredStorageClass)
+		if err != nil {
+			return res, err
+		}
+		if outdated {
+			if err := r.resetImport(ctx, dataImportCron, desiredSc); err != nil {
 				return res, err
 			}
 			return reconcile.Result{RequeueAfter: time.Second}, nil
 		}
-		cc.AddAnnotation(dataImportCron, AnnStorageClass, desiredStorageClass.Name)
+		cc.AddAnnotation(dataImportCron, AnnStorageClass, desiredSc)
 	}
 	format, err := r.getSourceFormat(ctx, desiredStorageClass)
 	if err != nil {
@@ -974,7 +976,7 @@ func (p *authProxy) GetDataSource(namespace, name string) (*cdiv1.DataSource, er
 	return das, nil
 }
 
-func (r *DataImportCronReconciler) handleStorageClassChange(ctx context.Context, dataImportCron *cdiv1.DataImportCron, desiredStorageClass string) error {
+func (r *DataImportCronReconciler) resetImport(ctx context.Context, dataImportCron *cdiv1.DataImportCron, desiredStorageClass string) error {
 	digest, ok := dataImportCron.Annotations[AnnSourceDesiredDigest]
 	if !ok {
 		// nothing to delete
@@ -1109,6 +1111,31 @@ func (r *DataImportCronReconciler) handleSnapshotClassChange(ctx context.Context
 		return false, client.IgnoreNotFound(err)
 	}
 	return true, nil
+}
+
+func (r *DataImportCronReconciler) importOutdated(ctx context.Context, cron *cdiv1.DataImportCron, currentDV *cdiv1.DataVolume, desiredSC *storagev1.StorageClass) (bool, error) {
+	currentSc, hasCurrent := cron.Annotations[AnnStorageClass]
+	if hasCurrent && currentSc != desiredSC.Name {
+		r.log.Info("Storage class changed", "currentSc", currentSc, "desiredSc", desiredSC.Name)
+		return true, nil
+	}
+	if !hasCurrent && len(cron.Status.CurrentImports) > 0 {
+		r.log.Info("First default storage class set, existing import needs recreate")
+		return true, nil
+	}
+	if currentDV == nil {
+		return false, nil
+	}
+	sp := &cdiv1.StorageProfile{}
+	if err := r.client.Get(ctx, types.NamespacedName{Name: desiredSC.Name}, sp); err != nil {
+		return false, err
+	}
+	desiredDV := r.newSourceDataVolume(cron, currentDV.Name, sp)
+	if !reflect.DeepEqual(currentDV.Spec, desiredDV.Spec) {
+		r.log.Info("DV spec mismatch, needs recreate", "dv", currentDV.Name)
+		return true, nil
+	}
+	return false, nil
 }
 
 // getSnapshotClassForDataImportCron returns the VolumeSnapshotClass name to use for DataImportCron snapshots.
