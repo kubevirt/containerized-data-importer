@@ -1844,6 +1844,88 @@ var _ = Describe("All DataImportCron Tests", func() {
 				Expect(dv.Spec.Storage.AccessModes).To(BeEmpty())
 			})
 
+			It("Should delete old DV and requeue when first default StorageClass is set", func() {
+				dvName := "test-datasource-68b44fc891f3"
+				sp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{Name: storageClassName},
+				}
+				reconciler = createDataImportCronReconciler(sc, sp)
+
+				cron = newDataImportCron(cronName)
+				cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
+				cron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: testDigest}}
+				err := reconciler.client.Create(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				dataSource = &cdiv1.DataSource{}
+
+				dv := &cdiv1.DataVolume{ObjectMeta: metav1.ObjectMeta{Name: dvName, Namespace: metav1.NamespaceDefault}}
+				err = reconciler.client.Create(context.TODO(), dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("First reconcile: detect SC change and delete old DV")
+				res, err := reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(res.RequeueAfter).To(Equal(time.Second))
+
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(cron.Annotations[AnnStorageClass]).To(Equal(storageClassName))
+
+				By("Second reconcile: create new DV with the correct SC context")
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+
+				dv = &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("Should delete DV and requeue when StorageProfile RWO annotation changes", func() {
+				dvName := "test-datasource-68b44fc891f3"
+				sp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        storageClassName,
+						Annotations: map[string]string{cc.AnnUseReadWriteOnceForDataImportCron: "true"},
+					},
+				}
+				reconciler = createDataImportCronReconciler(sc, sp)
+
+				cron = newDataImportCron(cronName)
+				cron.Spec.Template.Spec.Storage.AccessModes = nil
+				cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
+				cc.AddAnnotation(cron, AnnStorageClass, storageClassName)
+				cron.Status.CurrentImports = []cdiv1.ImportStatus{{DataVolumeName: dvName, Digest: testDigest}}
+				err := reconciler.client.Create(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				dataSource = &cdiv1.DataSource{}
+
+				dv := cron.Spec.Template.DeepCopy()
+				dv.Name = dvName
+				dv.Namespace = metav1.NamespaceDefault
+				err = reconciler.client.Create(context.TODO(), dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("First reconcile: detect DV spec drift and delete old DV")
+				res, err := reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(res.RequeueAfter).To(Equal(time.Second))
+
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+				By("Second reconcile: create new DV with RWO access mode")
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+
+				dv = &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dv.Spec.Storage.AccessModes).To(Equal([]corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}))
+			})
+
 		})
 	})
 })
