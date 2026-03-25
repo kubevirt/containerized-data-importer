@@ -533,25 +533,13 @@ func (p *Planner) planHostAssistedFromPVC(ctx context.Context, args *PlanArgs) (
 		DesiredClaim:   desiredClaim,
 		ImmediateBind:  true,
 		OwnershipLabel: p.OwnershipLabel,
-		Preallocation:  cc.GetPreallocation(ctx, p.Client, args.DataSource.Spec.Preallocation),
 		Client:         p.Client,
 		Log:            args.Log,
 		Recorder:       p.Recorder,
 	}
 
-	if args.DataSource.Spec.PriorityClassName != nil {
-		hcp.PriorityClassName = *args.DataSource.Spec.PriorityClassName
-	}
-
-	rp := &RebindPhase{
-		SourceNamespace: desiredClaim.Namespace,
-		SourceName:      desiredClaim.Name,
-		TargetNamespace: args.TargetClaim.Namespace,
-		TargetName:      args.TargetClaim.Name,
-		Client:          p.Client,
-		Log:             args.Log,
-		Recorder:        p.Recorder,
-	}
+	p.applyCloneSourceSpec(ctx, args, hcp)
+	rp := p.newRebindPhase(args, desiredClaim)
 
 	return []Phase{hcp, rp}, nil
 }
@@ -607,11 +595,21 @@ func (p *Planner) planHostAssistedFromSnapshot(ctx context.Context, args *PlanAr
 		Recorder:       p.Recorder,
 	}
 
+	p.applyCloneSourceSpec(ctx, args, hcp)
+	rp := p.newRebindPhase(args, desiredClaim)
+
+	return []Phase{cfsp, pcp, hcp, rp}, nil
+}
+
+func (p *Planner) applyCloneSourceSpec(ctx context.Context, args *PlanArgs, hcp *HostClonePhase) {
+	hcp.Preallocation = cc.GetPreallocation(ctx, p.Client, args.DataSource.Spec.Preallocation)
 	if args.DataSource.Spec.PriorityClassName != nil {
 		hcp.PriorityClassName = *args.DataSource.Spec.PriorityClassName
 	}
+}
 
-	rp := &RebindPhase{
+func (p *Planner) newRebindPhase(args *PlanArgs, desiredClaim *corev1.PersistentVolumeClaim) *RebindPhase {
+	return &RebindPhase{
 		SourceNamespace: desiredClaim.Namespace,
 		SourceName:      desiredClaim.Name,
 		TargetNamespace: args.TargetClaim.Namespace,
@@ -620,8 +618,6 @@ func (p *Planner) planHostAssistedFromSnapshot(ctx context.Context, args *PlanAr
 		Log:             args.Log,
 		Recorder:        p.Recorder,
 	}
-
-	return []Phase{cfsp, pcp, hcp, rp}, nil
 }
 
 func (p *Planner) planSmartCloneFromSnapshot(ctx context.Context, args *PlanArgs) ([]Phase, error) {

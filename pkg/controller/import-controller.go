@@ -119,6 +119,7 @@ type importerPodArgs struct {
 	vddkImageName           *string
 	vddkExtraArgs           *string
 	priorityClassName       string
+	serviceAccountName      string
 }
 
 // NewImportController creates a new instance of the import controller.
@@ -541,15 +542,16 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 	}
 	// all checks passed, let's create the importer pod!
 	podArgs := &importerPodArgs{
-		image:             r.image,
-		verbose:           r.verbose,
-		pullPolicy:        r.pullPolicy,
-		podEnvVar:         podEnvVar,
-		pvc:               pvc,
-		scratchPvcName:    scratchPvcName,
-		vddkImageName:     vddkImageName,
-		vddkExtraArgs:     vddkExtraArgs,
-		priorityClassName: cc.GetPriorityClass(pvc),
+		image:              r.image,
+		verbose:            r.verbose,
+		pullPolicy:         r.pullPolicy,
+		podEnvVar:          podEnvVar,
+		pvc:                pvc,
+		scratchPvcName:     scratchPvcName,
+		vddkImageName:      vddkImageName,
+		vddkExtraArgs:      vddkExtraArgs,
+		priorityClassName:  cc.GetPriorityClass(pvc),
+		serviceAccountName: cc.GetPodServiceAccount(pvc),
 	}
 
 	pod, err := createImporterPod(context.TODO(), r.log, r.client, podArgs, r.installerLabels)
@@ -952,15 +954,16 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			},
 		},
 		Spec: corev1.PodSpec{
-			Containers:        makeImporterContainerSpec(args),
-			InitContainers:    makeImporterInitContainersSpec(args),
-			Volumes:           makeImporterVolumeSpec(args),
-			RestartPolicy:     corev1.RestartPolicyOnFailure,
-			NodeSelector:      args.workloadNodePlacement.NodeSelector,
-			Tolerations:       args.workloadNodePlacement.Tolerations,
-			Affinity:          args.workloadNodePlacement.Affinity,
-			PriorityClassName: args.priorityClassName,
-			ImagePullSecrets:  args.imagePullSecrets,
+			Containers:         makeImporterContainerSpec(args),
+			InitContainers:     makeImporterInitContainersSpec(args),
+			Volumes:            makeImporterVolumeSpec(args),
+			RestartPolicy:      corev1.RestartPolicyOnFailure,
+			NodeSelector:       args.workloadNodePlacement.NodeSelector,
+			Tolerations:        args.workloadNodePlacement.Tolerations,
+			Affinity:           args.workloadNodePlacement.Affinity,
+			PriorityClassName:  args.priorityClassName,
+			ServiceAccountName: args.serviceAccountName,
+			ImagePullSecrets:   args.imagePullSecrets,
 		},
 	}
 
