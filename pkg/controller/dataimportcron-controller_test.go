@@ -1844,6 +1844,67 @@ var _ = Describe("All DataImportCron Tests", func() {
 				Expect(dv.Spec.Storage.AccessModes).To(BeEmpty())
 			})
 
+			It("Should delete old DV and requeue when first default StorageClass is set", func() {
+				reconciler = createDataImportCronReconciler()
+				cron = newDataImportCron(cronName)
+				err := reconciler.client.Create(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+
+				cc.AddAnnotation(cron, AnnSourceDesiredDigest, testDigest)
+				err = reconciler.client.Update(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				dataSource = &cdiv1.DataSource{}
+
+				// Reconcile creates a DV without any SC
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
+
+				imports := cron.Status.CurrentImports
+				Expect(imports).ToNot(BeEmpty())
+				oldDvName := imports[0].DataVolumeName
+
+				oldDv := &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(oldDvName), oldDv)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(cron.Annotations).ToNot(HaveKey(AnnStorageClass))
+
+				err = reconciler.client.Create(context.TODO(), sc)
+				Expect(err).ToNot(HaveOccurred())
+				sp := &cdiv1.StorageProfile{
+					ObjectMeta: metav1.ObjectMeta{Name: storageClassName},
+				}
+				err = reconciler.client.Create(context.TODO(), sp)
+				Expect(err).ToNot(HaveOccurred())
+
+				// Reconcile detects nil-to-non-nil SC change, deletes old DV, requeues
+				res, err := reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(res.RequeueAfter).To(Equal(time.Second))
+
+				err = reconciler.client.Get(context.TODO(), dvKey(oldDvName), oldDv)
+				Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(cron.Annotations[AnnStorageClass]).To(Equal(storageClassName))
+
+				// Reconcile again creates a new DV
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
+				imports = cron.Status.CurrentImports
+				Expect(imports).ToNot(BeEmpty())
+				newDvName := imports[0].DataVolumeName
+
+				newDv := &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(newDvName), newDv)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
 		})
 	})
 })
