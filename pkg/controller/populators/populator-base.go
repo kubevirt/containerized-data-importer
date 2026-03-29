@@ -152,28 +152,31 @@ func addCommonPopulatorsWatches(mgr manager.Manager, c controller.Controller, lo
 		return err
 	}
 
-	mapDataSourceRefToPVC := func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
-		var pvcs corev1.PersistentVolumeClaimList
-		matchingFields := client.MatchingFields{
-			dataSourceRefField: getPopulatorIndexKey(cc.AnnAPIGroup, sourceKind, obj.GetNamespace(), obj.GetName()),
-		}
-		if err := mgr.GetClient().List(ctx, &pvcs, matchingFields); err != nil {
-			log.Error(err, "Unable to list PVCs", "matchingFields", matchingFields)
-			return reqs
-		}
-		for _, pvc := range pvcs.Items {
-			reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: pvc.Namespace, Name: pvc.Name}})
-		}
-		return reqs
-	}
-
 	if err := c.Watch(source.Kind(mgr.GetCache(), sourceType,
-		handler.EnqueueRequestsFromMapFunc(mapDataSourceRefToPVC),
+		handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
+			return mapSourceToPVCs(ctx, mgr.GetClient(), log, cc.AnnAPIGroup, sourceKind, obj)
+		}),
 	)); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func mapSourceToPVCs(ctx context.Context, c client.Client, log logr.Logger, apiGroup, sourceKind string, obj client.Object) []reconcile.Request {
+	var pvcs corev1.PersistentVolumeClaimList
+	matchingFields := client.MatchingFields{
+		dataSourceRefField: getPopulatorIndexKey(apiGroup, sourceKind, obj.GetNamespace(), obj.GetName()),
+	}
+	if err := c.List(ctx, &pvcs, matchingFields); err != nil {
+		log.Error(err, "Unable to list PVCs", "matchingFields", matchingFields)
+		return nil
+	}
+	var reqs []reconcile.Request
+	for _, pvc := range pvcs.Items {
+		reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: pvc.Namespace, Name: pvc.Name}})
+	}
+	return reqs
 }
 
 func (r *ReconcilerBase) getPVCPrime(pvc *corev1.PersistentVolumeClaim) (*corev1.PersistentVolumeClaim, error) {

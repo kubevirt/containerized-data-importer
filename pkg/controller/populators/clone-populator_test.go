@@ -441,6 +441,78 @@ func (p *fakePhaseWithStatus) Status(ctx context.Context) (*clone.PhaseStatus, e
 	return p.status, p.statusErr
 }
 
+var _ = Describe("Clone source mapper tests", func() {
+	It("should map snapshot to target PVC across namespaces", func() {
+		const (
+			sourceNs      = "source-ns"
+			targetNs      = "target-ns"
+			snapshotName  = "test-snapshot"
+			vcsName       = "volume-clone-source-abc123"
+			targetPVCName = "my-clone-dv"
+		)
+
+		sourceIndexKey := "spec.source"
+		getSourceKey := func(kind, ns, name string) string { return kind + "/" + ns + "/" + name }
+
+		s := scheme.Scheme
+		_ = cdiv1.AddToScheme(s)
+		_ = snapshotv1.AddToScheme(s)
+
+		snapshot := &snapshotv1.VolumeSnapshot{
+			ObjectMeta: metav1.ObjectMeta{Namespace: sourceNs, Name: snapshotName},
+		}
+		vcs := &cdiv1.VolumeCloneSource{
+			ObjectMeta: metav1.ObjectMeta{Namespace: sourceNs, Name: vcsName},
+			Spec: cdiv1.VolumeCloneSourceSpec{
+				Source: corev1.TypedLocalObjectReference{
+					APIGroup: ptr.To("snapshot.storage.k8s.io"),
+					Kind:     "VolumeSnapshot",
+					Name:     snapshotName,
+				},
+			},
+		}
+		apiGroup := cc.AnnAPIGroup
+		targetPVC := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace:   targetNs,
+				Name:        targetPVCName,
+				Annotations: map[string]string{AnnDataSourceNamespace: sourceNs},
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				DataSourceRef: &corev1.TypedObjectReference{
+					APIGroup: &apiGroup,
+					Kind:     cdiv1.VolumeCloneSourceRef,
+					Name:     vcsName,
+				},
+			},
+		}
+
+		builder := fake.NewClientBuilder().
+			WithScheme(s).
+			WithRuntimeObjects(snapshot, vcs, targetPVC).
+			WithIndex(&cdiv1.VolumeCloneSource{}, sourceIndexKey, func(obj client.Object) []string {
+				cs := obj.(*cdiv1.VolumeCloneSource)
+				return []string{getSourceKey(cs.Spec.Source.Kind, cc.GetNamespace(cs.Namespace, obj.GetNamespace()), cs.Spec.Source.Name)}
+			})
+		for _, ia := range getIndexArgs() {
+			builder = builder.WithIndex(ia.obj, ia.field, ia.extractValue)
+		}
+		cl := builder.Build()
+
+		// Simulate genericSourceMapper: snapshot → VolumeCloneSources → target PVCs
+		var volumeCloneSources cdiv1.VolumeCloneSourceList
+		err := cl.List(context.Background(), &volumeCloneSources,
+			client.MatchingFields{sourceIndexKey: getSourceKey("VolumeSnapshot", snapshot.Namespace, snapshot.Name)})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(volumeCloneSources.Items).To(HaveLen(1))
+
+		reqs := mapSourceToPVCs(context.Background(), cl, clonePopulatorLog, cc.AnnAPIGroup, cdiv1.VolumeCloneSourceRef, &volumeCloneSources.Items[0])
+		Expect(reqs).To(HaveLen(1))
+		Expect(reqs[0].Name).To(Equal(targetPVCName))
+		Expect(reqs[0].Namespace).To(Equal(targetNs))
+	})
+})
+
 func createClonePopulatorReconciler(objects ...runtime.Object) *ClonePopulatorReconciler {
 	cdiConfig := cc.MakeEmptyCDIConfigSpec(common.ConfigName)
 	cdiConfig.Status = cdiv1.CDIConfigStatus{}

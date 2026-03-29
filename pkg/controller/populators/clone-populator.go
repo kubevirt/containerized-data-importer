@@ -30,7 +30,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -150,7 +149,8 @@ func addCloneSourceWatches(mgr manager.Manager, c controller.Controller, log log
 		return err
 	}
 
-	// Generic mapper function for supported clone sources
+	// Generic mapper function for supported clone sources.
+	// Two-hop lookup: source object → VolumeCloneSources → target PVCs.
 	genericSourceMapper := func(sourceKind string) handler.MapFunc {
 		return func(ctx context.Context, obj client.Object) (reqs []reconcile.Request) {
 			var volumeCloneSources cdiv1.VolumeCloneSourceList
@@ -162,7 +162,7 @@ func addCloneSourceWatches(mgr manager.Manager, c controller.Controller, log log
 			}
 
 			for _, cs := range volumeCloneSources.Items {
-				reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{Namespace: cs.Namespace, Name: cs.Name}})
+				reqs = append(reqs, mapSourceToPVCs(ctx, mgr.GetClient(), log, cc.AnnAPIGroup, cdiv1.VolumeCloneSourceRef, &cs)...)
 			}
 			return reqs
 		}
