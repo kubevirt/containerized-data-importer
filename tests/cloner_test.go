@@ -21,6 +21,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/utils/ptr"
 
@@ -3127,14 +3128,22 @@ func createStorageWithMinimumSupportedPVCSize(f *framework.Framework, minSize st
 		func(sc *storagev1.StorageClass) { sc.UID = "" })
 	Expect(err).ToNot(HaveOccurred())
 
-	var sp *cdiv1.StorageProfile
 	Eventually(func() error {
-		sp, err = f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), sc.Name, metav1.GetOptions{})
+		_, err = f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), sc.Name, metav1.GetOptions{})
 		return err
 	}, time.Minute, time.Second).Should(Succeed())
 
-	sp.Annotations = map[string]string{controller.AnnMinimumSupportedPVCSize: minSize}
-	_, err = f.CdiClient.CdiV1beta1().StorageProfiles().Update(context.TODO(), sp, metav1.UpdateOptions{})
+	patch := fmt.Sprintf(
+		`{"apiVersion":"%s","kind":"%s","metadata":{"annotations":{"%s":"%s"}}}`,
+		cdiv1.SchemeGroupVersion.String(),
+		"StorageProfile",
+		controller.AnnMinimumSupportedPVCSize, minSize,
+	)
+
+	_, err = f.CdiClient.CdiV1beta1().StorageProfiles().Patch(context.TODO(),
+		sc.Name, types.ApplyPatchType, []byte(patch), metav1.PatchOptions{
+			FieldManager: "cloner-test",
+		})
 	Expect(err).ToNot(HaveOccurred())
 
 	return sc.Name
