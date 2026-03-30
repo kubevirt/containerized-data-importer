@@ -68,9 +68,11 @@ func isDataSourceRefValid(dataSourceRef *corev1.TypedObjectReference) bool {
 
 func getPopulationSourceNamespace(pvc *corev1.PersistentVolumeClaim) string {
 	namespace := pvc.GetNamespace()
-	// The populator CR can be in a different namespace from the target PVC
-	// if the CrossNamespaceVolumeDataSource feature gate is enabled in the
-	// kube-apiserver and the kube-controller-manager.
+	// For cross-namespace clones, CDI stores the source namespace in this annotation
+	// because DataSourceRef.Namespace requires the CrossNamespaceVolumeDataSource feature gate.
+	if dsns, ok := pvc.GetAnnotations()[AnnDataSourceNamespace]; ok && dsns != "" {
+		return dsns
+	}
 	dataSourceRef := pvc.Spec.DataSourceRef
 	if dataSourceRef != nil && dataSourceRef.Namespace != nil && *dataSourceRef.Namespace != "" {
 		namespace = *pvc.Spec.DataSourceRef.Namespace
