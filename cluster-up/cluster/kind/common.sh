@@ -2,18 +2,9 @@
 
 set -e
 
-function detect_cri() {
-    if podman ps >/dev/null 2>&1; then
-        echo podman
-    elif docker ps >/dev/null 2>&1; then
-        echo docker
-    else
-        echo "Error: no container runtime detected. Please install Podman or Docker." >&2
-        exit 1
-    fi
-}
-
+source "${KUBEVIRTCI_PATH}/../hack/detect_cri.sh"
 export CRI_BIN=${CRI_BIN:-$(detect_cri)}
+
 export KIND_EXPERIMENTAL_PROVIDER=${CRI_BIN}
 CONFIG_WORKER_CPU_MANAGER=${CONFIG_WORKER_CPU_MANAGER:-false}
 # only setup ipFamily when the environmental variable is not empty
@@ -98,16 +89,24 @@ function _reload-containerd-daemon-cmd() {
 }
 
 function _insecure-registry-config-cmd() {
-    echo "sed -i '/\[plugins.cri.registry.mirrors\]/a\        [plugins.cri.registry.mirrors.\"registry:5000\"]\n\          endpoint = [\"http://registry:5000\"]' /etc/containerd/config.toml"
-}
+    echo '
+    mkdir -p /etc/containerd/certs.d/registry:5000
+    cat > /etc/containerd/certs.d/registry:5000/hosts.toml <<EOF
+server = "http://registry:5000"
 
+[host."http://registry:5000"]
+  capabilities = ["pull", "resolve", "push"]
+  skip_verify = true
+EOF
+    '
+}
 # this works since the nodes use the same names as containers
 function _ssh_into_node() {
     if [[ $2 != "" ]]; then
         ${CRI_BIN} exec "$@"
     else
         ${CRI_BIN} exec -it "$1" bash
-    fi    
+    fi
 }
 
 function _run_registry() {
@@ -197,9 +196,20 @@ function _fix_node_labels() {
     done
 }
 
+function _dump_kind_node_logs() {
+    echo "=== Dumping kind node container logs for debugging ==="
+    for container in $(${CRI_BIN} ps -a --filter "label=io.x-k8s.kind.cluster=${CLUSTER_NAME}" --format '{{.Names}}'); do
+        echo "--- Container logs: ${container} ---"
+        ${CRI_BIN} logs "${container}" 2>&1 || true
+        echo "--- End container logs: ${container} ---"
+    done
+    echo "=== End kind node container logs ==="
+}
+
 function setup_kind() {
     $KIND -v 9 create cluster --retain --name=${CLUSTER_NAME} --config=${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml --image=$KIND_NODE_IMAGE --kubeconfig=${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubeconfig \
-        || ( $KIND -v 9 delete cluster --name=${CLUSTER_NAME} \
+        || ( _dump_kind_node_logs; \
+        $KIND -v 9 delete cluster --name=${CLUSTER_NAME} \
         && $KIND -v 9 create cluster --retain --name=${CLUSTER_NAME} --config=${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/kind.yaml --image=$KIND_NODE_IMAGE --kubeconfig=${KUBEVIRTCI_CONFIG_PATH}/$KUBEVIRT_PROVIDER/.kubeconfig )
 
     if ${CRI_BIN} exec ${CLUSTER_NAME}-control-plane ls /usr/bin/kubectl > /dev/null; then
@@ -253,6 +263,13 @@ function setup_kind() {
         _configure_network "$node"
     done
     prepare_config
+
+    if [[ $KUBEVIRT_DEPLOY_CDI == "true" ]]; then
+       KUBEVIRT_CUSTOM_CDI_VERSION=${KUBEVIRT_CUSTOM_CDI_VERSION:-"v1.63.0"}
+      _kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/"$KUBEVIRT_CUSTOM_CDI_VERSION"/cdi-operator.yaml
+      _kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/"$KUBEVIRT_CUSTOM_CDI_VERSION"/cdi-cr.yaml
+    fi
+
 }
 
 function _add_extra_mounts() {

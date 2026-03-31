@@ -271,7 +271,12 @@ var _ = Describe("DataImportCron", Serial, func() {
 		configureStorageProfileResultingFormat(format)
 
 		By(fmt.Sprintf("Create new DataImportCron %s, url %s", cronName, *reg.URL))
-		cron = utils.NewDataImportCron(cronName, "5Gi", scheduleEveryMinute, dataSourceName, importsToKeep, *reg)
+		schedule := scheduleEveryMinute
+		if createErrorDv {
+			// polling could clash with custom error digest
+			schedule = scheduleOnceAYear
+		}
+		cron = utils.NewDataImportCron(cronName, "5Gi", schedule, dataSourceName, importsToKeep, *reg)
 
 		garbageCollect := cdiv1.DataImportCronGarbageCollectNever
 		cron.Spec.GarbageCollect = &garbageCollect
@@ -313,6 +318,12 @@ var _ = Describe("DataImportCron", Serial, func() {
 						return currentImportDv
 					}, dataImportCronTimeout, pollingInterval).ShouldNot(Equal(lastImportDv), "Current import was not updated")
 					lastImportDv = currentImportDv
+
+					By("Trigger manual poll to recover from error digest")
+					retryOnceOnErr(updateDataImportCron(f.CdiClient, ns, cronName, func(cron *cdiv1.DataImportCron) *cdiv1.DataImportCron {
+						cc.AddAnnotation(cron, controller.AnnNextCronTime, time.Now().Format(time.RFC3339))
+						return cron
+					})).Should(BeNil())
 				} else {
 					By("Reset desired digest")
 					retryOnceOnErr(updateDataImportCron(f.CdiClient, ns, cronName, updateDigest(""))).Should(BeNil())
