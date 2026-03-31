@@ -2381,6 +2381,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		BeforeEach(func() {
 			testScName = fmt.Sprintf("%s-%s", testScNamePrefix, strings.ToLower(util.RandAlphaNum(8)))
 			By(fmt.Sprintf("init test storage class name: %s", testScName))
+
+			By("Setting scratch space storage class to default storage class")
+			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+				config.ScratchSpaceStorageClass = &utils.DefaultStorageClass.Name
+			})
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		AfterEach(func() {
@@ -2400,6 +2406,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				})
 				pvName = ""
 			}
+
+			By("Unsetting scratch space storage class")
+			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+				config.ScratchSpaceStorageClass = nil
+			})
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		verifyControllerRenderingEventAndConditions := func(dv *cdiv1.DataVolume) {

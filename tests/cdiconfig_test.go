@@ -65,12 +65,12 @@ var _ = Describe("CDI storage class config tests", Serial, func() {
 		})
 		Expect(err).ToNot(HaveOccurred())
 
-		By("Waiting for default SC to be the default scratch space storage class")
+		By("Waiting for the default scratch space storage class to be blank")
 		Eventually(func() string {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			return config.Status.ScratchSpaceStorageClass
-		}, time.Second*30, time.Second).Should(Equal(defaultSc.Name))
+		}, time.Second*30, time.Second).Should(BeEmpty())
 	})
 
 	AfterEach(func() {
@@ -105,36 +105,17 @@ var _ = Describe("CDI storage class config tests", Serial, func() {
 		}, timeout, pollingInterval).Should(BeTrue(), "CDIConfig status not restored by config controller")
 	})
 
-	It("[test_id:3962]should have the default storage class as its scratchSpaceStorageClass", func() {
+	It("[test_id:3962]should have scratchSpaceStorageClass set to blank", func() {
 		if defaultSc == nil {
 			Skip("No default storage class found, skipping test")
 		}
 		By("Expecting default storage class to be: " + defaultSc.Name)
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(config.Status.ScratchSpaceStorageClass).To(Equal(defaultSc.Name))
+		Expect(config.Status.ScratchSpaceStorageClass).To(BeEmpty())
 	})
 
-	It("[test_id:3964]should set the scratch space to blank if no default exists", func() {
-		if defaultSc == nil {
-			Skip("No default storage class found, skipping test")
-		}
-		By("Expecting default storage class to be " + defaultSc.Name)
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		Expect(defaultSc.Name).To(Equal(config.Status.ScratchSpaceStorageClass))
-
-		err = SetStorageClassDefault(f, defaultSc.Name, false)
-		Expect(err).ToNot(HaveOccurred())
-		By("Expecting default storage class to be blank")
-		Eventually(func() string {
-			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			return config.Status.ScratchSpaceStorageClass
-		}, time.Second*30, time.Second).Should(Equal(""))
-	})
-
-	It("[test_id:3965]should keep the default if you specify an invalid override", func() {
+	It("[test_id:3965]should have scratchSpaceStorageClass set to blank if you specify an invalid override", func() {
 		if defaultSc == nil {
 			Skip("No default storage class found, skipping test")
 		}
@@ -154,37 +135,7 @@ var _ = Describe("CDI storage class config tests", Serial, func() {
 		}, time.Second*30, time.Second).Should(Equal(invalid))
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(defaultSc.Name).To(Equal(config.Status.ScratchSpaceStorageClass))
-	})
-
-	It("[test_id:3966]Should react to switching the default storage class", func() {
-		storageClasses, err := f.K8sClient.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		if len(storageClasses.Items) < 2 {
-			Skip("Not enough storage classes to switch default")
-		}
-		By("Expecting default storage class to be " + defaultSc.Name)
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		Expect(defaultSc.Name).To(Equal(config.Status.ScratchSpaceStorageClass))
-		By("Switching default sc")
-		err = SetStorageClassDefault(f, defaultSc.Name, false)
-		Expect(err).ToNot(HaveOccurred())
-		for _, sc := range storageClasses.Items {
-			if sc.Name != defaultSc.Name {
-				// Found other class, now set it to default.
-				secondSc = &sc
-				err = SetStorageClassDefault(f, sc.Name, true)
-				Expect(err).ToNot(HaveOccurred())
-				break
-			}
-		}
-		By("Expecting default storage class to be " + secondSc.Name)
-		Eventually(func() string {
-			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			return config.Status.ScratchSpaceStorageClass
-		}, time.Second*30, time.Second).Should(Equal(secondSc.Name))
+		Expect(config.Status.ScratchSpaceStorageClass).To(BeEmpty())
 	})
 
 	It("[test_id:3967]Should use the override even if a different default is set", func() {
@@ -195,8 +146,7 @@ var _ = Describe("CDI storage class config tests", Serial, func() {
 		}
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		// Make sure default is current value.
-		Expect(defaultSc.Name).To(Equal(config.Status.ScratchSpaceStorageClass))
+		Expect(config.Status.ScratchSpaceStorageClass).To(BeEmpty())
 		var override string
 		for _, sc := range storageClasses.Items {
 			if sc.Name != defaultSc.Name {

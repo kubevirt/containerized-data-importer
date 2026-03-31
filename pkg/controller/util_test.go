@@ -70,7 +70,7 @@ var _ = Describe("GetScratchPVCStorageClass", func() {
 		Expect(GetScratchPvcStorageClass(client, pvc)).To(Equal(storageClassName))
 	})
 
-	It("Should return default storage class from status in CDIConfig", func() {
+	It("Should return default storage class from spec in CDIConfig", func() {
 		storageClassName := "test1"
 		config := createCDIConfigWithStorageClass(common.ConfigName, storageClassName)
 		config.Spec.ScratchSpaceStorageClass = &storageClassName
