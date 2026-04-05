@@ -19,6 +19,8 @@
 
 source hack/build/common.sh
 
+set -e
+
 COMMAND=$1
 
 build_count=$(echo ${BUILD_ARCH//,/ } | wc -w)
