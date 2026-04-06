@@ -7,7 +7,7 @@ var CDICRDs map[string]string = map[string]string{
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.2
   creationTimestamp: null
   name: cdis.cdi.kubevirt.io
 spec:
@@ -164,9 +164,7 @@ spec:
                             This field is effectively required, but due to backwards compatibility is
                             allowed to be empty. Instances of this type with an empty value here are
                             almost certainly wrong.
-                            TODO: Add other useful fields. apiVersion, kind, uid?
                             More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            TODO: Drop ` + "`" + `kubebuilder:default` + "`" + ` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                           type: string
                       type: object
                       x-kubernetes-map-type: atomic
@@ -196,7 +194,7 @@ spec:
                           is consumed by the DataImportCron controller for creating
                           cronjobs, and by the import controller referring a copy
                           of the ConfigMap in the import namespace.\nHere is an example
-                          of the ConfigMap (in yaml):\n\n\napiVersion: v1\nkind: ConfigMap\nmetadata:\n
+                          of the ConfigMap (in yaml):\n\napiVersion: v1\nkind: ConfigMap\nmetadata:\n
                           \ name: my-ca-proxy-cm\n  namespace: cdi\ndata:\n  ca.pem:
                           |\n    -----BEGIN CERTIFICATE-----\n\t   ... <base64 encoded
                           cert> ...\n\t   -----END CERTIFICATE-----"
@@ -221,10 +219,8 @@ spec:
                           Claims lists the names of resources, defined in spec.resourceClaims,
                           that are used by this container.
 
-
                           This is an alpha field and requires enabling the
                           DynamicResourceAllocation feature gate.
-
 
                           This field is immutable. It can only be set for containers.
                         items:
@@ -235,6 +231,12 @@ spec:
                                 Name must match the name of one entry in pod.spec.resourceClaims of
                                 the Pod where this field is used. It makes that resource available
                                 inside a container.
+                              type: string
+                            request:
+                              description: |-
+                                Request is the name chosen for a request in the referenced claim.
+                                If empty, everything from the claim is made available, otherwise
+                                only the result of this request.
                               type: string
                           required:
                           - name
@@ -291,7 +293,6 @@ spec:
                           profile as invalid configurations can be catastrophic. An example custom profile
                           looks like this:
 
-
                             ciphers:
                               - ECDHE-ECDSA-CHACHA20-POLY1305
                               - ECDHE-RSA-CHACHA20-POLY1305
@@ -306,7 +307,6 @@ spec:
                               during the TLS handshake.  Operators may remove entries their operands
                               do not support.  For example, to use DES-CBC3-SHA  (yaml):
 
-
                                 ciphers:
                                   - DES-CBC3-SHA
                             items:
@@ -318,9 +318,7 @@ spec:
                               that is negotiated during the TLS handshake. For example, to use TLS
                               versions 1.1, 1.2 and 1.3 (yaml):
 
-
                                 minTLSVersion: VersionTLS11
-
 
                               NOTE: currently the highest minTLSVersion allowed is VersionTLS12
                             enum:
@@ -337,12 +335,9 @@ spec:
                         description: |-
                           intermediate is a TLS security profile based on:
 
-
                           https://wiki.mozilla.org/Security/Server_Side_TLS#Intermediate_compatibility_.28recommended.29
 
-
                           and looks like this (yaml):
-
 
                             ciphers:
                               - TLS_AES_128_GCM_SHA256
@@ -363,19 +358,15 @@ spec:
                         description: |-
                           modern is a TLS security profile based on:
 
-
                           https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
 
-
                           and looks like this (yaml):
-
 
                             ciphers:
                               - TLS_AES_128_GCM_SHA256
                               - TLS_AES_256_GCM_SHA384
                               - TLS_CHACHA20_POLY1305_SHA256
                             minTLSVersion: VersionTLS13
-
 
                           NOTE: Currently unsupported.
                         nullable: true
@@ -384,12 +375,9 @@ spec:
                         description: |-
                           old is a TLS security profile based on:
 
-
                           https://wiki.mozilla.org/Security/Server_Side_TLS#Old_backward_compatibility
 
-
                           and looks like this (yaml):
-
 
                             ciphers:
                               - TLS_AES_128_GCM_SHA256
@@ -430,14 +418,11 @@ spec:
                           the ability to specify individual TLS security profile parameters.
                           Old, Intermediate and Modern are TLS security profiles based on:
 
-
                           https://wiki.mozilla.org/Security/Server_Side_TLS#Recommended_configurations
-
 
                           The profiles are intent based, so they may change over time as new ciphers are developed and existing ciphers
                           are found to be insecure.  Depending on precisely which ciphers are available to a process, the list may be
                           reduced.
-
 
                           Note that the Modern profile is currently not supported because it is not
                           yet well adopted by common software libraries.
@@ -800,7 +785,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                         Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -815,7 +800,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                         Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -982,7 +967,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                     Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -997,7 +982,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                     Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -1162,7 +1147,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                         Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -1177,7 +1162,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                         Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -1344,7 +1329,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                     Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -1359,7 +1344,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                     Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -1809,7 +1794,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                         Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -1824,7 +1809,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                         Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -1991,7 +1976,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                     Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -2006,7 +1991,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                     Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -2171,7 +2156,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                         Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -2186,7 +2171,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                         Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -2353,7 +2338,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                     Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -2368,7 +2353,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                     Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -2696,9 +2681,7 @@ spec:
                             This field is effectively required, but due to backwards compatibility is
                             allowed to be empty. Instances of this type with an empty value here are
                             almost certainly wrong.
-                            TODO: Add other useful fields. apiVersion, kind, uid?
                             More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            TODO: Drop ` + "`" + `kubebuilder:default` + "`" + ` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                           type: string
                       type: object
                       x-kubernetes-map-type: atomic
@@ -2728,7 +2711,7 @@ spec:
                           is consumed by the DataImportCron controller for creating
                           cronjobs, and by the import controller referring a copy
                           of the ConfigMap in the import namespace.\nHere is an example
-                          of the ConfigMap (in yaml):\n\n\napiVersion: v1\nkind: ConfigMap\nmetadata:\n
+                          of the ConfigMap (in yaml):\n\napiVersion: v1\nkind: ConfigMap\nmetadata:\n
                           \ name: my-ca-proxy-cm\n  namespace: cdi\ndata:\n  ca.pem:
                           |\n    -----BEGIN CERTIFICATE-----\n\t   ... <base64 encoded
                           cert> ...\n\t   -----END CERTIFICATE-----"
@@ -2753,10 +2736,8 @@ spec:
                           Claims lists the names of resources, defined in spec.resourceClaims,
                           that are used by this container.
 
-
                           This is an alpha field and requires enabling the
                           DynamicResourceAllocation feature gate.
-
 
                           This field is immutable. It can only be set for containers.
                         items:
@@ -2767,6 +2748,12 @@ spec:
                                 Name must match the name of one entry in pod.spec.resourceClaims of
                                 the Pod where this field is used. It makes that resource available
                                 inside a container.
+                              type: string
+                            request:
+                              description: |-
+                                Request is the name chosen for a request in the referenced claim.
+                                If empty, everything from the claim is made available, otherwise
+                                only the result of this request.
                               type: string
                           required:
                           - name
@@ -2823,7 +2810,6 @@ spec:
                           profile as invalid configurations can be catastrophic. An example custom profile
                           looks like this:
 
-
                             ciphers:
                               - ECDHE-ECDSA-CHACHA20-POLY1305
                               - ECDHE-RSA-CHACHA20-POLY1305
@@ -2838,7 +2824,6 @@ spec:
                               during the TLS handshake.  Operators may remove entries their operands
                               do not support.  For example, to use DES-CBC3-SHA  (yaml):
 
-
                                 ciphers:
                                   - DES-CBC3-SHA
                             items:
@@ -2850,9 +2835,7 @@ spec:
                               that is negotiated during the TLS handshake. For example, to use TLS
                               versions 1.1, 1.2 and 1.3 (yaml):
 
-
                                 minTLSVersion: VersionTLS11
-
 
                               NOTE: currently the highest minTLSVersion allowed is VersionTLS12
                             enum:
@@ -2869,12 +2852,9 @@ spec:
                         description: |-
                           intermediate is a TLS security profile based on:
 
-
                           https://wiki.mozilla.org/Security/Server_Side_TLS#Intermediate_compatibility_.28recommended.29
 
-
                           and looks like this (yaml):
-
 
                             ciphers:
                               - TLS_AES_128_GCM_SHA256
@@ -2895,19 +2875,15 @@ spec:
                         description: |-
                           modern is a TLS security profile based on:
 
-
                           https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
 
-
                           and looks like this (yaml):
-
 
                             ciphers:
                               - TLS_AES_128_GCM_SHA256
                               - TLS_AES_256_GCM_SHA384
                               - TLS_CHACHA20_POLY1305_SHA256
                             minTLSVersion: VersionTLS13
-
 
                           NOTE: Currently unsupported.
                         nullable: true
@@ -2916,12 +2892,9 @@ spec:
                         description: |-
                           old is a TLS security profile based on:
 
-
                           https://wiki.mozilla.org/Security/Server_Side_TLS#Old_backward_compatibility
 
-
                           and looks like this (yaml):
-
 
                             ciphers:
                               - TLS_AES_128_GCM_SHA256
@@ -2962,14 +2935,11 @@ spec:
                           the ability to specify individual TLS security profile parameters.
                           Old, Intermediate and Modern are TLS security profiles based on:
 
-
                           https://wiki.mozilla.org/Security/Server_Side_TLS#Recommended_configurations
-
 
                           The profiles are intent based, so they may change over time as new ciphers are developed and existing ciphers
                           are found to be insecure.  Depending on precisely which ciphers are available to a process, the list may be
                           reduced.
-
 
                           Note that the Modern profile is currently not supported because it is not
                           yet well adopted by common software libraries.
@@ -3332,7 +3302,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                         Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -3347,7 +3317,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                         Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -3514,7 +3484,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                     Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -3529,7 +3499,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                     Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -3694,7 +3664,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                         Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -3709,7 +3679,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                         Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -3876,7 +3846,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                     Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -3891,7 +3861,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                     Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -4341,7 +4311,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                         Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -4356,7 +4326,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                         Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -4523,7 +4493,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                     Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -4538,7 +4508,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                     Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -4703,7 +4673,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                         Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -4718,7 +4688,7 @@ spec:
                                         pod labels will be ignored. The default value is empty.
                                         The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                         Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                        This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                        This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                       items:
                                         type: string
                                       type: array
@@ -4885,7 +4855,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both matchLabelKeys and labelSelector.
                                     Also, matchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -4900,7 +4870,7 @@ spec:
                                     pod labels will be ignored. The default value is empty.
                                     The same key is forbidden to exist in both mismatchLabelKeys and labelSelector.
                                     Also, mismatchLabelKeys cannot be set when labelSelector isn't set.
-                                    This is an alpha field and requires enabling MatchLabelKeysInPodAffinity feature gate.
+                                    This is a beta field and requires enabling MatchLabelKeysInPodAffinity feature gate (enabled by default).
                                   items:
                                     type: string
                                   type: array
@@ -5097,7 +5067,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.2
   creationTimestamp: null
   name: cdiconfigs.cdi.kubevirt.io
 spec:
@@ -5183,9 +5153,7 @@ spec:
                         This field is effectively required, but due to backwards compatibility is
                         allowed to be empty. Instances of this type with an empty value here are
                         almost certainly wrong.
-                        TODO: Add other useful fields. apiVersion, kind, uid?
                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                        TODO: Drop ` + "`" + `kubebuilder:default` + "`" + ` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                       type: string
                   type: object
                   x-kubernetes-map-type: atomic
@@ -5215,7 +5183,7 @@ spec:
                       by the DataImportCron controller for creating cronjobs, and
                       by the import controller referring a copy of the ConfigMap in
                       the import namespace.\nHere is an example of the ConfigMap (in
-                      yaml):\n\n\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name:
+                      yaml):\n\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name:
                       my-ca-proxy-cm\n  namespace: cdi\ndata:\n  ca.pem: |\n    -----BEGIN
                       CERTIFICATE-----\n\t   ... <base64 encoded cert> ...\n\t   -----END
                       CERTIFICATE-----"
@@ -5239,10 +5207,8 @@ spec:
                       Claims lists the names of resources, defined in spec.resourceClaims,
                       that are used by this container.
 
-
                       This is an alpha field and requires enabling the
                       DynamicResourceAllocation feature gate.
-
 
                       This field is immutable. It can only be set for containers.
                     items:
@@ -5253,6 +5219,12 @@ spec:
                             Name must match the name of one entry in pod.spec.resourceClaims of
                             the Pod where this field is used. It makes that resource available
                             inside a container.
+                          type: string
+                        request:
+                          description: |-
+                            Request is the name chosen for a request in the referenced claim.
+                            If empty, everything from the claim is made available, otherwise
+                            only the result of this request.
                           type: string
                       required:
                       - name
@@ -5309,7 +5281,6 @@ spec:
                       profile as invalid configurations can be catastrophic. An example custom profile
                       looks like this:
 
-
                         ciphers:
                           - ECDHE-ECDSA-CHACHA20-POLY1305
                           - ECDHE-RSA-CHACHA20-POLY1305
@@ -5324,7 +5295,6 @@ spec:
                           during the TLS handshake.  Operators may remove entries their operands
                           do not support.  For example, to use DES-CBC3-SHA  (yaml):
 
-
                             ciphers:
                               - DES-CBC3-SHA
                         items:
@@ -5336,9 +5306,7 @@ spec:
                           that is negotiated during the TLS handshake. For example, to use TLS
                           versions 1.1, 1.2 and 1.3 (yaml):
 
-
                             minTLSVersion: VersionTLS11
-
 
                           NOTE: currently the highest minTLSVersion allowed is VersionTLS12
                         enum:
@@ -5355,12 +5323,9 @@ spec:
                     description: |-
                       intermediate is a TLS security profile based on:
 
-
                       https://wiki.mozilla.org/Security/Server_Side_TLS#Intermediate_compatibility_.28recommended.29
 
-
                       and looks like this (yaml):
-
 
                         ciphers:
                           - TLS_AES_128_GCM_SHA256
@@ -5381,19 +5346,15 @@ spec:
                     description: |-
                       modern is a TLS security profile based on:
 
-
                       https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility
 
-
                       and looks like this (yaml):
-
 
                         ciphers:
                           - TLS_AES_128_GCM_SHA256
                           - TLS_AES_256_GCM_SHA384
                           - TLS_CHACHA20_POLY1305_SHA256
                         minTLSVersion: VersionTLS13
-
 
                       NOTE: Currently unsupported.
                     nullable: true
@@ -5402,12 +5363,9 @@ spec:
                     description: |-
                       old is a TLS security profile based on:
 
-
                       https://wiki.mozilla.org/Security/Server_Side_TLS#Old_backward_compatibility
 
-
                       and looks like this (yaml):
-
 
                         ciphers:
                           - TLS_AES_128_GCM_SHA256
@@ -5448,14 +5406,11 @@ spec:
                       the ability to specify individual TLS security profile parameters.
                       Old, Intermediate and Modern are TLS security profiles based on:
 
-
                       https://wiki.mozilla.org/Security/Server_Side_TLS#Recommended_configurations
-
 
                       The profiles are intent based, so they may change over time as new ciphers are developed and existing ciphers
                       are found to be insecure.  Depending on precisely which ciphers are available to a process, the list may be
                       reduced.
-
 
                       Note that the Modern profile is currently not supported because it is not
                       yet well adopted by common software libraries.
@@ -5482,10 +5437,8 @@ spec:
                       Claims lists the names of resources, defined in spec.resourceClaims,
                       that are used by this container.
 
-
                       This is an alpha field and requires enabling the
                       DynamicResourceAllocation feature gate.
-
 
                       This field is immutable. It can only be set for containers.
                     items:
@@ -5496,6 +5449,12 @@ spec:
                             Name must match the name of one entry in pod.spec.resourceClaims of
                             the Pod where this field is used. It makes that resource available
                             inside a container.
+                          type: string
+                        request:
+                          description: |-
+                            Request is the name chosen for a request in the referenced claim.
+                            If empty, everything from the claim is made available, otherwise
+                            only the result of this request.
                           type: string
                       required:
                       - name
@@ -5567,9 +5526,7 @@ spec:
                         This field is effectively required, but due to backwards compatibility is
                         allowed to be empty. Instances of this type with an empty value here are
                         almost certainly wrong.
-                        TODO: Add other useful fields. apiVersion, kind, uid?
                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                        TODO: Drop ` + "`" + `kubebuilder:default` + "`" + ` when controller-gen doesn't need it https://github.com/kubernetes-sigs/kubebuilder/issues/3896.
                       type: string
                   type: object
                   x-kubernetes-map-type: atomic
@@ -5599,7 +5556,7 @@ spec:
                       by the DataImportCron controller for creating cronjobs, and
                       by the import controller referring a copy of the ConfigMap in
                       the import namespace.\nHere is an example of the ConfigMap (in
-                      yaml):\n\n\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name:
+                      yaml):\n\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name:
                       my-ca-proxy-cm\n  namespace: cdi\ndata:\n  ca.pem: |\n    -----BEGIN
                       CERTIFICATE-----\n\t   ... <base64 encoded cert> ...\n\t   -----END
                       CERTIFICATE-----"
@@ -5636,7 +5593,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.2
   creationTimestamp: null
   name: dataimportcrons.cdi.kubevirt.io
 spec:
@@ -5959,7 +5916,7 @@ spec:
                               set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource
                               exists.
                               More info: https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/
-                              (Alpha) Using this field requires the VolumeAttributesClass feature gate to be enabled.
+                              (Beta) Using this field requires the VolumeAttributesClass feature gate to be enabled (off by default).
                             type: string
                           volumeMode:
                             description: |-
@@ -6498,7 +6455,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.2
   creationTimestamp: null
   name: datasources.cdi.kubevirt.io
 spec:
@@ -6686,7 +6643,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.2
   creationTimestamp: null
   name: datavolumes.cdi.kubevirt.io
 spec:
@@ -6967,7 +6924,7 @@ spec:
                       set to a Pending state, as reflected by the modifyVolumeStatus field, until such as a resource
                       exists.
                       More info: https://kubernetes.io/docs/concepts/storage/volume-attributes-classes/
-                      (Alpha) Using this field requires the VolumeAttributesClass feature gate to be enabled.
+                      (Beta) Using this field requires the VolumeAttributesClass feature gate to be enabled (off by default).
                     type: string
                   volumeMode:
                     description: |-
@@ -7418,7 +7375,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.2
   creationTimestamp: null
   name: objecttransfers.cdi.kubevirt.io
 spec:
@@ -7446,7 +7403,6 @@ spec:
       openAPIV3Schema:
         description: |-
           Deprecated for removal in v1.
-
 
           ObjectTransfer is the cluster scoped object transfer resource
         properties:
@@ -7559,7 +7515,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.2
   creationTimestamp: null
   name: openstackvolumepopulators.forklift.cdi.kubevirt.io
 spec:
@@ -7639,7 +7595,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.2
   creationTimestamp: null
   name: ovirtvolumepopulators.forklift.cdi.kubevirt.io
 spec:
@@ -7719,7 +7675,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.2
   creationTimestamp: null
   name: storageprofiles.cdi.kubevirt.io
 spec:
@@ -7879,7 +7835,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.2
   creationTimestamp: null
   name: volumeclonesources.cdi.kubevirt.io
 spec:
@@ -7965,7 +7921,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.2
   creationTimestamp: null
   name: volumeimportsources.cdi.kubevirt.io
 spec:
@@ -8229,7 +8185,7 @@ status:
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.14.0
+    controller-gen.kubebuilder.io/version: v0.17.2
   creationTimestamp: null
   name: volumeuploadsources.cdi.kubevirt.io
 spec:
