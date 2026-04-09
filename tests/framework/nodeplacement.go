@@ -2,7 +2,6 @@ package framework
 
 import (
 	"context"
-	"runtime"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -10,9 +9,11 @@ import (
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
+const hostnameLabel = "kubernetes.io/hostname"
+
 var (
 	//NodeSelectorTestValue is nodeSelector value for test
-	NodeSelectorTestValue = map[string]string{"kubernetes.io/arch": runtime.GOARCH}
+	NodeSelectorTestValue = map[string]string{hostnameLabel: ""}
 	//TolerationsTestValue is tolerations value for test
 	TolerationsTestValue = []v1.Toleration{{Key: "test", Value: "123"}}
 	//AffinityTestValue is affinity value for test
@@ -32,13 +33,14 @@ func (f *Framework) TestNodePlacementValues() sdkapi.NodePlacement {
 		}
 	}
 
+	NodeSelectorTestValue[hostnameLabel] = nodeName
 	AffinityTestValue = &v1.Affinity{
 		NodeAffinity: &v1.NodeAffinity{
 			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
 				NodeSelectorTerms: []v1.NodeSelectorTerm{
 					{
 						MatchExpressions: []v1.NodeSelectorRequirement{
-							{Key: "kubernetes.io/hostname", Operator: v1.NodeSelectorOpIn, Values: []string{nodeName}},
+							{Key: hostnameLabel, Operator: v1.NodeSelectorOpIn, Values: []string{nodeName}},
 						},
 					},
 				},
