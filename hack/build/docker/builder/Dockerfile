@@ -47,7 +47,7 @@ RUN \
 	go install mvdan.cc/sh/cmd/shfmt@latest && \
 	go install github.com/mattn/goveralls@latest && \
 	go install github.com/rmohr/go-swagger-utils/swagger-doc@latest && \
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.14.0 && \
+	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.2 && \
 	rm -rf "${GOPATH}/pkg"
 
 ENV BAZEL_VERSION=5.4.1
