@@ -654,6 +654,54 @@ var _ = Describe("Import populator tests", func() {
 			Expect(targetPvc.Annotations[AnnPopulatorProgress]).To(BeEquivalentTo("13.45%"))
 		})
 	})
+
+	DescribeTable("Should set bound condition message from prime PVC", func(primeAnnotations map[string]string, eventMessage, expectedBoundMessage string) {
+		primeName := "prime-pvc"
+		targetPvc := CreatePvcInStorageClass("target-pvc", metav1.NamespaceDefault, nil,
+			map[string]string{AnnPVCPrimeName: primeName}, nil, corev1.ClaimPending)
+
+		primePvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:        primeName,
+				Namespace:   metav1.NamespaceDefault,
+				Annotations: primeAnnotations,
+			},
+		}
+
+		event := &corev1.Event{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "target-pvc-event",
+				Namespace: metav1.NamespaceDefault,
+			},
+			InvolvedObject: corev1.ObjectReference{
+				Name:      targetPvc.Name,
+				Namespace: targetPvc.Namespace,
+				UID:       targetPvc.UID,
+			},
+			Message:       eventMessage,
+			LastTimestamp: metav1.Now(),
+		}
+
+		reconciler = createImportPopulatorReconciler(targetPvc, primePvc, event)
+		err := UpdatePVCBoundContion(targetPvc, reconciler.client)
+		Expect(err).ToNot(HaveOccurred())
+
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: targetPvc.Name, Namespace: metav1.NamespaceDefault}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPvc.GetAnnotations()[AnnBoundConditionMessage]).To(Equal(expectedBoundMessage))
+		Expect(resPvc.GetAnnotations()[AnnBoundCondition]).To(Equal("false"))
+		Expect(resPvc.GetAnnotations()[AnnBoundConditionReason]).To(Equal("Pending"))
+	},
+		Entry("using prime PVC annotation directly",
+			map[string]string{AnnBoundConditionMessage: "Important bound message"},
+			"event message",
+			"Important bound message"),
+		Entry("falling back to event parsing when prime has no bound condition annotation",
+			nil,
+			fmt.Sprintf("[%s] : event message", "prime-pvc"),
+			"event message"),
+	)
 })
 
 func createImportPopulatorReconciler(objects ...runtime.Object) *ImportPopulatorReconciler {

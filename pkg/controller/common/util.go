@@ -2176,10 +2176,10 @@ func ResolveDataSourceChain(ctx context.Context, client client.Client, dataSourc
 	return resolved, nil
 }
 
-func sortEvents(events *corev1.EventList, usingPopulator bool, pvcPrimeName string) {
-	// Sort event lists by containing primeName substring and most recent timestamp
+// Sorts events in time based order, prioritizing events that were emitted from prime PVCs
+func sortEvents(events *corev1.EventList, pvcPrimeName string) {
 	sort.Slice(events.Items, func(i, j int) bool {
-		if usingPopulator {
+		if pvcPrimeName != "" {
 			firstContainsPrime := strings.Contains(events.Items[i].Message, pvcPrimeName)
 			secondContainsPrime := strings.Contains(events.Items[j].Message, pvcPrimeName)
 
@@ -2201,9 +2201,44 @@ func sortEvents(events *corev1.EventList, usingPopulator bool, pvcPrimeName stri
 	})
 }
 
-// UpdatePVCBoundContionFromEvents updates the bound condition annotations on the PVC based on recent events
-// This function can be used by both controller and populator packages to update PVC bound condition information
-func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client.Client, log logr.Logger) error {
+func getLatestEventMessage(pvc *corev1.PersistentVolumeClaim, primeName string, c client.Client) string {
+	events := &corev1.EventList{}
+	err := c.List(context.TODO(), events,
+		client.InNamespace(pvc.GetNamespace()),
+		client.MatchingFields{"involvedObject.name": pvc.GetName(),
+			"involvedObject.uid": string(pvc.GetUID())},
+	)
+	if err != nil {
+		klog.Info("Unable to list events for pvc", "pvc", pvc.Name)
+		return ""
+	}
+
+	if len(events.Items) == 0 {
+		return ""
+	}
+
+	sortEvents(events, primeName)
+
+	if primeName != "" {
+		// prime events get emitted on target PVCs with their name prefixed in square brackets
+		fmtPrimeName := fmt.Sprintf("[%s] : ", primeName)
+		primeIdx := strings.Index(events.Items[0].Message, fmtPrimeName)
+		if primeIdx == -1 {
+			return ""
+		}
+		return events.Items[0].Message[primeIdx+len(fmtPrimeName):]
+	}
+
+	return events.Items[0].Message
+}
+
+// UpdatePVCBoundContion updates the bound condition annotations on the target PVC
+//
+// For populators, the message will come from the prime PVCs bound condition if explicitly set,
+// otherwise it will use the prime PVC's latest event message
+//
+// For non-populators, the bound message will come from the PVCs latest event message
+func UpdatePVCBoundContion(pvc *corev1.PersistentVolumeClaim, c client.Client) error {
 	currentPvcCopy := pvc.DeepCopy()
 
 	anno := pvc.GetAnnotations()
@@ -2211,8 +2246,12 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 		return nil
 	}
 
+	// we only want to update bound conditions for non prime pvcs
+	if _, exists := anno[AnnPopulatorKind]; exists {
+		return nil
+	}
+
 	if IsBound(pvc) {
-		anno := pvc.GetAnnotations()
 		delete(anno, AnnBoundCondition)
 		delete(anno, AnnBoundConditionReason)
 		delete(anno, AnnBoundConditionMessage)
@@ -2231,46 +2270,32 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 		return nil
 	}
 
-	// set bound condition by getting the latest event
-	events := &corev1.EventList{}
-
-	err := c.List(context.TODO(), events,
-		client.InNamespace(pvc.GetNamespace()),
-		client.MatchingFields{"involvedObject.name": pvc.GetName(),
-			"involvedObject.uid": string(pvc.GetUID())},
-	)
-
-	if err != nil {
-		// Log the error but don't fail the reconciliation
-		log.Error(err, "Unable to list events for PVC bound condition update", "pvc", pvc.Name)
-		return nil
-	}
-
-	if len(events.Items) == 0 {
-		return nil
-	}
-
-	pvcPrime, usingPopulator := anno[AnnPVCPrimeName]
-
-	// Sort event lists by containing primeName substring and most recent timestamp
-	sortEvents(events, usingPopulator, pvcPrime)
-
 	boundMessage := ""
-	// check if prime name annotation exists
-	if usingPopulator {
-		// if we are using populators get the latest event from prime pvc
-		pvcPrime = fmt.Sprintf("[%s] : ", pvcPrime)
+	primeName, usingPopulator := anno[AnnPVCPrimeName]
 
-		// if the first event does not contain a prime message, none will so return
-		primeIdx := strings.Index(events.Items[0].Message, pvcPrime)
-		if primeIdx == -1 {
-			log.V(1).Info("No bound message found, skipping bound condition update", "pvc", pvc.Name)
-			return nil
+	if usingPopulator {
+		pvcPrime := &corev1.PersistentVolumeClaim{}
+		if err := c.Get(context.TODO(), types.NamespacedName{Name: primeName, Namespace: pvc.GetNamespace()}, pvcPrime); err != nil {
+			if k8serrors.IsNotFound(err) {
+				klog.V(4).Info("Could not find prime pvc associated to this pvc", "pvc", pvc.Name)
+				return nil
+			}
+			return err
 		}
-		boundMessage = events.Items[0].Message[primeIdx+len(pvcPrime):]
+
+		// prioritize the prime PVC's bound condition message over events
+		if msg, exists := pvcPrime.Annotations[AnnBoundConditionMessage]; exists {
+			boundMessage = msg
+		} else {
+			boundMessage = getLatestEventMessage(pvc, primeName, c)
+		}
 	} else {
-		// if not using populators just get the latest event
-		boundMessage = events.Items[0].Message
+		boundMessage = getLatestEventMessage(pvc, primeName, c)
+	}
+
+	// return early if no message was found
+	if boundMessage == "" {
+		return nil
 	}
 
 	// since we checked status of phase above, we know this is pending
@@ -2288,8 +2313,6 @@ func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client
 
 // CopyEvents gets srcPvc events and re-emits them on the target PVC with the src name prefix
 func CopyEvents(srcPVC, targetPVC client.Object, c client.Client, recorder record.EventRecorder) {
-	srcPrefixMsg := fmt.Sprintf("[%s] : ", srcPVC.GetName())
-
 	newEvents := &corev1.EventList{}
 	err := c.List(context.TODO(), newEvents,
 		client.InNamespace(srcPVC.GetNamespace()),
@@ -2327,11 +2350,14 @@ func CopyEvents(srcPVC, targetPVC client.Object, c client.Client, recorder recor
 			continue
 		}
 
-		formattedMsg := srcPrefixMsg + msg
+		// format new event message to indicate that it came from the src pvc
+		formattedMsg := fmt.Sprintf("[%s] : %s", srcPVC.GetName(), msg)
+
 		// check if we already emitted this event with the src prefix
 		if _, exists := eventMap[formattedMsg]; exists {
 			continue
 		}
+
 		recorder.Event(targetPVC, newEvent.Type, newEvent.Reason, formattedMsg)
 	}
 }
