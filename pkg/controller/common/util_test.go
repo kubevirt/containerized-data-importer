@@ -380,7 +380,7 @@ var _ = Describe("sortEvents", func() {
 				{LastTimestamp: metav1.NewTime(time.Now().Add(-1 * time.Second)), Message: "first long message"},
 			},
 		}
-		sortEvents(events, false, "")
+		sortEvents(events, "")
 		Expect(events.Items[0].Message).To(Equal("first long message"))
 		Expect(events.Items[1].Message).To(Equal("first"))
 		Expect(events.Items[2].Message).To(Equal("second"))
@@ -398,7 +398,7 @@ var _ = Describe("sortEvents", func() {
 				{LastTimestamp: metav1.NewTime(time.Now().Add(-1 * time.Second)), Message: "first"},
 			},
 		}
-		sortEvents(events, true, "primeName")
+		sortEvents(events, "primeName")
 		Expect(events.Items[0].Message).To(Equal("[primeName] first prime but more interesting"))
 		Expect(events.Items[1].Message).To(Equal("[primeName] first prime"))
 		Expect(events.Items[2].Message).To(Equal("[primeName] second prime"))
