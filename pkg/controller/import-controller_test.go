@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	kvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -903,6 +904,64 @@ var _ = Describe("Create Importer Pod", func() {
 		Entry("should create pod with block volume mode", createBlockPvc("testBlockPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnImportPod: "podName", cc.AnnPriorityClassName: "p0"}, nil), nil),
 		Entry("should create pod with file system volume mode and scratchspace", cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnImportPod: "podName", cc.AnnPriorityClassName: "p0"}, nil), &scratchPvcName),
 		Entry("should create pod with block volume mode and scratchspace", createBlockPvc("testBlockPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnImportPod: "podName", cc.AnnPriorityClassName: "p0"}, nil), &scratchPvcName),
+	)
+
+	DescribeTable("should copy labels from target PVC when creating pod", func(isPopulator bool) {
+		targetPvc := cc.CreatePvc("targetPvc", "default",
+			map[string]string{
+				cc.AnnEndpoint:  testEndPoint,
+				cc.AnnImportPod: "podName",
+			},
+			map[string]string{
+				"custom-label": "value",
+			},
+		)
+
+		objects := []runtime.Object{targetPvc}
+		podArgs := &importerPodArgs{
+			image:      testImage,
+			verbose:    "5",
+			pullPolicy: testPullPolicy,
+			podEnvVar:  &importPodEnvVar{},
+			pvc:        targetPvc,
+		}
+
+		if isPopulator {
+			primePvc := cc.CreatePvc("primePvc", "default",
+				map[string]string{
+					cc.AnnEndpoint:      testEndPoint,
+					cc.AnnImportPod:     "podName",
+					cc.AnnPopulatorKind: cdiv1.VolumeImportSourceRef,
+				},
+				map[string]string{
+					"prime-label": "prime-value",
+				},
+			)
+			primePvc.OwnerReferences = []metav1.OwnerReference{
+				*metav1.NewControllerRef(targetPvc, schema.GroupVersionKind{
+					Group:   "",
+					Version: "v1",
+					Kind:    "PersistentVolumeClaim",
+				}),
+			}
+			objects = append(objects, primePvc)
+			podArgs.pvc = primePvc
+		}
+
+		reconciler := createImportReconciler(objects...)
+
+		pod, err := createImporterPod(context.TODO(), reconciler.log, reconciler.client, podArgs, map[string]string{})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying pod has labels from target PVC")
+		Expect(pod.Labels).To(HaveKeyWithValue("custom-label", "value"))
+		if isPopulator {
+			By("Verifying pod does not have labels from prime PVC")
+			Expect(pod.Labels).ToNot(HaveKey("prime-label"))
+		}
+	},
+		Entry("using populator", true),
+		Entry("using non-populator", false),
 	)
 
 	DescribeTable("should append current checkpoint name to importer pod", func(pvcName, checkpointID string) {
