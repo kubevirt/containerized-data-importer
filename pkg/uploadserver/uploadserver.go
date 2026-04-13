@@ -42,7 +42,6 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
-	"kubevirt.io/containerized-data-importer/pkg/util"
 	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 )
 
@@ -475,7 +474,7 @@ func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, file
 func cloneProcessor(stream io.ReadCloser, contentType, dest string, preallocate bool) (bool, error) {
 	if contentType == common.FilesystemCloneContentType {
 		if dest != common.WriteBlockPath {
-			return fileToFileCloneProcessor(stream)
+			return fileToFileCloneProcessor(stream, preallocate)
 		}
 
 		tarImageReader, err := newTarDiskImageReader(stream)
@@ -496,12 +495,22 @@ func cloneProcessor(stream io.ReadCloser, contentType, dest string, preallocate 
 	return false, nil
 }
 
-func fileToFileCloneProcessor(stream io.ReadCloser) (bool, error) {
-	defer stream.Close()
-	if err := util.UnArchiveTar(stream, common.ImporterVolumePath); err != nil {
-		return false, errors.Wrapf(err, "error unarchiving to %s", common.ImporterVolumePath)
+func fileToFileCloneProcessor(stream io.ReadCloser, preallocate bool) (bool, error) {
+	tarImageReader, err := newTarDiskImageReader(stream)
+	if err != nil {
+		// No disk.img in archive — fall back to full untar.
+		// Note: stream is consumed at this point, so we re-report the error.
+		stream.Close()
+		return false, errors.Wrap(err, "no disk image found in tar archive")
 	}
-	return true, nil
+	defer tarImageReader.Close()
+
+	_, _, err = importer.StreamDataToFile(tarImageReader, common.ImporterWritePath, preallocate)
+	if err != nil {
+		return false, errors.Wrapf(err, "error streaming disk image to %s", common.ImporterWritePath)
+	}
+
+	return false, nil
 }
 
 type closeWrapper struct {
