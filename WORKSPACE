@@ -130,6 +130,16 @@ http_archive(
     ],
 )
 
+http_archive(
+    name = "tar.bzl",
+    sha256 = "a0d64064a598d7a1e58196d17de0deed6d3d2d8bfe1407ed9e68b24c31c38e8d",
+    strip_prefix = "tar.bzl-0.7.0",
+    urls = [
+        "https://github.com/bazel-contrib/tar.bzl/releases/download/v0.7.0/tar.bzl-v0.7.0.tar.gz",
+        "https://storage.googleapis.com/builddeps/a0d64064a598d7a1e58196d17de0deed6d3d2d8bfe1407ed9e68b24c31c38e8d",
+    ],
+)
+
 load("@aspect_bazel_lib//lib:repositories.bzl", "aspect_bazel_lib_dependencies", "aspect_bazel_lib_register_toolchains")
 
 aspect_bazel_lib_dependencies()
