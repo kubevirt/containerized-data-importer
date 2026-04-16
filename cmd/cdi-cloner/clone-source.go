@@ -30,6 +30,11 @@ var (
 	uploadBytes uint64
 )
 
+// seekFunc is a function variable for unix.Seek, allowing test injection.
+var seekFunc = func(fd int, offset int64, whence int) (int64, error) {
+	return unix.Seek(fd, offset, whence)
+}
+
 type execReader struct {
 	cmd    *exec.Cmd
 	stdout io.ReadCloser
@@ -173,14 +178,14 @@ func seekHoleSupported(path string) bool {
 		return true
 	}
 
-	dataOff, dataErr := unix.Seek(int(f.Fd()), 0, unix.SEEK_DATA)
+	dataOff, dataErr := seekFunc(int(f.Fd()), 0, unix.SEEK_DATA)
 	if errors.Is(dataErr, unix.ENXIO) {
 		// ENXIO from SEEK_DATA means the file is entirely sparse (no data).
 		// Only a real SEEK_HOLE implementation returns this.
 		return true
 	}
 
-	holeOff, holeErr := unix.Seek(int(f.Fd()), 0, unix.SEEK_HOLE)
+	holeOff, holeErr := seekFunc(int(f.Fd()), 0, unix.SEEK_HOLE)
 
 	if dataErr != nil || holeErr != nil {
 		klog.Warningf("SEEK_HOLE probe failed on %s: SEEK_DATA=%v, SEEK_HOLE=%v", path, dataErr, holeErr)
