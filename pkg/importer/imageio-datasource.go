@@ -666,8 +666,8 @@ func cleanupTransfer(conn ConnectionInterface, it *ovirtsdk4.ImageTransfer) erro
 	for retries := 10; retries > 0; retries-- {
 		cancelTransfer := func() error {
 			klog.Info("Cancelling image transfer.")
-			if _, cancelError := transferService.Cancel().Send(); err != nil {
-				klog.Errorf("Unable to cancel transfer request: %v", err)
+			if _, cancelError := transferService.Cancel().Send(); cancelError != nil {
+				klog.Errorf("Unable to cancel transfer request: %v", cancelError)
 				return cancelError
 			}
 			return nil
@@ -675,8 +675,8 @@ func cleanupTransfer(conn ConnectionInterface, it *ovirtsdk4.ImageTransfer) erro
 
 		finalizeTransfer := func() error {
 			klog.Info("Finalizing image transfer.")
-			if _, finalizeError := transferService.Finalize().Send(); err != nil {
-				klog.Errorf("Unable to finalize transfer request: %v", err)
+			if _, finalizeError := transferService.Finalize().Send(); finalizeError != nil {
+				klog.Errorf("Unable to finalize transfer request: %v", finalizeError)
 				return finalizeError
 			}
 			return nil
