@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -362,8 +363,17 @@ var _ = Describe("VDDK data source", func() {
 		//Expect(ds.ChangedBlocks).To(Equal(&changeInfo))
 	})
 
-	DescribeTable("disk name lookup", func(targetDiskName, diskName, snapshotDiskName, rootSnapshotParentName string, backingInfoType string, expectedSuccess bool) {
+	DescribeTable("disk name lookup", func(targetDiskName string, snapshotChain [][]string, backingInfoType string, expectedSuccess bool) {
+		// snapshotChain is a list of lists of disk file names, like this:
+		//     list 0: backing file chain for the base VM disk
+		//     list 1: backing file chain for "snapshot-1"
+		//     list 2: backing file chain for "snapshot-2"
 		var returnedDiskName string
+
+		diskName := ""
+		if len(snapshotChain) > 1 {
+			diskName = snapshotChain[0][0]
+		}
 
 		newVddkDataSource = createVddkDataSource
 		newNbdKitWrapper = func(vmware *VMwareClient, fileName, snapshot string) (*NbdKitWrapper, error) {
@@ -379,33 +389,45 @@ var _ = Describe("VDDK data source", func() {
 					out.Snapshot = createSnapshots("snapshot-1", "snapshot-2")
 				}
 			case *mo.VirtualMachineSnapshot:
-				out.Config = *createVirtualDiskConfig(snapshotDiskName, 123456)
+				out.Config = *createVirtualDiskConfig(diskName, 123456)
+				index, err := strconv.Atoi(strings.ReplaceAll(ref.Value, "snapshot-", ""))
+				Expect(err).ToNot(HaveOccurred())
 				disk := out.Config.Hardware.Device[0].(*types.VirtualDisk)
 				switch backingInfoType {
-				case "VirtualDiskFlatVer1BackingInfo": // Default from createVirtualDiskConfig, no extra setup needed
-					parent := disk.Backing.(*types.VirtualDiskFlatVer1BackingInfo).Parent
-					parent.FileName = rootSnapshotParentName
-				case "VirtualDiskFlatVer2BackingInfo":
-					disk.Backing = &types.VirtualDiskFlatVer2BackingInfo{
-						VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
-							FileName: snapshotDiskName,
-						},
-						Parent: &types.VirtualDiskFlatVer2BackingInfo{
+				case "VirtualDiskFlatVer1BackingInfo":
+					backing := disk.Backing.(*types.VirtualDiskFlatVer1BackingInfo)
+					for _, name := range snapshotChain[index] {
+						*backing = types.VirtualDiskFlatVer1BackingInfo{
 							VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
-								FileName: rootSnapshotParentName,
+								FileName: name,
 							},
-						},
+							Parent: &types.VirtualDiskFlatVer1BackingInfo{},
+						}
+						backing = backing.Parent
+					}
+				case "VirtualDiskFlatVer2BackingInfo":
+					disk.Backing = &types.VirtualDiskFlatVer2BackingInfo{}
+					backingParent := disk.Backing.(*types.VirtualDiskFlatVer2BackingInfo)
+					for _, name := range snapshotChain[index] {
+						*backingParent = types.VirtualDiskFlatVer2BackingInfo{
+							VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+								FileName: name,
+							},
+							Parent: &types.VirtualDiskFlatVer2BackingInfo{},
+						}
+						backingParent = backingParent.Parent
 					}
 				case "VirtualDiskRawDiskMappingVer1BackingInfo":
-					disk.Backing = &types.VirtualDiskRawDiskMappingVer1BackingInfo{
-						VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
-							FileName: snapshotDiskName,
-						},
-						Parent: &types.VirtualDiskRawDiskMappingVer1BackingInfo{
+					disk.Backing = &types.VirtualDiskRawDiskMappingVer1BackingInfo{}
+					backingParent := disk.Backing.(*types.VirtualDiskRawDiskMappingVer1BackingInfo)
+					for _, name := range snapshotChain[index] {
+						*backingParent = types.VirtualDiskRawDiskMappingVer1BackingInfo{
 							VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
-								FileName: rootSnapshotParentName,
+								FileName: name,
 							},
-						},
+							Parent: &types.VirtualDiskRawDiskMappingVer1BackingInfo{},
+						}
+						backingParent = backingParent.Parent
 					}
 				}
 			}
@@ -421,18 +443,23 @@ var _ = Describe("VDDK data source", func() {
 			Expect(returnedDiskName).ToNot(Equal(targetDiskName))
 		}
 	},
-		Entry("should find backing file on a VM", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile.vmdk", "", "", "VirtualDiskFlatVer1BackingInfo", true),
-		Entry("should find backing file on a snapshot", "[teststore] testvm/testfile.vmdk", "wrong disk.vmdk", "[teststore] testvm/testfile.vmdk", "", "VirtualDiskFlatVer1BackingInfo", true),
-		Entry("should find base backing file even if not listed as first snapshot", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile-000001.vmdk", "[teststore] testvm/testfile-000002.vmdk", "[teststore] testvm/testfile.vmdk", "VirtualDiskFlatVer1BackingInfo", true),
-		Entry("should fail if backing file is not found in snapshot tree", "[teststore] testvm/testfile.vmdk", "wrong disk 1.vmdk", "wrong disk 2.vmdk", "wrong disk 1.vmdk", "VirtualDiskFlatVer1BackingInfo", false),
-		Entry("should find backing file on a VM, FlatVer2 backing", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile.vmdk", "", "", "VirtualDiskFlatVer2BackingInfo", true),
-		Entry("should find backing file on a snapshot, FlatVer2 backing", "[teststore] testvm/testfile.vmdk", "wrong disk.vmdk", "[teststore] testvm/testfile.vmdk", "", "VirtualDiskFlatVer2BackingInfo", true),
-		Entry("should find base backing file even if not listed as first snapshot, FlatVer2 backing", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile-000001.vmdk", "[teststore] testvm/testfile-000002.vmdk", "[teststore] testvm/testfile.vmdk", "VirtualDiskFlatVer2BackingInfo", true),
-		Entry("should fail if backing file is not found in snapshot tree, FlatVer2 backing", "[teststore] testvm/testfile.vmdk", "wrong disk 1.vmdk", "wrong disk 2.vmdk", "wrong disk 1.vmdk", "VirtualDiskFlatVer2BackingInfo", false),
-		Entry("should find backing file on a VM, RawDiskVer1 backing", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile.vmdk", "", "", "VirtualDiskRawDiskMappingVer1BackingInfo", true),
-		Entry("should find backing file on a snapshot, RawDiskVer1 backing", "[teststore] testvm/testfile.vmdk", "wrong disk.vmdk", "[teststore] testvm/testfile.vmdk", "", "VirtualDiskRawDiskMappingVer1BackingInfo", true),
-		Entry("should find base backing file even if not listed as first snapshot, RawDiskVer1 backing", "[teststore] testvm/testfile.vmdk", "[teststore] testvm/testfile-000001.vmdk", "[teststore] testvm/testfile-000002.vmdk", "[teststore] testvm/testfile.vmdk", "VirtualDiskRawDiskMappingVer1BackingInfo", true),
-		Entry("should fail if backing file is not found in snapshot tree, RawDiskVer1 backing", "[teststore] testvm/testfile.vmdk", "wrong disk 1.vmdk", "wrong disk 2.vmdk", "wrong disk 1.vmdk", "VirtualDiskRawDiskMappingVer1BackingInfo", false),
+		Entry("should find backing file on a VM", "[teststore] testvm/testfile.vmdk", [][]string{{"[teststore] testvm/testfile.vmdk"}, {""}, {""}}, "VirtualDiskFlatVer1BackingInfo", true),
+		Entry("should find backing file on a snapshot", "[teststore] testvm/testfile.vmdk", [][]string{{"wrong disk.vmdk"}, {"[teststore] testvm/testfile.vmdk"}, {""}}, "VirtualDiskFlatVer1BackingInfo", true),
+		Entry("should find base backing file even if not listed as first snapshot", "[teststore] testvm/testfile.vmdk", [][]string{{"[teststore] testvm/testfile-000001.vmdk"}, {"[teststore] testvm/testfile-000002.vmdk"}, {"[teststore] testvm/testfile.vmdk"}}, "VirtualDiskFlatVer1BackingInfo", true),
+		Entry("should find base backing file in multi-level parent chain", "disk1", [][]string{{""}, {"disk0", "disk5", "disk4", "disk3", "disk2", "disk1"}, {""}}, "VirtualDiskFlatVer1BackingInfo", true),
+		Entry("should fail if backing file is not found in snapshot tree", "[teststore] testvm/testfile.vmdk", [][]string{{"wrong disk 1.vmdk"}, {"wrong disk 2.vmdk"}, {"wrong disk 1.vmdk"}}, "VirtualDiskFlatVer1BackingInfo", false),
+
+		Entry("should find backing file on a VM, FlatVer2 backing", "[teststore] testvm/testfile.vmdk", [][]string{{"[teststore] testvm/testfile.vmdk"}, {""}, {""}}, "VirtualDiskFlatVer2BackingInfo", true),
+		Entry("should find backing file on a snapshot, FlatVer2 backing", "[teststore] testvm/testfile.vmdk", [][]string{{"wrong disk.vmdk"}, {"[teststore] testvm/testfile.vmdk"}, {""}}, "VirtualDiskFlatVer2BackingInfo", true),
+		Entry("should find base backing file even if not listed as first snapshot, FlatVer2 backing", "[teststore] testvm/testfile.vmdk", [][]string{{"[teststore] testvm/testfile-000001.vmdk"}, {"[teststore] testvm/testfile-000002.vmdk"}, {"[teststore] testvm/testfile.vmdk"}}, "VirtualDiskFlatVer2BackingInfo", true),
+		Entry("should find base backing file in multi-level parent chain, FlatVer2 backing", "disk1", [][]string{{""}, {"disk0", "disk5", "disk4", "disk3", "disk2", "disk1"}, {""}}, "VirtualDiskFlatVer2BackingInfo", true),
+		Entry("should fail if backing file is not found in snapshot tree, FlatVer2 backing", "[teststore] testvm/testfile.vmdk", [][]string{{"wrong disk 1.vmdk"}, {"wrong disk 2.vmdk"}, {"wrong disk 1.vmdk"}}, "VirtualDiskFlatVer2BackingInfo", false),
+
+		Entry("should find backing file on a VM, RawDiskVer1 backing", "[teststore] testvm/testfile.vmdk", [][]string{{"[teststore] testvm/testfile.vmdk"}, {""}, {""}}, "VirtualDiskRawDiskMappingVer1BackingInfo", true),
+		Entry("should find backing file on a snapshot, RawDiskVer1 backing", "[teststore] testvm/testfile.vmdk", [][]string{{"wrong disk.vmdk"}, {"[teststore] testvm/testfile.vmdk"}, {""}}, "VirtualDiskRawDiskMappingVer1BackingInfo", true),
+		Entry("should find base backing file even if not listed as first snapshot, RawDiskVer1 backing", "[teststore] testvm/testfile.vmdk", [][]string{{"[teststore] testvm/testfile-000001.vmdk"}, {"[teststore] testvm/testfile-000002.vmdk"}, {"[teststore] testvm/testfile.vmdk"}}, "VirtualDiskRawDiskMappingVer1BackingInfo", true),
+		Entry("should find base backing file in multi-level parent chain, RawDiskVer1 backing", "disk1", [][]string{{""}, {"disk0", "disk5", "disk4", "disk3", "disk2", "disk1"}, {""}}, "VirtualDiskRawDiskMappingVer1BackingInfo", true),
+		Entry("should fail if backing file is not found in snapshot tree, RawDiskVer1 backing", "[teststore] testvm/testfile.vmdk", [][]string{{"wrong disk 1.vmdk"}, {"wrong disk 2.vmdk"}, {"wrong disk 1.vmdk"}}, "VirtualDiskRawDiskMappingVer1BackingInfo", false),
 	)
 
 	It("should pass snapshot reference through to nbdkit", func() {
