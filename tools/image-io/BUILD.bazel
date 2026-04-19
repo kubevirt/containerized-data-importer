@@ -1,46 +1,5 @@
-load("@io_bazel_rules_container_rpm//rpm:rpm.bzl", "rpm_image")
-load("@io_bazel_rules_docker//container:container.bzl", "container_image")
-load("@bazel_tools//tools/build_defs/pkg:pkg.bzl", "pkg_tar")
-
-rpm_image(
-    name = "cdi-func-test-imageio-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
-    directory = "/",
-    entrypoint = ["ovirt-imageio"],
-    ports = [
-        "12345",
-    ],
-    rpms = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "@ovirt-imageio-client-aarch64//file",
-            "@ovirt-imageio-common-aarch64//file",
-            "@ovirt-imageio-daemon-aarch64//file",
-        ],
-        "//conditions:default": [
-            "@ovirt-imageio-client//file",
-            "@ovirt-imageio-common//file",
-            "@ovirt-imageio-daemon//file",
-        ],
-    }),
-    tars = select({
-        "@io_bazel_rules_go//go/platform:linux_arm64": [
-            ":ovirt-imageio-conf-tar",
-            ":test-img-tar",
-            ":test-ticket-tar",
-            "//rpm:testimage_aarch64",
-        ],
-        "//conditions:default": [
-            ":ovirt-imageio-conf-tar",
-            ":test-img-tar",
-            ":test-ticket-tar",
-            "//rpm:testimage_x86_64",
-        ],
-    }),
-    visibility = ["//visibility:public"],
-)
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 filegroup(
     name = "ovirt-imageio-conf",
@@ -75,4 +34,28 @@ pkg_tar(
     srcs = [":test-ticket"],
     mode = "644",
     package_dir = "/",
+)
+
+oci_image(
+    name = "cdi-func-test-imageio-image",
+    base = "//:testimage_base",
+    entrypoint = ["ovirt-imageio"],
+    exposed_ports = [
+        "12345",
+    ],
+    tars = select({
+        "@io_bazel_rules_go//go/platform:linux_arm64": [
+            "//rpm:cdi_importer_base_aarch64",
+            ":ovirt-imageio-conf-tar",
+            ":test-img-tar",
+            ":test-ticket-tar",
+        ],
+        "//conditions:default": [
+            "//rpm:cdi_importer_base_x86_64",
+            ":ovirt-imageio-conf-tar",
+            ":test-img-tar",
+            ":test-ticket-tar",
+        ],
+    }),
+    visibility = ["//visibility:public"],
 )

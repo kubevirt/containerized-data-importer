@@ -1,4 +1,6 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 go_library(
     name = "go_default_library",
@@ -26,38 +28,40 @@ go_binary(
     visibility = ["//visibility:public"],
 )
 
-load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_image",
+pkg_tar(
+    name = "cdi-importer-bin",
+    srcs = [":cdi-importer"],
+    package_dir = "/usr/bin/",
+    visibility = ["//visibility:private"],
 )
 
-container_image(
+oci_image(
     name = "cdi-importer-image",
-    architecture = select({
-        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
-        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
-        "//conditions:default": "amd64",
-    }),
     base = ":importer_base",
-    directory = "/usr/bin",
     entrypoint = [
         "/usr/bin/cdi-importer",
         "-alsologtostderr",
     ],
-    files = [
-        ":cdi-importer",
-        "//cmd/openstack-populator",
-        "//cmd/ovirt-populator",
-        "//tools/cdi-containerimage-server",
-        "//tools/cdi-image-size-detection",
-        "//tools/cdi-source-update-poller",
+    tars = [
+        ":cdi-importer-bin",
+        "//cmd/openstack-populator:openstack-populator-bin",
+        "//cmd/ovirt-populator:ovirt-populator-bin",
+        "//tools/cdi-containerimage-server:cdi-containerimage-server-bin",
+        "//tools/cdi-image-size-detection:cdi-image-size-detection-bin",
+        "//tools/cdi-source-update-poller:cdi-source-update-poller-bin",
     ],
     user = "1001",
     visibility = ["//visibility:public"],
 )
 
-container_image(
+oci_image(
     name = "importer_base",
+    architecture = select({
+        "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
+        "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//conditions:default": "amd64",
+    }),
+    os = "linux",
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": [
             "//rpm:cdi_importer_base_s390x",
@@ -72,4 +76,5 @@ container_image(
             "//:ca_anchors_tar",
         ],
     }),
+    visibility = ["//visibility:private"],
 )

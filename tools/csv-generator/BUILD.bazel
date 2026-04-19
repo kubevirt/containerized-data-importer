@@ -1,4 +1,5 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_binary", "go_library")
+load("@rules_pkg//:pkg.bzl", "pkg_tar")
 
 go_library(
     name = "go_default_library",
@@ -15,5 +16,12 @@ go_library(
 go_binary(
     name = "csv-generator",
     embed = [":go_default_library"],
+    visibility = ["//visibility:public"],
+)
+
+pkg_tar(
+    name = "csv-generator-bin",
+    srcs = [":csv-generator"],
+    package_dir = "/usr/bin/",
     visibility = ["//visibility:public"],
 )
