@@ -296,6 +296,83 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(pod.Spec.Tolerations).To(Equal(workloads.Tolerations))
 	})
 
+	It("Should merge VDDK extra-args ConfigMap nodeSelector with system node selector", func() {
+		extraArgsCM := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: "vddk-extra-args-cm", Namespace: "default"},
+			Data:       map[string]string{common.VddkNodeSelectorKey: `{"custom-node":"vddk-host"}`},
+		}
+		annotations := map[string]string{
+			cc.AnnEndpoint:         testEndPoint,
+			cc.AnnImportPod:        "importer-testPvc1",
+			cc.AnnSource:           cc.SourceVDDK,
+			cc.AnnVddkInitImageURL: "test://vddk-image",
+			cc.AnnVddkExtraArgs:    "vddk-extra-args-cm",
+		}
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, annotations, nil, corev1.ClaimBound)
+		reconciler = createImportReconciler(pvc, extraArgsCM)
+		workloads := updateCdiWithTestNodePlacement(reconciler.client)
+
+		err := reconciler.createImporterPod(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+
+		expected := make(map[string]string)
+		for k, v := range workloads.NodeSelector {
+			expected[k] = v
+		}
+		expected["custom-node"] = "vddk-host"
+		Expect(pod.Spec.NodeSelector).To(Equal(expected))
+		Expect(pod.Spec.Tolerations).To(Equal(workloads.Tolerations))
+		Expect(pod.Spec.Affinity).To(Equal(workloads.Affinity))
+	})
+
+	It("Should keep CDI CR node selector for VDDK when extra-args ConfigMap has no nodeSelector key", func() {
+		extraArgsCM := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: "vddk-extra-args-cm", Namespace: "default"},
+			Data:       map[string]string{"vddk-config-file": "some-vddk-arg"},
+		}
+		annotations := map[string]string{
+			cc.AnnEndpoint:         testEndPoint,
+			cc.AnnImportPod:        "importer-testPvc1",
+			cc.AnnSource:           cc.SourceVDDK,
+			cc.AnnVddkInitImageURL: "test://vddk-image",
+			cc.AnnVddkExtraArgs:    "vddk-extra-args-cm",
+		}
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, annotations, nil, corev1.ClaimBound)
+		reconciler = createImportReconciler(pvc, extraArgsCM)
+		workloads := updateCdiWithTestNodePlacement(reconciler.client)
+
+		err := reconciler.createImporterPod(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(pod.Spec.NodeSelector).To(Equal(workloads.NodeSelector))
+	})
+
+	It("Should fail VDDK importer when extra-args ConfigMap has invalid nodeSelector JSON", func() {
+		extraArgsCM := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: "vddk-extra-args-cm", Namespace: "default"},
+			Data:       map[string]string{common.VddkNodeSelectorKey: `not-valid-json`},
+		}
+		annotations := map[string]string{
+			cc.AnnEndpoint:         testEndPoint,
+			cc.AnnImportPod:        "importer-testPvc1",
+			cc.AnnSource:           cc.SourceVDDK,
+			cc.AnnVddkInitImageURL: "test://vddk-image",
+			cc.AnnVddkExtraArgs:    "vddk-extra-args-cm",
+		}
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, annotations, nil, corev1.ClaimBound)
+		reconciler = createImportReconciler(pvc, extraArgsCM)
+
+		err := reconciler.createImporterPod(pvc)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("failed to parse"))
+	})
+
 	It("Should create a POD if a PVC with all needed annotations is passed", func() {
 		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "importer-testPvc1", cc.AnnPodNetwork: "net1", "unrelatedAnnotation": "test"}, nil)
 		pvc.Status.Phase = v1.ClaimBound
