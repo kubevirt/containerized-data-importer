@@ -941,8 +941,22 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 
 	util.SetRecommendedLabels(pod, installerLabels, "cdi-controller")
 
+	srcLabels := args.pvc.Labels
+	if _, isPopulator := args.pvc.Annotations[cc.AnnPopulatorKind]; isPopulator {
+		ownerRef := metav1.GetControllerOf(args.pvc)
+		if ownerRef == nil || ownerRef.Kind != "PersistentVolumeClaim" {
+			return nil, fmt.Errorf("pvc %s/%s does not have a valid owner reference", args.pvc.Namespace, args.pvc.Name)
+		}
+
+		pvc := &corev1.PersistentVolumeClaim{}
+		if err := client.Get(context.TODO(), types.NamespacedName{Namespace: args.pvc.Namespace, Name: ownerRef.Name}, pvc); err != nil {
+			return nil, err
+		}
+		srcLabels = pvc.GetLabels()
+	}
+
 	// add any labels from pvc to the importer pod
-	util.MergeLabels(args.pvc.Labels, pod.Labels)
+	util.MergeLabels(srcLabels, pod.Labels)
 
 	if err = client.Create(context.TODO(), pod); err != nil {
 		return nil, err
