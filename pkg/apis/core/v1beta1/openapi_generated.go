@@ -17458,7 +17458,7 @@ func schema_pkg_apis_core_v1beta1_DataImportCronSpec(ref common.ReferenceCallbac
 					},
 					"retentionPolicy": {
 						SchemaProps: spec.SchemaProps{
-							Description: "RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RatainAll.",
+							Description: "RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RetainAll.",
 							Type:        []string{"string"},
 							Format:      "",
 						},

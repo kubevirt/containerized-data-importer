@@ -303,7 +303,7 @@ func (DataImportCronSpec) SwaggerDoc() map[string]string {
 		"garbageCollect":     "GarbageCollect specifies whether old PVCs should be cleaned up after a new PVC is imported.\nOptions are currently \"Outdated\" and \"Never\", defaults to \"Outdated\".\n+optional",
 		"importsToKeep":      "Number of import PVCs to keep when garbage collecting. Default is 3.\n+optional",
 		"managedDataSource":  "ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.\nDataSource has to be in the same namespace.",
-		"retentionPolicy":    "RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RatainAll.\n+optional",
+		"retentionPolicy":    "RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RetainAll.\n+optional",
 		"serviceAccountName": "ServiceAccountName is the name of the ServiceAccount for creating DataVolumes.\n+optional\n+kubebuilder:validation:MinLength=1",
 	}
 }

@@ -617,7 +617,7 @@ type DataImportCronSpec struct {
 	// ManagedDataSource specifies the name of the corresponding DataSource this cron will manage.
 	// DataSource has to be in the same namespace.
 	ManagedDataSource string `json:"managedDataSource"`
-	// RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RatainAll.
+	// RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RetainAll.
 	// +optional
 	RetentionPolicy *DataImportCronRetentionPolicy `json:"retentionPolicy,omitempty"`
 	// ServiceAccountName is the name of the ServiceAccount for creating DataVolumes.

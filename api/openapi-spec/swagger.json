@@ -4392,7 +4392,7 @@
       "default": ""
      },
      "retentionPolicy": {
-      "description": "RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RatainAll.",
+      "description": "RetentionPolicy specifies whether the created DataVolumes and DataSources are retained when their DataImportCron is deleted. Default is RetainAll.",
       "type": "string"
      },
      "schedule": {
