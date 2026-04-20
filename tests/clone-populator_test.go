@@ -53,7 +53,7 @@ var _ = Describe("Clone Populator tests", func() {
 
 	createSource := func(sz resource.Quantity, vm corev1.PersistentVolumeMode) *corev1.PersistentVolumeClaim {
 		dataVolume := utils.NewDataVolumeWithHTTPImport(sourceName, sz.String(), fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-		dataVolume.Spec.PVC.VolumeMode = &vm
+		dataVolume.Spec.Storage.VolumeMode = &vm
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -83,8 +83,8 @@ var _ = Describe("Clone Populator tests", func() {
 
 	createVolumeSnapshotSource := func(size string, storageClassName *string, volumeMode corev1.PersistentVolumeMode) *snapshotv1.VolumeSnapshot {
 		snapSourceDv := utils.NewDataVolumeWithHTTPImport(sourceName, size, fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-		snapSourceDv.Spec.PVC.VolumeMode = &volumeMode
-		snapSourceDv.Spec.PVC.StorageClassName = storageClassName
+		snapSourceDv.Spec.Storage.VolumeMode = &volumeMode
+		snapSourceDv.Spec.Storage.StorageClassName = storageClassName
 		By(fmt.Sprintf("Create new datavolume %s which will be the source of the volumesnapshot", snapSourceDv.Name))
 		snapSourceDv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, snapSourceDv)
 		Expect(err).ToNot(HaveOccurred())

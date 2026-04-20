@@ -354,13 +354,13 @@ var _ = Describe("all clone tests", func() {
 				Expect(sourcePVC.Spec.VolumeName).To(Equal(sourcePV.Name))
 
 				targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", sourcePVCDef)
-				targetDV.Spec.PVC.StorageClassName = &storageClassName
+				targetDV.Spec.Storage.StorageClassName = &storageClassName
 				targetLabelSelector := metav1.LabelSelector{
 					MatchLabels: map[string]string{
 						"target-pv": "yes",
 					},
 				}
-				targetDV.Spec.PVC.Selector = &targetLabelSelector
+				targetDV.Spec.Storage.Selector = &targetLabelSelector
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -593,7 +593,7 @@ var _ = Describe("all clone tests", func() {
 				By("Creating a source from a real image")
 				sourceDv := utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", tinyCoreIsoURL())
 				filesystem := v1.PersistentVolumeFilesystem
-				sourceDv.Spec.PVC.VolumeMode = &filesystem
+				sourceDv.Spec.Storage.VolumeMode = &filesystem
 				sourceDv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
 
 				Expect(err).ToNot(HaveOccurred())
@@ -608,8 +608,8 @@ var _ = Describe("all clone tests", func() {
 				targetDv := utils.NewDataVolumeForImageCloningAndStorageSpec("target-dv", "100Mi",
 					f.Namespace.Name,
 					sourceDv.Name,
-					sourceDv.Spec.PVC.StorageClassName,
-					sourceDv.Spec.PVC.VolumeMode)
+					sourceDv.Spec.Storage.StorageClassName,
+					sourceDv.Spec.Storage.VolumeMode)
 
 				targetDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 				Expect(err).ToNot(HaveOccurred())
@@ -939,7 +939,7 @@ var _ = Describe("all clone tests", func() {
 					By("Cloning #NumOfClones times in parallel")
 					for i := 1; i <= NumOfClones; i++ {
 						By("Cloning from the source DataVolume to target" + strconv.Itoa(i))
-						targetDv := utils.NewDataVolumeForImageCloning("target-dv"+strconv.Itoa(i), "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+						targetDv := utils.NewDataVolumeForImageCloning("target-dv"+strconv.Itoa(i), "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.Storage.StorageClassName, sourceDv.Spec.Storage.VolumeMode)
 						targetDv.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 						targetDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 						Expect(err).ToNot(HaveOccurred())
@@ -1021,7 +1021,7 @@ var _ = Describe("all clone tests", func() {
 					By("Cloning #NumOfClones times in parallel")
 					for i := 1; i <= NumOfClones; i++ {
 						By("Cloning from the source DataVolume to target" + strconv.Itoa(i))
-						targetDv := utils.NewDataVolumeForImageCloning("target-dv"+strconv.Itoa(i), "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+						targetDv := utils.NewDataVolumeForImageCloning("target-dv"+strconv.Itoa(i), "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.Storage.StorageClassName, sourceDv.Spec.Storage.VolumeMode)
 						targetDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 						Expect(err).ToNot(HaveOccurred())
 						f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDv)
@@ -1635,11 +1635,11 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Cloning from the source DataVolume to target1")
-			targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+			targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.Storage.StorageClassName, sourceDv.Spec.Storage.VolumeMode)
 			By("Cloning from the source DataVolume to target2")
-			targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+			targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.Storage.StorageClassName, sourceDv.Spec.Storage.VolumeMode)
 			By("Cloning from the target1 DataVolume to target3")
-			targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "200Mi", f.Namespace.Name, targetDv1.Name, targetDv1.Spec.PVC.StorageClassName, targetDv1.Spec.PVC.VolumeMode)
+			targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "200Mi", f.Namespace.Name, targetDv1.Name, targetDv1.Spec.Storage.StorageClassName, targetDv1.Spec.Storage.VolumeMode)
 			dvs := []*cdiv1.DataVolume{targetDv1, targetDv2, targetDv3}
 
 			for _, dv := range dvs {
@@ -1689,11 +1689,11 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			By("Cloning from the source DataVolume to target1")
-			targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+			targetDv1 = utils.NewDataVolumeForImageCloning("target-dv1", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.Storage.StorageClassName, sourceDv.Spec.Storage.VolumeMode)
 			By("Cloning from the source DataVolume to target2")
-			targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+			targetDv2 = utils.NewDataVolumeForImageCloning("target-dv2", "200Mi", f.Namespace.Name, sourceDv.Name, sourceDv.Spec.Storage.StorageClassName, sourceDv.Spec.Storage.VolumeMode)
 			By("Cloning from the target1 DataVolume to target3")
-			targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "200Mi", f.Namespace.Name, targetDv1.Name, targetDv1.Spec.PVC.StorageClassName, targetDv1.Spec.PVC.VolumeMode)
+			targetDv3 = utils.NewDataVolumeForImageCloning("target-dv3", "200Mi", f.Namespace.Name, targetDv1.Name, targetDv1.Spec.Storage.StorageClassName, targetDv1.Spec.Storage.VolumeMode)
 			dvs := []*cdiv1.DataVolume{targetDv1, targetDv2, targetDv3}
 
 			for _, dv := range dvs {
@@ -1754,7 +1754,7 @@ var _ = Describe("all clone tests", func() {
 				bigPV = pv
 			}
 
-			targetDv := utils.NewDataVolumeForImageCloning("target-dv", framework.BiggerNfsPvSize, f.Namespace.Name, sourceDv.Name, sourceDv.Spec.PVC.StorageClassName, sourceDv.Spec.PVC.VolumeMode)
+			targetDv := utils.NewDataVolumeForImageCloning("target-dv", framework.BiggerNfsPvSize, f.Namespace.Name, sourceDv.Name, sourceDv.Spec.Storage.StorageClassName, sourceDv.Spec.Storage.VolumeMode)
 			targetDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDv)
 			Expect(err).ToNot(HaveOccurred())
 			bigDV = targetDv
@@ -2521,8 +2521,8 @@ var _ = Describe("all clone tests", func() {
 
 		createSnapshot := func(size string, storageClassName *string, volumeMode v1.PersistentVolumeMode) {
 			snapSourceDv := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-			snapSourceDv.Spec.PVC.VolumeMode = &volumeMode
-			snapSourceDv.Spec.PVC.StorageClassName = storageClassName
+			snapSourceDv.Spec.Storage.VolumeMode = &volumeMode
+			snapSourceDv.Spec.Storage.StorageClassName = storageClassName
 			By(fmt.Sprintf("Create new datavolume %s which will be the source of the volumesnapshot", snapSourceDv.Name))
 			snapSourceDv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, snapSourceDv)
 			Expect(err).ToNot(HaveOccurred())
