@@ -153,13 +153,9 @@ func CleanupDvPvcNoWait(k8sClient *kubernetes.Clientset, cdiClient *cdiclientset
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
 }
 
-func NewCloningDataVolume(dataVolumeName, size string, sourcePvc *k8sv1.PersistentVolumeClaim) *cdiv1.DataVolume {
-	return NewDataVolumeForImageCloning(dataVolumeName, size, sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
-}
-
 // NewCloningDataVolumeWithStorageSpec initializes a DataVolume struct with Storage spec
 func NewCloningDataVolumeWithStorageSpec(dataVolumeName, size string, sourcePvc *k8sv1.PersistentVolumeClaim) *cdiv1.DataVolume {
-	return NewDataVolumeForImageCloningAndStorageSpec(dataVolumeName, size, sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
+	return NewDataVolumeForImageCloning(dataVolumeName, size, sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
 }
 
 // NewDataVolumeWithSourceRef initializes a DataVolume struct with DataSource SourceRef
@@ -279,10 +275,6 @@ func NewDataVolumeWithHTTPImport(dataVolumeName string, size string, httpURL str
 	}
 }
 
-func NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName string, size string, httpURL string) *cdiv1.DataVolume {
-	return NewDataVolumeWithHTTPImport(dataVolumeName, size, httpURL)
-}
-
 // NewDataVolumeWithImageioImport initializes a DataVolume struct with Imageio annotations
 func NewDataVolumeWithImageioImport(dataVolumeName string, size string, httpURL string, secret string, configMap string, diskID string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
@@ -391,10 +383,6 @@ func NewDataVolumeWithExternalPopulation(dataVolumeName, size, storageClassName 
 	return dataVolume
 }
 
-func NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, size, storageClassName string, volumeMode k8sv1.PersistentVolumeMode, dataSource *k8sv1.TypedLocalObjectReference, dataSourceRef *k8sv1.TypedObjectReference) *cdiv1.DataVolume {
-	return NewDataVolumeWithExternalPopulation(dataVolumeName, size, storageClassName, volumeMode, dataSource, dataSourceRef)
-}
-
 // NewDataVolumeCloneToBlockPV initializes a DataVolume for block cloning
 func NewDataVolumeCloneToBlockPV(dataVolumeName string, size string, srcNamespace, srcName, storageClassName string) *cdiv1.DataVolume {
 	volumeMode := k8sv1.PersistentVolumeBlock
@@ -424,10 +412,6 @@ func NewDataVolumeCloneToBlockPV(dataVolumeName string, size string, srcNamespac
 	return dataVolume
 }
 
-func NewDataVolumeCloneToBlockPVStorageAPI(dataVolumeName string, size string, srcNamespace, srcName, storageClassName string) *cdiv1.DataVolume {
-	return NewDataVolumeCloneToBlockPV(dataVolumeName, size, srcNamespace, srcName, storageClassName)
-}
-
 // NewDataVolumeForUpload initializes a DataVolume struct with Upload annotations
 func NewDataVolumeForUpload(dataVolumeName string, size string) *cdiv1.DataVolume {
 	return &cdiv1.DataVolume{
@@ -449,10 +433,6 @@ func NewDataVolumeForUpload(dataVolumeName string, size string) *cdiv1.DataVolum
 			},
 		},
 	}
-}
-
-func NewDataVolumeForUploadWithStorageAPI(dataVolumeName string, size string) *cdiv1.DataVolume {
-	return NewDataVolumeForUpload(dataVolumeName, size)
 }
 
 // NewDataVolumeForBlankRawImage initializes a DataVolume struct for creating blank raw image
@@ -537,10 +517,6 @@ func NewDataVolumeForImageCloning(dataVolumeName, size, namespace, pvcName strin
 	return dv
 }
 
-func NewDataVolumeForImageCloningAndStorageSpec(dataVolumeName, size, namespace, pvcName string, storageClassName *string, volumeMode *k8sv1.PersistentVolumeMode) *cdiv1.DataVolume {
-	return NewDataVolumeForImageCloning(dataVolumeName, size, namespace, pvcName, storageClassName, volumeMode)
-}
-
 // NewDataVolumeForCloningWithEmptySize initializes a DataVolume struct with empty storage size to test the size-detection mechanism when cloning
 func NewDataVolumeForCloningWithEmptySize(dataVolumeName, namespace, pvcName string, storageClassName *string, volumeMode *k8sv1.PersistentVolumeMode) *cdiv1.DataVolume {
 	dv := &cdiv1.DataVolume{
@@ -600,10 +576,6 @@ func NewDataVolumeForSnapshotCloning(dataVolumeName, size, namespace, snapshot s
 		dv.Spec.Storage.StorageClassName = storageClassName
 	}
 	return dv
-}
-
-func NewDataVolumeForSnapshotCloningAndStorageSpec(dataVolumeName, size, namespace, snapshot string, storageClassName *string, volumeMode *k8sv1.PersistentVolumeMode) *cdiv1.DataVolume {
-	return NewDataVolumeForSnapshotCloning(dataVolumeName, size, namespace, snapshot, storageClassName, volumeMode)
 }
 
 // NewDataVolumeWithRegistryImport initializes a DataVolume struct with registry annotations
@@ -782,10 +754,6 @@ func NewDataVolumeWithArchiveContent(dataVolumeName string, size string, httpURL
 			},
 		},
 	}
-}
-
-func NewDataVolumeWithArchiveContentStorage(dataVolumeName string, size string, httpURL string) *cdiv1.DataVolume {
-	return NewDataVolumeWithArchiveContent(dataVolumeName, size, httpURL)
 }
 
 // PersistentVolumeClaimFromDataVolume creates a PersistentVolumeClaim definition so we can use PersistentVolumeClaim for various operations.

@@ -301,7 +301,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
 
 			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
-			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
+			return utils.NewCloningDataVolumeWithStorageSpec(dataVolumeName, size, sourcePvc)
 		}
 
 		createBlankRawDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
@@ -1768,7 +1768,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		fillCommand := "echo \"" + fillData + "\" >> " + testFile
 
 		createLabeledDataVolumeForImport := func(f *framework.Framework, storageSpec cdiv1.StorageSpec, labels map[string]string) *cdiv1.DataVolume {
-			dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
+			dataVolume := utils.NewDataVolumeWithHTTPImport(
 				dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
 
 			dataVolume.Spec.Storage = &storageSpec
@@ -1798,7 +1798,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
 
 			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
-			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "10Mi", sourcePvc)
+			dataVolume := utils.NewCloningDataVolumeWithStorageSpec(dataVolumeName, "10Mi", sourcePvc)
 			dataVolume.Spec.Storage = &storageSpec
 			dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
 
@@ -2532,7 +2532,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 
 			By(fmt.Sprintf("creating new datavolume %s with StorageClassName %s", dataVolumeName, scName))
-			dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
+			dataVolume := utils.NewDataVolumeWithHTTPImport(
 				dataVolumeName, "100Mi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
 			dataVolume.Labels = map[string]string{common.PvcApplyStorageProfileLabel: webhookRenderingLabel}
 			dataVolume.Spec.Storage.StorageClassName = ptr.To[string](scName)
@@ -2568,7 +2568,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		)
 
 		newDataVolumeWithStorageSpec := func(scName string) *cdiv1.DataVolume {
-			dv := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
+			dv := utils.NewDataVolumeWithHTTPImport(
 				dataVolumeName, "100Mi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
 			dv.Spec.Storage.StorageClassName = ptr.To[string](scName)
 			return dv
@@ -2696,7 +2696,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
 
 			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
-			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
+			return utils.NewCloningDataVolumeWithStorageSpec(dataVolumeName, size, sourcePvc)
 		}
 		var original *bool
 		noSuchFileFileURL := utils.InvalidQcowImagesURL + "no-such-file.img"
@@ -2818,7 +2818,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
 
 			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
-			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
+			return utils.NewCloningDataVolumeWithStorageSpec(dataVolumeName, size, sourcePvc)
 		}
 
 		DescribeTable("WFFC Feature Gate enabled - ImmediateBinding requested", func(
@@ -3161,7 +3161,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
 
-			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", pvc)
+			dataVolume := utils.NewCloningDataVolumeWithStorageSpec(dataVolumeName, "1Gi", pvc)
 			Expect(dataVolume).ToNot(BeNil())
 
 			By(fmt.Sprintf("creating new datavolume %s with priority class", dataVolume.Name))

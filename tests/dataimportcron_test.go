@@ -782,7 +782,7 @@ var _ = Describe("DataImportCron", Serial, func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(snapshots.Items).To(BeEmpty())
 			// Ensure existing PVC clones from this source don't mess up future ones
-			cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec("target-dv-from-pvc", size, ns, currentImportDv, nil, nil)
+			cloneDV := utils.NewDataVolumeForImageCloning("target-dv-from-pvc", size, ns, currentImportDv, nil, nil)
 			cloneDV, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(cloneDV)

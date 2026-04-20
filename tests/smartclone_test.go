@@ -246,7 +246,7 @@ func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f
 func createAndPopulateSourcePVC(dataVolumeName string, volumeMode v1.PersistentVolumeMode, scName string, f *framework.Framework) *v1.PersistentVolumeClaim {
 	By(fmt.Sprintf("Storage Class name: %s", scName))
 	srcName := fmt.Sprintf("%s-src-pvc", dataVolumeName)
-	dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(srcName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+	dataVolume := utils.NewDataVolumeWithHTTPImport(srcName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 	dataVolume.Spec.Storage.VolumeMode = &volumeMode
 	if scName != "" {
 		dataVolume.Spec.Storage.StorageClassName = &scName

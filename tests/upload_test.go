@@ -1366,7 +1366,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		accessModes := []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}
 		dvName := "upload-dv"
 		By(fmt.Sprintf("Creating new datavolume %s", dvName))
-		dv := utils.NewDataVolumeForUploadWithStorageAPI(dvName, size)
+		dv := utils.NewDataVolumeForUpload(dvName, size)
 		dv.Spec.Storage.AccessModes = accessModes
 		dv.Spec.Storage.VolumeMode = &volumeMode
 		dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)

@@ -114,7 +114,7 @@ var _ = Describe("all clone tests", func() {
 
 			pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
-			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvc)
+			targetDV := utils.NewCloningDataVolumeWithStorageSpec("target-dv", "1Gi", pvc)
 			targetDV.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			By(fmt.Sprintf("Create new target datavolume %s", targetDV.Name))
 			targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
@@ -166,7 +166,7 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				// Create targetPvc in new NS.
-				targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvc)
+				targetDV := utils.NewCloningDataVolumeWithStorageSpec("target-dv", "1Gi", pvc)
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
 				f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDataVolume)
@@ -353,7 +353,7 @@ var _ = Describe("all clone tests", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(sourcePVC.Spec.VolumeName).To(Equal(sourcePV.Name))
 
-				targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", sourcePVCDef)
+				targetDV := utils.NewCloningDataVolumeWithStorageSpec("target-dv", "1Gi", sourcePVCDef)
 				targetDV.Spec.Storage.StorageClassName = &storageClassName
 				targetLabelSelector := metav1.LabelSelector{
 					MatchLabels: map[string]string{
@@ -497,7 +497,7 @@ var _ = Describe("all clone tests", func() {
 				if cloneType == "csi-clone" || cloneType == "snapshot" {
 					Skip("csi-clone only works for the same volumeMode")
 				}
-				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "2Gi", fmt.Sprintf(utils.LargeVirtualDiskQcow, f.CdiInstallNs))
+				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "2Gi", fmt.Sprintf(utils.LargeVirtualDiskQcow, f.CdiInstallNs))
 				filesystem := v1.PersistentVolumeFilesystem
 				dataVolume.Spec.Storage.VolumeMode = &filesystem
 
@@ -507,7 +507,7 @@ var _ = Describe("all clone tests", func() {
 				sourcePvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				targetDV := utils.NewDataVolumeCloneToBlockPVStorageAPI("target-dv", "2Gi", sourcePvc.Namespace, sourcePvc.Name, f.BlockSCName)
+				targetDV := utils.NewDataVolumeCloneToBlockPV("target-dv", "2Gi", sourcePvc.Namespace, sourcePvc.Name, f.BlockSCName)
 
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
@@ -548,7 +548,7 @@ var _ = Describe("all clone tests", func() {
 				// as the actual data is the same
 				volumeMode := v1.PersistentVolumeFilesystem
 
-				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				dataVolume.Spec.Storage.VolumeMode = &volumeMode
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
@@ -556,7 +556,7 @@ var _ = Describe("all clone tests", func() {
 				sourcePvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				targetDV := utils.NewDataVolumeForImageCloningAndStorageSpec("target-dv", "1Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
+				targetDV := utils.NewDataVolumeForImageCloning("target-dv", "1Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
 				targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
 				targetPvc, err := utils.WaitForPVC(f.K8sClient, targetDataVolume.Namespace, targetDataVolume.Name)
@@ -605,7 +605,7 @@ var _ = Describe("all clone tests", func() {
 				).Should(Succeed())
 
 				By("Cloning from the source DataVolume to under sized target")
-				targetDv := utils.NewDataVolumeForImageCloningAndStorageSpec("target-dv", "100Mi",
+				targetDv := utils.NewDataVolumeForImageCloning("target-dv", "100Mi",
 					f.Namespace.Name,
 					sourceDv.Name,
 					sourceDv.Spec.Storage.StorageClassName,
@@ -688,7 +688,7 @@ var _ = Describe("all clone tests", func() {
 					}
 
 					// Create the source DV
-					dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+					dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 					dataVolume.Spec.Storage.VolumeMode = &sourceVolumeMode
 					if sourceSCName != "" {
 						dataVolume.Spec.Storage.StorageClassName = &sourceSCName
@@ -789,7 +789,7 @@ var _ = Describe("all clone tests", func() {
 				It("should report correct status for smart/CSI clones", func() {
 					volumeMode := v1.PersistentVolumeFilesystem
 
-					dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+					dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 					dataVolume.Spec.Storage.VolumeMode = &volumeMode
 					if wffcStorageClass != nil {
 						dataVolume.Spec.Storage.StorageClassName = &wffcStorageClass.Name
@@ -803,7 +803,7 @@ var _ = Describe("all clone tests", func() {
 					sourcePvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
 
-					targetDV := utils.NewDataVolumeForImageCloningAndStorageSpec("target-dv", "1Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
+					targetDV := utils.NewDataVolumeForImageCloning("target-dv", "1Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
 					if wffcStorageClass != nil {
 						targetDV.Spec.Storage.StorageClassName = &wffcStorageClass.Name
 					}
@@ -836,7 +836,7 @@ var _ = Describe("all clone tests", func() {
 				It("should succeed smart/CSI clones with immediate bind requested", func() {
 					volumeMode := v1.PersistentVolumeFilesystem
 
-					dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+					dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 					dataVolume.Spec.Storage.VolumeMode = &volumeMode
 					if wffcStorageClass != nil {
 						dataVolume.Spec.Storage.StorageClassName = &wffcStorageClass.Name
@@ -850,7 +850,7 @@ var _ = Describe("all clone tests", func() {
 					sourcePvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 					Expect(err).ToNot(HaveOccurred())
 
-					targetDV := utils.NewDataVolumeForImageCloningAndStorageSpec("target-dv", "1Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
+					targetDV := utils.NewDataVolumeForImageCloning("target-dv", "1Gi", sourcePvc.Namespace, sourcePvc.Name, nil, &volumeMode)
 					if wffcStorageClass != nil {
 						targetDV.Spec.Storage.StorageClassName = &wffcStorageClass.Name
 					}
@@ -1179,7 +1179,7 @@ var _ = Describe("all clone tests", func() {
 
 			DescribeTable("Should clone with different overheads in target and source", func(sourceOverHead, targetOverHead string) {
 				SetFilesystemOverhead(f, sourceOverHead, sourceOverHead)
-				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "200Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "200Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				dataVolume.Spec.Storage.VolumeMode = &volumeMode
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
@@ -1217,7 +1217,7 @@ var _ = Describe("all clone tests", func() {
 			)
 
 			It("[test_id:8498]Should only use size-detection pod when cloning a PVC for the first time", func() {
-				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "200Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "200Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				dataVolume.Spec.Storage.VolumeMode = &volumeMode
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
@@ -1279,7 +1279,7 @@ var _ = Describe("all clone tests", func() {
 			})
 
 			It("[test_id:8762]Should use size-detection pod when cloning if the source PVC has changed its original capacity", func() {
-				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				dataVolume.Spec.Storage.VolumeMode = &volumeMode
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
@@ -1355,7 +1355,7 @@ var _ = Describe("all clone tests", func() {
 			})
 
 			It("Should clone using size-detection pod across namespaces", func() {
-				dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "200Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+				dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "200Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				dataVolume.Spec.Storage.VolumeMode = &volumeMode
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 				Expect(err).ToNot(HaveOccurred())
@@ -1474,7 +1474,7 @@ var _ = Describe("all clone tests", func() {
 
 				sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 
-				targetDV := utils.NewCloningDataVolume("target-pvc", "1Gi", sourcePvc)
+				targetDV := utils.NewCloningDataVolumeWithStorageSpec("target-pvc", "1Gi", sourcePvc)
 
 				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 				Expect(err).ToNot(HaveOccurred())
@@ -1513,7 +1513,7 @@ var _ = Describe("all clone tests", func() {
 
 			It("Should finish the clone after creating the source PVC", func() {
 				By("Create the clone before the source PVC")
-				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec("clone-dv", "1Gi", f.Namespace.Name, dataVolumeName, nil, &fsVM)
+				cloneDV := utils.NewDataVolumeForImageCloning("clone-dv", "1Gi", f.Namespace.Name, dataVolumeName, nil, &fsVM)
 				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).ToNot(HaveOccurred())
 				// Check if the NoSourceClone annotation exists in target PVC
@@ -1521,7 +1521,7 @@ var _ = Describe("all clone tests", func() {
 				f.ExpectEvent(f.Namespace.Name).Should(ContainSubstring(dvc.CloneWithoutSource))
 
 				By("Create source PVC")
-				sourceDV := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+				sourceDV := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				sourceDV.Spec.Storage.VolumeMode = &fsVM
 				sourceDV, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDV)
 				Expect(err).ToNot(HaveOccurred())
@@ -1550,7 +1550,7 @@ var _ = Describe("all clone tests", func() {
 				}
 
 				By("Create the clone before the source PVC")
-				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec("clone-dv", "1Mi", f.Namespace.Name, dataVolumeName, &f.BlockSCName, &blockVM)
+				cloneDV := utils.NewDataVolumeForImageCloning("clone-dv", "1Mi", f.Namespace.Name, dataVolumeName, &f.BlockSCName, &blockVM)
 				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).ToNot(HaveOccurred())
 				// Check if the NoSourceClone annotation exists in target PVC
@@ -1559,7 +1559,7 @@ var _ = Describe("all clone tests", func() {
 
 				By("Create source PVC")
 				// We use a larger size in the source PVC so the validation fails
-				sourceDV := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+				sourceDV := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 				sourceDV.Spec.Storage.VolumeMode = &blockVM
 				sourceDV, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDV)
 				Expect(err).ToNot(HaveOccurred())
@@ -1578,7 +1578,7 @@ var _ = Describe("all clone tests", func() {
 				By(fmt.Sprintf("Creating target pvc: %s/%s", f.Namespace.Name, targetName))
 				f.CreateBoundPVCFromDefinition(
 					utils.NewPVCDefinition(targetName, "1Gi", map[string]string{controller.AnnPopulatedFor: targetName}, nil))
-				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec(targetName, "1Gi", f.Namespace.Name, "non-existing-source", nil, &fsVM)
+				cloneDV := utils.NewDataVolumeForImageCloning(targetName, "1Gi", f.Namespace.Name, "non-existing-source", nil, &fsVM)
 				_, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).ToNot(HaveOccurred())
 				By("Wait for clone DV Succeeded phase")
@@ -1918,7 +1918,7 @@ var _ = Describe("all clone tests", func() {
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			// Create targetPvc in new NS.
 			By("Creating new DV")
-			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvcDef)
+			targetDV := utils.NewCloningDataVolumeWithStorageSpec("target-dv", "1Gi", pvcDef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -1958,7 +1958,7 @@ var _ = Describe("all clone tests", func() {
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, fillCommand+testFile+"; chmod 660 "+testBaseDir+testFile)
 			// Create targetPvc in new NS.
 			By("Creating new DV")
-			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", pvcDef)
+			targetDV := utils.NewCloningDataVolumeWithStorageSpec("target-dv", "1Gi", pvcDef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -2162,7 +2162,7 @@ var _ = Describe("all clone tests", func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 			f.AddNamespaceToDelete(targetNs)
-			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", sourcePvc)
+			targetDV := utils.NewCloningDataVolumeWithStorageSpec("target-dv", "1Gi", sourcePvc)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -2229,7 +2229,7 @@ var _ = Describe("all clone tests", func() {
 
 			targetDvName := "small-target-dv"
 			By(fmt.Sprintf("Create small target DV %s", targetDvName))
-			targetDV := utils.NewDataVolumeForImageCloningAndStorageSpec(targetDvName, "512Mi", sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
+			targetDV := utils.NewDataVolumeForImageCloning(targetDvName, "512Mi", sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
 			targetDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, sourcePvc.Namespace, targetDV)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -2259,7 +2259,7 @@ var _ = Describe("all clone tests", func() {
 
 			targetDvName := "small-target-dv"
 			By(fmt.Sprintf("Create small target DV %s", targetDvName))
-			targetDV := utils.NewDataVolumeForImageCloningAndStorageSpec(targetDvName, "512Mi", sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
+			targetDV := utils.NewDataVolumeForImageCloning(targetDvName, "512Mi", sourcePvc.Namespace, sourcePvc.Name, sourcePvc.Spec.StorageClassName, sourcePvc.Spec.VolumeMode)
 			targetDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, sourcePvc.Namespace, targetDV)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDV)
@@ -2484,7 +2484,7 @@ var _ = Describe("all clone tests", func() {
 			sourcePvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", sourcePvc)
+			targetDV := utils.NewCloningDataVolumeWithStorageSpec("target-dv", "1Gi", sourcePvc)
 			preallocation := true
 			targetDV.Spec.Preallocation = &preallocation
 			targetDataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, targetDV)
@@ -2591,7 +2591,7 @@ var _ = Describe("all clone tests", func() {
 			createSnapshot(size, &f.SnapshotSCName, volumeMode)
 
 			for i = 0; i < repeat; i++ {
-				dataVolume := utils.NewDataVolumeForSnapshotCloningAndStorageSpec(fmt.Sprintf("clone-from-snap-%d", i), size, snapshot.Namespace, snapshot.Name, &f.SnapshotSCName, &volumeMode)
+				dataVolume := utils.NewDataVolumeForSnapshotCloning(fmt.Sprintf("clone-from-snap-%d", i), size, snapshot.Namespace, snapshot.Name, &f.SnapshotSCName, &volumeMode)
 				dataVolume.Labels = map[string]string{"test-label-1": "test-label-value-1"}
 				dataVolume.Annotations = map[string]string{"test-annotation-1": "test-annotation-value-1"}
 				By(fmt.Sprintf("Create new datavolume %s which will clone from volumesnapshot", dataVolume.Name))
@@ -2667,7 +2667,7 @@ var _ = Describe("all clone tests", func() {
 				createSnapshot(snapSourceSize, &noExpansionStorageClass.Name, volumeMode)
 
 				for i = 0; i < repeat; i++ {
-					dataVolume := utils.NewDataVolumeForSnapshotCloningAndStorageSpec(fmt.Sprintf("clone-from-snap-%d", i), targetDvSize, snapshot.Namespace, snapshot.Name, &noExpansionStorageClass.Name, &volumeMode)
+					dataVolume := utils.NewDataVolumeForSnapshotCloning(fmt.Sprintf("clone-from-snap-%d", i), targetDvSize, snapshot.Namespace, snapshot.Name, &noExpansionStorageClass.Name, &volumeMode)
 					By(fmt.Sprintf("Create new datavolume %s which will clone from volumesnapshot", dataVolume.Name))
 					dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, dataVolume)
 					Expect(err).ToNot(HaveOccurred())
@@ -2742,7 +2742,7 @@ var _ = Describe("all clone tests", func() {
 				dvName := "clone-from-snap"
 				createSnapshot(size, &wffcStorageClass.Name, volumeMode)
 
-				dataVolume := utils.NewDataVolumeForSnapshotCloningAndStorageSpec(dvName, size, snapshot.Namespace, snapshot.Name, &wffcStorageClass.Name, &volumeMode)
+				dataVolume := utils.NewDataVolumeForSnapshotCloning(dvName, size, snapshot.Namespace, snapshot.Name, &wffcStorageClass.Name, &volumeMode)
 				By(fmt.Sprintf("Create new datavolume %s which will clone from volumesnapshot", dataVolume.Name))
 				dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
 				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, snapshot.Namespace, dataVolume)
@@ -2768,7 +2768,7 @@ var _ = Describe("all clone tests", func() {
 				size := "1Gi"
 				volumeMode := v1.PersistentVolumeFilesystem
 				By("Create the clone before the source snapshot")
-				cloneDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("clone-from-snap", size, f.Namespace.Name, "snap-"+dataVolumeName, &f.SnapshotSCName, &volumeMode)
+				cloneDV := utils.NewDataVolumeForSnapshotCloning("clone-from-snap", size, f.Namespace.Name, "snap-"+dataVolumeName, &f.SnapshotSCName, &volumeMode)
 				cloneDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, cloneDV)
 				Expect(err).ToNot(HaveOccurred())
 				// Check if the NoSourceClone annotation exists in target PVC
@@ -2845,7 +2845,7 @@ func doFileBasedCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolume
 		targetSize = []string{"1Gi"}
 	}
 	// Create targetPvc in new NS.
-	targetDV := utils.NewCloningDataVolume(targetDv, targetSize[0], srcPVCDef)
+	targetDV := utils.NewCloningDataVolumeWithStorageSpec(targetDv, targetSize[0], srcPVCDef)
 	if targetDV.GetLabels() == nil {
 		targetDV.SetLabels(make(map[string]string))
 	}
@@ -2898,7 +2898,7 @@ func doInUseCloneTest(f *framework.Framework, srcPVCDef *v1.PersistentVolumeClai
 	}, 90*time.Second, 2*time.Second).Should(BeTrue())
 
 	// Create targetPvc in new NS.
-	targetDV := utils.NewCloningDataVolume(targetDv, "1Gi", srcPVCDef)
+	targetDV := utils.NewCloningDataVolumeWithStorageSpec(targetDv, "1Gi", srcPVCDef)
 	dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, targetNs.Name, targetDV)
 	Expect(err).ToNot(HaveOccurred())
 
