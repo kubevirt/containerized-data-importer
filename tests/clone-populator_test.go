@@ -234,10 +234,11 @@ var _ = Describe("Clone Populator tests", func() {
 		DescribeTable("should do filesystem to filesystem clone", func(webhookRendering bool) {
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
+			sourceCapacity := source.Status.Capacity[corev1.ResourceStorage]
 			if webhookRendering {
 				target = createIncompleteTarget(nil, corev1.PersistentVolumeFilesystem, "", utils.DefaultStorageClass.GetName())
 			} else {
-				target = createTargetWithImmediateBinding(defaultSize, corev1.PersistentVolumeFilesystem)
+				target = createTargetWithImmediateBinding(sourceCapacity, corev1.PersistentVolumeFilesystem)
 			}
 			target = waitSucceeded(target)
 			sourceHash := getHash(source, 0)
@@ -260,7 +261,8 @@ var _ = Describe("Clone Populator tests", func() {
 
 		It("should do filesystem to filesystem clone, dataSource created after target", func() {
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
-			target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
+			sourceCapacity := source.Status.Capacity[corev1.ResourceStorage]
+			target := createTarget(sourceCapacity, corev1.PersistentVolumeFilesystem)
 			createDataSource()
 			target = waitSucceeded(target)
 			sourceHash := getHash(source, 0)
@@ -307,10 +309,11 @@ var _ = Describe("Clone Populator tests", func() {
 			}
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
+			sourceCapacity := source.Status.Capacity[corev1.ResourceStorage]
 			if webhookRendering {
 				target = createIncompleteTarget(nil, corev1.PersistentVolumeBlock, "", utils.DefaultStorageClass.GetName())
 			} else {
-				target = createTarget(defaultSize, corev1.PersistentVolumeBlock)
+				target = createTarget(sourceCapacity, corev1.PersistentVolumeBlock)
 			}
 			target = waitSucceeded(target)
 			targetSize := target.Status.Capacity[corev1.ResourceStorage]
@@ -330,10 +333,11 @@ var _ = Describe("Clone Populator tests", func() {
 			}
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
+			sourceCapacity := source.Status.Capacity[corev1.ResourceStorage]
 			if webhookRendering {
 				target = createIncompleteTarget(nil, corev1.PersistentVolumeFilesystem, cloneType, utils.DefaultStorageClass.GetName())
 			} else {
-				target = createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, cloneType, utils.DefaultStorageClass.GetName())
+				target = createTargetWithStrategy(sourceCapacity, corev1.PersistentVolumeFilesystem, cloneType, utils.DefaultStorageClass.GetName())
 			}
 			target = waitSucceeded(target)
 			Expect(target.Annotations["cdi.kubevirt.io/cloneType"]).To(Equal(cloneType))
