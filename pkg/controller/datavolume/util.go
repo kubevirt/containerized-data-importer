@@ -323,12 +323,27 @@ func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeC
 		return errors.Errorf("PVC Spec is not valid - storage size should be at least 1MiB")
 	}
 
-	requestedSize, err := cc.InflateSizeWithOverhead(context.TODO(), client, requestedSize.Value(), pvcSpec)
-	if err != nil {
-		return err
+	isFilesystem := util.ResolveVolumeMode(pvcSpec.VolumeMode) == v1.PersistentVolumeFilesystem
+	scName := pvcSpec.StorageClassName
+	var err error
+
+	// When cloning to filesystem, if the effective target size is larger than the requested size,
+	// pass an empty requested size so actual size is auto detected.
+	if isClone && isFilesystem && scName != nil {
+		effectiveSize, err := cc.GetEffectiveVolumeSize(context.TODO(), client, requestedSize, *scName, log)
+		if err != nil {
+			return err
+		}
+		if effectiveSize.Cmp(requestedSize) > 0 {
+			setRequestedVolumeSize(pvcSpec, resource.Quantity{})
+			return nil
+		}
 	}
 
-	if scName := pvcSpec.StorageClassName; scName != nil {
+	if requestedSize, err = cc.InflateSizeWithOverhead(context.TODO(), client, requestedSize.Value(), pvcSpec); err != nil {
+		return err
+	}
+	if scName != nil {
 		if requestedSize, err = cc.GetEffectiveVolumeSize(context.TODO(), client, requestedSize, *scName, log); err != nil {
 			return err
 		}
