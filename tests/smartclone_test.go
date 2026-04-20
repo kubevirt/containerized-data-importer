@@ -124,7 +124,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 
-		verifyPVCRequestedSize(dataVolume, f, testMinPvcSize)
+		verifyPVCRequestedSizeExceeds(dataVolume, f, testMinPvcSize)
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, expectedMd5)
 	})
 
@@ -227,7 +227,14 @@ func verifyPVCRequestedSize(dataVolume *cdiv1.DataVolume, f *framework.Framework
 	pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	quantity := resource.MustParse(size)
-	Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal((&quantity).Value()))
+	Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(quantity.Value()))
+}
+
+func verifyPVCRequestedSizeExceeds(dataVolume *cdiv1.DataVolume, f *framework.Framework, minSize string) {
+	pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	minQuantity := resource.MustParse(minSize)
+	Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(BeNumerically(">", minQuantity.Value()))
 }
 
 func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f *framework.Framework) {

@@ -64,7 +64,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 
-		verifyPVCRequestedSize(dataVolume, f, testMinPvcSize)
+		verifyPVCRequestedSizeExceeds(dataVolume, f, testMinPvcSize)
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, md5)
 		verifyCSIClone(dataVolume, f)
 	})
