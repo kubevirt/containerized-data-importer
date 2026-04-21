@@ -5659,7 +5659,7 @@ spec:
               retentionPolicy:
                 description: RetentionPolicy specifies whether the created DataVolumes
                   and DataSources are retained when their DataImportCron is deleted.
-                  Default is RatainAll.
+                  Default is RetainAll.
                 type: string
               schedule:
                 description: Schedule specifies in cron format when and how often
