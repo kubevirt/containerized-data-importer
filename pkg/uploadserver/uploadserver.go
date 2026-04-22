@@ -30,6 +30,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -472,21 +473,18 @@ func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, file
 }
 
 func cloneProcessor(stream io.ReadCloser, contentType, dest string, preallocate bool) (bool, error) {
+	defer stream.Close()
 	if contentType == common.FilesystemCloneContentType {
 		if dest != common.WriteBlockPath {
-			return fileToFileCloneProcessor(stream, preallocate)
+			return fileToFileCloneProcessor(stream, preallocate, common.ImporterVolumePath, common.ImporterWritePath)
 		}
 
 		tarImageReader, err := newTarDiskImageReader(stream)
 		if err != nil {
-			stream.Close()
 			return false, err
 		}
 		stream = tarImageReader
 	}
-
-	defer stream.Close()
-
 	_, _, err := importer.StreamDataToFile(stream, dest, preallocate)
 	if err != nil {
 		return false, err
@@ -495,22 +493,78 @@ func cloneProcessor(stream io.ReadCloser, contentType, dest string, preallocate 
 	return false, nil
 }
 
-func fileToFileCloneProcessor(stream io.ReadCloser, preallocate bool) (bool, error) {
-	tarImageReader, err := newTarDiskImageReader(stream)
-	if err != nil {
-		// No disk.img in archive — fall back to full untar.
-		// Note: stream is consumed at this point, so we re-report the error.
-		stream.Close()
-		return false, errors.Wrap(err, "no disk image found in tar archive")
-	}
-	defer tarImageReader.Close()
+func fileToFileCloneProcessor(stream io.ReadCloser, preallocate bool, volumePath, diskImagePath string) (bool, error) {
+	tr := tar.NewReader(stream)
+	foundDiskImg := false
 
-	_, _, err = importer.StreamDataToFile(tarImageReader, common.ImporterWritePath, preallocate)
-	if err != nil {
-		return false, errors.Wrapf(err, "error streaming disk image to %s", common.ImporterWritePath)
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return false, errors.Wrap(err, "error reading tar archive")
+		}
+
+		if filepath.Base(header.Name) == common.DiskImageName {
+			foundDiskImg = true
+			if err := extractDiskImageFromTar(header, tr, diskImagePath, preallocate); err != nil {
+				return false, err
+			}
+			continue
+		}
+
+		if err := extractTarEntry(header, tr, volumePath); err != nil {
+			return false, errors.Wrapf(err, "error extracting %s", header.Name)
+		}
 	}
 
-	return false, nil
+	if !foundDiskImg {
+		klog.V(3).Info("No disk.img found in tar archive, extracted all files")
+	}
+
+	return foundDiskImg && preallocate, nil
+}
+
+func extractDiskImageFromTar(header *tar.Header, tr *tar.Reader, diskImagePath string, preallocate bool) error {
+	_, _, err := importer.StreamDataToFile(tr, diskImagePath, preallocate)
+	if err != nil {
+		return errors.Wrapf(err, "error streaming disk image to %s", diskImagePath)
+	}
+	if err := os.Chmod(diskImagePath, os.FileMode(header.Mode)); err != nil {
+		return errors.Wrapf(err, "error setting permissions on %s", diskImagePath)
+	}
+	return nil
+}
+
+func extractTarEntry(header *tar.Header, tr *tar.Reader, destDir string) error {
+	target := filepath.Join(destDir, header.Name)
+	cleanTarget := filepath.Clean(target)
+
+	// prevent path traversal
+	if !strings.HasPrefix(cleanTarget, filepath.Clean(destDir)+string(os.PathSeparator)) {
+		return fmt.Errorf("invalid tar path: %s", header.Name)
+	}
+
+	switch header.Typeflag {
+	case tar.TypeDir:
+		return os.MkdirAll(target, os.FileMode(header.Mode))
+	case tar.TypeReg:
+		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+			return err
+		}
+		f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode))
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		_, err = io.Copy(f, tr)
+		return err
+	default:
+		// Intentionally skipping symlinks and other special files, we don't need to overly complicate this
+		klog.V(3).Infof("Skipping unsupported tar entry %s of type %c", header.Name, header.Typeflag)
+	}
+	return nil
 }
 
 type closeWrapper struct {

@@ -20,6 +20,7 @@
 package uploadserver
 
 import (
+	"archive/tar"
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
@@ -456,3 +457,86 @@ func newFormRequest(path string) *http.Request {
 
 	return req
 }
+
+var _ = Describe("fileToFileCloneProcessor", func() {
+	var tempDir string
+
+	BeforeEach(func() {
+		var err error
+		tempDir, err = os.MkdirTemp("", "clone-test-")
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		os.RemoveAll(tempDir)
+	})
+
+	createTarWithFiles := func(files map[string][]byte) io.ReadCloser {
+		var buf bytes.Buffer
+		tw := tar.NewWriter(&buf)
+
+		for name, content := range files {
+			hdr := &tar.Header{
+				Name: name,
+				Mode: 0644,
+				Size: int64(len(content)),
+			}
+			Expect(tw.WriteHeader(hdr)).To(Succeed())
+			_, err := tw.Write(content)
+			Expect(err).NotTo(HaveOccurred())
+		}
+		Expect(tw.Close()).To(Succeed())
+		return io.NopCloser(&buf)
+	}
+
+	It("should extract disk.img with other files", func() {
+		stream := createTarWithFiles(map[string][]byte{
+			common.DiskImageName: []byte("disk image data"),
+			"metadata.json":      []byte(`{"key": "value"}`),
+		})
+
+		diskImagePath := filepath.Join(tempDir, common.DiskImageName)
+		preallocationApplied, err := fileToFileCloneProcessor(stream, false, tempDir, diskImagePath)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(preallocationApplied).To(BeFalse())
+
+		diskImg, err := os.ReadFile(diskImagePath)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(diskImg)).To(Equal("disk image data"))
+
+		metadata, err := os.ReadFile(filepath.Join(tempDir, "metadata.json"))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(metadata)).To(Equal(`{"key": "value"}`))
+	})
+
+	It("should extract archive without disk.img", func() {
+		stream := createTarWithFiles(map[string][]byte{
+			"file1.txt": []byte("content1"),
+			"file2.txt": []byte("content2"),
+		})
+
+		diskImagePath := filepath.Join(tempDir, common.DiskImageName)
+		preallocationApplied, err := fileToFileCloneProcessor(stream, false, tempDir, diskImagePath)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(preallocationApplied).To(BeFalse())
+
+		file1, err := os.ReadFile(filepath.Join(tempDir, "file1.txt"))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(file1)).To(Equal("content1"))
+
+		file2, err := os.ReadFile(filepath.Join(tempDir, "file2.txt"))
+		Expect(err).NotTo(HaveOccurred())
+		Expect(string(file2)).To(Equal("content2"))
+	})
+
+	It("should return true for preallocation when disk.img exists and preallocate=true", func() {
+		stream := createTarWithFiles(map[string][]byte{
+			common.DiskImageName: []byte("disk image data"),
+		})
+
+		diskImagePath := filepath.Join(tempDir, common.DiskImageName)
+		preallocationApplied, err := fileToFileCloneProcessor(stream, true, tempDir, diskImagePath)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(preallocationApplied).To(BeTrue())
+	})
+})
