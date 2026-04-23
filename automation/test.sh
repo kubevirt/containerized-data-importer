@@ -24,7 +24,7 @@
 
 set -ex
 
-export CDI_NAMESPACE="cdi-$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 5 | head -n 1)"
+export CDI_NAMESPACE="${CDI_NAMESPACE:-cdi-$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 5 | head -n 1)}"
 
 echo "cdi-namespace: ${CDI_NAMESPACE}"
 
@@ -73,8 +73,6 @@ if [[ -z "$UPGRADE_FROM" ]] && [[ -z "$RANDOM_CR" ]]; then
 fi
 
 kubectl() { cluster-up/kubectl.sh "$@"; }
-
-export CDI_NAMESPACE="${CDI_NAMESPACE:-cdi}"
 
 make cluster-down
 # Create .bazelrc to use remote cache
