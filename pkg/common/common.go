@@ -266,6 +266,8 @@ const (
 	VddkArgsVolName = "vddk-extra-args"
 	// VddkArgsKeyName is the name of the key that must be present in the VDDK arguments ConfigMap
 	VddkArgsKeyName = "vddk-config-file"
+	// VddkNodeSelectorKey is the name of the optional key in the VDDK arguments ConfigMap that holds a JSON-encoded node selector
+	VddkNodeSelectorKey = "vddk-node-selector"
 
 	// UploadContentTypeHeader is the header upload clients may use to set the content type explicitly
 	UploadContentTypeHeader = "x-cdi-content-type"

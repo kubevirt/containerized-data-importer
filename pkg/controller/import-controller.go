@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"path"
@@ -119,6 +120,7 @@ type importerPodArgs struct {
 	workloadNodePlacement   *sdkapi.NodePlacement
 	vddkImageName           *string
 	vddkExtraArgs           *string
+	vddkNodeSelector        map[string]string
 	priorityClassName       string
 	serviceAccountName      string
 }
@@ -531,6 +533,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 	var scratchPvcName *string
 	var vddkImageName *string
 	var vddkExtraArgs *string
+	var vddkNodeSelector map[string]string
 	var err error
 
 	requiresScratch := r.requiresScratchSpace(pvc)
@@ -563,6 +566,11 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		if extraArgs, ok := anno[cc.AnnVddkExtraArgs]; ok && extraArgs != "" {
 			r.log.V(1).Info("Mounting extra VDDK args ConfigMap to importer pod", "ConfigMap", extraArgs)
 			vddkExtraArgs = &extraArgs
+
+			vddkNodeSelector, err = r.getVddkNodeSelector(pvc.Namespace, extraArgs)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -580,6 +588,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		scratchPvcName:     scratchPvcName,
 		vddkImageName:      vddkImageName,
 		vddkExtraArgs:      vddkExtraArgs,
+		vddkNodeSelector:   vddkNodeSelector,
 		priorityClassName:  cc.GetPriorityClass(pvc),
 		serviceAccountName: cc.GetPodServiceAccount(pvc),
 	}
@@ -862,6 +871,28 @@ func (r *ImportReconciler) getVddkImageName() (*string, error) {
 	return nil, errors.Errorf("found %s ConfigMap in namespace %s, but it does not contain a '%s' entry", common.VddkConfigMap, namespace, common.VddkConfigDataKey)
 }
 
+// getVddkNodeSelector reads the optional node-selector key from the VDDK extra-args
+// ConfigMap and returns the parsed map, or nil if the key is absent.
+func (r *ImportReconciler) getVddkNodeSelector(namespace, cmName string) (map[string]string, error) {
+	cm := &corev1.ConfigMap{}
+	if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: namespace}, cm); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	val, ok := cm.Data[common.VddkNodeSelectorKey]
+	if !ok || val == "" {
+		return nil, nil
+	}
+	nodeSelector := make(map[string]string)
+	if err := json.Unmarshal([]byte(val), &nodeSelector); err != nil {
+		return nil, fmt.Errorf("failed to parse %s key in ConfigMap %s/%s: %w",
+			common.VddkNodeSelectorKey, namespace, cmName, err)
+	}
+	return nodeSelector, nil
+}
+
 // returns the import image part of the endpoint string
 func getRegistryImportImage(pvc *corev1.PersistentVolumeClaim) (string, error) {
 	ep, err := cc.GetEndpoint(pvc)
@@ -1014,6 +1045,15 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 			// errors in namespaces with many Services (each injects ~7 env vars).
 			EnableServiceLinks: ptr.To(false),
 		},
+	}
+
+	if len(args.vddkNodeSelector) > 0 {
+		if pod.Spec.NodeSelector == nil {
+			pod.Spec.NodeSelector = make(map[string]string, len(args.vddkNodeSelector))
+		}
+		for k, v := range args.vddkNodeSelector {
+			pod.Spec.NodeSelector[k] = v
+		}
 	}
 
 	/**
