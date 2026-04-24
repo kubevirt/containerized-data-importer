@@ -20,7 +20,7 @@
  * THE SOFTWARE.
  *
  * Copyright (c) 2013 Alex Zorin
- * Copyright (C) 2016 Red Hat, Inc.
+ * Copyright Red Hat
  *
  */
 
@@ -36,7 +36,7 @@ package libnbd
 // - Create an exported Golang function whose job will be to retrieve
 //   the context and execute the callback in it
 //   (connErrCallback). Such a function should receive a callback ID
-//   and will use it to retrive the context.
+//   and will use it to retrieve the context.
 //
 // - Create a CGO function similar to the above function but with the
 //   appropriate signature to be registered as a callback in C code
@@ -54,7 +54,8 @@ package libnbd
 //   with registerCallbackId and invoke the CGO function from the
 //   previous step with the appropriate ID.
 //
-// - When unregistering the callback, don't forget to call freecallbackId.
+// - When unregistering the callback, don't forget to call
+//   nbd_internal_freeCallbackId.
 //
 // If you need to associate some additional data with the connection,
 // look at saveConnectionData, getConnectionData and
@@ -71,8 +72,8 @@ var goCallbackLock sync.RWMutex
 var goCallbacks = make(map[int]interface{})
 var nextGoCallbackId int = firstGoCallbackId
 
-//export freeCallbackId
-func freeCallbackId(goCallbackId int) {
+//export nbd_internal_freeCallbackId
+func nbd_internal_freeCallbackId(goCallbackId int) {
 	goCallbackLock.Lock()
 	delete(goCallbacks, goCallbackId)
 	goCallbackLock.Unlock()
@@ -84,7 +85,7 @@ func getCallbackId(goCallbackId int) interface{} {
 	goCallbackLock.RUnlock()
 	if ctx == nil {
 		// If this happens there must be a bug in libvirt
-		panic("Callback arrived after freeCallbackId was called")
+		panic("Callback arrived after nbd_internal_freeCallbackId was called")
 	}
 	return ctx
 }

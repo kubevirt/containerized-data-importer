@@ -11,6 +11,6 @@ https://gitlab.com/nbdkit/libnbd
 
 ## License
 
-The software is copyright © Red Hat Inc. and licensed under the GNU
+The software is Copyright Red Hat and licensed under the GNU
 Lesser General Public License version 2 or above (LGPLv2+).  See
 the file `LICENSE` for details.

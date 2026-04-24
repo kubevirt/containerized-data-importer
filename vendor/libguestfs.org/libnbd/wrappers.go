@@ -3,7 +3,7 @@
  * generator/generator
  * ANY CHANGES YOU MAKE TO THIS FILE WILL BE LOST.
  *
- * Copyright (C) 2013-2021 Red Hat Inc.
+ * Copyright Red Hat
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -101,6 +101,62 @@ _nbd_clear_debug_callback_wrapper (struct error *err,
 #endif
 }
 
+uint64_t
+_nbd_stats_bytes_sent_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_STATS_BYTES_SENT
+  uint64_t ret;
+
+  ret = nbd_stats_bytes_sent (h);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_STATS_BYTES_SENT
+  missing_function (err, "stats_bytes_sent");
+#endif
+}
+
+uint64_t
+_nbd_stats_chunks_sent_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_STATS_CHUNKS_SENT
+  uint64_t ret;
+
+  ret = nbd_stats_chunks_sent (h);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_STATS_CHUNKS_SENT
+  missing_function (err, "stats_chunks_sent");
+#endif
+}
+
+uint64_t
+_nbd_stats_bytes_received_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_STATS_BYTES_RECEIVED
+  uint64_t ret;
+
+  ret = nbd_stats_bytes_received (h);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_STATS_BYTES_RECEIVED
+  missing_function (err, "stats_bytes_received");
+#endif
+}
+
+uint64_t
+_nbd_stats_chunks_received_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_STATS_CHUNKS_RECEIVED
+  uint64_t ret;
+
+  ret = nbd_stats_chunks_received (h);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_STATS_CHUNKS_RECEIVED
+  missing_function (err, "stats_chunks_received");
+#endif
+}
+
 int
 _nbd_set_handle_name_wrapper (struct error *err,
         struct nbd_handle *h, const char *handle_name)
@@ -163,6 +219,23 @@ _nbd_get_private_data_wrapper (struct error *err,
 #endif
 }
 
+ssize_t
+_nbd_get_handle_size_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_GET_HANDLE_SIZE
+  ssize_t ret;
+
+  ret = nbd_get_handle_size (h);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_GET_HANDLE_SIZE
+  missing_function (err, "get_handle_size");
+  return -1;
+#endif
+}
+
 int
 _nbd_set_export_name_wrapper (struct error *err,
         struct nbd_handle *h, const char *export_name)
@@ -194,6 +267,40 @@ _nbd_get_export_name_wrapper (struct error *err,
 #else // !LIBNBD_HAVE_NBD_GET_EXPORT_NAME
   missing_function (err, "get_export_name");
   return NULL;
+#endif
+}
+
+int
+_nbd_set_request_block_size_wrapper (struct error *err,
+        struct nbd_handle *h, bool request)
+{
+#ifdef LIBNBD_HAVE_NBD_SET_REQUEST_BLOCK_SIZE
+  int ret;
+
+  ret = nbd_set_request_block_size (h, request);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_SET_REQUEST_BLOCK_SIZE
+  missing_function (err, "set_request_block_size");
+  return -1;
+#endif
+}
+
+int
+_nbd_get_request_block_size_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_GET_REQUEST_BLOCK_SIZE
+  int ret;
+
+  ret = nbd_get_request_block_size (h);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_GET_REQUEST_BLOCK_SIZE
+  missing_function (err, "get_request_block_size");
+  return -1;
 #endif
 }
 
@@ -399,6 +506,40 @@ _nbd_get_tls_username_wrapper (struct error *err,
 }
 
 int
+_nbd_set_tls_hostname_wrapper (struct error *err,
+        struct nbd_handle *h, const char *hostname)
+{
+#ifdef LIBNBD_HAVE_NBD_SET_TLS_HOSTNAME
+  int ret;
+
+  ret = nbd_set_tls_hostname (h, hostname);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_SET_TLS_HOSTNAME
+  missing_function (err, "set_tls_hostname");
+  return -1;
+#endif
+}
+
+char *
+_nbd_get_tls_hostname_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_GET_TLS_HOSTNAME
+  char * ret;
+
+  ret = nbd_get_tls_hostname (h);
+  if (ret == NULL)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_GET_TLS_HOSTNAME
+  missing_function (err, "get_tls_hostname");
+  return NULL;
+#endif
+}
+
+int
 _nbd_set_tls_psk_file_wrapper (struct error *err,
         struct nbd_handle *h, const char *filename)
 {
@@ -411,6 +552,91 @@ _nbd_set_tls_psk_file_wrapper (struct error *err,
   return ret;
 #else // !LIBNBD_HAVE_NBD_SET_TLS_PSK_FILE
   missing_function (err, "set_tls_psk_file");
+  return -1;
+#endif
+}
+
+int
+_nbd_set_tls_priority_wrapper (struct error *err,
+        struct nbd_handle *h, const char *priority)
+{
+#ifdef LIBNBD_HAVE_NBD_SET_TLS_PRIORITY
+  int ret;
+
+  ret = nbd_set_tls_priority (h, priority);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_SET_TLS_PRIORITY
+  missing_function (err, "set_tls_priority");
+  return -1;
+#endif
+}
+
+char *
+_nbd_get_tls_priority_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_GET_TLS_PRIORITY
+  char * ret;
+
+  ret = nbd_get_tls_priority (h);
+  if (ret == NULL)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_GET_TLS_PRIORITY
+  missing_function (err, "get_tls_priority");
+  return NULL;
+#endif
+}
+
+int
+_nbd_set_request_extended_headers_wrapper (struct error *err,
+        struct nbd_handle *h, bool request)
+{
+#ifdef LIBNBD_HAVE_NBD_SET_REQUEST_EXTENDED_HEADERS
+  int ret;
+
+  ret = nbd_set_request_extended_headers (h, request);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_SET_REQUEST_EXTENDED_HEADERS
+  missing_function (err, "set_request_extended_headers");
+  return -1;
+#endif
+}
+
+int
+_nbd_get_request_extended_headers_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_GET_REQUEST_EXTENDED_HEADERS
+  int ret;
+
+  ret = nbd_get_request_extended_headers (h);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_GET_REQUEST_EXTENDED_HEADERS
+  missing_function (err, "get_request_extended_headers");
+  return -1;
+#endif
+}
+
+int
+_nbd_get_extended_headers_negotiated_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_GET_EXTENDED_HEADERS_NEGOTIATED
+  int ret;
+
+  ret = nbd_get_extended_headers_negotiated (h);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_GET_EXTENDED_HEADERS_NEGOTIATED
+  missing_function (err, "get_extended_headers_negotiated");
   return -1;
 #endif
 }
@@ -467,6 +693,40 @@ _nbd_get_structured_replies_negotiated_wrapper (struct error *err,
 }
 
 int
+_nbd_set_request_meta_context_wrapper (struct error *err,
+        struct nbd_handle *h, bool request)
+{
+#ifdef LIBNBD_HAVE_NBD_SET_REQUEST_META_CONTEXT
+  int ret;
+
+  ret = nbd_set_request_meta_context (h, request);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_SET_REQUEST_META_CONTEXT
+  missing_function (err, "set_request_meta_context");
+  return -1;
+#endif
+}
+
+int
+_nbd_get_request_meta_context_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_GET_REQUEST_META_CONTEXT
+  int ret;
+
+  ret = nbd_get_request_meta_context (h);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_GET_REQUEST_META_CONTEXT
+  missing_function (err, "get_request_meta_context");
+  return -1;
+#endif
+}
+
+int
 _nbd_set_handshake_flags_wrapper (struct error *err,
         struct nbd_handle *h, uint32_t flags)
 {
@@ -494,6 +754,40 @@ _nbd_get_handshake_flags_wrapper (struct error *err,
   return ret;
 #else // !LIBNBD_HAVE_NBD_GET_HANDSHAKE_FLAGS
   missing_function (err, "get_handshake_flags");
+#endif
+}
+
+int
+_nbd_set_pread_initialize_wrapper (struct error *err,
+        struct nbd_handle *h, bool request)
+{
+#ifdef LIBNBD_HAVE_NBD_SET_PREAD_INITIALIZE
+  int ret;
+
+  ret = nbd_set_pread_initialize (h, request);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_SET_PREAD_INITIALIZE
+  missing_function (err, "set_pread_initialize");
+  return -1;
+#endif
+}
+
+int
+_nbd_get_pread_initialize_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_GET_PREAD_INITIALIZE
+  int ret;
+
+  ret = nbd_get_pread_initialize (h);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_GET_PREAD_INITIALIZE
+  missing_function (err, "get_pread_initialize");
+  return -1;
 #endif
 }
 
@@ -597,6 +891,57 @@ _nbd_opt_abort_wrapper (struct error *err,
 }
 
 int
+_nbd_opt_starttls_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_OPT_STARTTLS
+  int ret;
+
+  ret = nbd_opt_starttls (h);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_OPT_STARTTLS
+  missing_function (err, "opt_starttls");
+  return -1;
+#endif
+}
+
+int
+_nbd_opt_extended_headers_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_OPT_EXTENDED_HEADERS
+  int ret;
+
+  ret = nbd_opt_extended_headers (h);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_OPT_EXTENDED_HEADERS
+  missing_function (err, "opt_extended_headers");
+  return -1;
+#endif
+}
+
+int
+_nbd_opt_structured_reply_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_OPT_STRUCTURED_REPLY
+  int ret;
+
+  ret = nbd_opt_structured_reply (h);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_OPT_STRUCTURED_REPLY
+  missing_function (err, "opt_structured_reply");
+  return -1;
+#endif
+}
+
+int
 _nbd_opt_list_wrapper (struct error *err,
         struct nbd_handle *h, nbd_list_callback list_callback)
 {
@@ -643,6 +988,59 @@ _nbd_opt_list_meta_context_wrapper (struct error *err,
   return ret;
 #else // !LIBNBD_HAVE_NBD_OPT_LIST_META_CONTEXT
   missing_function (err, "opt_list_meta_context");
+  return -1;
+#endif
+}
+
+int
+_nbd_opt_list_meta_context_queries_wrapper (struct error *err,
+        struct nbd_handle *h, char **queries,
+        nbd_context_callback context_callback)
+{
+#ifdef LIBNBD_HAVE_NBD_OPT_LIST_META_CONTEXT_QUERIES
+  int ret;
+
+  ret = nbd_opt_list_meta_context_queries (h, queries, context_callback);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_OPT_LIST_META_CONTEXT_QUERIES
+  missing_function (err, "opt_list_meta_context_queries");
+  return -1;
+#endif
+}
+
+int
+_nbd_opt_set_meta_context_wrapper (struct error *err,
+        struct nbd_handle *h, nbd_context_callback context_callback)
+{
+#ifdef LIBNBD_HAVE_NBD_OPT_SET_META_CONTEXT
+  int ret;
+
+  ret = nbd_opt_set_meta_context (h, context_callback);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_OPT_SET_META_CONTEXT
+  missing_function (err, "opt_set_meta_context");
+  return -1;
+#endif
+}
+
+int
+_nbd_opt_set_meta_context_queries_wrapper (struct error *err,
+        struct nbd_handle *h, char **queries,
+        nbd_context_callback context_callback)
+{
+#ifdef LIBNBD_HAVE_NBD_OPT_SET_META_CONTEXT_QUERIES
+  int ret;
+
+  ret = nbd_opt_set_meta_context_queries (h, queries, context_callback);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_OPT_SET_META_CONTEXT_QUERIES
+  missing_function (err, "opt_set_meta_context_queries");
   return -1;
 #endif
 }
@@ -745,6 +1143,23 @@ _nbd_set_uri_allow_tls_wrapper (struct error *err,
   return ret;
 #else // !LIBNBD_HAVE_NBD_SET_URI_ALLOW_TLS
   missing_function (err, "set_uri_allow_tls");
+  return -1;
+#endif
+}
+
+int
+_nbd_set_uri_allow_tls_priority_wrapper (struct error *err,
+        struct nbd_handle *h, bool allow)
+{
+#ifdef LIBNBD_HAVE_NBD_SET_URI_ALLOW_TLS_PRIORITY
+  int ret;
+
+  ret = nbd_set_uri_allow_tls_priority (h, allow);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_SET_URI_ALLOW_TLS_PRIORITY
+  missing_function (err, "set_uri_allow_tls_priority");
   return -1;
 #endif
 }
@@ -886,6 +1301,40 @@ _nbd_connect_systemd_socket_activation_wrapper (struct error *err,
 }
 
 int
+_nbd_set_socket_activation_name_wrapper (struct error *err,
+        struct nbd_handle *h, const char *socket_name)
+{
+#ifdef LIBNBD_HAVE_NBD_SET_SOCKET_ACTIVATION_NAME
+  int ret;
+
+  ret = nbd_set_socket_activation_name (h, socket_name);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_SET_SOCKET_ACTIVATION_NAME
+  missing_function (err, "set_socket_activation_name");
+  return -1;
+#endif
+}
+
+char *
+_nbd_get_socket_activation_name_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_GET_SOCKET_ACTIVATION_NAME
+  char * ret;
+
+  ret = nbd_get_socket_activation_name (h);
+  if (ret == NULL)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_GET_SOCKET_ACTIVATION_NAME
+  missing_function (err, "get_socket_activation_name");
+  return NULL;
+#endif
+}
+
+int
 _nbd_is_read_only_wrapper (struct error *err,
         struct nbd_handle *h)
 {
@@ -1000,6 +1449,23 @@ _nbd_can_fast_zero_wrapper (struct error *err,
   return ret;
 #else // !LIBNBD_HAVE_NBD_CAN_FAST_ZERO
   missing_function (err, "can_fast_zero");
+  return -1;
+#endif
+}
+
+int
+_nbd_can_block_status_payload_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_CAN_BLOCK_STATUS_PAYLOAD
+  int ret;
+
+  ret = nbd_can_block_status_payload (h);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_CAN_BLOCK_STATUS_PAYLOAD
+  missing_function (err, "can_block_status_payload");
   return -1;
 #endif
 }
@@ -1284,6 +1750,44 @@ _nbd_block_status_wrapper (struct error *err,
 }
 
 int
+_nbd_block_status_64_wrapper (struct error *err,
+        struct nbd_handle *h, uint64_t count, uint64_t offset,
+        nbd_extent64_callback extent64_callback, uint32_t flags)
+{
+#ifdef LIBNBD_HAVE_NBD_BLOCK_STATUS_64
+  int ret;
+
+  ret = nbd_block_status_64 (h, count, offset, extent64_callback, flags);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_BLOCK_STATUS_64
+  missing_function (err, "block_status_64");
+  return -1;
+#endif
+}
+
+int
+_nbd_block_status_filter_wrapper (struct error *err,
+        struct nbd_handle *h, uint64_t count, uint64_t offset,
+        char **contexts, nbd_extent64_callback extent64_callback,
+        uint32_t flags)
+{
+#ifdef LIBNBD_HAVE_NBD_BLOCK_STATUS_FILTER
+  int ret;
+
+  ret = nbd_block_status_filter (h, count, offset, contexts,
+                                 extent64_callback, flags);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_BLOCK_STATUS_FILTER
+  missing_function (err, "block_status_filter");
+  return -1;
+#endif
+}
+
+int
 _nbd_poll_wrapper (struct error *err,
         struct nbd_handle *h, int timeout)
 {
@@ -1296,6 +1800,23 @@ _nbd_poll_wrapper (struct error *err,
   return ret;
 #else // !LIBNBD_HAVE_NBD_POLL
   missing_function (err, "poll");
+  return -1;
+#endif
+}
+
+int
+_nbd_poll2_wrapper (struct error *err,
+        struct nbd_handle *h, int fd, int timeout)
+{
+#ifdef LIBNBD_HAVE_NBD_POLL2
+  int ret;
+
+  ret = nbd_poll2 (h, fd, timeout);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_POLL2
+  missing_function (err, "poll2");
   return -1;
 #endif
 }
@@ -1472,6 +1993,57 @@ _nbd_aio_opt_abort_wrapper (struct error *err,
 }
 
 int
+_nbd_aio_opt_starttls_wrapper (struct error *err,
+        struct nbd_handle *h, nbd_completion_callback completion_callback)
+{
+#ifdef LIBNBD_HAVE_NBD_AIO_OPT_STARTTLS
+  int ret;
+
+  ret = nbd_aio_opt_starttls (h, completion_callback);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_AIO_OPT_STARTTLS
+  missing_function (err, "aio_opt_starttls");
+  return -1;
+#endif
+}
+
+int
+_nbd_aio_opt_extended_headers_wrapper (struct error *err,
+        struct nbd_handle *h, nbd_completion_callback completion_callback)
+{
+#ifdef LIBNBD_HAVE_NBD_AIO_OPT_EXTENDED_HEADERS
+  int ret;
+
+  ret = nbd_aio_opt_extended_headers (h, completion_callback);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_AIO_OPT_EXTENDED_HEADERS
+  missing_function (err, "aio_opt_extended_headers");
+  return -1;
+#endif
+}
+
+int
+_nbd_aio_opt_structured_reply_wrapper (struct error *err,
+        struct nbd_handle *h, nbd_completion_callback completion_callback)
+{
+#ifdef LIBNBD_HAVE_NBD_AIO_OPT_STRUCTURED_REPLY
+  int ret;
+
+  ret = nbd_aio_opt_structured_reply (h, completion_callback);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_AIO_OPT_STRUCTURED_REPLY
+  missing_function (err, "aio_opt_structured_reply");
+  return -1;
+#endif
+}
+
+int
 _nbd_aio_opt_list_wrapper (struct error *err,
         struct nbd_handle *h, nbd_list_callback list_callback,
         nbd_completion_callback completion_callback)
@@ -1521,6 +2093,65 @@ _nbd_aio_opt_list_meta_context_wrapper (struct error *err,
   return ret;
 #else // !LIBNBD_HAVE_NBD_AIO_OPT_LIST_META_CONTEXT
   missing_function (err, "aio_opt_list_meta_context");
+  return -1;
+#endif
+}
+
+int
+_nbd_aio_opt_list_meta_context_queries_wrapper (struct error *err,
+        struct nbd_handle *h, char **queries,
+        nbd_context_callback context_callback,
+        nbd_completion_callback completion_callback)
+{
+#ifdef LIBNBD_HAVE_NBD_AIO_OPT_LIST_META_CONTEXT_QUERIES
+  int ret;
+
+  ret = nbd_aio_opt_list_meta_context_queries (h, queries, context_callback,
+                                               completion_callback);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_AIO_OPT_LIST_META_CONTEXT_QUERIES
+  missing_function (err, "aio_opt_list_meta_context_queries");
+  return -1;
+#endif
+}
+
+int
+_nbd_aio_opt_set_meta_context_wrapper (struct error *err,
+        struct nbd_handle *h, nbd_context_callback context_callback,
+        nbd_completion_callback completion_callback)
+{
+#ifdef LIBNBD_HAVE_NBD_AIO_OPT_SET_META_CONTEXT
+  int ret;
+
+  ret = nbd_aio_opt_set_meta_context (h, context_callback,
+                                      completion_callback);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_AIO_OPT_SET_META_CONTEXT
+  missing_function (err, "aio_opt_set_meta_context");
+  return -1;
+#endif
+}
+
+int
+_nbd_aio_opt_set_meta_context_queries_wrapper (struct error *err,
+        struct nbd_handle *h, char **queries,
+        nbd_context_callback context_callback,
+        nbd_completion_callback completion_callback)
+{
+#ifdef LIBNBD_HAVE_NBD_AIO_OPT_SET_META_CONTEXT_QUERIES
+  int ret;
+
+  ret = nbd_aio_opt_set_meta_context_queries (h, queries, context_callback,
+                                              completion_callback);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_AIO_OPT_SET_META_CONTEXT_QUERIES
+  missing_function (err, "aio_opt_set_meta_context_queries");
   return -1;
 #endif
 }
@@ -1687,6 +2318,47 @@ _nbd_aio_block_status_wrapper (struct error *err,
   return ret;
 #else // !LIBNBD_HAVE_NBD_AIO_BLOCK_STATUS
   missing_function (err, "aio_block_status");
+  return -1;
+#endif
+}
+
+int64_t
+_nbd_aio_block_status_64_wrapper (struct error *err,
+        struct nbd_handle *h, uint64_t count, uint64_t offset,
+        nbd_extent64_callback extent64_callback,
+        nbd_completion_callback completion_callback, uint32_t flags)
+{
+#ifdef LIBNBD_HAVE_NBD_AIO_BLOCK_STATUS_64
+  int64_t ret;
+
+  ret = nbd_aio_block_status_64 (h, count, offset, extent64_callback,
+                                 completion_callback, flags);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_AIO_BLOCK_STATUS_64
+  missing_function (err, "aio_block_status_64");
+  return -1;
+#endif
+}
+
+int64_t
+_nbd_aio_block_status_filter_wrapper (struct error *err,
+        struct nbd_handle *h, uint64_t count, uint64_t offset,
+        char **contexts, nbd_extent64_callback extent64_callback,
+        nbd_completion_callback completion_callback, uint32_t flags)
+{
+#ifdef LIBNBD_HAVE_NBD_AIO_BLOCK_STATUS_FILTER
+  int64_t ret;
+
+  ret = nbd_aio_block_status_filter (h, count, offset, contexts,
+                                     extent64_callback, completion_callback,
+                                     flags);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_AIO_BLOCK_STATUS_FILTER
+  missing_function (err, "aio_block_status_filter");
   return -1;
 #endif
 }
@@ -1977,6 +2649,23 @@ _nbd_get_version_wrapper (struct error *err,
 #endif
 }
 
+const char *
+_nbd_get_version_extra_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_GET_VERSION_EXTRA
+  const char * ret;
+
+  ret = nbd_get_version_extra (h);
+  if (ret == NULL)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_GET_VERSION_EXTRA
+  missing_function (err, "get_version_extra");
+  return NULL;
+#endif
+}
+
 int
 _nbd_kill_subprocess_wrapper (struct error *err,
         struct nbd_handle *h, int signum)
@@ -1994,6 +2683,23 @@ _nbd_kill_subprocess_wrapper (struct error *err,
 #endif
 }
 
+int64_t
+_nbd_get_subprocess_pid_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_GET_SUBPROCESS_PID
+  int64_t ret;
+
+  ret = nbd_get_subprocess_pid (h);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_GET_SUBPROCESS_PID
+  missing_function (err, "get_subprocess_pid");
+  return -1;
+#endif
+}
+
 int
 _nbd_supports_tls_wrapper (struct error *err,
         struct nbd_handle *h)
@@ -2007,6 +2713,23 @@ _nbd_supports_tls_wrapper (struct error *err,
   return ret;
 #else // !LIBNBD_HAVE_NBD_SUPPORTS_TLS
   missing_function (err, "supports_tls");
+  return -1;
+#endif
+}
+
+int
+_nbd_supports_vsock_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_SUPPORTS_VSOCK
+  int ret;
+
+  ret = nbd_supports_vsock (h);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_SUPPORTS_VSOCK
+  missing_function (err, "supports_vsock");
   return -1;
 #endif
 }
@@ -2046,34 +2769,104 @@ _nbd_get_uri_wrapper (struct error *err,
 }
 
 int
+_nbd_is_uri_wrapper (struct error *err,
+        struct nbd_handle *h, const char *uri)
+{
+#ifdef LIBNBD_HAVE_NBD_IS_URI
+  int ret;
+
+  ret = nbd_is_uri (h, uri);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_IS_URI
+  missing_function (err, "is_uri");
+  return -1;
+#endif
+}
+
+int
+_nbd_set_keepalive_wrapper (struct error *err,
+        struct nbd_handle *h, bool enable)
+{
+#ifdef LIBNBD_HAVE_NBD_SET_KEEPALIVE
+  int ret;
+
+  ret = nbd_set_keepalive (h, enable);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_SET_KEEPALIVE
+  missing_function (err, "set_keepalive");
+  return -1;
+#endif
+}
+
+int
+_nbd_get_keepalive_wrapper (struct error *err,
+        struct nbd_handle *h)
+{
+#ifdef LIBNBD_HAVE_NBD_GET_KEEPALIVE
+  int ret;
+
+  ret = nbd_get_keepalive (h);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_GET_KEEPALIVE
+  missing_function (err, "get_keepalive");
+  return -1;
+#endif
+}
+
+int
+_nbd_set_tcp_option_wrapper (struct error *err,
+        struct nbd_handle *h, int option, int v)
+{
+#ifdef LIBNBD_HAVE_NBD_SET_TCP_OPTION
+  int ret;
+
+  ret = nbd_set_tcp_option (h, option, v);
+  if (ret == -1)
+    save_error (err);
+  return ret;
+#else // !LIBNBD_HAVE_NBD_SET_TCP_OPTION
+  missing_function (err, "set_tcp_option");
+  return -1;
+#endif
+}
+
+int
 _nbd_chunk_callback_wrapper (void *user_data, const void *subbuf,
                              size_t count, uint64_t offset, unsigned status,
                              int *error)
 {
-  return chunk_callback ((long)user_data, subbuf, count, offset, status, error);
+  // golang isn't const-correct, casts avoid warnings here:
+  return _nbd_dispatch_chunk_callback ((long *)user_data, (void *)subbuf, count, offset, status, error);
 }
 
 void
 _nbd_chunk_callback_free (void *user_data)
 {
   long *p = user_data;
-  extern void freeCallbackId (long);
-  freeCallbackId (*p);
+  extern void nbd_internal_freeCallbackId (long);
+  nbd_internal_freeCallbackId (*p);
   free (p);
 }
 
 int
 _nbd_completion_callback_wrapper (void *user_data, int *error)
 {
-  return completion_callback ((long)user_data, error);
+  // golang isn't const-correct, casts avoid warnings here:
+  return _nbd_dispatch_completion_callback ((long *)user_data, error);
 }
 
 void
 _nbd_completion_callback_free (void *user_data)
 {
   long *p = user_data;
-  extern void freeCallbackId (long);
-  freeCallbackId (*p);
+  extern void nbd_internal_freeCallbackId (long);
+  nbd_internal_freeCallbackId (*p);
   free (p);
 }
 
@@ -2081,15 +2874,16 @@ int
 _nbd_debug_callback_wrapper (void *user_data, const char *context,
                              const char *msg)
 {
-  return debug_callback ((long)user_data, context, msg);
+  // golang isn't const-correct, casts avoid warnings here:
+  return _nbd_dispatch_debug_callback ((long *)user_data, (char *)context, (char *)msg);
 }
 
 void
 _nbd_debug_callback_free (void *user_data)
 {
   long *p = user_data;
-  extern void freeCallbackId (long);
-  freeCallbackId (*p);
+  extern void nbd_internal_freeCallbackId (long);
+  nbd_internal_freeCallbackId (*p);
   free (p);
 }
 
@@ -2098,15 +2892,34 @@ _nbd_extent_callback_wrapper (void *user_data, const char *metacontext,
                               uint64_t offset, uint32_t *entries,
                               size_t nr_entries, int *error)
 {
-  return extent_callback ((long)user_data, metacontext, offset, entries, nr_entries, error);
+  // golang isn't const-correct, casts avoid warnings here:
+  return _nbd_dispatch_extent_callback ((long *)user_data, (char *)metacontext, offset, entries, nr_entries, error);
 }
 
 void
 _nbd_extent_callback_free (void *user_data)
 {
   long *p = user_data;
-  extern void freeCallbackId (long);
-  freeCallbackId (*p);
+  extern void nbd_internal_freeCallbackId (long);
+  nbd_internal_freeCallbackId (*p);
+  free (p);
+}
+
+int
+_nbd_extent64_callback_wrapper (void *user_data, const char *metacontext,
+                                uint64_t offset, nbd_extent *entries,
+                                size_t nr_entries, int *error)
+{
+  // golang isn't const-correct, casts avoid warnings here:
+  return _nbd_dispatch_extent64_callback ((long *)user_data, (char *)metacontext, offset, entries, nr_entries, error);
+}
+
+void
+_nbd_extent64_callback_free (void *user_data)
+{
+  long *p = user_data;
+  extern void nbd_internal_freeCallbackId (long);
+  nbd_internal_freeCallbackId (*p);
   free (p);
 }
 
@@ -2114,30 +2927,32 @@ int
 _nbd_list_callback_wrapper (void *user_data, const char *name,
                             const char *description)
 {
-  return list_callback ((long)user_data, name, description);
+  // golang isn't const-correct, casts avoid warnings here:
+  return _nbd_dispatch_list_callback ((long *)user_data, (char *)name, (char *)description);
 }
 
 void
 _nbd_list_callback_free (void *user_data)
 {
   long *p = user_data;
-  extern void freeCallbackId (long);
-  freeCallbackId (*p);
+  extern void nbd_internal_freeCallbackId (long);
+  nbd_internal_freeCallbackId (*p);
   free (p);
 }
 
 int
 _nbd_context_callback_wrapper (void *user_data, const char *name)
 {
-  return context_callback ((long)user_data, name);
+  // golang isn't const-correct, casts avoid warnings here:
+  return _nbd_dispatch_context_callback ((long *)user_data, (char *)name);
 }
 
 void
 _nbd_context_callback_free (void *user_data)
 {
   long *p = user_data;
-  extern void freeCallbackId (long);
-  freeCallbackId (*p);
+  extern void nbd_internal_freeCallbackId (long);
+  nbd_internal_freeCallbackId (*p);
   free (p);
 }
 
