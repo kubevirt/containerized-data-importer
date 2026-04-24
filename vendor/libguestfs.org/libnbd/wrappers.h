@@ -335,38 +335,38 @@ int _nbd_supports_uri_wrapper (struct error *err,
 char * _nbd_get_uri_wrapper (struct error *err,
         struct nbd_handle *h);
 
-extern int chunk_callback ();
+extern int chunk_callback (long int *callbackid, void *subbuf, size_t count, uint64_t offset, unsigned int status, int *error);
 
 int _nbd_chunk_callback_wrapper (void *user_data, const void *subbuf,
                                  size_t count, uint64_t offset,
                                  unsigned status, int *error);
 void _nbd_chunk_callback_free (void *user_data);
 
-extern int completion_callback ();
+extern int completion_callback (long int *callbackid, int *error);
 
 int _nbd_completion_callback_wrapper (void *user_data, int *error);
 void _nbd_completion_callback_free (void *user_data);
 
-extern int debug_callback ();
+extern int debug_callback (long int *callbackid, char *context, char *msg);
 
 int _nbd_debug_callback_wrapper (void *user_data, const char *context,
                                  const char *msg);
 void _nbd_debug_callback_free (void *user_data);
 
-extern int extent_callback ();
+extern int extent_callback (long int *callbackid, char *metacontext, uint64_t offset, uint32_t *entries, size_t nr_entries, int *error);
 
 int _nbd_extent_callback_wrapper (void *user_data, const char *metacontext,
                                   uint64_t offset, uint32_t *entries,
                                   size_t nr_entries, int *error);
 void _nbd_extent_callback_free (void *user_data);
 
-extern int list_callback ();
+extern int list_callback (long int *callbackid, char *name, char *description);
 
 int _nbd_list_callback_wrapper (void *user_data, const char *name,
                                 const char *description);
 void _nbd_list_callback_free (void *user_data);
 
-extern int context_callback ();
+extern int context_callback (long int *callbackid, char *name);
 
 int _nbd_context_callback_wrapper (void *user_data, const char *name);
 void _nbd_context_callback_free (void *user_data);

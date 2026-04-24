@@ -2050,7 +2050,7 @@ _nbd_chunk_callback_wrapper (void *user_data, const void *subbuf,
                              size_t count, uint64_t offset, unsigned status,
                              int *error)
 {
-  return chunk_callback ((long)user_data, subbuf, count, offset, status, error);
+  return chunk_callback ((long int *)user_data, (void *)subbuf, count, offset, status, error);
 }
 
 void
@@ -2065,7 +2065,7 @@ _nbd_chunk_callback_free (void *user_data)
 int
 _nbd_completion_callback_wrapper (void *user_data, int *error)
 {
-  return completion_callback ((long)user_data, error);
+  return completion_callback ((long int *)user_data, error);
 }
 
 void
@@ -2081,7 +2081,7 @@ int
 _nbd_debug_callback_wrapper (void *user_data, const char *context,
                              const char *msg)
 {
-  return debug_callback ((long)user_data, context, msg);
+  return debug_callback ((long int *)user_data, (char *)context, (char *)msg);
 }
 
 void
@@ -2098,7 +2098,7 @@ _nbd_extent_callback_wrapper (void *user_data, const char *metacontext,
                               uint64_t offset, uint32_t *entries,
                               size_t nr_entries, int *error)
 {
-  return extent_callback ((long)user_data, metacontext, offset, entries, nr_entries, error);
+  return extent_callback ((long int *)user_data, (char *)metacontext, offset, entries, nr_entries, error);
 }
 
 void
@@ -2114,7 +2114,7 @@ int
 _nbd_list_callback_wrapper (void *user_data, const char *name,
                             const char *description)
 {
-  return list_callback ((long)user_data, name, description);
+  return list_callback ((long int *)user_data, (char *)name, (char *)description);
 }
 
 void
@@ -2129,7 +2129,7 @@ _nbd_list_callback_free (void *user_data)
 int
 _nbd_context_callback_wrapper (void *user_data, const char *name)
 {
-  return context_callback ((long)user_data, name);
+  return context_callback ((long int *)user_data, (char *)name);
 }
 
 void
