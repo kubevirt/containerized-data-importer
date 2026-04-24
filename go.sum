@@ -3396,8 +3396,8 @@ kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6
 kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90/go.mod h1:018lASpFYBsYN6XwmA2TIrPCx6e0gviTd/ZNtSitKgc=
 kubevirt.io/qe-tools v0.1.8 h1:Ar7qicmzHdd+Ia+6rjHDg3D7GReIyq7QFXoC4F7TjhQ=
 kubevirt.io/qe-tools v0.1.8/go.mod h1:+Tr/WZGHIDQa/4pQgzM7+4J6YeVbUWAXESXtL2/zxqc=
-libguestfs.org/libnbd v1.11.5 h1:jRCRxzbeZksdj6e3sp+5/vfDfWx1s/uYyJB0qjgb8MI=
-libguestfs.org/libnbd v1.11.5/go.mod h1:Qd8vaULc6nlNgj9+6qDNm1vSD/J7/wgoIlwmCh8uxAc=
+libguestfs.org/libnbd v1.25.4 h1:RHRp6AkOi/FICrZ6aKbQaDuYbvDC/EgKc7uaS9aea2E=
+libguestfs.org/libnbd v1.25.4/go.mod h1:pSICAuDOpSGplmGmaZ8QettnBAT3IUJFcBU1bVgWgk4=
 lukechampine.com/uint128 v1.1.1/go.mod h1:c4eWIwlEGaxC/+H1VguhU4PHXNWDCDMUlWdIWl2j1gk=
 lukechampine.com/uint128 v1.2.0/go.mod h1:c4eWIwlEGaxC/+H1VguhU4PHXNWDCDMUlWdIWl2j1gk=
 lukechampine.com/uint128 v1.3.0/go.mod h1:c4eWIwlEGaxC/+H1VguhU4PHXNWDCDMUlWdIWl2j1gk=

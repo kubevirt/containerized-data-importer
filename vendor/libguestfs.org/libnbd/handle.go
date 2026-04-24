@@ -1,5 +1,5 @@
 /* libnbd golang handle.
- * Copyright (C) 2013-2021 Red Hat Inc.
+ * Copyright Red Hat
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -56,6 +56,12 @@ type Libnbd struct {
 /* Convert handle to string (just for debugging). */
 func (h *Libnbd) String() string {
 	return "&Libnbd{}"
+}
+
+/* Used for block status callback. */
+type LibnbdExtent struct {
+	Length uint64 // length of the extent
+	Flags  uint64 // flags describing properties of the extent
 }
 
 /* All functions (except Close) return ([result,] LibnbdError). */

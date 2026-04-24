@@ -63,7 +63,7 @@ require (
 	kubevirt.io/controller-lifecycle-operator-sdk v0.2.7
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90
 	kubevirt.io/qe-tools v0.1.8
-	libguestfs.org/libnbd v1.11.5
+	libguestfs.org/libnbd v1.25.4
 	sigs.k8s.io/controller-runtime v0.19.5
 )
 

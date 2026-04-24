@@ -1,5 +1,5 @@
 /* libnbd golang AIO buffer.
- * Copyright (C) 2013-2021 Red Hat Inc.
+ * Copyright Red Hat
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -39,27 +39,61 @@ type AioBuffer struct {
 	Size uint
 }
 
+// MakeAioBuffer makes a new buffer backed by an uninitialized C allocated
+// array.
 func MakeAioBuffer(size uint) AioBuffer {
 	return AioBuffer{C.malloc(C.ulong(size)), size}
 }
 
+// MakeAioBuffer makes a new buffer backed by a C allocated array. The
+// underlying buffer is set to zero.
+func MakeAioBufferZero(size uint) AioBuffer {
+	return AioBuffer{C.calloc(C.ulong(1), C.ulong(size)), size}
+}
+
+// FromBytes makes a new buffer backed by a C allocated array, initialized by
+// copying the given Go slice.
 func FromBytes(buf []byte) AioBuffer {
-	size := len(buf)
-	ret := MakeAioBuffer(uint(size))
-	for i := 0; i < len(buf); i++ {
-		*ret.Get(uint(i)) = buf[i]
-	}
+	ret := MakeAioBuffer(uint(len(buf)))
+	copy(ret.Slice(), buf)
 	return ret
 }
 
+// Free deallocates the underlying C allocated array. Using the buffer after
+// Free() will panic.
 func (b *AioBuffer) Free() {
-	C.free(b.P)
+	if b.P != nil {
+		C.free(b.P)
+		b.P = nil
+	}
 }
 
+// Bytes copies the underlying C array to Go allocated memory and return a
+// slice. Modifying the returned slice does not modify the underlying buffer
+// backing array.
 func (b *AioBuffer) Bytes() []byte {
+	if b.P == nil {
+		panic("Using AioBuffer after Free()")
+	}
 	return C.GoBytes(b.P, C.int(b.Size))
 }
 
+// Slice creates a slice backed by the underlying C array. The slice can be
+// used to access or modify the contents of the underlying array. The slice
+// must not be used after calling Free().
+func (b *AioBuffer) Slice() []byte {
+	if b.P == nil {
+		panic("Using AioBuffer after Free()")
+	}
+	return unsafe.Slice((*byte)(b.P), b.Size)
+}
+
+// Get returns a pointer to a byte in the underlying C array. The pointer can
+// be used to modify the underlying array. The pointer must not be used after
+// calling Free().
 func (b *AioBuffer) Get(i uint) *byte {
+	if b.P == nil {
+		panic("Using AioBuffer after Free()")
+	}
 	return (*byte)(unsafe.Pointer(uintptr(b.P) + uintptr(i)))
 }
