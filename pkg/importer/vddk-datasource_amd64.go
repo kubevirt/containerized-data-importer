@@ -414,7 +414,6 @@ func searchDiskBackingChain(disk *types.VirtualDisk, fileName string) *types.Vir
 	return nil
 }
 
-// Further flatten indentation levels to reduce complexity rating
 func searchDiskBackingChainFlatVer1(info *types.VirtualDiskFlatVer1BackingInfo, fileName string) bool {
 	if info == nil || info.Parent == nil {
 		return false
