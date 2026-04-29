@@ -5,13 +5,11 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 
@@ -128,18 +126,6 @@ func GetGlobalCloneStrategyOverride(ctx context.Context, c client.Client) (*cdiv
 	}
 
 	return cr.Spec.CloneStrategyOverride, nil
-}
-
-// GetSnapshotContentFromSnapshot returns the VolumeSnapshotContent of a given VolumeSnapshot
-func GetSnapshotContentFromSnapshot(ctx context.Context, c client.Client, snapshot *snapshotv1.VolumeSnapshot) (*snapshotv1.VolumeSnapshotContent, error) {
-	if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
-		return nil, fmt.Errorf("volumeSnapshotContent name not found")
-	}
-	vsc := &snapshotv1.VolumeSnapshotContent{}
-	if err := c.Get(ctx, types.NamespacedName{Name: *snapshot.Status.BoundVolumeSnapshotContentName}, vsc); err != nil {
-		return nil, err
-	}
-	return vsc, nil
 }
 
 // GetStorageClassForClaim returns the storageclass for a PVC
