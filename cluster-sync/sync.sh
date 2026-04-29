@@ -106,15 +106,19 @@ function wait_cdi_available {
 }
 
 function configure_uploadproxy_override {
-  if [[ $KUBEVIRT_PROVIDER =~ kind.* ]]; then
+  if [ -n "${UPLOAD_PROXY_URL_OVERRIDE}" ]; then
+    override="${UPLOAD_PROXY_URL_OVERRIDE}"
+  elif [[ $KUBEVIRT_PROVIDER =~ kind.* ]]; then
     # To enable port mapping, it must be configured both in the Kind configuration and the uploadProxyURLOverride.
     # We use the environment variable KIND_PORT_MAPPING to ensure the setup is applied in both locations.
     container_port=$(echo "$KIND_PORT_MAPPING" | awk -F: '{print $1}')
     host_port=$(echo "$KIND_PORT_MAPPING" | awk -F: '{print $2}')
     override="https://127.0.0.1:$host_port"
-  else
+  elif [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
     host_port=$(./cluster-up/cli.sh ports uploadproxy-lowerband | xargs)
     override="https://127.0.0.1:$host_port"
+  else
+    return
   fi
   _kubectl patch cdi ${CR_NAME} --type=merge -p '{"spec": {"config": {"uploadProxyURLOverride": "'"$override"'"}}}'
 }
@@ -319,11 +323,9 @@ else
   wait_cdi_available
 fi
 
-# Non external provider extra setup
+configure_uploadproxy_override
+
 if [ "${KUBEVIRT_PROVIDER}" != "external" ]; then
-  # Configure CDI upload proxy URL override
-  configure_uploadproxy_override
-  # Tell prometheus to watch our namespace
   configure_prometheus
 fi
 
