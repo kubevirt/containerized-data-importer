@@ -325,6 +325,47 @@ var _ = Describe("Import Proxy tests", func() {
 				expected:      BeFalse}),
 		)
 
+		It("should import from https endpoint using global trustedCAProxy without per-DV certConfigMap", func() {
+			By("Copying file host CA cert to CDI namespace for use as trustedCAProxy")
+			caConfigMapName, err := utils.CopyConfigMap(
+				f.K8sClient, f.CdiInstallNs, utils.FileHostCertConfigMap,
+				f.CdiInstallNs, "test-trusted-ca", "")
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Setting CDIConfig importProxy.trustedCAProxy")
+			updateCDIConfigProxy(f, "", "", "", caConfigMapName)
+
+			By("Waiting for CDI to reconcile the trustedCAProxy")
+			Eventually(func() string {
+				config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(
+					context.TODO(), common.ConfigName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				ca, _ := cont.GetImportProxyConfig(config, common.ImportProxyConfigMapName)
+				return ca
+			}, time.Second*120, time.Second).Should(Equal(caConfigMapName))
+
+			imgURL := fmt.Sprintf("https://%s.%s:%d/%s",
+				fileHostName, f.CdiInstallNs, utils.HTTPSNoAuthPort, tinyCoreIso)
+			dvName = "test-global-trusted-ca"
+
+			By("Creating DataVolume without per-DV certConfigMap")
+			dv := utils.NewDataVolumeWithHTTPImport(dvName, "400Mi", imgURL)
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verifying pvc was created")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dvName)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindIfWaitForFirstConsumer(pvc)
+
+			By("Verifying proxy ConfigMap was copied to import namespace")
+			verifyImportProxyConfigMap(pvc)
+
+			By("Waiting for DataVolume to succeed")
+			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
 		DescribeTable("should proxy registry imports", func(isHTTPS, hasAuth bool) {
 			now := time.Now()
 			updateProxy(f, "", createProxyURL(isHTTPS, hasAuth, f.CdiInstallNs), "", ocpClient)
