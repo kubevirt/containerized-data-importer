@@ -292,31 +292,32 @@ func createCertPool(certDir string) (*x509.CertPool, error) {
 		}
 	}
 
-	// append server CA certificates
-	files, err := os.ReadDir(certDir)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Error listing files in %s", certDir)
-	}
-
-	for _, file := range files {
-		if file.IsDir() || file.Name()[0] == '.' {
-			continue
-		}
-
-		fp := path.Join(certDir, file.Name())
-
-		klog.Infof("Attempting to get certs from %s", fp)
-
-		certs, err := os.ReadFile(fp)
+	// append server CA certificates if the directory exists
+	if certDir != "" {
+		files, err := os.ReadDir(certDir)
 		if err != nil {
-			return nil, errors.Wrapf(err, "Error reading file %s", fp)
+			return nil, errors.Wrapf(err, "Error listing files in %s", certDir)
 		}
 
-		if ok := certPool.AppendCertsFromPEM(certs); !ok {
-			klog.Warningf("No certs in %s", fp)
+		for _, file := range files {
+			if file.IsDir() || file.Name()[0] == '.' {
+				continue
+			}
+
+			fp := path.Join(certDir, file.Name())
+
+			klog.Infof("Attempting to get certs from %s", fp)
+
+			certs, err := os.ReadFile(fp)
+			if err != nil {
+				return nil, errors.Wrapf(err, "Error reading file %s", fp)
+			}
+
+			if ok := certPool.AppendCertsFromPEM(certs); !ok {
+				klog.Warningf("No certs in %s", fp)
+			}
 		}
 	}
-
 	return certPool, nil
 }
 
@@ -325,7 +326,14 @@ func createHTTPClient(certDir string, insecureSkipVerify bool) (*http.Client, er
 		// Don't set timeout here, since that will be an absolute timeout, we need a relative to last progress timeout.
 	}
 
-	if certDir == "" && !insecureSkipVerify {
+	// if any cluster wide certs are configured, they will exist in the proxy cert dir
+	proxyCertDir, err := os.ReadDir(common.ImporterProxyCertDir)
+
+	if err != nil && !os.IsNotExist(err) {
+		klog.Warningf("Unable to read proxy cert directory %v", err)
+	}
+
+	if certDir == "" && len(proxyCertDir) == 0 && !insecureSkipVerify {
 		return client, nil
 	}
 	// the default transport contains Proxy configurations to use environment variables and default timeouts
