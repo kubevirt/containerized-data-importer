@@ -10,9 +10,11 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 
 	"github.com/golang/snappy"
+	"golang.org/x/sys/unix"
 
 	"k8s.io/klog/v2"
 
@@ -27,6 +29,11 @@ var (
 	mountPoint  string
 	uploadBytes uint64
 )
+
+// seekFunc is a function variable for unix.Seek, allowing test injection.
+var seekFunc = func(fd int, offset int64, whence int) (int64, error) {
+	return unix.Seek(fd, offset, whence)
+}
 
 type execReader struct {
 	cmd    *exec.Cmd
@@ -144,6 +151,55 @@ func validateMount() {
 	}
 }
 
+// seekHoleSupported probes whether SEEK_HOLE works on the given file.
+// Filesystems without real SEEK_HOLE support (e.g. NFS < 4.2) use the
+// generic VFS fallback which returns file-size, making tar -S think
+// there are no holes. We replicate the same heuristic GNU tar uses:
+// if SEEK_DATA returns 0 and SEEK_HOLE returns file-size on the first
+// call, SEEK_HOLE is not efficiently implemented.
+func seekHoleSupported(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// No disk.img — likely an archive of small files where
+			// raw hole-scanning overhead is negligible.
+			klog.Infof("No %s found, skipping SEEK_HOLE probe", path)
+			return true
+		}
+		klog.Fatalf("Failed to open %s for SEEK_HOLE probe: %v", path, err)
+	}
+	defer f.Close()
+
+	fi, err := f.Stat()
+	if err != nil {
+		klog.Fatalf("Failed to stat %s: %v", path, err)
+	}
+	if fi.Size() == 0 {
+		return true
+	}
+
+	dataOff, dataErr := seekFunc(int(f.Fd()), 0, unix.SEEK_DATA)
+	if errors.Is(dataErr, unix.ENXIO) {
+		// ENXIO from SEEK_DATA means the file is entirely sparse (no data).
+		// Only a real SEEK_HOLE implementation returns this.
+		return true
+	}
+
+	holeOff, holeErr := seekFunc(int(f.Fd()), 0, unix.SEEK_HOLE)
+
+	if dataErr != nil || holeErr != nil {
+		klog.Warningf("SEEK_HOLE probe failed on %s: SEEK_DATA=%v, SEEK_HOLE=%v", path, dataErr, holeErr)
+		return false
+	}
+
+	if dataOff == 0 && holeOff == fi.Size() {
+		klog.Infof("SEEK_HOLE not supported on %s (VFS fallback detected), omitting tar -S", path)
+		return false
+	}
+
+	return true
+}
+
 func newTarReader(preallocation bool) (io.ReadCloser, error) {
 	excludeMap := map[string]struct{}{
 		"lost+found": {},
@@ -151,8 +207,9 @@ func newTarReader(preallocation bool) (io.ReadCloser, error) {
 
 	const path = "/usr/bin/tar"
 	args := []string{"cv"}
-	if !preallocation {
-		// -S is used to handle sparse files. It can only be used when preallocation is not requested
+	if !preallocation && seekHoleSupported(filepath.Join(mountPoint, common.DiskImageName)) {
+		// -S is used to handle sparse files. It can only be used when preallocation
+		// is not requested and the filesystem supports efficient SEEK_HOLE.
 		args = append(args, "-S")
 	}
 
