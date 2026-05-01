@@ -1585,6 +1585,37 @@ func InflateSizeWithOverhead(ctx context.Context, c client.Client, imgSize int64
 	return returnSize, nil
 }
 
+// GetSnapshotContentFromSnapshot returns the VolumeSnapshotContent of a given VolumeSnapshot
+func GetSnapshotContentFromSnapshot(ctx context.Context, c client.Client, snapshot *snapshotv1.VolumeSnapshot) (*snapshotv1.VolumeSnapshotContent, error) {
+	if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
+		return nil, fmt.Errorf("volumeSnapshotContent name not found")
+	}
+	vsc := &snapshotv1.VolumeSnapshotContent{}
+	if err := c.Get(ctx, types.NamespacedName{Name: *snapshot.Status.BoundVolumeSnapshotContentName}, vsc); err != nil {
+		return nil, err
+	}
+	return vsc, nil
+}
+
+// GetSnapshotSourceVolumeMode determines the volume mode of the PVC that was
+// used to create the given snapshot. It checks (in order):
+// 1. VolumeSnapshotContent.Spec.SourceVolumeMode (available since k8s 1.29)
+// 2. AnnSourceVolumeMode annotation on the snapshot
+// 3. Falls back to the provided fallback volume mode
+func GetSnapshotSourceVolumeMode(log logr.Logger, snapshot *snapshotv1.VolumeSnapshot, vsc *snapshotv1.VolumeSnapshotContent, fallback *corev1.PersistentVolumeMode) *corev1.PersistentVolumeMode {
+	if vsc != nil && vsc.Spec.SourceVolumeMode != nil {
+		return vsc.Spec.SourceVolumeMode
+	}
+
+	if v, ok := snapshot.Annotations[AnnSourceVolumeMode]; ok {
+		mode := corev1.PersistentVolumeMode(v)
+		return &mode
+	}
+
+	log.V(1).Info("Could not infer source volume mode of snapshot, assuming same as target")
+	return fallback
+}
+
 // IsBound returns if the pvc is bound
 func IsBound(pvc *corev1.PersistentVolumeClaim) bool {
 	return pvc != nil && pvc.Status.Phase == corev1.ClaimBound
