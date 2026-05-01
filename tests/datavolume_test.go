@@ -301,7 +301,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
 
 			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
-			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
+			return utils.NewCloningDataVolumeWithStorageSpec(dataVolumeName, size, sourcePvc)
 		}
 
 		createBlankRawDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
@@ -1399,7 +1399,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume.Labels = map[string]string{"test-label-1": "test-label-1", "test-label-2": "test-label-2"}
 			dataVolume.Annotations = map[string]string{"test-annotation-1": "test-annotation-1", "test-annotation-2": "test-annotation-2"}
 			// Stir things up with this non widely used access mode
-			dataVolume.Spec.PVC.AccessModes = []v1.PersistentVolumeAccessMode{v1.ReadWriteOncePod}
+			dataVolume.Spec.Storage.AccessModes = []v1.PersistentVolumeAccessMode{v1.ReadWriteOncePod}
 
 			By(fmt.Sprintf("creating new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -1768,7 +1768,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		fillCommand := "echo \"" + fillData + "\" >> " + testFile
 
 		createLabeledDataVolumeForImport := func(f *framework.Framework, storageSpec cdiv1.StorageSpec, labels map[string]string) *cdiv1.DataVolume {
-			dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
+			dataVolume := utils.NewDataVolumeWithHTTPImport(
 				dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
 
 			dataVolume.Spec.Storage = &storageSpec
@@ -1785,7 +1785,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		createDataVolumeForUpload := func(f *framework.Framework, storageSpec cdiv1.StorageSpec) *cdiv1.DataVolume {
 			dataVolume := utils.NewDataVolumeForUpload(dataVolumeName, "1Mi")
-			dataVolume.Spec.PVC = nil
 			dataVolume.Spec.Storage = &storageSpec
 
 			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -1799,8 +1798,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
 
 			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
-			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "10Mi", sourcePvc)
-			dataVolume.Spec.PVC = nil
+			dataVolume := utils.NewCloningDataVolumeWithStorageSpec(dataVolumeName, "10Mi", sourcePvc)
 			dataVolume.Spec.Storage = &storageSpec
 			dataVolume.Annotations[controller.AnnImmediateBinding] = "true"
 
@@ -2534,7 +2532,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 
 			By(fmt.Sprintf("creating new datavolume %s with StorageClassName %s", dataVolumeName, scName))
-			dataVolume := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
+			dataVolume := utils.NewDataVolumeWithHTTPImport(
 				dataVolumeName, "100Mi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
 			dataVolume.Labels = map[string]string{common.PvcApplyStorageProfileLabel: webhookRenderingLabel}
 			dataVolume.Spec.Storage.StorageClassName = ptr.To[string](scName)
@@ -2570,7 +2568,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		)
 
 		newDataVolumeWithStorageSpec := func(scName string) *cdiv1.DataVolume {
-			dv := utils.NewDataVolumeWithHTTPImportAndStorageSpec(
+			dv := utils.NewDataVolumeWithHTTPImport(
 				dataVolumeName, "100Mi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
 			dv.Spec.Storage.StorageClassName = ptr.To[string](scName)
 			return dv
@@ -2578,7 +2576,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 		newDataVolumeWithPvcSpec := func(scName string) *cdiv1.DataVolume {
 			dv := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "100Mi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
-			dv.Spec.PVC.StorageClassName = ptr.To[string](scName)
+			dv.Spec.Storage.StorageClassName = ptr.To[string](scName)
 			return dv
 		}
 
@@ -2698,7 +2696,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
 
 			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
-			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
+			return utils.NewCloningDataVolumeWithStorageSpec(dataVolumeName, size, sourcePvc)
 		}
 		var original *bool
 		noSuchFileFileURL := utils.InvalidQcowImagesURL + "no-such-file.img"
@@ -2820,7 +2818,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			sourcePvc = f.CreateAndPopulateSourcePVC(pvcDef, sourcePodFillerName, command)
 
 			By(fmt.Sprintf("creating a new target PVC (datavolume) to clone %s", sourcePvc.Name))
-			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
+			return utils.NewCloningDataVolumeWithStorageSpec(dataVolumeName, size, sourcePvc)
 		}
 
 		DescribeTable("WFFC Feature Gate enabled - ImmediateBinding requested", func(
@@ -3163,7 +3161,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindIfWaitForFirstConsumer(pvc)
 
-			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", pvc)
+			dataVolume := utils.NewCloningDataVolumeWithStorageSpec(dataVolumeName, "1Gi", pvc)
 			Expect(dataVolume).ToNot(BeNil())
 
 			By(fmt.Sprintf("creating new datavolume %s with priority class", dataVolume.Name))

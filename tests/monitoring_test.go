@@ -300,7 +300,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 
 			updateDefaultStorageClasses("false")
 
-			dv := utils.NewDataVolumeWithHTTPImportAndStorageSpec("test-dv", "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
+			dv := utils.NewDataVolumeWithHTTPImport("test-dv", "1Gi", fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs))
 			if !withAccessModes {
 				dv.Spec.Storage.AccessModes = nil
 			}
