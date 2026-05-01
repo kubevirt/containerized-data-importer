@@ -359,19 +359,25 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		return res, err
 	}
 	if desiredStorageClass != nil {
-		if deleted, err := r.deleteOutdatedPendingPvc(ctx, pvc, desiredStorageClass.Name, dataImportCron.Name); deleted || err != nil {
+		desiredSc := desiredStorageClass.Name
+		if deleted, err := r.deleteOutdatedPendingPvc(ctx, pvc, desiredSc, dataImportCron.Name); deleted || err != nil {
 			return res, err
 		}
 		currentSc, hasCurrent := dataImportCron.Annotations[AnnStorageClass]
-		desiredSc := desiredStorageClass.Name
-		if hasCurrent && currentSc != desiredSc {
-			r.log.Info("Storage class changed, delete most recent source on the old sc as it's no longer the desired", "currentSc", currentSc, "desiredSc", desiredSc)
+		var storageClassChanged bool
+		if hasCurrent {
+			storageClassChanged = currentSc != desiredSc
+		} else {
+			storageClassChanged = len(imports) > 0
+		}
+		if storageClassChanged {
+			r.log.Info("Storage class changed, deleting imports on old SC", "currentSc", currentSc, "desiredSc", desiredSc)
 			if err := r.handleStorageClassChange(ctx, dataImportCron, desiredSc); err != nil {
 				return res, err
 			}
 			return reconcile.Result{RequeueAfter: time.Second}, nil
 		}
-		cc.AddAnnotation(dataImportCron, AnnStorageClass, desiredStorageClass.Name)
+		cc.AddAnnotation(dataImportCron, AnnStorageClass, desiredSc)
 	}
 	format, err := r.getSourceFormat(ctx, desiredStorageClass)
 	if err != nil {
