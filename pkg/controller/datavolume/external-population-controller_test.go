@@ -328,6 +328,315 @@ var _ = Describe("All external-population tests", func() {
 			Expect(found).To(BeTrue())
 		})
 	})
+
+	var _ = Describe("CDI volume populators", func() {
+		apiGroup := "cdi.kubevirt.io"
+		volumeImportSourceRef := &corev1.TypedObjectReference{
+			APIGroup: &apiGroup,
+			Kind:     cdiv1.VolumeImportSourceRef,
+			Name:     "test-import-source",
+		}
+		volumeUploadSourceRef := &corev1.TypedObjectReference{
+			APIGroup: &apiGroup,
+			Kind:     cdiv1.VolumeUploadSourceRef,
+			Name:     "test-upload-source",
+		}
+		volumeCloneSourceRef := &corev1.TypedObjectReference{
+			APIGroup: &apiGroup,
+			Kind:     cdiv1.VolumeCloneSourceRef,
+			Name:     "test-clone-source",
+		}
+
+		AfterEach(func() {
+			if reconciler != nil && reconciler.recorder != nil {
+				close(reconciler.recorder.(*record.FakeRecorder).Events)
+			}
+		})
+
+		It("Should show ImportScheduled for VolumeImportSource without pod phase annotation", func() {
+			dv := newPopulatorDataVolume("test-dv", nil, volumeImportSourceRef)
+			targetPvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc.OwnerReferences = append(targetPvc.OwnerReferences, metav1.OwnerReference{
+				Kind:       "DataVolume",
+				Controller: &controller,
+				Name:       "test-dv",
+				UID:        dv.UID,
+			})
+			targetPvc.Spec.DataSourceRef = dv.Spec.PVC.DataSourceRef
+
+			reconciler = createPopulatorReconciler(dv, targetPvc, storageProfile, sc, csiDriver)
+			reconciler.shouldUpdateProgress = true
+
+			By("Reconcile")
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Verifying that DV is in ImportScheduled phase")
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(cdiv1.ImportScheduled))
+		})
+
+		It("Should show ImportInProgress for VolumeImportSource when pod is running", func() {
+			dv := newPopulatorDataVolume("test-dv", nil, volumeImportSourceRef)
+			targetPvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc.OwnerReferences = append(targetPvc.OwnerReferences, metav1.OwnerReference{
+				Kind:       "DataVolume",
+				Controller: &controller,
+				Name:       "test-dv",
+				UID:        dv.UID,
+			})
+			targetPvc.Spec.DataSourceRef = dv.Spec.PVC.DataSourceRef
+			if targetPvc.Annotations == nil {
+				targetPvc.Annotations = make(map[string]string)
+			}
+			targetPvc.Annotations[AnnUsePopulator] = "true"
+			targetPvc.Annotations[AnnPodPhase] = string(corev1.PodRunning)
+			targetPvc.Annotations[AnnPopulatorProgress] = "35.5%"
+
+			reconciler = createPopulatorReconciler(dv, targetPvc, storageProfile, sc, csiDriver)
+			reconciler.shouldUpdateProgress = true
+
+			By("Reconcile")
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Verifying that DV is in ImportInProgress phase with progress")
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(cdiv1.ImportInProgress))
+			Expect(dv.Status.Progress).To(Equal(cdiv1.DataVolumeProgress("35.5%")))
+
+			By("Checking events recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, "ImportInProgress") {
+					found = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(found).To(BeTrue())
+		})
+
+		It("Should show Succeeded for VolumeImportSource when pod succeeded", func() {
+			dv := newPopulatorDataVolume("test-dv", nil, volumeImportSourceRef)
+			targetPvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc.OwnerReferences = append(targetPvc.OwnerReferences, metav1.OwnerReference{
+				Kind:       "DataVolume",
+				Controller: &controller,
+				Name:       "test-dv",
+				UID:        dv.UID,
+			})
+			targetPvc.Spec.DataSourceRef = dv.Spec.PVC.DataSourceRef
+			if targetPvc.Annotations == nil {
+				targetPvc.Annotations = make(map[string]string)
+			}
+			targetPvc.Annotations[AnnPodPhase] = string(corev1.PodSucceeded)
+
+			reconciler = createPopulatorReconciler(dv, targetPvc, storageProfile, sc, csiDriver)
+			reconciler.shouldUpdateProgress = true
+
+			By("Reconcile")
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Verifying that DV is succeeded with 100% progress")
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(cdiv1.Succeeded))
+			Expect(dv.Status.Progress).To(Equal(cdiv1.DataVolumeProgress("100.0%")))
+
+			By("Checking events recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, "ImportSucceeded") {
+					found = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(found).To(BeTrue())
+		})
+
+		It("Should show UploadScheduled for VolumeUploadSource without pod phase annotation", func() {
+			dv := newPopulatorDataVolume("test-dv", nil, volumeUploadSourceRef)
+			targetPvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc.OwnerReferences = append(targetPvc.OwnerReferences, metav1.OwnerReference{
+				Kind:       "DataVolume",
+				Controller: &controller,
+				Name:       "test-dv",
+				UID:        dv.UID,
+			})
+			targetPvc.Spec.DataSourceRef = dv.Spec.PVC.DataSourceRef
+
+			reconciler = createPopulatorReconciler(dv, targetPvc, storageProfile, sc, csiDriver)
+			reconciler.shouldUpdateProgress = true
+
+			By("Reconcile")
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Verifying that DV is in UploadScheduled phase")
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(cdiv1.UploadScheduled))
+		})
+
+		It("Should show UploadReady for VolumeUploadSource when pod is running", func() {
+			dv := newPopulatorDataVolume("test-dv", nil, volumeUploadSourceRef)
+			targetPvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc.OwnerReferences = append(targetPvc.OwnerReferences, metav1.OwnerReference{
+				Kind:       "DataVolume",
+				Controller: &controller,
+				Name:       "test-dv",
+				UID:        dv.UID,
+			})
+			targetPvc.Spec.DataSourceRef = dv.Spec.PVC.DataSourceRef
+			if targetPvc.Annotations == nil {
+				targetPvc.Annotations = make(map[string]string)
+			}
+			targetPvc.Annotations[AnnPodPhase] = string(corev1.PodRunning)
+
+			reconciler = createPopulatorReconciler(dv, targetPvc, storageProfile, sc, csiDriver)
+			reconciler.shouldUpdateProgress = true
+
+			By("Reconcile")
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Verifying that DV is in UploadReady phase")
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(cdiv1.UploadReady))
+
+			By("Checking events recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, "UploadReady") {
+					found = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(found).To(BeTrue())
+		})
+
+		It("Should show CloneScheduled for VolumeCloneSource without pod phase annotation", func() {
+			dv := newPopulatorDataVolume("test-dv", nil, volumeCloneSourceRef)
+			targetPvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc.OwnerReferences = append(targetPvc.OwnerReferences, metav1.OwnerReference{
+				Kind:       "DataVolume",
+				Controller: &controller,
+				Name:       "test-dv",
+				UID:        dv.UID,
+			})
+			targetPvc.Spec.DataSourceRef = dv.Spec.PVC.DataSourceRef
+
+			reconciler = createPopulatorReconciler(dv, targetPvc, storageProfile, sc, csiDriver)
+			reconciler.shouldUpdateProgress = true
+
+			By("Reconcile")
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Verifying that DV is in CloneScheduled phase")
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(cdiv1.CloneScheduled))
+		})
+
+		It("Should show CloneInProgress for VolumeCloneSource when pod is running", func() {
+			dv := newPopulatorDataVolume("test-dv", nil, volumeCloneSourceRef)
+			targetPvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc.OwnerReferences = append(targetPvc.OwnerReferences, metav1.OwnerReference{
+				Kind:       "DataVolume",
+				Controller: &controller,
+				Name:       "test-dv",
+				UID:        dv.UID,
+			})
+			targetPvc.Spec.DataSourceRef = dv.Spec.PVC.DataSourceRef
+			if targetPvc.Annotations == nil {
+				targetPvc.Annotations = make(map[string]string)
+			}
+			targetPvc.Annotations[AnnUsePopulator] = "true"
+			targetPvc.Annotations[AnnPodPhase] = string(corev1.PodRunning)
+			targetPvc.Annotations[AnnPopulatorProgress] = "50.0%"
+
+			reconciler = createPopulatorReconciler(dv, targetPvc, storageProfile, sc, csiDriver)
+			reconciler.shouldUpdateProgress = true
+
+			By("Reconcile")
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Verifying that DV is in CloneInProgress phase with progress")
+			dv = &cdiv1.DataVolume{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, dv)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(dv.Status.Phase).To(Equal(cdiv1.CloneInProgress))
+			Expect(dv.Status.Progress).To(Equal(cdiv1.DataVolumeProgress("50.0%")))
+
+			By("Checking events recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, "CloneInProgress") {
+					found = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(found).To(BeTrue())
+		})
+
+		It("Should emit failure event when VolumeImportSource pod fails", func() {
+			dv := newPopulatorDataVolume("test-dv", nil, volumeImportSourceRef)
+			targetPvc := CreatePvcInStorageClass("test-dv", metav1.NamespaceDefault, &scName, nil, nil, corev1.ClaimBound)
+			targetPvc.OwnerReferences = append(targetPvc.OwnerReferences, metav1.OwnerReference{
+				Kind:       "DataVolume",
+				Controller: &controller,
+				Name:       "test-dv",
+				UID:        dv.UID,
+			})
+			targetPvc.Spec.DataSourceRef = dv.Spec.PVC.DataSourceRef
+			if targetPvc.Annotations == nil {
+				targetPvc.Annotations = make(map[string]string)
+			}
+			targetPvc.Annotations[AnnPodPhase] = string(corev1.PodFailed)
+
+			reconciler = createPopulatorReconciler(dv, targetPvc, storageProfile, sc, csiDriver)
+			reconciler.shouldUpdateProgress = true
+
+			By("Reconcile")
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Checking failure event recorded")
+			close(reconciler.recorder.(*record.FakeRecorder).Events)
+			found := false
+			for event := range reconciler.recorder.(*record.FakeRecorder).Events {
+				if strings.Contains(event, "ImportFailed") {
+					found = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(found).To(BeTrue())
+		})
+	})
 })
 
 func createPopulatorReconciler(objects ...client.Object) *PopulatorReconciler {
