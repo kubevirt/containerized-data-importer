@@ -9,6 +9,7 @@ go_library(
         "iterator.go",
         "key.go",
         "kv.go",
+        "rawhelpers.go",
         "set.go",
         "type_string.go",
         "value.go",
@@ -16,8 +17,5 @@ go_library(
     importmap = "kubevirt.io/containerized-data-importer/vendor/go.opentelemetry.io/otel/attribute",
     importpath = "go.opentelemetry.io/otel/attribute",
     visibility = ["//visibility:public"],
-    deps = [
-        "//vendor/go.opentelemetry.io/otel/internal:go_default_library",
-        "//vendor/go.opentelemetry.io/otel/internal/attribute:go_default_library",
-    ],
+    deps = ["//vendor/go.opentelemetry.io/otel/attribute/internal:go_default_library"],
 )
