@@ -3,6 +3,7 @@ module kubevirt.io/containerized-data-importer
 go 1.24.0
 
 require (
+	github.com/konflux-ci/coverport v0.0.0-00010101000000-000000000000
 	cloud.google.com/go/storage v1.38.0
 	github.com/appscode/jsonpatch v1.0.1
 	github.com/aws/aws-sdk-go v1.44.302
