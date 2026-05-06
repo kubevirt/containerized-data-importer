@@ -105,6 +105,7 @@ type importPodEnvVar struct {
 	cacheMode                 string
 	registryImageArchitecture string
 	checksum                  string
+	allowedSourceURLs         string
 }
 
 type importerPodArgs struct {
@@ -687,6 +688,12 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 			r.log.V(3).Info("no proxy CA certiticate will be supplied:", "error", err.Error())
 		}
 		podEnvVar.certConfigMapProxy = field
+
+		// Add allowlist from CDIConfig for SSRF protection
+		if len(cdiConfig.Spec.AllowedSourceURLs) > 0 {
+			podEnvVar.allowedSourceURLs = strings.Join(cdiConfig.Spec.AllowedSourceURLs, ",")
+			r.log.V(3).Info("SSRF protection allowlist configured", "allowlist", podEnvVar.allowedSourceURLs)
+		}
 	}
 
 	fsOverhead, err := GetFilesystemOverhead(context.TODO(), r.client, pvc)
@@ -1432,6 +1439,12 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 			Name:  common.ImporterChecksum,
 			Value: podEnvVar.checksum,
 		},
+	}
+	if podEnvVar.allowedSourceURLs != "" {
+		env = append(env, corev1.EnvVar{
+			Name:  common.ImporterAllowedSourceURLs,
+			Value: podEnvVar.allowedSourceURLs,
+		})
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source != cc.SourceGCS {
 		env = append(env, corev1.EnvVar{

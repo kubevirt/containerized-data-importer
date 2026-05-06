@@ -165,6 +165,8 @@ const (
 	InstallerVersionLabel = "INSTALLER_VERSION_LABEL"
 	// ImporterExtraHeader provides a constant to include extra HTTP headers, as the prefix to a format string
 	ImporterExtraHeader = "IMPORTER_EXTRA_HEADER_"
+	// ImporterAllowedSourceURLs provides a constant for the allowlist of source URLs (CIDRs or hostnames)
+	ImporterAllowedSourceURLs = "IMPORTER_ALLOWED_SOURCE_URLS"
 	// ImporterSecretExtraHeadersDir is where the secrets containing extra HTTP headers will be mounted
 	ImporterSecretExtraHeadersDir = "/extraheaders"
 	// ImporterRegistryImageArchitecture provides a constant to capture our env variable "IMPORTER_REGISTRY_IMAGE_ARCHITECTURE"

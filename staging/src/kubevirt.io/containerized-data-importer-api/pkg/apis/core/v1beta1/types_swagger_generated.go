@@ -535,6 +535,7 @@ func (CDIConfigSpec) SwaggerDoc() map[string]string {
 		"filesystemOverhead":       "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.06 (6% overhead)",
 		"preallocation":            "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 		"insecureRegistries":       "InsecureRegistries is a list of TLS disabled registries",
+		"allowedSourceURLs":        "AllowedSourceURLs is a list of CIDR blocks or hostnames that are allowed for HTTP/S data sources\neven if they fall within the default SSRF protection blocklist (private IPs, link-local, etc.).\nThis allows importing from in-cluster services or private endpoints.\nFormat: CIDR (10.96.0.0/12) or hostname (minio.default.svc)\n+optional",
 		"dataVolumeTTLSeconds":     "DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. Disabled by default.\nDeprecated: Removed in v1.62.\n+optional",
 		"tlsSecurityProfile":       "TLSSecurityProfile is used by operators to apply cluster-wide TLS security settings to operands.",
 		"imagePullSecrets":         "The imagePullSecrets used to pull the container images",

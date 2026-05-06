@@ -114,6 +114,15 @@ spec:
               config:
                 description: CDIConfig at CDI level
                 properties:
+                  allowedSourceURLs:
+                    description: |-
+                      AllowedSourceURLs is a list of CIDR blocks or hostnames that are allowed for HTTP/S data sources
+                      even if they fall within the default SSRF protection blocklist (private IPs, link-local, etc.).
+                      This allows importing from in-cluster services or private endpoints.
+                      Format: CIDR (10.96.0.0/12) or hostname (minio.default.svc)
+                    items:
+                      type: string
+                    type: array
                   dataVolumeTTLSeconds:
                     description: |-
                       DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. Disabled by default.
@@ -2631,6 +2640,15 @@ spec:
               config:
                 description: CDIConfig at CDI level
                 properties:
+                  allowedSourceURLs:
+                    description: |-
+                      AllowedSourceURLs is a list of CIDR blocks or hostnames that are allowed for HTTP/S data sources
+                      even if they fall within the default SSRF protection blocklist (private IPs, link-local, etc.).
+                      This allows importing from in-cluster services or private endpoints.
+                      Format: CIDR (10.96.0.0/12) or hostname (minio.default.svc)
+                    items:
+                      type: string
+                    type: array
                   dataVolumeTTLSeconds:
                     description: |-
                       DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. Disabled by default.
@@ -5104,6 +5122,15 @@ spec:
           spec:
             description: CDIConfigSpec defines specification for user configuration
             properties:
+              allowedSourceURLs:
+                description: |-
+                  AllowedSourceURLs is a list of CIDR blocks or hostnames that are allowed for HTTP/S data sources
+                  even if they fall within the default SSRF protection blocklist (private IPs, link-local, etc.).
+                  This allows importing from in-cluster services or private endpoints.
+                  Format: CIDR (10.96.0.0/12) or hostname (minio.default.svc)
+                items:
+                  type: string
+                type: array
               dataVolumeTTLSeconds:
                 description: |-
                   DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. Disabled by default.

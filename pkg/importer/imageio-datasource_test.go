@@ -23,6 +23,7 @@ import (
 
 	"k8s.io/klog/v2"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/triple"
@@ -40,8 +41,10 @@ var renewalTime time.Time
 
 var _ = Describe("Imageio reader", func() {
 	var (
-		ts      *httptest.Server
-		tempDir string
+		ts                        *httptest.Server
+		tempDir                   string
+		originalAllowedSourceURLs string
+		allowlistWasSet           bool
 	)
 
 	BeforeEach(func() {
@@ -56,6 +59,10 @@ var _ = Describe("Imageio reader", func() {
 		it.SetId(diskID)
 		errDiskCreate = nil
 		diskAvailable = true
+		// Save and set allowlist for SSRF protection (allows localhost test server)
+		originalAllowedSourceURLs, allowlistWasSet = os.LookupEnv(common.ImporterAllowedSourceURLs)
+		err := os.Setenv(common.ImporterAllowedSourceURLs, "127.0.0.1")
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -64,6 +71,12 @@ var _ = Describe("Imageio reader", func() {
 			os.RemoveAll(tempDir)
 		}
 		ts.Close()
+		// Restore original allowlist
+		if allowlistWasSet {
+			Expect(os.Setenv(common.ImporterAllowedSourceURLs, originalAllowedSourceURLs)).To(Succeed())
+		} else {
+			Expect(os.Unsetenv(common.ImporterAllowedSourceURLs)).To(Succeed())
+		}
 	})
 
 	It("should fail creating client", func() {
@@ -84,9 +97,11 @@ var _ = Describe("Imageio reader", func() {
 
 var _ = Describe("Imageio data source", func() {
 	var (
-		ts      *httptest.Server
-		tempDir string
-		err     error
+		ts                        *httptest.Server
+		tempDir                   string
+		err                       error
+		originalAllowedSourceURLs string
+		allowlistWasSet           bool
 	)
 
 	BeforeEach(func() {
@@ -101,6 +116,9 @@ var _ = Describe("Imageio data source", func() {
 		it.SetId(diskID)
 		diskAvailable = true
 		errDiskCreate = nil
+		// Save and set allowlist for SSRF protection (allows localhost test server)
+		originalAllowedSourceURLs, allowlistWasSet = os.LookupEnv(common.ImporterAllowedSourceURLs)
+		Expect(os.Setenv(common.ImporterAllowedSourceURLs, "127.0.0.1")).To(Succeed())
 	})
 
 	AfterEach(func() {
@@ -109,6 +127,12 @@ var _ = Describe("Imageio data source", func() {
 			os.RemoveAll(tempDir)
 		}
 		ts.Close()
+		// Restore original allowlist
+		if allowlistWasSet {
+			Expect(os.Setenv(common.ImporterAllowedSourceURLs, originalAllowedSourceURLs)).To(Succeed())
+		} else {
+			Expect(os.Unsetenv(common.ImporterAllowedSourceURLs)).To(Succeed())
+		}
 	})
 
 	It("NewImageioDataSource should fail when called with an invalid endpoint", func() {
@@ -223,6 +247,61 @@ var _ = Describe("Imageio data source", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
+	Context("SSRF Protection", func() {
+		var savedAllowlist string
+		var savedAllowlistWasSet bool
+
+		BeforeEach(func() {
+			savedAllowlist, savedAllowlistWasSet = os.LookupEnv(common.ImporterAllowedSourceURLs)
+		})
+
+		AfterEach(func() {
+			if savedAllowlistWasSet {
+				Expect(os.Setenv(common.ImporterAllowedSourceURLs, savedAllowlist)).To(Succeed())
+			} else {
+				Expect(os.Unsetenv(common.ImporterAllowedSourceURLs)).To(Succeed())
+			}
+		})
+
+		DescribeTable("should validate endpoint IPs according to blocklist and allowlist",
+			func(endpoint string, allowlist string, expectSSRFError bool) {
+				if allowlist != "" {
+					Expect(os.Setenv(common.ImporterAllowedSourceURLs, allowlist)).To(Succeed())
+				} else {
+					Expect(os.Unsetenv(common.ImporterAllowedSourceURLs)).To(Succeed())
+				}
+
+				_, dsErr := NewImageioDataSource(endpoint, "", "", tempDir, diskID, "", "", false)
+				if expectSSRFError {
+					Expect(dsErr).To(HaveOccurred())
+					Expect(dsErr.Error()).To(ContainSubstring("SSRF protection"))
+				} else {
+					// May fail for other reasons (connection, etc) but not SSRF
+					if dsErr != nil {
+						Expect(dsErr.Error()).NotTo(ContainSubstring("SSRF protection"))
+					}
+				}
+			},
+			// Blocked by default
+			Entry("block AWS IMDS", "http://169.254.169.254/ovirt-engine/api", "", true),
+			Entry("block Azure IMDS", "http://169.254.169.254/metadata/instance", "", true),
+			Entry("block private 10.x", "http://10.0.0.1/ovirt-engine/api", "", true),
+			Entry("block private 192.168.x", "http://192.168.1.1/ovirt-engine/api", "", true),
+			Entry("block CGNAT", "http://100.64.0.1/ovirt-engine/api", "", true),
+			Entry("block loopback (non-allowlisted)", "http://127.0.0.1:8080/ovirt-engine/api", "", true),
+
+			// Allowed by allowlist (CIDR) - includes 127.0.0.1 for mock transfer URL
+			Entry("allow 10.96.1.1 via CIDR allowlist", "http://10.96.1.1/ovirt-engine/api", "10.96.0.0/12,127.0.0.1", false),
+			Entry("allow 192.168.1.100 via exact IP", "http://192.168.1.100/ovirt-engine/api", "192.168.1.100,127.0.0.1", false),
+
+			// Allowed by allowlist (multiple entries) - includes 127.0.0.1 for mock transfer URL
+			Entry("allow via multiple allowlist entries", "http://10.96.1.1/ovirt-engine/api", "172.16.0.0/12,10.96.0.0/12,127.0.0.1", false),
+
+			// Allowed by allowlist (hostname) - includes 127.0.0.1 for mock transfer URL
+			Entry("allow via hostname allowlist", "http://ovirt-engine.example.com/ovirt-engine/api", "ovirt-engine.example.com,127.0.0.1", false),
+		)
+	})
+
 })
 
 var _ = Describe("Imageio client preparation", func() {
@@ -288,8 +367,10 @@ var _ = Describe("Imageio pollprogress", func() {
 
 var _ = Describe("Imageio cancel", func() {
 	var (
-		ts      *httptest.Server
-		tempDir string
+		ts                        *httptest.Server
+		tempDir                   string
+		originalAllowedSourceURLs string
+		allowlistWasSet           bool
 	)
 
 	BeforeEach(func() {
@@ -304,6 +385,10 @@ var _ = Describe("Imageio cancel", func() {
 		it.SetId(diskID)
 		diskAvailable = true
 		errDiskCreate = nil
+		// Save and set allowlist for SSRF protection (allows localhost test server)
+		originalAllowedSourceURLs, allowlistWasSet = os.LookupEnv(common.ImporterAllowedSourceURLs)
+		err := os.Setenv(common.ImporterAllowedSourceURLs, "127.0.0.1")
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -314,6 +399,12 @@ var _ = Describe("Imageio cancel", func() {
 			os.RemoveAll(tempDir)
 		}
 		ts.Close()
+		// Restore original allowlist
+		if allowlistWasSet {
+			Expect(os.Setenv(common.ImporterAllowedSourceURLs, originalAllowedSourceURLs)).To(Succeed())
+		} else {
+			Expect(os.Unsetenv(common.ImporterAllowedSourceURLs)).To(Succeed())
+		}
 	})
 
 	It("should clean up transfer on SIGTERM", func() {
@@ -419,12 +510,14 @@ var _ = Describe("Imageio cancel", func() {
 
 var _ = Describe("imageio snapshots", func() {
 	var (
-		ts               *httptest.Server
-		tempDir          string
-		snapshotID       string
-		parentSnapshotID string
-		snapshotSize     int64
-		diskSize         int64
+		ts                        *httptest.Server
+		tempDir                   string
+		snapshotID                string
+		parentSnapshotID          string
+		snapshotSize              int64
+		diskSize                  int64
+		originalAllowedSourceURLs string
+		allowlistWasSet           bool
 	)
 
 	BeforeEach(func() {
@@ -474,6 +567,11 @@ var _ = Describe("imageio snapshots", func() {
 
 		disk.SetStorageDomains(storageDomains)
 		disk.SetStorageDomain(storageDomain)
+
+		// Save and set allowlist for SSRF protection (allows localhost test server)
+		originalAllowedSourceURLs, allowlistWasSet = os.LookupEnv(common.ImporterAllowedSourceURLs)
+		err := os.Setenv(common.ImporterAllowedSourceURLs, "127.0.0.1")
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -482,6 +580,12 @@ var _ = Describe("imageio snapshots", func() {
 			os.RemoveAll(tempDir)
 		}
 		ts.Close()
+		// Restore original allowlist
+		if allowlistWasSet {
+			Expect(os.Setenv(common.ImporterAllowedSourceURLs, originalAllowedSourceURLs)).To(Succeed())
+		} else {
+			Expect(os.Unsetenv(common.ImporterAllowedSourceURLs)).To(Succeed())
+		}
 	})
 
 	It("should correctly get initial snapshot transfer", func() {
@@ -505,8 +609,10 @@ var _ = Describe("imageio snapshots", func() {
 
 var _ = Describe("Imageio extents", func() {
 	var (
-		ts      *httptest.Server
-		tempDir string
+		ts                        *httptest.Server
+		tempDir                   string
+		originalAllowedSourceURLs string
+		allowlistWasSet           bool
 	)
 	BeforeEach(func() {
 		newOvirtClientFunc = createMockOvirtClient
@@ -531,6 +637,11 @@ var _ = Describe("Imageio extents", func() {
 		it.SetTransferUrl(ts.URL + "/ovirt-engine/api/tickets/" + diskID)
 		errDiskCreate = nil
 		diskAvailable = true
+
+		// Save and set allowlist for SSRF protection (allows localhost test server)
+		originalAllowedSourceURLs, allowlistWasSet = os.LookupEnv(common.ImporterAllowedSourceURLs)
+		err := os.Setenv(common.ImporterAllowedSourceURLs, "127.0.0.1")
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -541,6 +652,12 @@ var _ = Describe("Imageio extents", func() {
 			os.RemoveAll(tempDir)
 		}
 		ts.Close()
+		// Restore original allowlist
+		if allowlistWasSet {
+			Expect(os.Setenv(common.ImporterAllowedSourceURLs, originalAllowedSourceURLs)).To(Succeed())
+		} else {
+			Expect(os.Unsetenv(common.ImporterAllowedSourceURLs)).To(Succeed())
+		}
 	})
 
 	It("should create an extents reader when the feature is enabled", func() {

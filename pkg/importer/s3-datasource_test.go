@@ -11,13 +11,17 @@ import (
 
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/pkg/errors"
+
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 var _ = Describe("S3 data source", func() {
 	var (
-		sd     *S3DataSource
-		tmpDir string
-		err    error
+		sd                        *S3DataSource
+		tmpDir                    string
+		err                       error
+		originalAllowedSourceURLs string
+		allowlistWasSet           bool
 	)
 
 	BeforeEach(func() {
@@ -25,6 +29,11 @@ var _ = Describe("S3 data source", func() {
 		tmpDir, err = os.MkdirTemp("", "scratch")
 		Expect(err).NotTo(HaveOccurred())
 		By("tmpDir: " + tmpDir)
+
+		// Save and set allowlist for S3 test endpoints
+		originalAllowedSourceURLs, allowlistWasSet = os.LookupEnv(common.ImporterAllowedSourceURLs)
+		// Allow localhost for S3 tests (DNS rebinding protection requires resolvable hostnames)
+		Expect(os.Setenv(common.ImporterAllowedSourceURLs, "localhost,127.0.0.0/8,::1/128")).To(Succeed())
 	})
 
 	AfterEach(func() {
@@ -33,6 +42,13 @@ var _ = Describe("S3 data source", func() {
 			sd.Close()
 		}
 		os.RemoveAll(tmpDir)
+
+		// Restore original allowlist
+		if allowlistWasSet {
+			Expect(os.Setenv(common.ImporterAllowedSourceURLs, originalAllowedSourceURLs)).To(Succeed())
+		} else {
+			Expect(os.Unsetenv(common.ImporterAllowedSourceURLs)).To(Succeed())
+		}
 	})
 
 	It("NewS3DataSource should Error, when passed in an invalid endpoint", func() {
@@ -42,19 +58,19 @@ var _ = Describe("S3 data source", func() {
 
 	It("NewS3DataSource should Error, when failing to create S3 client", func() {
 		newClientFunc = failMockS3Client
-		sd, err = NewS3DataSource("http://amazon.com", "", "", "")
+		sd, err = NewS3DataSource("http://localhost", "", "", "")
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("NewS3DataSource should Error, when failing to get object", func() {
 		newClientFunc = createErrMockS3Client
-		sd, err = NewS3DataSource("http://amazon.com", "", "", "")
+		sd, err = NewS3DataSource("http://localhost", "", "", "")
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("NewS3DataSource should fail when called with an invalid certdir", func() {
 		newClientFunc = getS3Client
-		sd, err = NewS3DataSource("http://amazon.com", "", "", "/invaliddir")
+		sd, err = NewS3DataSource("http://localhost", "", "", "/invaliddir")
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -64,7 +80,7 @@ var _ = Describe("S3 data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		err = file.Close()
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
+		sd, err = NewS3DataSource("http://localhost/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		sd.s3Reader = file
 		result, err := sd.Info()
@@ -76,7 +92,7 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(cirrosFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
+		sd, err = NewS3DataSource("http://localhost/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		sd.s3Reader = file
 		result, err := sd.Info()
@@ -88,7 +104,7 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
+		sd, err = NewS3DataSource("http://localhost/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		sd.s3Reader = file
 		result, err := sd.Info()
@@ -103,7 +119,7 @@ var _ = Describe("S3 data source", func() {
 		sourceFile, err := os.Open(fileName)
 		Expect(err).NotTo(HaveOccurred())
 
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
+		sd, err = NewS3DataSource("http://localhost/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = sourceFile
@@ -137,7 +153,7 @@ var _ = Describe("S3 data source", func() {
 		sourceFile, err := os.Open(cirrosFilePath)
 		Expect(err).NotTo(HaveOccurred())
 
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
+		sd, err = NewS3DataSource("http://localhost/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = sourceFile
@@ -155,7 +171,7 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
+		sd, err = NewS3DataSource("http://localhost/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
@@ -171,7 +187,7 @@ var _ = Describe("S3 data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		sd, err = NewS3DataSource("http://region.amazon.com/bucket-1/object-1", "", "", "")
+		sd, err = NewS3DataSource("http://localhost/bucket-1/object-1", "", "", "")
 		Expect(err).NotTo(HaveOccurred())
 		// Replace minio.Object with a reader we can use.
 		sd.s3Reader = file
@@ -181,6 +197,62 @@ var _ = Describe("S3 data source", func() {
 		result, err = sd.TransferFile("/invalidpath/invalidfile", false)
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
+	})
+
+	Context("SSRF Protection", func() {
+		var savedAllowlist string
+		var savedAllowlistWasSet bool
+
+		BeforeEach(func() {
+			savedAllowlist, savedAllowlistWasSet = os.LookupEnv(common.ImporterAllowedSourceURLs)
+		})
+
+		AfterEach(func() {
+			if savedAllowlistWasSet {
+				Expect(os.Setenv(common.ImporterAllowedSourceURLs, savedAllowlist)).To(Succeed())
+			} else {
+				Expect(os.Unsetenv(common.ImporterAllowedSourceURLs)).To(Succeed())
+			}
+		})
+
+		DescribeTable("should validate IPs according to blocklist and allowlist",
+			func(endpoint string, allowlist string, expectSSRFError bool) {
+				if allowlist != "" {
+					Expect(os.Setenv(common.ImporterAllowedSourceURLs, allowlist)).To(Succeed())
+				} else {
+					Expect(os.Unsetenv(common.ImporterAllowedSourceURLs)).To(Succeed())
+				}
+
+				_, dsErr := NewS3DataSource(endpoint, "", "", "")
+				if expectSSRFError {
+					Expect(dsErr).To(HaveOccurred())
+					Expect(dsErr.Error()).To(ContainSubstring("SSRF protection"))
+				} else {
+					// May fail for other reasons (connection, DNS, etc) but not SSRF
+					if dsErr != nil {
+						Expect(dsErr.Error()).NotTo(ContainSubstring("SSRF protection"))
+					}
+				}
+			},
+			// Blocked by default
+			Entry("block AWS IMDS", "http://169.254.169.254/bucket/object", "", true),
+			Entry("block Azure IMDS", "http://169.254.169.254/bucket/object", "", true),
+			Entry("block private 10.x", "http://10.0.0.1/bucket/object", "", true),
+			Entry("block private 192.168.x", "http://192.168.1.1/bucket/object", "", true),
+			Entry("block CGNAT", "http://100.64.0.1/bucket/object", "", true),
+			Entry("block loopback", "http://127.0.0.1:9000/bucket/object", "", true),
+
+			// Allowed by allowlist (CIDR)
+			Entry("allow 10.96.1.1 via CIDR allowlist", "http://10.96.1.1/bucket/object", "10.96.0.0/12", false),
+			Entry("allow 192.168.1.100 via exact IP", "http://192.168.1.100/bucket/object", "192.168.1.100", false),
+
+			// Allowed by allowlist (multiple entries)
+			Entry("allow via multiple allowlist entries", "http://10.96.1.1/bucket/object", "172.16.0.0/12,10.96.0.0/12", false),
+
+			// Localhost blocked without allowlist (loopback, not public)
+			Entry("block localhost without allowlist", "http://localhost/bucket/object", "", true),
+			Entry("allow localhost with allowlist", "http://localhost/bucket/object", "localhost,127.0.0.0/8,::1/128", false),
+		)
 	})
 
 	It("GetS3Client should return a real client", func() {

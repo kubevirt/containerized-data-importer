@@ -41,17 +41,21 @@ var (
 
 var _ = Describe("Http data source", func() {
 	var (
-		ts        *httptest.Server
-		dp        *HTTPDataSource
-		err       error
-		flushRead []byte
-		tmpDir    string
+		ts                        *httptest.Server
+		dp                        *HTTPDataSource
+		err                       error
+		flushRead                 []byte
+		tmpDir                    string
+		originalAllowedSourceURLs string
 	)
 
 	BeforeEach(func() {
 		createNbdkitCurl = image.NewMockNbdkitCurl
 		By("[BeforeEach] Creating test server")
 		ts = createTestServer(imageDir, nil)
+		// Save and set allowlist for SSRF protection (allow test server at 127.0.0.1)
+		originalAllowedSourceURLs = os.Getenv(common.ImporterAllowedSourceURLs)
+		os.Setenv(common.ImporterAllowedSourceURLs, "127.0.0.1")
 		dp = nil
 		tmpDir, err = os.MkdirTemp("", "scratch")
 		Expect(err).NotTo(HaveOccurred())
@@ -73,6 +77,12 @@ var _ = Describe("Http data source", func() {
 		Expect(os.RemoveAll(tmpDir)).To(Succeed())
 		By("[AfterEach] closing test server")
 		ts.Close()
+		// Restore original allowlist
+		if originalAllowedSourceURLs == "" {
+			os.Unsetenv(common.ImporterAllowedSourceURLs)
+		} else {
+			os.Setenv(common.ImporterAllowedSourceURLs, originalAllowedSourceURLs)
+		}
 	})
 
 	It("NewHTTPDataSource should fail when called with an invalid endpoint", func() {
@@ -85,6 +95,169 @@ var _ = Describe("Http data source", func() {
 		image := ts.URL + "/" + cirrosFileName
 		_, err = NewHTTPDataSource(image, "", "", "/invaliddir", cdiv1.DataVolumeKubeVirt, "")
 		Expect(err).To(HaveOccurred())
+	})
+
+	Context("SSRF Protection", func() {
+		var savedAllowlist string
+		var allowlistWasSet bool
+
+		BeforeEach(func() {
+			savedAllowlist, allowlistWasSet = os.LookupEnv(common.ImporterAllowedSourceURLs)
+		})
+
+		AfterEach(func() {
+			if allowlistWasSet {
+				Expect(os.Setenv(common.ImporterAllowedSourceURLs, savedAllowlist)).To(Succeed())
+			} else {
+				Expect(os.Unsetenv(common.ImporterAllowedSourceURLs)).To(Succeed())
+			}
+		})
+
+		DescribeTable("should validate IPs according to blocklist and allowlist",
+			func(endpoint string, allowlist string, expectSSRFError bool) {
+				// Replace TEST_SERVER placeholder with actual server URL
+				if endpoint == "TEST_SERVER" {
+					endpoint = ts.URL + "/" + cirrosFileName
+				}
+
+				// Set allowlist for this test (empty string = unset)
+				if allowlist == "" {
+					Expect(os.Unsetenv(common.ImporterAllowedSourceURLs)).To(Succeed())
+				} else {
+					Expect(os.Setenv(common.ImporterAllowedSourceURLs, allowlist)).To(Succeed())
+				}
+
+				ds, dsErr := NewHTTPDataSource(endpoint, "", "", "", cdiv1.DataVolumeKubeVirt, "")
+				if expectSSRFError {
+					Expect(dsErr).To(HaveOccurred())
+					Expect(dsErr.Error()).To(ContainSubstring("SSRF protection"))
+				} else {
+					// Should not get SSRF error (may get other errors like connection refused)
+					if dsErr != nil {
+						Expect(dsErr.Error()).NotTo(ContainSubstring("SSRF protection"))
+					} else {
+						Expect(ds).NotTo(BeNil())
+						ds.Close()
+					}
+				}
+			},
+			// Blocked by default without allowlist
+			Entry("block AWS IMDS", "http://169.254.169.254/latest/meta-data/", "", true),
+			Entry("block Azure IMDS", "http://169.254.169.254/metadata/instance", "", true),
+			Entry("block private 10.x", "http://10.0.0.1/data", "", true),
+			Entry("block private 192.168.x", "http://192.168.1.1/data", "", true),
+			Entry("block CGNAT", "http://100.64.0.1/data", "", true),
+			Entry("block loopback on different port", "http://127.0.0.1:8080/data", "", true),
+
+			// Allowed via allowlist
+			Entry("allow localhost test server via allowlist", "TEST_SERVER", "127.0.0.1", false),
+			Entry("allow localhost CIDR on different port", "http://127.0.0.1:9999/data", "127.0.0.0/8", false),
+		)
+
+		It("should validate URL host early to prevent proxy-based bypass", func() {
+			// Even if HTTP_PROXY is set, validation happens on the URL host, not the proxy
+			savedHTTPProxy, proxyWasSet := os.LookupEnv("HTTP_PROXY")
+
+			// Unset allowlist to test default blocking (suite-level BeforeEach set it to 127.0.0.1)
+			err := os.Unsetenv(common.ImporterAllowedSourceURLs)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Set HTTP_PROXY to a hypothetical allowed proxy
+			Expect(os.Setenv("HTTP_PROXY", "http://127.0.0.1:3128")).To(Succeed())
+
+			// Restore HTTP_PROXY after test
+			defer func() {
+				var restoreErr error
+				if proxyWasSet {
+					restoreErr = os.Setenv("HTTP_PROXY", savedHTTPProxy)
+				} else {
+					restoreErr = os.Unsetenv("HTTP_PROXY")
+				}
+				Expect(restoreErr).NotTo(HaveOccurred())
+			}()
+
+			// Try to access AWS IMDS - should fail immediately with SSRF error
+			// even though the proxy (127.0.0.1) is in the allowlist from BeforeEach
+			_, err = NewHTTPDataSource("http://169.254.169.254/latest/meta-data/", "", "", "", cdiv1.DataVolumeKubeVirt, "")
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("SSRF protection"))
+			Expect(err.Error()).To(ContainSubstring("169.254.169.254"))
+		})
+
+		DescribeTable("should validate redirects",
+			func(setupServer func() *httptest.Server, allowlist string, expectError bool, errorSubstring string, expectedSize uint64) {
+				server := setupServer()
+				defer server.Close()
+
+				savedAllowlist := os.Getenv(common.ImporterAllowedSourceURLs)
+				defer func() {
+					if savedAllowlist == "" {
+						os.Unsetenv(common.ImporterAllowedSourceURLs)
+					} else {
+						os.Setenv(common.ImporterAllowedSourceURLs, savedAllowlist)
+					}
+				}()
+
+				os.Setenv(common.ImporterAllowedSourceURLs, allowlist)
+
+				ep, err := url.Parse(server.URL)
+				Expect(err).NotTo(HaveOccurred())
+
+				reader, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt)
+				if expectError {
+					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring(errorSubstring))
+				} else {
+					Expect(err).NotTo(HaveOccurred())
+					Expect(total).To(Equal(expectedSize))
+					reader.Close()
+				}
+			},
+			Entry("reject redirect to blocked IP",
+				func() *httptest.Server {
+					return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						http.Redirect(w, r, "http://169.254.169.254/latest/meta-data/", http.StatusFound)
+					}))
+				},
+				"127.0.0.1", // Allow localhost for initial request
+				true,        // Expect error
+				"SSRF protection",
+				uint64(0),
+			),
+			Entry("accept redirect to allowed IP",
+				func() *httptest.Server {
+					// Server that handles both initial request and redirect target
+					return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						if r.URL.Path == "/target" {
+							// Target path - return content
+							w.Header().Set("Content-Length", "1024")
+							w.WriteHeader(http.StatusOK)
+						} else {
+							// Initial request - redirect to target path on same server
+							http.Redirect(w, r, "/target", http.StatusFound)
+						}
+					}))
+				},
+				"127.0.0.1", // Allow localhost
+				false,       // No error expected
+				"",
+				uint64(1024),
+			),
+			Entry("enforce 10-redirect limit",
+				func() *httptest.Server {
+					var redirectCount int
+					return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						redirectCount++
+						// Always redirect with query param to create unique URLs
+						http.Redirect(w, r, fmt.Sprintf("/?redirect=%d", redirectCount), http.StatusFound)
+					}))
+				},
+				"127.0.0.1", // Allow localhost
+				true,        // Expect error
+				"10 redirects",
+				uint64(0),
+			),
+		)
 	})
 
 	DescribeTable("calling info should", func(image string, contentType cdiv1.DataVolumeContentType, expectedPhase ProcessingPhase, want []byte, wantErr bool, brokenForQemuImg bool) {
@@ -444,6 +617,23 @@ var _ = Describe("Http client", func() {
 })
 
 var _ = Describe("Http reader", func() {
+	var originalAllowedSourceURLs string
+
+	BeforeEach(func() {
+		// Save and set allowlist for SSRF protection (allow localhost test servers)
+		originalAllowedSourceURLs = os.Getenv(common.ImporterAllowedSourceURLs)
+		os.Setenv(common.ImporterAllowedSourceURLs, "127.0.0.1")
+	})
+
+	AfterEach(func() {
+		// Restore original allowlist
+		if originalAllowedSourceURLs == "" {
+			os.Unsetenv(common.ImporterAllowedSourceURLs)
+		} else {
+			os.Setenv(common.ImporterAllowedSourceURLs, originalAllowedSourceURLs)
+		}
+	})
+
 	It("should fail when passed an invalid cert directory", func() {
 		_, total, _, err := createHTTPReader(context.Background(), nil, "", "", "/invalid", nil, nil, cdiv1.DataVolumeKubeVirt)
 		Expect(err).To(HaveOccurred())

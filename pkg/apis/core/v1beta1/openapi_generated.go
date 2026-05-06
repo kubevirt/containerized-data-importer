@@ -16663,6 +16663,21 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 							},
 						},
 					},
+					"allowedSourceURLs": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AllowedSourceURLs is a list of CIDR blocks or hostnames that are allowed for HTTP/S data sources even if they fall within the default SSRF protection blocklist (private IPs, link-local, etc.). This allows importing from in-cluster services or private endpoints. Format: CIDR (10.96.0.0/12) or hostname (minio.default.svc)",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
 					"dataVolumeTTLSeconds": {
 						SchemaProps: spec.SchemaProps{
 							Description: "DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. Disabled by default. Deprecated: Removed in v1.62.",

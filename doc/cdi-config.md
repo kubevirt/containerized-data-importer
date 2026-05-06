@@ -16,6 +16,7 @@ CDI configuration in specified by administrators in the `spec.config` of the `CD
 | preallocation            | nil           | Preallocation setting to use unless a per-dataVolume value is set                                                                                                                                                            |
 | importProxy              | nil           | The proxy configuration to be used by the importer pod when accessing a http data source. When the ImportProxy is empty, the Cluster Wide-Proxy (Openshift) configurations are used. ImportProxy has four parameters: `ImportProxy.HTTPProxy` that defines the proxy http url, the `ImportProxy.HTTPSProxy` that determines the roxy https url, and the `ImportProxy.noProxy` which enforce that a list of hostnames and/or CIDRs will be not proxied, and finally, the `ImportProxy.TrustedCAProxy`, the ConfigMap name of an user-provided trusted certificate authority (CA) bundle to be added to the importer pod CA bundle. |
 | insecureRegistries       | nil           | List of TLS disabled registries. |
+| allowedSourceURLs        | nil           | List of CIDR blocks or hostnames allowed for HTTP/HTTPS data sources even if they fall within restricted private IP ranges. Format: CIDR (10.96.0.0/12) or hostname (minio.default.svc). See [Network Security](ssrf-protection.md) for details. |
 | tlsSecurityProfile       | nil           | Used by operators to apply cluster-wide TLS security settings to operands. |
 
 filesystemOverhead configuration:
@@ -37,6 +38,20 @@ kubectl patch cdi cdi  --type='json' -p='[{ "op" : "add" , "path" : "/spec/confi
 ```bash
 kubectl patch cdi cdi  --type='json' -p='[{ "op" : "add" , "path" : "/spec/config/filesystemOverhead/global" , "value" : "0.0" }]'
 ```
+
+To configure allowed source URLs for HTTP/HTTPS imports from private networks:
+```bash
+kubectl patch cdiconfig config --type=merge -p '{
+  "spec": {
+    "allowedSourceURLs": [
+      "10.96.0.0/12",
+      "minio.storage.svc"
+    ]
+  }
+}'
+```
+See [Network Security for HTTP-Based Sources](ssrf-protection.md) for more details.
+
 ## Getting
 
 CDI configuration may be retrieved by any authenticated user in the cluster by checking the `status` of the `CDIConfig` singleton

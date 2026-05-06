@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -42,6 +43,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	utilnet "kubevirt.io/containerized-data-importer/pkg/util/net"
 )
 
 const (
@@ -96,6 +98,14 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to parse endpoint %q", endpoint)
 	}
+
+	// Validate endpoint host against SSRF blocklist BEFORE making any network calls
+	// This prevents proxy-based bypasses where DialContext only sees the proxy IP
+	allowlist := getAllowedSourceURLs()
+	if err := utilnet.ValidateEndpointHost(ep.Host, allowlist); err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	extraHeaders, secretExtraHeaders, err := getExtraHeaders()
@@ -320,38 +330,95 @@ func createCertPool(certDir string) (*x509.CertPool, error) {
 	return certPool, nil
 }
 
+// getAllowedSourceURLs reads the allowlist from environment variable
+func getAllowedSourceURLs() []string {
+	allowlistStr := os.Getenv(common.ImporterAllowedSourceURLs)
+	if allowlistStr == "" {
+		return nil
+	}
+	parts := strings.Split(allowlistStr, ",")
+	var result []string
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
 func createHTTPClient(certDir string, insecureSkipVerify bool) (*http.Client, error) {
 	client := &http.Client{
 		// Don't set timeout here, since that will be an absolute timeout, we need a relative to last progress timeout.
 	}
 
-	if certDir == "" && !insecureSkipVerify {
-		return client, nil
-	}
-	// the default transport contains Proxy configurations to use environment variables and default timeouts
+	// Clone default transport to preserve proxy settings and timeouts
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		// #nosec G402 -- InsecureSkipVerify is intentionally set based on user configuration
-		InsecureSkipVerify: insecureSkipVerify,
+
+	// Read allowlist from environment
+	allowlist := getAllowedSourceURLs()
+	if len(allowlist) > 0 {
+		klog.Infof("SSRF protection allowlist: %v", allowlist)
 	}
 
-	if !insecureSkipVerify {
-		certPool, err := createCertPool(certDir)
-		if err != nil {
-			return nil, err
+	// Add SSRF protection via DialContext hook (defense in depth)
+	// Note: Primary protection is early URL validation in NewHTTPDataSource()
+	defaultDialContext := transport.DialContext
+	if defaultDialContext == nil {
+		defaultDialContext = (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext
+	}
+
+	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		// Validate that the connection target is not blocked (SSRF protection)
+		// addr is "hostname:port" or "ip:port" - ValidateEndpointHost handles both
+		if err := utilnet.ValidateEndpointHost(addr, allowlist); err != nil {
+			return nil, fmt.Errorf("SSRF protection: %w", err)
 		}
-		tlsConfig.RootCAs = certPool
+		return defaultDialContext(ctx, network, addr)
 	}
 
-	transport.TLSClientConfig = tlsConfig
+	// Configure TLS if needed
+	if certDir != "" || insecureSkipVerify {
+		tlsConfig := &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			// #nosec G402 -- InsecureSkipVerify is intentionally set based on user configuration
+			InsecureSkipVerify: insecureSkipVerify,
+		}
+
+		if !insecureSkipVerify {
+			certPool, err := createCertPool(certDir)
+			if err != nil {
+				return nil, err
+			}
+			tlsConfig.RootCAs = certPool
+		}
+
+		transport.TLSClientConfig = tlsConfig
+	}
+
 	transport.GetProxyConnectHeader = func(ctx context.Context, proxyURL *url.URL, target string) (http.Header, error) {
 		h := http.Header{}
 		h.Add("User-Agent", defaultUserAgent)
 		return h, nil
 	}
-	client.Transport = transport
 
+	// Validate redirect targets to prevent SSRF bypass via redirects
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return fmt.Errorf("stopped after 10 redirects")
+		}
+
+		// Validate redirect target host against blocklist and allowlist
+		if err := utilnet.ValidateEndpointHost(req.URL.Host, allowlist); err != nil {
+			return fmt.Errorf("SSRF protection (redirect): %w", err)
+		}
+		return nil
+	}
+
+	client.Transport = transport
 	return client, nil
 }
 
@@ -373,11 +440,26 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 	}
 
 	allExtraHeaders := append(extraHeaders, secretExtraHeaders...)
+	allowlist := getAllowedSourceURLs()
 
+	// Merge SSRF validation with basic auth/header handling in CheckRedirect
 	client.CheckRedirect = func(r *http.Request, via []*http.Request) error {
-		if len(accessKey) > 0 && len(secKey) > 0 {
-			r.SetBasicAuth(accessKey, secKey) // Redirects will lose basic auth, so reset them manually
+		// Enforce redirect limit
+		if len(via) >= 10 {
+			return fmt.Errorf("stopped after 10 redirects")
 		}
+
+		// Validate redirect target host against blocklist and allowlist (SSRF protection)
+		if err := utilnet.ValidateEndpointHost(r.URL.Host, allowlist); err != nil {
+			return fmt.Errorf("SSRF protection (redirect): %w", err)
+		}
+
+		// Apply basic auth to redirect (redirects lose basic auth)
+		if len(accessKey) > 0 && len(secKey) > 0 {
+			r.SetBasicAuth(accessKey, secKey)
+		}
+
+		// Apply extra headers to redirect
 		addExtraheaders(r, allExtraHeaders)
 		return nil
 	}
@@ -573,7 +655,12 @@ func getServerInfo(ctx context.Context, infoURL string) (*common.ServerInfo, err
 		return nil, errors.Wrap(err, "failed to construct request for containerimage-server info")
 	}
 
-	client := &http.Client{}
+	// Use createHTTPClient with SSRF protection instead of bare http.Client
+	client, err := createHTTPClient("", false)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create HTTP client for containerimage-server info")
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed request containerimage-server info")
