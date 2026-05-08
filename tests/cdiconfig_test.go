@@ -179,9 +179,21 @@ var _ = Describe("CDI ingress config tests, using manifests", Serial, func() {
 	BeforeEach(func() {
 		cfg, err := clientcmd.BuildConfigFromFlags(f.KubeURL, f.KubeConfig)
 		Expect(err).ToNot(HaveOccurred())
-		By("Checking if a route exists, we set that as default")
 		openshiftClient, err := route1client.NewForConfig(cfg)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("Making sure no url is set")
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		if config.Spec.UploadProxyURLOverride != nil {
+			err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+				origUploadProxyOverride = config.UploadProxyURLOverride
+				config.UploadProxyURLOverride = nil
+			})
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		By("Checking if a route exists, we set that as default")
 		_, err = openshiftClient.RouteV1().Routes(f.CdiInstallNs).Get(context.TODO(), "cdi-uploadproxy", metav1.GetOptions{})
 		if err == nil {
 			By("setting defaultURL to route")
@@ -197,16 +209,6 @@ var _ = Describe("CDI ingress config tests, using manifests", Serial, func() {
 			Expect(err).ToNot(HaveOccurred())
 			defaultURL = *config.Status.UploadProxyURL
 		}
-		By("Making sure no url is set")
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		if config.Spec.UploadProxyURLOverride != nil {
-			err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-				origUploadProxyOverride = config.UploadProxyURLOverride
-				config.UploadProxyURLOverride = nil
-			})
-			Expect(err).ToNot(HaveOccurred())
-		}
 		Eventually(func() string {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
@@ -218,9 +220,6 @@ var _ = Describe("CDI ingress config tests, using manifests", Serial, func() {
 	})
 
 	AfterEach(func() {
-		_, err := f.RunKubectlCommand("delete", "-f", manifestFile, "-n", f.CdiInstallNs)
-		Expect(err).ShouldNot(HaveOccurred())
-
 		matchingVals := []string{defaultURL}
 		if origUploadProxyOverride != nil {
 			matchingVals = append(matchingVals, *origUploadProxyOverride)
@@ -229,6 +228,11 @@ var _ = Describe("CDI ingress config tests, using manifests", Serial, func() {
 		Expect(utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 			config.UploadProxyURLOverride = origUploadProxyOverride
 		})).To(Succeed())
+
+		if manifestFile != "" {
+			_, err := f.RunKubectlCommand("delete", "-f", manifestFile, "-n", f.CdiInstallNs)
+			Expect(err).ShouldNot(HaveOccurred())
+		}
 
 		Eventually(func() string {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -294,9 +298,21 @@ var _ = Describe("CDI ingress config tests", Serial, func() {
 	BeforeEach(func() {
 		cfg, err := clientcmd.BuildConfigFromFlags(f.KubeURL, f.KubeConfig)
 		Expect(err).ToNot(HaveOccurred())
-		By("Checking if a route exists, we set that as default")
 		openshiftClient, err := route1client.NewForConfig(cfg)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("Making sure no url is set")
+		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		if config.Spec.UploadProxyURLOverride != nil {
+			err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+				origUploadProxyOverride = config.UploadProxyURLOverride
+				config.UploadProxyURLOverride = nil
+			})
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		By("Checking if a route exists, we set that as default")
 		_, err = openshiftClient.RouteV1().Routes(f.CdiInstallNs).Get(context.TODO(), "cdi-uploadproxy", metav1.GetOptions{})
 		if err == nil {
 			By("setting defaultURL to route")
@@ -311,16 +327,6 @@ var _ = Describe("CDI ingress config tests", Serial, func() {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			defaultURL = *config.Status.UploadProxyURL
-		}
-		By("Making sure no url is set")
-		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		if config.Spec.UploadProxyURLOverride != nil {
-			err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-				origUploadProxyOverride = config.UploadProxyURLOverride
-				config.UploadProxyURLOverride = nil
-			})
-			Expect(err).ToNot(HaveOccurred())
 		}
 		Eventually(func() string {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
