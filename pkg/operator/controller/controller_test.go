@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -576,6 +577,100 @@ var _ = Describe("Controller", func() {
 				Expect(role.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 				Expect(roleBinding.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 				validateEvents(args.reconciler, createReadyEventValidationMap())
+			})
+
+			It("should configure service monitor with authorization", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				monitor := &promv1.ServiceMonitor{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "service-monitor-cdi",
+						Namespace: cdiNamespace,
+					},
+				}
+				obj, err := getObject(args.client, monitor)
+				Expect(err).ToNot(HaveOccurred())
+				monitor = obj.(*promv1.ServiceMonitor)
+
+				Expect(monitor.Spec.Endpoints).To(HaveLen(1))
+				Expect(monitor.Spec.Endpoints[0].Authorization).ToNot(BeNil())
+				Expect(monitor.Spec.Endpoints[0].Authorization.Credentials).ToNot(BeNil())
+				Expect(monitor.Spec.Endpoints[0].Authorization.Credentials.Name).To(Equal(common.MetricsReaderTokenName))
+				Expect(monitor.Spec.Endpoints[0].Authorization.Credentials.Key).To(Equal("token"))
+			})
+
+			It("should have tokenreviews permission in controller clusterrole", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				crole := &rbacv1.ClusterRole{}
+				err := args.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, crole)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(crole.Rules).To(ContainElement(
+					SatisfyAll(
+						HaveField("APIGroups", ContainElement("authentication.k8s.io")),
+						HaveField("Resources", ContainElement("tokenreviews")),
+						HaveField("Verbs", ContainElement("create")),
+					),
+				))
+			})
+
+			It("should create metrics-reader service account", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				sa := &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      common.MetricsReaderServiceAccountName,
+						Namespace: cdiNamespace,
+					},
+				}
+				obj, err := getObject(args.client, sa)
+				Expect(err).ToNot(HaveOccurred())
+				sa = obj.(*corev1.ServiceAccount)
+				Expect(sa.Name).To(Equal(common.MetricsReaderServiceAccountName))
+			})
+
+			It("should create metrics-reader ClusterRole and ClusterRoleBinding", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				crole := &rbacv1.ClusterRole{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: common.MetricsReaderServiceAccountName,
+					},
+				}
+				obj, err := getObject(args.client, crole)
+				Expect(err).ToNot(HaveOccurred())
+				crole = obj.(*rbacv1.ClusterRole)
+
+				found := false
+				for _, rule := range crole.Rules {
+					if slices.Contains(rule.NonResourceURLs, "/metrics") &&
+						slices.Contains(rule.Verbs, "get") {
+						found = true
+						break
+					}
+				}
+				Expect(found).To(BeTrue(), "expected ClusterRole with /metrics get permission")
+
+				crb := &rbacv1.ClusterRoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: common.MetricsReaderServiceAccountName,
+					},
+				}
+				obj, err = getObject(args.client, crb)
+				Expect(err).ToNot(HaveOccurred())
+				crb = obj.(*rbacv1.ClusterRoleBinding)
+				Expect(crb.RoleRef.Name).To(Equal(common.MetricsReaderServiceAccountName))
+				Expect(crb.Subjects).To(HaveLen(1))
+				Expect(crb.Subjects[0].Name).To(Equal(common.MetricsReaderServiceAccountName))
+				Expect(crb.Subjects[0].Namespace).To(Equal(cdiNamespace))
 			})
 
 			Context("RBAC testing", func() {
@@ -2144,6 +2239,9 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.ConfigMap cdi-uploadserver-client-signer-bundle"] = false
 	match[normalCreateSuccess+" *v1.Secret cdi-uploadserver-client-cert"] = false
 	match[normalCreateSuccess+" *v1.Service cdi-prometheus-metrics"] = false
+	match[normalCreateSuccess+" *v1.ServiceAccount cdi-metrics-reader"] = false
+	match[normalCreateSuccess+" *v1.ClusterRole cdi-metrics-reader"] = false
+	match[normalCreateSuccess+" *v1.ClusterRoleBinding cdi-metrics-reader"] = false
 	match[normalCreateEnsured+" SecurityContextConstraint exists"] = false
 
 	return match

@@ -50,6 +50,10 @@ const (
 	PrometheusLabelValue = "true"
 	// PrometheusServiceName is the name of the prometheus service created by the operator.
 	PrometheusServiceName = "cdi-prometheus-metrics"
+	// MetricsReaderServiceAccountName is the name of the ServiceAccount with access to the various CDI metric endpoints
+	MetricsReaderServiceAccountName = "cdi-metrics-reader"
+	// MetricsReaderTokenName is the name of the secret containing the cdi-metrics-reader ServiceAccount token
+	MetricsReaderTokenName = "cdi-metrics-reader-token" //nolint:gosec
 	// KubePersistentVolumeFillingUpSuppressLabelKey is the label name that helps suppress this alert for our PVCs
 	KubePersistentVolumeFillingUpSuppressLabelKey = "alerts.k8s.io/KubePersistentVolumeFillingUp"
 	// KubePersistentVolumeFillingUpSuppressLabelValue is the label value that helps suppress this alert for our PVCs
