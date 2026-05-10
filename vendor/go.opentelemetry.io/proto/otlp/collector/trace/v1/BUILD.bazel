@@ -11,8 +11,8 @@ go_library(
     importpath = "go.opentelemetry.io/proto/otlp/collector/trace/v1",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/grpc-ecosystem/grpc-gateway/v2/runtime",
-        "//vendor/github.com/grpc-ecosystem/grpc-gateway/v2/utilities",
+        "//vendor/github.com/grpc-ecosystem/grpc-gateway/v2/runtime:go_default_library",
+        "//vendor/github.com/grpc-ecosystem/grpc-gateway/v2/utilities:go_default_library",
         "//vendor/go.opentelemetry.io/proto/otlp/trace/v1:go_default_library",
         "//vendor/google.golang.org/grpc:go_default_library",
         "//vendor/google.golang.org/grpc/codes:go_default_library",
