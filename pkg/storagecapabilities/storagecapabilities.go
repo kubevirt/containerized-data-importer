@@ -6,6 +6,7 @@ import (
 	"context"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
@@ -101,6 +102,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"block.csi.ibm.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// IBM VPC Block CSI
 	"vpc.block.csi.ibm.io": {{rwo, block}, {rwo, file}},
+	// IBM VPC File CSI
+	"vpc.file.csi.ibm.io": {{rwx, file}, {rwo, file}},
 	// Portworx in-tree CSI
 	"kubernetes.io/portworx-volume/nfs": {{rwx, file}, {rwo, file}},
 	"kubernetes.io/portworx-volume":     {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
@@ -157,6 +160,7 @@ var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"csi.trident.netapp.io/gcnv-flex":    cdiv1.DataImportCronSourceFormatSnapshot,
 	"pd.csi.storage.gke.io":              cdiv1.DataImportCronSourceFormatSnapshot,
 	"pd.csi.storage.gke.io/hyperdisk":    cdiv1.DataImportCronSourceFormatSnapshot,
+	"vpc.file.csi.ibm.io":                cdiv1.DataImportCronSourceFormatSnapshot,
 }
 
 // CloneStrategyByProvisionerKey defines the advised clone strategy for a provisioner
@@ -170,6 +174,7 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"spectrumscale.csi.ibm.com":                cdiv1.CloneStrategyCsiClone,
 	"block.csi.ibm.com":                        cdiv1.CloneStrategyCsiClone,
 	"vpc.block.csi.ibm.io":                     cdiv1.CloneStrategyHostAssisted,
+	"vpc.file.csi.ibm.io":                      cdiv1.CloneStrategySnapshot,
 	"rbd.csi.ceph.com":                         cdiv1.CloneStrategyCsiClone,
 	"rook-ceph.rbd.csi.ceph.com":               cdiv1.CloneStrategyCsiClone,
 	"openshift-storage.rbd.csi.ceph.com":       cdiv1.CloneStrategyCsiClone,
@@ -208,6 +213,8 @@ var MinimumSupportedPVCSizeByProvisionerKey = map[string]string{
 	"csi.san.synology.com/smb":   "1Gi",
 	// https://cloud.google.com/netapp/volumes/docs/discover/service-levels
 	"csi.trident.netapp.io/gcnv-flex": "1Gi",
+	// IBM VPC File Storage - RFS profile has fixed minimum
+	"vpc.file.csi.ibm.io/rfs": "1Gi",
 }
 
 // UseReadWriteOnceForDataImportCronByProvisionerKey is a hash of provisioners which require RWO access mode for DataImportCron PVCs
@@ -314,8 +321,49 @@ func GetAdvisedCloneStrategy(sc *storagev1.StorageClass) (cdiv1.CDICloneStrategy
 // GetMinimumSupportedPVCSize finds and returns the minimum supported PVC size
 func GetMinimumSupportedPVCSize(sc *storagev1.StorageClass) (string, bool) {
 	provisionerKey := storageProvisionerKey(sc)
+	// Check for provisioners with dynamic minimum size calculation
+	if provisionerKey == "vpc.file.csi.ibm.io/dp2" {
+		return getIBMVPCFileDP2MinimumSize(sc)
+	}
 	size, found := MinimumSupportedPVCSizeByProvisionerKey[provisionerKey]
 	return size, found
+}
+
+// getIBMVPCFileDP2MinimumSize calculates the minimum PVC size for IBM VPC File Storage DP2 profile
+// based on the IOPS parameter using a table lookup
+// Reference: https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles&interface=ui#dp2-profile
+func getIBMVPCFileDP2MinimumSize(sc *storagev1.StorageClass) (string, bool) {
+	// IOPS to minimum size mapping table
+	type iopsRequirement struct {
+		maxIOPS int
+		minSize string
+	}
+	iopsTable := []iopsRequirement{
+		{2000, "10Gi"},
+		{4000, "80Gi"},
+		{6000, "100Gi"},
+		{10000, "500Gi"},
+		{20000, "1000Gi"},
+		{40000, "2000Gi"},
+		{64000, "4000Gi"},
+		{96000, "16000Gi"},
+	}
+	if sc.Parameters == nil {
+		return "", false
+	}
+	iopsStr := sc.Parameters["iops"]
+	iops, err := strconv.Atoi(iopsStr)
+	if iopsStr == "" || err != nil {
+		return "", false
+	}
+	// Find the appropriate minimum size based on IOPS
+	for _, tier := range iopsTable {
+		if iops <= tier.maxIOPS {
+			return tier.minSize, true
+		}
+	}
+	// For IOPS exceeding all defined limits, return the largest tier
+	return "16000Gi", true
 }
 
 // ShouldUseReadWriteOnceForDataImportCron checks if the provisioner requires RWO access mode for DataImportCron PVCs
@@ -535,6 +583,21 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 			return "csi.san.synology.com/nfs"
 		default:
 			return "UNKNOWN"
+		}
+	},
+	"vpc.file.csi.ibm.io": func(sc *storagev1.StorageClass) string {
+		// https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles&interface=ui
+		if sc.Parameters == nil {
+			return "vpc.file.csi.ibm.io"
+		}
+		profile := sc.Parameters["profile"]
+		switch profile {
+		case "rfs":
+			return "vpc.file.csi.ibm.io/rfs"
+		case "dp2":
+			return "vpc.file.csi.ibm.io/dp2"
+		default:
+			return "vpc.file.csi.ibm.io"
 		}
 	},
 }
