@@ -104,6 +104,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"vpc.block.csi.ibm.io": {{rwo, block}, {rwo, file}},
 	// IBM VPC File CSI
 	"vpc.file.csi.ibm.io": {{rwx, file}, {rwo, file}},
+	"vpc.file.csi.ibm.io/dp2": {{rwx, file}, {rwo, file}},
+	"vpc.file.csi.ibm.io/rfs": {{rwx, file}, {rwo, file}},
 	// Portworx in-tree CSI
 	"kubernetes.io/portworx-volume/nfs": {{rwx, file}, {rwo, file}},
 	"kubernetes.io/portworx-volume":     {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
@@ -161,6 +163,8 @@ var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"pd.csi.storage.gke.io":              cdiv1.DataImportCronSourceFormatSnapshot,
 	"pd.csi.storage.gke.io/hyperdisk":    cdiv1.DataImportCronSourceFormatSnapshot,
 	"vpc.file.csi.ibm.io":                cdiv1.DataImportCronSourceFormatSnapshot,
+	"vpc.file.csi.ibm.io/dp2":            cdiv1.DataImportCronSourceFormatSnapshot,
+	"vpc.file.csi.ibm.io/rfs":            cdiv1.DataImportCronSourceFormatSnapshot,
 }
 
 // CloneStrategyByProvisionerKey defines the advised clone strategy for a provisioner
@@ -175,6 +179,8 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"block.csi.ibm.com":                        cdiv1.CloneStrategyCsiClone,
 	"vpc.block.csi.ibm.io":                     cdiv1.CloneStrategyHostAssisted,
 	"vpc.file.csi.ibm.io":                      cdiv1.CloneStrategySnapshot,
+	"vpc.file.csi.ibm.io/dp2":                  cdiv1.CloneStrategySnapshot,
+	"vpc.file.csi.ibm.io/rfs":                  cdiv1.CloneStrategySnapshot,
 	"rbd.csi.ceph.com":                         cdiv1.CloneStrategyCsiClone,
 	"rook-ceph.rbd.csi.ceph.com":               cdiv1.CloneStrategyCsiClone,
 	"openshift-storage.rbd.csi.ceph.com":       cdiv1.CloneStrategyCsiClone,
@@ -347,9 +353,6 @@ func getIBMVPCFileDP2MinimumSize(sc *storagev1.StorageClass) (string, bool) {
 		{40000, "2000Gi"},
 		{64000, "4000Gi"},
 		{96000, "16000Gi"},
-	}
-	if sc.Parameters == nil {
-		return "", false
 	}
 	iopsStr := sc.Parameters["iops"]
 	iops, err := strconv.Atoi(iopsStr)
