@@ -596,8 +596,8 @@ func (r *UploadReconciler) makeUploadServiceSpec(name string, pvc *corev1.Persis
 			Ports: []corev1.ServicePort{
 				{
 					Protocol:   corev1.ProtocolTCP,
-					Port:       8443,
-					TargetPort: intstr.FromInt32(8443),
+					Port:       common.UploadServerPort,
+					TargetPort: intstr.FromInt32(common.UploadServerPort),
 				},
 			},
 			Selector: map[string]string{
@@ -763,7 +763,7 @@ func UploadPossibleForPVC(pvc *corev1.PersistentVolumeClaim) error {
 // GetUploadServerURL returns the url the proxy should post to for a particular pvc
 func GetUploadServerURL(namespace, pvc, uploadPath string) string {
 	serviceName := createUploadServiceNameFromPvcName(pvc)
-	return fmt.Sprintf("https://%s.%s.svc:8443%s", serviceName, namespace, uploadPath)
+	return fmt.Sprintf("https://%s.%s.svc:%d%s", serviceName, namespace, common.UploadServerPort, uploadPath)
 }
 
 // createUploadServiceName returns the name given to upload service shortened if needed
@@ -858,11 +858,8 @@ func (r *UploadReconciler) makeUploadPodContainers(args UploadPodArgs, resourceR
 			ReadinessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{
-						Path: "/healthz",
-						Port: intstr.IntOrString{
-							Type:   intstr.Int,
-							IntVal: 8443,
-						},
+						Path:   "/healthz",
+						Port:   intstr.FromInt32(common.UploadServerPort),
 						Scheme: corev1.URISchemeHTTPS,
 					},
 				},
