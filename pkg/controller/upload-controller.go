@@ -592,14 +592,12 @@ func (r *UploadReconciler) makeUploadServiceSpec(name string, pvc *corev1.Persis
 			},
 		},
 		Spec: corev1.ServiceSpec{
+			ClusterIP: corev1.ClusterIPNone,
 			Ports: []corev1.ServicePort{
 				{
-					Protocol: "TCP",
-					Port:     443,
-					TargetPort: intstr.IntOrString{
-						Type:   intstr.Int,
-						IntVal: 8443,
-					},
+					Protocol:   corev1.ProtocolTCP,
+					Port:       8443,
+					TargetPort: intstr.FromInt32(8443),
 				},
 			},
 			Selector: map[string]string{
@@ -765,7 +763,7 @@ func UploadPossibleForPVC(pvc *corev1.PersistentVolumeClaim) error {
 // GetUploadServerURL returns the url the proxy should post to for a particular pvc
 func GetUploadServerURL(namespace, pvc, uploadPath string) string {
 	serviceName := createUploadServiceNameFromPvcName(pvc)
-	return fmt.Sprintf("https://%s.%s.svc%s", serviceName, namespace, uploadPath)
+	return fmt.Sprintf("https://%s.%s.svc:8443%s", serviceName, namespace, uploadPath)
 }
 
 // createUploadServiceName returns the name given to upload service shortened if needed
