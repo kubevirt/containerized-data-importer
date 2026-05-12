@@ -777,7 +777,8 @@ func (r *UploadReconciler) makeUploadPodSpec(args UploadPodArgs, resourceRequire
 			Name:      args.Name,
 			Namespace: args.PVC.Namespace,
 			Annotations: map[string]string{
-				annCreatedByUpload: "yes",
+				annCreatedByUpload:     "yes",
+				cc.AnnOpenDefaultPorts: fmt.Sprintf(`[{"protocol":"tcp","port":%d}]`, common.UploadServerPort),
 			},
 			Labels: map[string]string{
 				common.CDILabelKey:              common.CDILabelValue,
