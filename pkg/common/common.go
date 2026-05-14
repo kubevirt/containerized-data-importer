@@ -209,6 +209,8 @@ const (
 	UploadServerDataDir = ImporterDataDir
 	// UploadServerServiceLabel is the label selector for upload server services
 	UploadServerServiceLabel = "service"
+	// UploadServerPort is the port the upload server listens on
+	UploadServerPort = 8443
 	// UploadImageSize provides a constant to capture our env variable "UPLOAD_IMAGE_SIZE"
 	UploadImageSize = "UPLOAD_IMAGE_SIZE"
 
