@@ -25,6 +25,7 @@ import (
 	"github.com/go-logr/logr"
 	promv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -66,6 +67,7 @@ func ensurePrometheusResourcesExist(ctx context.Context, c client.Client, scheme
 	installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
 
 	prometheusResources := []client.Object{
+		newMonitorTokenSecret(namespace),
 		newPrometheusRule(namespace),
 		newPrometheusServiceMonitor(namespace),
 		newPrometheusRole(namespace),
@@ -180,6 +182,23 @@ func newPrometheusRoleBinding(namespace string) *rbacv1.RoleBinding {
 	}
 }
 
+func newMonitorTokenSecret(namespace string) *corev1.Secret {
+	return &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      common.MetricsReaderTokenName,
+			Namespace: namespace,
+			Labels: map[string]string{
+				common.CDIComponentLabel:  "",
+				common.PrometheusLabelKey: common.PrometheusLabelValue,
+			},
+			Annotations: map[string]string{
+				corev1.ServiceAccountNameKey: common.MetricsReaderServiceAccountName,
+			},
+		},
+		Type: corev1.SecretTypeServiceAccountToken,
+	}
+}
+
 func getMonitoringNamespace() string {
 	if ns := os.Getenv("MONITORING_NAMESPACE"); ns != "" {
 		return ns
@@ -212,6 +231,14 @@ func newPrometheusServiceMonitor(namespace string) *promv1.ServiceMonitor {
 				{
 					Port:   "metrics",
 					Scheme: "https",
+					Authorization: &promv1.SafeAuthorization{
+						Credentials: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: common.MetricsReaderTokenName,
+							},
+							Key: "token",
+						},
+					},
 					TLSConfig: &promv1.TLSConfig{
 						SafeTLSConfig: promv1.SafeTLSConfig{
 							InsecureSkipVerify: ptr.To(true),

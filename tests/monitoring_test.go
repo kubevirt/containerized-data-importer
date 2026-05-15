@@ -2,10 +2,13 @@ package tests_test
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +21,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -110,7 +113,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 		for i := 0; i < numAddedStorageClasses; i++ {
 			name := fmt.Sprintf("unknown-sc-%d", i)
 			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), name, metav1.GetOptions{})
-			if err != nil && errors.IsNotFound(err) {
+			if err != nil && k8serrors.IsNotFound(err) {
 				continue
 			}
 			err = f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), name, metav1.DeleteOptions{})
@@ -125,7 +128,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 
 	deleteStubSnapshotClass := func() {
 		err := f.CrClient.Delete(context.TODO(), newStubSnapshotClass(""))
-		if err != nil && !errors.IsNotFound(err) {
+		if err != nil && !k8serrors.IsNotFound(err) {
 			Expect(err).ToNot(HaveOccurred())
 		}
 	}
@@ -494,6 +497,75 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 			scaleDeployment(f, deploymentName, originalReplicas)
 			err := utils.WaitForDeploymentReplicasReady(f.K8sClient, f.CdiInstallNs, deploymentName)
 			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	Context("Metrics endpoint authentication", func() {
+		var (
+			portForwardCmd *exec.Cmd
+			metricsURL     string
+		)
+
+		BeforeEach(func() {
+			lp := "18443"
+			pm := lp + ":8443"
+			portForwardCmd = f.CreateKubectlCommand("-n", f.CdiInstallNs, "port-forward", "svc/"+common.PrometheusServiceName, pm)
+			err := portForwardCmd.Start()
+			Expect(err).ToNot(HaveOccurred())
+			metricsURL = fmt.Sprintf("https://127.0.0.1:%s/metrics", lp)
+		})
+
+		AfterEach(func() {
+			if portForwardCmd != nil {
+				ExpectWithOffset(1, portForwardCmd.Process.Kill()).Should(Succeed())
+				err := portForwardCmd.Wait()
+				if err != nil {
+					t := &exec.ExitError{}
+					ExpectWithOffset(1, errors.As(err, &t)).Should(BeTrue())
+				}
+			}
+		})
+
+		It("should reject unauthenticated requests to the metrics endpoint", func() {
+			httpClient := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+				},
+			}
+
+			Eventually(func() int {
+				resp, err := httpClient.Get(metricsURL)
+				if err != nil {
+					return 0
+				}
+				defer resp.Body.Close()
+				return resp.StatusCode
+			}, 10*time.Second, 1*time.Second).Should(Equal(http.StatusUnauthorized))
+		})
+
+		It("should allow authenticated requests to the metrics endpoint", func() {
+			token, err := f.GetTokenForServiceAccount(f.CdiInstallNs, common.MetricsReaderServiceAccountName)
+			Expect(err).ToNot(HaveOccurred())
+
+			httpClient := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+				},
+			}
+
+			Eventually(func() int {
+				req, err := http.NewRequest(http.MethodGet, metricsURL, nil)
+				if err != nil {
+					return 0
+				}
+				req.Header.Set("Authorization", "Bearer "+token)
+				resp, err := httpClient.Do(req)
+				if err != nil {
+					return 0
+				}
+				defer resp.Body.Close()
+				return resp.StatusCode
+			}, 10*time.Second, 1*time.Second).Should(Equal(http.StatusOK))
 		})
 	})
 
