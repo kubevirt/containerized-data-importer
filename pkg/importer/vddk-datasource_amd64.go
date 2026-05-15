@@ -46,6 +46,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
@@ -551,12 +552,10 @@ func FindVM(context context.Context, conn *govmomi.Client, uuid string) (string,
 
 	// Search for VM matching given instance UUID, and save the MOref
 	var moref string
-	var instanceUUID bool
 	var vm *object.VirtualMachine
 	searcher := object.NewSearchIndex(conn.Client)
 	for _, datacenter := range datacenters {
-		instanceUUID = true
-		ref, err := searcher.FindByUuid(context, datacenter, uuid, true, &instanceUUID)
+		ref, err := searcher.FindByUuid(context, datacenter, uuid, true, ptr.To(true))
 		if err != nil {
 			return "", nil, err
 		} else if ref == nil {
@@ -572,8 +571,7 @@ func FindVM(context context.Context, conn *govmomi.Client, uuid string) (string,
 
 	// Fallback: BIOS UUID
 	for _, datacenter := range datacenters {
-		instanceUUID = false
-		ref, err := searcher.FindByUuid(context, datacenter, uuid, true, &instanceUUID)
+		ref, err := searcher.FindByUuid(context, datacenter, uuid, true, ptr.To(false))
 		if err != nil {
 			return "", nil, err
 		} else if ref == nil {
