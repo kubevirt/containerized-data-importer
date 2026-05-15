@@ -105,7 +105,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// IBM VPC File CSI
 	"vpc.file.csi.ibm.io": {{rwx, file}, {rwo, file}},
 	"vpc.file.csi.ibm.io/dp2": {{rwx, file}, {rwo, file}},
+	"vpc.file.csi.ibm.io/dp2-rwo": {{rwo, file}},
 	"vpc.file.csi.ibm.io/rfs": {{rwx, file}, {rwo, file}},
+	"vpc.file.csi.ibm.io/rfs-rwo": {{rwo, file}},
 	// Portworx in-tree CSI
 	"kubernetes.io/portworx-volume/nfs": {{rwx, file}, {rwo, file}},
 	"kubernetes.io/portworx-volume":     {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
@@ -164,7 +166,9 @@ var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"pd.csi.storage.gke.io/hyperdisk":    cdiv1.DataImportCronSourceFormatSnapshot,
 	"vpc.file.csi.ibm.io":                cdiv1.DataImportCronSourceFormatSnapshot,
 	"vpc.file.csi.ibm.io/dp2":            cdiv1.DataImportCronSourceFormatSnapshot,
+	"vpc.file.csi.ibm.io/dp2-rwo":        cdiv1.DataImportCronSourceFormatSnapshot,
 	"vpc.file.csi.ibm.io/rfs":            cdiv1.DataImportCronSourceFormatSnapshot,
+	"vpc.file.csi.ibm.io/rfs-rwo":        cdiv1.DataImportCronSourceFormatSnapshot,
 }
 
 // CloneStrategyByProvisionerKey defines the advised clone strategy for a provisioner
@@ -180,7 +184,9 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"vpc.block.csi.ibm.io":                     cdiv1.CloneStrategyHostAssisted,
 	"vpc.file.csi.ibm.io":                      cdiv1.CloneStrategySnapshot,
 	"vpc.file.csi.ibm.io/dp2":                  cdiv1.CloneStrategySnapshot,
+	"vpc.file.csi.ibm.io/dp2-rwo":              cdiv1.CloneStrategySnapshot,
 	"vpc.file.csi.ibm.io/rfs":                  cdiv1.CloneStrategySnapshot,
+	"vpc.file.csi.ibm.io/rfs-rwo":              cdiv1.CloneStrategySnapshot,
 	"rbd.csi.ceph.com":                         cdiv1.CloneStrategyCsiClone,
 	"rook-ceph.rbd.csi.ceph.com":               cdiv1.CloneStrategyCsiClone,
 	"openshift-storage.rbd.csi.ceph.com":       cdiv1.CloneStrategyCsiClone,
@@ -220,7 +226,8 @@ var MinimumSupportedPVCSizeByProvisionerKey = map[string]string{
 	// https://cloud.google.com/netapp/volumes/docs/discover/service-levels
 	"csi.trident.netapp.io/gcnv-flex": "1Gi",
 	// IBM VPC File Storage - RFS profile has fixed minimum
-	"vpc.file.csi.ibm.io/rfs": "1Gi",
+	"vpc.file.csi.ibm.io/rfs":     "1Gi",
+	"vpc.file.csi.ibm.io/rfs-rwo": "1Gi",
 }
 
 // UseReadWriteOnceForDataImportCronByProvisionerKey is a hash of provisioners which require RWO access mode for DataImportCron PVCs
@@ -328,7 +335,7 @@ func GetAdvisedCloneStrategy(sc *storagev1.StorageClass) (cdiv1.CDICloneStrategy
 func GetMinimumSupportedPVCSize(sc *storagev1.StorageClass) (string, bool) {
 	provisionerKey := storageProvisionerKey(sc)
 	// Check for provisioners with dynamic minimum size calculation
-	if provisionerKey == "vpc.file.csi.ibm.io/dp2" {
+	if provisionerKey == "vpc.file.csi.ibm.io/dp2" || provisionerKey == "vpc.file.csi.ibm.io/dp2-rwo" {
 		return getIBMVPCFileDP2MinimumSize(sc)
 	}
 	size, found := MinimumSupportedPVCSizeByProvisionerKey[provisionerKey]
@@ -594,11 +601,22 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 			return "vpc.file.csi.ibm.io"
 		}
 		profile := sc.Parameters["profile"]
+		// When vmState is true, use RWO-specific variants
+		vmState := sc.Parameters["vmState"]
+
 		switch profile {
 		case "rfs":
-			return "vpc.file.csi.ibm.io/rfs"
+			if vmState == "true" {
+				return "vpc.file.csi.ibm.io/rfs-rwo"
+			} else {
+				return "vpc.file.csi.ibm.io/rfs"
+			}
 		case "dp2":
-			return "vpc.file.csi.ibm.io/dp2"
+			if vmState == "true" {
+				return "vpc.file.csi.ibm.io/dp2-rwo"
+			} else {
+				return "vpc.file.csi.ibm.io/dp2"
+			}
 		default:
 			return "vpc.file.csi.ibm.io"
 		}
