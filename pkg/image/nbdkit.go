@@ -21,6 +21,7 @@ const (
 	nbdVddkLibraryPath    = "/opt/vmware-vix-disklib-distrib"
 	startupTimeoutSeconds = 15
 	defaultUserAgent      = "cdi-nbdkit-importer"
+	passwordFdEntry       = 3
 )
 
 // NbdkitPlugin represents a plugin for nbdkit
@@ -65,6 +66,7 @@ type Nbdkit struct {
 	Socket     string
 	Env        []string
 	LogWatcher NbdkitLogWatcher
+	passwordFd *os.File
 }
 
 // NbdkitOperation defines the interface for executing nbdkit
@@ -92,12 +94,15 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 	if user != "" {
 		pluginArgs = append(pluginArgs, "user="+user)
 	}
+
+	var passwordFd *os.File
 	if password != "" {
-		passwordfile, err := writePasswordFile(password)
+		fd, err := createPasswordPipe(password)
 		if err != nil {
 			return nil, err
 		}
-		pluginArgs = append(pluginArgs, "password=+"+passwordfile)
+		passwordFd = fd
+		pluginArgs = append(pluginArgs, fmt.Sprintf("password=-%d", passwordFdEntry))
 	}
 	if certDir != "" {
 		pluginArgs = append(pluginArgs, fmt.Sprintf("cainfo=%s/%s", certDir, "tls.crt"))
@@ -117,6 +122,7 @@ func NewNbdkitCurl(nbdkitPidFile, user, password, certDir, socket string, extraH
 		pluginArgs: pluginArgs,
 		redactArgs: redactArgs,
 		Socket:     socket,
+		passwordFd: passwordFd,
 	}
 	// QEMU generally reads through the extents in order, making the readahead
 	// filter quite appropriate.
@@ -147,12 +153,14 @@ func NewNbdkitVddk(nbdkitPidFile, socket string, args NbdKitVddkPluginArgs) (Nbd
 	if args.Username != "" {
 		pluginArgs = append(pluginArgs, "user="+args.Username)
 	}
+	var passwordFd *os.File
 	if args.Password != "" {
-		passwordfile, err := writePasswordFile(args.Password)
+		fd, err := createPasswordPipe(args.Password)
 		if err != nil {
 			return nil, err
 		}
-		pluginArgs = append(pluginArgs, "password=+"+passwordfile)
+		passwordFd = fd
+		pluginArgs = append(pluginArgs, fmt.Sprintf("password=-%d", passwordFdEntry))
 	}
 	if args.Thumbprint != "" {
 		pluginArgs = append(pluginArgs, "thumbprint="+args.Thumbprint)
@@ -181,6 +189,7 @@ func NewNbdkitVddk(nbdkitPidFile, socket string, args NbdKitVddkPluginArgs) (Nbd
 		plugin:     p,
 		pluginArgs: pluginArgs,
 		Socket:     socket,
+		passwordFd: passwordFd,
 	}
 
 	n.AddFilter(NbdkitRetryFilter)
@@ -191,23 +200,24 @@ func NewNbdkitVddk(nbdkitPidFile, socket string, args NbdKitVddkPluginArgs) (Nbd
 	return n, nil
 }
 
-func writePasswordFile(password string) (string, error) {
-	f, err := os.CreateTemp("", "password")
+func createPasswordPipe(password string) (*os.File, error) {
+	r, w, err := os.Pipe()
 	if err != nil {
-		return "", err
+		return nil, errors.Wrap(err, "failed to create password pipe")
 	}
-	defer f.Close()
-	// This would be nice but we don't want to delete it until
-	// program exit.
-	// defer os.Remove(f.Name())
 
-	if _, err := f.Write([]byte(password)); err != nil {
-		return "", err
+	if _, err := w.WriteString(password); err != nil {
+		r.Close()
+		w.Close()
+		return nil, errors.Wrap(err, "failed to write password to pipe")
 	}
-	if err := f.Close(); err != nil {
-		return "", err
+
+	if err := w.Close(); err != nil {
+		r.Close()
+		return nil, errors.Wrap(err, "failed to close pipe write end")
 	}
-	return f.Name(), nil
+
+	return r, nil
 }
 
 // AddEnvVariable adds an environmental variable to the nbdkit command
@@ -311,6 +321,10 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 	klog.V(3).Infof("Start nbdkit with: %v", quotedArgs)
 
 	n.c = exec.Command("nbdkit", argsNbdkit...)
+	if n.passwordFd != nil {
+		n.c.ExtraFiles = []*os.File{n.passwordFd}
+		defer n.passwordFd.Close()
+	}
 	var stdout io.ReadCloser
 	stdout, err = n.c.StdoutPipe()
 	if err != nil {
