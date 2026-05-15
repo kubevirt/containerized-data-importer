@@ -41,6 +41,7 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	utilnet "kubevirt.io/containerized-data-importer/pkg/util/net"
 )
 
 // ImageioDataSource is the data provider for ovirt-imageio.
@@ -69,6 +70,19 @@ type ImageioDataSource struct {
 
 // NewImageioDataSource creates a new instance of the ovirt-imageio data provider.
 func NewImageioDataSource(endpoint string, accessKey string, secKey string, certDir string, diskID string, currentCheckpoint string, previousCheckpoint string, insecureSkipVerify bool) (*ImageioDataSource, error) {
+	// Parse endpoint to extract host for SSRF validation
+	ep, err := ParseEndpoint(endpoint)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to parse endpoint %q", endpoint)
+	}
+
+	// Validate endpoint host against SSRF blocklist BEFORE making any network calls
+	// This prevents access to cloud metadata endpoints and other internal resources
+	allowlist := getAllowedSourceURLs()
+	if err := utilnet.ValidateEndpointHost(ep.Host, allowlist); err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	imageioReader, contentLength, it, conn, err := createImageioReader(ctx, endpoint, accessKey, secKey, certDir, diskID, currentCheckpoint, previousCheckpoint, insecureSkipVerify)
 	if err != nil {
@@ -549,6 +563,17 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 	transferURL, available := it.TransferUrl()
 	if !available {
 		return nil, uint64(0), it, conn, errors.New("Error transfer url not available")
+	}
+
+	// Validate transferURL against SSRF blocklist (defense in depth)
+	// The transferURL comes from oVirt API response, so validate it before use
+	transferEp, err := ParseEndpoint(transferURL)
+	if err != nil {
+		return nil, uint64(0), it, conn, errors.Wrapf(err, "unable to parse transfer URL %q", transferURL)
+	}
+	allowlist := getAllowedSourceURLs()
+	if err := utilnet.ValidateEndpointHost(transferEp.Host, allowlist); err != nil {
+		return nil, uint64(0), it, conn, errors.Wrap(err, "transfer URL validation failed")
 	}
 
 	// For raw images, see if the transfer can be sped up with the extents API

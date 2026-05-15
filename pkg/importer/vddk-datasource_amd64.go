@@ -51,6 +51,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	utilnet "kubevirt.io/containerized-data-importer/pkg/util/net"
 )
 
 // May be overridden in tests
@@ -902,6 +903,16 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	if currentCheckpoint == "" && previousCheckpoint != "" {
 		// Not sure what to do with just previous set by itself, return error
 		return nil, errors.New("previous checkpoint set without current")
+	}
+
+	// Validate endpoint host BEFORE making any network calls (SSRF protection)
+	ep, err := ParseEndpoint(endpoint)
+	if err != nil {
+		return nil, errors.Wrapf(err, "unable to parse endpoint %q", endpoint)
+	}
+	allowlist := getAllowedSourceURLs()
+	if err := utilnet.ValidateEndpointHost(ep.Host, allowlist); err != nil {
+		return nil, err
 	}
 
 	// Log in to VMware to make sure disks and snapshots are present

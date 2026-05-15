@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -219,6 +221,35 @@ func UpdateCDIConfigWithOptions(c client.Client, opts metav1.UpdateOptions, upda
 // UpdateCDIConfig updates CDIConfig
 func UpdateCDIConfig(c client.Client, updateFunc func(*cdiv1.CDIConfigSpec)) error {
 	return UpdateCDIConfigWithOptions(c, metav1.UpdateOptions{}, updateFunc)
+}
+
+// ConfigureAllowedSourceURLs configures SSRF allowlist for test file-host service
+func ConfigureAllowedSourceURLs(c client.Client, cdiInstallNs string) error {
+	// Retry on conflict when multiple test suites update CDIConfig concurrently
+	// Use 2-minute timeout to handle client-side rate limiting during parallel test execution
+	return wait.PollUntilContextTimeout(context.Background(), 2*time.Second, 2*time.Minute, true, func(ctx context.Context) (bool, error) {
+		err := UpdateCDIConfig(c, func(config *cdiv1.CDIConfigSpec) {
+			// Allow cluster service CIDRs and test services for SSRF protection
+			config.AllowedSourceURLs = []string{
+				"10.96.0.0/12",  // Standard Kubernetes service CIDR
+				"172.30.0.0/16", // OpenShift service CIDR
+				"localhost",     // Localhost for test services
+				"127.0.0.0/8",   // IPv4 loopback
+				"::1/128",       // IPv6 loopback
+				fmt.Sprintf("%s.%s", FileHostName, cdiInstallNs),     // cdi-file-host service
+				fmt.Sprintf("%s.%s", RegistryHostName, cdiInstallNs), // cdi-docker-registry-host service
+				fmt.Sprintf("imageio.%s", cdiInstallNs),              // imageio service
+				"registry",                                           // In-cluster registry shortname
+			}
+		})
+		if err != nil {
+			// Retry on conflict, timeouts, or rate limiting (context.DeadlineExceeded)
+			if apierrors.IsConflict(err) || apierrors.IsServerTimeout(err) || apierrors.IsTimeout(err) || errors.Is(err, context.DeadlineExceeded) {
+				return false, nil
+			}
+		}
+		return err == nil, err
+	})
 }
 
 // EnableFeatureGate sets specified FeatureGate in the CDIConfig

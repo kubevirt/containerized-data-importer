@@ -1063,6 +1063,12 @@ type CDIConfigSpec struct {
 	Preallocation *bool `json:"preallocation,omitempty"`
 	// InsecureRegistries is a list of TLS disabled registries
 	InsecureRegistries []string `json:"insecureRegistries,omitempty"`
+	// AllowedSourceURLs is a list of CIDR blocks or hostnames that are allowed for HTTP/S data sources
+	// even if they fall within the default SSRF protection blocklist (private IPs, link-local, etc.).
+	// This allows importing from in-cluster services or private endpoints.
+	// Format: CIDR (10.96.0.0/12) or hostname (minio.default.svc)
+	// +optional
+	AllowedSourceURLs []string `json:"allowedSourceURLs,omitempty"`
 	// DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. Disabled by default.
 	// Deprecated: Removed in v1.62.
 	// +optional

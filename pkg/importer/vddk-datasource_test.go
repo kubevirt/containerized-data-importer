@@ -54,6 +54,9 @@ func defaultMockNbdExport() mockNbdExport {
 var currentExport mockNbdExport
 
 var _ = Describe("VDDK data source", func() {
+	var originalAllowedSourceURLs string
+	var allowlistWasSet bool
+
 	BeforeEach(func() {
 		mockSinkBuffer = bytes.Repeat([]byte{0x00}, 512)
 		newVddkDataSource = createMockVddkDataSource
@@ -64,10 +67,27 @@ var _ = Describe("VDDK data source", func() {
 		currentExport = defaultMockNbdExport()
 		currentVMwareFunctions = defaultMockVMwareFunctions()
 		currentMockNbdFunctions = defaultMockNbdFunctions()
+
+		// Save and set allowlist for VDDK test endpoints
+		originalAllowedSourceURLs, allowlistWasSet = os.LookupEnv(common.ImporterAllowedSourceURLs)
+		Expect(os.Setenv(common.ImporterAllowedSourceURLs, "localhost,127.0.0.0/8,::1/128")).To(Succeed())
+
+		// Set IMPORTER_ENDPOINT for tests that use empty endpoint string
+		Expect(os.Setenv(common.ImporterEndpoint, "http://localhost")).To(Succeed())
 	})
 
 	AfterEach(func() {
 		newVddkDataSource = createVddkDataSource
+
+		// Restore original allowlist
+		if allowlistWasSet {
+			Expect(os.Setenv(common.ImporterAllowedSourceURLs, originalAllowedSourceURLs)).To(Succeed())
+		} else {
+			Expect(os.Unsetenv(common.ImporterAllowedSourceURLs)).To(Succeed())
+		}
+
+		// Clean up IMPORTER_ENDPOINT
+		Expect(os.Unsetenv(common.ImporterEndpoint)).To(Succeed())
 	})
 
 	It("NewVDDKDataSource should fail when called with an invalid endpoint", func() {
@@ -434,7 +454,7 @@ var _ = Describe("VDDK data source", func() {
 			return nil
 		}
 
-		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", targetDiskName, "", "", "", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("http://localhost", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", targetDiskName, "", "", "", v1.PersistentVolumeFilesystem)
 		if expectedSuccess {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(returnedDiskName).To(Equal(targetDiskName))
@@ -492,7 +512,7 @@ var _ = Describe("VDDK data source", func() {
 			return nil
 		}
 
-		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", "disk1", expectedSnapshot, "", "", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("http://localhost", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", "disk1", expectedSnapshot, "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(receivedSnapshotRef).To(Equal(expectedSnapshot))
 	})
@@ -512,7 +532,7 @@ var _ = Describe("VDDK data source", func() {
 			return nil
 		}
 
-		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "false", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("http://localhost", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "false", v1.PersistentVolumeFilesystem)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("disk 'testdisk.vmdk' is not present in VM hardware config or snapshot list"))
 	})
@@ -530,7 +550,7 @@ var _ = Describe("VDDK data source", func() {
 			}
 			return nil
 		}
-		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "snapshot-1", "snapshot-2", "false", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("http://localhost", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "snapshot-1", "snapshot-2", "false", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		mockTerminationChannel <- os.Interrupt
 		Expect(err).ToNot(HaveOccurred())
@@ -549,10 +569,10 @@ var _ = Describe("VDDK data source", func() {
 			}
 			return nil
 		}
-		_, err := NewVDDKDataSource("http://esx.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("http://127.0.0.1", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(MaxPreadLength).To(Equal(MaxPreadLengthESX))
-		_, err = NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem)
+		_, err = NewVDDKDataSource("http://127.0.0.1/vcenter", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(MaxPreadLength).To(Equal(MaxPreadLengthVC))
 	})
@@ -561,7 +581,7 @@ var _ = Describe("VDDK data source", func() {
 		const testVersion = "testVersion"
 		const testHost = "testHost"
 
-		source, err := NewVDDKDataSource("http://esx.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", "testdisk.vmdk", "", "", "", v1.PersistentVolumeFilesystem)
+		source, err := NewVDDKDataSource("http://localhost", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", "testdisk.vmdk", "", "", "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 
 		vddkVersion = testVersion
@@ -656,7 +676,7 @@ var _ = Describe("VDDK data source", func() {
 			return resp, nil
 		}
 
-		ds, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem)
+		ds, err := NewVDDKDataSource("http://localhost", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem)
 		Expect(err).ToNot(HaveOccurred())
 		_, err = ds.TransferFile("", false)
 		Expect(err).ToNot(HaveOccurred())
@@ -1102,7 +1122,7 @@ func createMockVMwareClient(endpoint string, accessKey string, secKey string, th
 }
 
 func createMockNbdKitWrapper(vmware *VMwareClient, diskFileName, snapshot string) (*NbdKitWrapper, error) {
-	u, _ := url.Parse("http://vcenter.test")
+	u, _ := url.Parse("http://localhost")
 	return &NbdKitWrapper{
 		n:      &image.Nbdkit{},
 		Socket: u,

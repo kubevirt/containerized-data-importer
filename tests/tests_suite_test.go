@@ -148,6 +148,13 @@ func BuildTestSuite() {
 
 		utils.CacheTestsData(framework.ClientsInstance.K8sClient, framework.ClientsInstance.CdiInstallNs)
 
+		// Configure SSRF allowlist for test file-host service
+		fmt.Fprintf(GinkgoWriter, "Configuring SSRF allowlist for test file-host service\n")
+		err = utils.ConfigureAllowedSourceURLs(crClient, framework.ClientsInstance.CdiInstallNs)
+		if err != nil {
+			Fail(fmt.Sprintf("ERROR, unable to configure SSRF allowlist: %v", err))
+		}
+
 		if path := os.Getenv("TESTS_WORKDIR"); path != "" {
 			if err := os.Chdir(path); err != nil {
 				Fail(fmt.Sprintf("ERROR, unable to chdir to test dir for manifest/image files: %v", err))

@@ -1,0 +1,22 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library", "go_test")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["blocklist.go"],
+    importpath = "kubevirt.io/containerized-data-importer/pkg/util/net",
+    visibility = ["//visibility:public"],
+    deps = ["//vendor/k8s.io/klog/v2:go_default_library"],
+)
+
+go_test(
+    name = "go_default_test",
+    srcs = [
+        "blocklist_test.go",
+        "net_suite_test.go",
+    ],
+    deps = [
+        ":go_default_library",
+        "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
+        "//vendor/github.com/onsi/gomega:go_default_library",
+    ],
+)

@@ -16,6 +16,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	utilnet "kubevirt.io/containerized-data-importer/pkg/util/net"
 )
 
 const (
@@ -56,6 +57,14 @@ func NewS3DataSource(endpoint, accessKey, secKey string, certDir string) (*S3Dat
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to parse endpoint %q", endpoint)
 	}
+
+	// Validate endpoint host against SSRF blocklist BEFORE making any network calls
+	// This prevents access to cloud metadata endpoints and other internal resources
+	allowlist := getAllowedSourceURLs()
+	if err := utilnet.ValidateEndpointHost(ep.Host, allowlist); err != nil {
+		return nil, err
+	}
+
 	s3Reader, err := createS3Reader(ep, accessKey, secKey, certDir)
 	if err != nil {
 		return nil, err
