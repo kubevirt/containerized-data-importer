@@ -145,6 +145,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"csi.san.synology.com/iscsi": {{rwx, block}, {rwo, block}, {rwo, file}},
 	"csi.san.synology.com/nfs":   {{rwx, file}, {rwo, file}},
 	"csi.san.synology.com/smb":   {{rwx, file}, {rwo, file}},
+	// DirectPV
+	"directpv-min-io": {{rwo, file}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
