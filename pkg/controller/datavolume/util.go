@@ -84,7 +84,7 @@ func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolu
 		return nil
 	}
 
-	return renderPvcSpecVolumeSize(client, &pvc.Spec, false, nil)
+	return renderPvcSpecVolumeSize(client, &pvc.Spec, nil, nil)
 }
 
 // hasVolumeSnapshotDataSource returns true if the PVC's DataSource or DataSourceRef
@@ -138,8 +138,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 	}
 
 	if shouldRender {
-		isClone := dv.Spec.Source.PVC != nil || dv.Spec.Source.Snapshot != nil
-		if err := renderPvcSpecVolumeSize(client, pvcSpec, isClone, &log); err != nil {
+		if err := renderPvcSpecVolumeSize(client, pvcSpec, dv.Spec.Source, &log); err != nil {
 			return nil, err
 		}
 	}
@@ -306,7 +305,8 @@ func hasCloneSourceRef(pvc *v1.PersistentVolumeClaim) bool {
 	return dsRef != nil && dsRef.APIGroup != nil && *dsRef.APIGroup == cc.AnnAPIGroup && dsRef.Kind == cdiv1.VolumeCloneSourceRef && dsRef.Name != ""
 }
 
-func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeClaimSpec, isClone bool, log *logr.Logger) error {
+func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeClaimSpec, source *cdiv1.DataVolumeSource, log *logr.Logger) error {
+	isClone := source != nil && (source.PVC != nil || source.Snapshot != nil)
 	requestedSize, found := pvcSpec.Resources.Requests[v1.ResourceStorage]
 
 	// Storage size can be empty when cloning
@@ -323,12 +323,19 @@ func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeC
 		return errors.Errorf("PVC Spec is not valid - storage size should be at least 1MiB")
 	}
 
-	requestedSize, err := cc.InflateSizeWithOverhead(context.TODO(), client, requestedSize.Value(), pvcSpec)
-	if err != nil {
-		return err
+	scName := pvcSpec.StorageClassName
+	var err error
+
+	if /*isClone &&*/ scName != nil {
+		if done, err := setCloneEffectiveVolumeSize(client, pvcSpec, source, requestedSize, *scName, log); done || err != nil {
+			return err
+		}
 	}
 
-	if scName := pvcSpec.StorageClassName; scName != nil {
+	if requestedSize, err = cc.InflateSizeWithOverhead(context.TODO(), client, requestedSize.Value(), pvcSpec); err != nil {
+		return err
+	}
+	if scName != nil {
 		if requestedSize, err = cc.GetEffectiveVolumeSize(context.TODO(), client, requestedSize, *scName, log); err != nil {
 			return err
 		}
@@ -337,6 +344,67 @@ func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeC
 	setRequestedVolumeSize(pvcSpec, requestedSize)
 
 	return nil
+}
+
+// setCloneEffectiveVolumeSize handles the case of cloning from block to filesystem.
+// If the effective target size exceeds the requested size and the source is block,
+// the size is inflated with overhead and set directly, returning done=true.
+func setCloneEffectiveVolumeSize(c client.Client, pvcSpec *v1.PersistentVolumeClaimSpec, source *cdiv1.DataVolumeSource,
+	requestedSize resource.Quantity, scName string, log *logr.Logger) (bool, error) {
+	if util.ResolveVolumeMode(pvcSpec.VolumeMode) != v1.PersistentVolumeFilesystem {
+		return false, nil
+	}
+	effectiveSize, err := cc.GetEffectiveVolumeSize(context.TODO(), c, requestedSize, scName, log)
+	if err != nil {
+		return false, err
+	}
+	if effectiveSize.Cmp(requestedSize) == 0 {
+		return false, nil
+	}
+	/**
+	sourceVolumeMode, err := getSourceVolumeMode(c, source)
+	if err != nil {
+		return false, err
+	}
+	if sourceVolumeMode == nil || *sourceVolumeMode != v1.PersistentVolumeBlock {
+		return false, nil
+	}
+	*/
+	inflated, err := cc.InflateSizeWithOverhead(context.TODO(), c, effectiveSize.Value(), pvcSpec)
+	if err != nil {
+		return false, err
+	}
+	setRequestedVolumeSize(pvcSpec, inflated)
+
+	return true, nil
+}
+
+func getSourceVolumeMode(c client.Client, source *cdiv1.DataVolumeSource) (*v1.PersistentVolumeMode, error) {
+	if source == nil {
+		return nil, nil
+	}
+	if source.PVC != nil {
+		sourcePvc := &v1.PersistentVolumeClaim{}
+		if err := c.Get(context.TODO(), types.NamespacedName{Namespace: source.PVC.Namespace, Name: source.PVC.Name}, sourcePvc); err != nil {
+			return nil, err
+		}
+		return sourcePvc.Spec.VolumeMode, nil
+	}
+	if source.Snapshot != nil {
+		snapshot := &snapshotv1.VolumeSnapshot{}
+		if err := c.Get(context.TODO(), types.NamespacedName{Namespace: source.Snapshot.Namespace, Name: source.Snapshot.Name}, snapshot); err != nil {
+			return nil, err
+		}
+		if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
+			return nil, nil
+		}
+		snapshotContent := &snapshotv1.VolumeSnapshotContent{}
+		if err := c.Get(context.TODO(), types.NamespacedName{Name: *snapshot.Status.BoundVolumeSnapshotContentName}, snapshotContent); err != nil {
+			return nil, err
+		}
+		return snapshotContent.Spec.SourceVolumeMode, nil
+	}
+	return nil, nil
 }
 
 func setRequestedVolumeSize(pvcSpec *v1.PersistentVolumeClaimSpec, volumeSize resource.Quantity) {

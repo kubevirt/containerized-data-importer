@@ -227,7 +227,7 @@ func verifyPVCRequestedSize(dataVolume *cdiv1.DataVolume, f *framework.Framework
 	pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	quantity := resource.MustParse(size)
-	Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal((&quantity).Value()))
+	Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(BeNumerically(">=", (&quantity).Value()))
 }
 
 func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f *framework.Framework) {

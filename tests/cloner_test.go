@@ -2216,7 +2216,7 @@ var _ = Describe("all clone tests", func() {
 
 		})
 
-		DescribeTable("Block volumeMode clone with target smaller than the source, using storgeProfile with minPvcSize annotation", Serial, func(minSize string, shouldSucceed bool) {
+		DescribeTable("Block volumeMode clone with target smaller than the source, using storageProfile with minPvcSize annotation", Serial, func(minSize string, shouldSucceed bool) {
 			if !f.IsBlockVolumeStorageClassAvailable() {
 				Skip("Storage Class for block volume is not available")
 			}
@@ -2249,7 +2249,7 @@ var _ = Describe("all clone tests", func() {
 			Entry("[test_id:12424] empty", "", false),
 		)
 
-		DescribeTable("Filesystem volumeMode clone with target smaller than the source, using storgeProfile with minPvcSize annotation", func(minSize string, shouldSucceed bool) {
+		DescribeTable("Filesystem volumeMode clone with target smaller than the source, using storageProfile with minPvcSize annotation", func(minSize string, shouldSucceed bool) {
 			By(fmt.Sprintf("Create source PVC %s", sourcePVCName))
 			sc := createStorageWithMinimumSupportedPVCSize(f, minSize)
 			sourcePvc = utils.NewPVCDefinition(sourcePVCName, "1Gi", nil, nil)
@@ -2278,6 +2278,35 @@ var _ = Describe("all clone tests", func() {
 			Entry("[test_id:12422] too small", "256Mi", false),
 			Entry("[test_id:12423] empty", "", false),
 		)
+
+		It("[test_id:XXXXX] Block volumeMode clone to filesystem, using storageProfile with minPvcSize annotation", Serial, func() {
+			if !f.IsBlockVolumeStorageClassAvailable() {
+				Skip("Storage Class for block volume is not available")
+			}
+
+			By(fmt.Sprintf("Create source block DataVolume %s", dataVolumeName))
+			sc := createStorageWithMinimumSupportedPVCSize(f, "4Gi")
+			sourceDV := utils.NewDataVolumeWithHTTPImportAndStorageSpec(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
+			sourceDV.Spec.Storage.StorageClassName = &sc
+			sourceDV.Spec.Storage.VolumeMode = ptr.To(v1.PersistentVolumeBlock)
+			sourceDV, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDV)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(sourceDV)
+			By("Wait for source DataVolume import to finish")
+			err = utils.WaitForDataVolumePhaseWithTimeout(f, sourceDV.Namespace, cdiv1.Succeeded, sourceDV.Name, cloneCompleteTimeout)
+			Expect(err).ToNot(HaveOccurred())
+
+			targetDvName := "target-fs-dv"
+			By(fmt.Sprintf("Create target filesystem DV %s", targetDvName))
+			targetDV := utils.NewDataVolumeForImageCloningAndStorageSpec(targetDvName, "1Gi", sourceDV.Namespace, sourceDV.Name, &sc, ptr.To(v1.PersistentVolumeFilesystem))
+			targetDV, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, sourceDV.Namespace, targetDV)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Wait for target DV succeeded")
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(targetDV)
+			err = utils.WaitForDataVolumePhase(f, targetDV.Namespace, cdiv1.Succeeded, targetDV.Name)
+			Expect(err).ToNot(HaveOccurred())
+		})
 
 		It("[test_id:4276] Clone datavolume with short name", Serial, func() {
 			shortDvName := "import-long-name-dv"
