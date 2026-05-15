@@ -46,6 +46,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/image"
@@ -535,7 +536,8 @@ func (vmware *VMwareClient) FindSnapshotDisk(snapshotRef *types.ManagedObjectRef
 	return nil, fmt.Errorf("Could not find disk image with ID %s in snapshot %s", diskID, snapshotRef.Value)
 }
 
-// FindVM takes the UUID of the VM to migrate and finds its MOref
+// FindVM takes the instance UUID of the VM to migrate and finds its MOref,
+// with a fallback to looking for the VM with that UUID as the BIOS UUID.
 func FindVM(context context.Context, conn *govmomi.Client, uuid string) (string, *object.VirtualMachine, error) {
 	// Get the list of datacenters to search for VM UUID
 	finder := find.NewFinder(conn.Client, true)
@@ -544,16 +546,36 @@ func FindVM(context context.Context, conn *govmomi.Client, uuid string) (string,
 		klog.Errorf("Unable to retrieve datacenter list: %v", err)
 		return "", nil, err
 	}
+	if len(datacenters) == 0 {
+		return "", nil, errors.New("no datacenters found")
+	}
 
-	// Search for VM matching given UUID, and save the MOref
+	// Search for VM matching given instance UUID, and save the MOref
 	var moref string
-	var instanceUUID bool
 	var vm *object.VirtualMachine
 	searcher := object.NewSearchIndex(conn.Client)
 	for _, datacenter := range datacenters {
-		ref, err := searcher.FindByUuid(context, datacenter, uuid, true, &instanceUUID)
-		if err != nil || ref == nil {
-			klog.Infof("VM %s not found in datacenter %s.", uuid, datacenter)
+		ref, err := searcher.FindByUuid(context, datacenter, uuid, true, ptr.To(true))
+		if err != nil {
+			return "", nil, err
+		} else if ref == nil {
+			klog.Infof("VM instance UUID %s not found in datacenter %s.", uuid, datacenter)
+		} else {
+			moref = ref.Reference().Value
+			klog.Infof("VM %s found in datacenter %s: %s", uuid, datacenter, moref)
+			vm = object.NewVirtualMachine(conn.Client, ref.Reference())
+			return moref, vm, nil
+		}
+	}
+	klog.Infof("VM instance UUID %s not found in any datacenter, trying as BIOS UUID instead.", uuid)
+
+	// Fallback: BIOS UUID
+	for _, datacenter := range datacenters {
+		ref, err := searcher.FindByUuid(context, datacenter, uuid, true, ptr.To(false))
+		if err != nil {
+			return "", nil, err
+		} else if ref == nil {
+			klog.Infof("VM BIOS UUID %s not found in datacenter %s.", uuid, datacenter)
 		} else {
 			moref = ref.Reference().Value
 			klog.Infof("VM %s found in datacenter %s: %s", uuid, datacenter, moref)

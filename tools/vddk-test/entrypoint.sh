@@ -14,18 +14,16 @@ export GOVC_INSECURE=1
 TESTSTORE=/tmp/teststore
 mkdir -p $TESTSTORE
 
-/usr/bin/govc datacenter.create testdc
+/usr/bin/govc datacenter.create testdc1
+/usr/bin/govc datacenter.create testdc2
+/usr/bin/govc datacenter.create testdc3
+export GOVC_DATACENTER=testdc2
 /usr/bin/govc cluster.create testcluster
 /usr/bin/govc cluster.add -hostname testhost -username user -password pass -noverify
 /usr/bin/govc datastore.create -type local -name teststore -path $TESTSTORE testcluster/*
 
 /usr/bin/govc vm.create testvm
-while read line; do
-    if [[ $line =~ (^[\s]*UUID:[\s]*)(.*)$ ]]; then
-        uuid="${BASH_REMATCH[2]}"
-        echo $uuid > /tmp/vmid
-    fi
-done < <(govc vm.info testvm)
+/usr/bin/govc object.collect -s=true vm/testvm config.instanceUuid > /tmp/vmid
 
 /usr/bin/govc vm.disk.create -vm testvm -name testvm/testdisk.vmdk -size 2GB
 while read line; do
