@@ -133,7 +133,7 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeFilesystem, nil, dataSourceRef)
+			dataVolume := utils.NewDataVolumeWithExternalPopulation(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeFilesystem, nil, dataSourceRef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -175,7 +175,7 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeBlock, nil, dataSourceRef)
+			dataVolume := utils.NewDataVolumeWithExternalPopulation(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeBlock, nil, dataSourceRef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -202,7 +202,7 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeFilesystem, nil, dummySourceRef)
+			dataVolume := utils.NewDataVolumeWithExternalPopulation(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeFilesystem, nil, dummySourceRef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -242,7 +242,7 @@ var _ = Describe("Population tests", func() {
 			}
 
 			By(fmt.Sprintf("Creating target datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeFilesystem, dataSource, nil)
+			dataVolume := utils.NewDataVolumeWithExternalPopulation(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeFilesystem, dataSource, nil)
 			dataVolume.Spec.Storage.StorageClassName = nil
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())

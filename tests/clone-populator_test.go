@@ -53,7 +53,7 @@ var _ = Describe("Clone Populator tests", func() {
 
 	createSource := func(sz resource.Quantity, vm corev1.PersistentVolumeMode) *corev1.PersistentVolumeClaim {
 		dataVolume := utils.NewDataVolumeWithHTTPImport(sourceName, sz.String(), fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-		dataVolume.Spec.PVC.VolumeMode = &vm
+		dataVolume.Spec.Storage.VolumeMode = &vm
 		dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 		Expect(err).ToNot(HaveOccurred())
 		f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
@@ -83,8 +83,8 @@ var _ = Describe("Clone Populator tests", func() {
 
 	createVolumeSnapshotSource := func(size string, storageClassName *string, volumeMode corev1.PersistentVolumeMode) *snapshotv1.VolumeSnapshot {
 		snapSourceDv := utils.NewDataVolumeWithHTTPImport(sourceName, size, fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
-		snapSourceDv.Spec.PVC.VolumeMode = &volumeMode
-		snapSourceDv.Spec.PVC.StorageClassName = storageClassName
+		snapSourceDv.Spec.Storage.VolumeMode = &volumeMode
+		snapSourceDv.Spec.Storage.StorageClassName = storageClassName
 		By(fmt.Sprintf("Create new datavolume %s which will be the source of the volumesnapshot", snapSourceDv.Name))
 		snapSourceDv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, snapSourceDv)
 		Expect(err).ToNot(HaveOccurred())
@@ -234,10 +234,11 @@ var _ = Describe("Clone Populator tests", func() {
 		DescribeTable("should do filesystem to filesystem clone", func(webhookRendering bool) {
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
+			sourceCapacity := source.Status.Capacity[corev1.ResourceStorage]
 			if webhookRendering {
 				target = createIncompleteTarget(nil, corev1.PersistentVolumeFilesystem, "", utils.DefaultStorageClass.GetName())
 			} else {
-				target = createTargetWithImmediateBinding(defaultSize, corev1.PersistentVolumeFilesystem)
+				target = createTargetWithImmediateBinding(sourceCapacity, corev1.PersistentVolumeFilesystem)
 			}
 			target = waitSucceeded(target)
 			sourceHash := getHash(source, 0)
@@ -260,7 +261,8 @@ var _ = Describe("Clone Populator tests", func() {
 
 		It("should do filesystem to filesystem clone, dataSource created after target", func() {
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
-			target := createTarget(defaultSize, corev1.PersistentVolumeFilesystem)
+			sourceCapacity := source.Status.Capacity[corev1.ResourceStorage]
+			target := createTarget(sourceCapacity, corev1.PersistentVolumeFilesystem)
 			createDataSource()
 			target = waitSucceeded(target)
 			sourceHash := getHash(source, 0)
@@ -307,10 +309,11 @@ var _ = Describe("Clone Populator tests", func() {
 			}
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
+			sourceCapacity := source.Status.Capacity[corev1.ResourceStorage]
 			if webhookRendering {
 				target = createIncompleteTarget(nil, corev1.PersistentVolumeBlock, "", utils.DefaultStorageClass.GetName())
 			} else {
-				target = createTarget(defaultSize, corev1.PersistentVolumeBlock)
+				target = createTarget(sourceCapacity, corev1.PersistentVolumeBlock)
 			}
 			target = waitSucceeded(target)
 			targetSize := target.Status.Capacity[corev1.ResourceStorage]
@@ -330,10 +333,11 @@ var _ = Describe("Clone Populator tests", func() {
 			}
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
+			sourceCapacity := source.Status.Capacity[corev1.ResourceStorage]
 			if webhookRendering {
 				target = createIncompleteTarget(nil, corev1.PersistentVolumeFilesystem, cloneType, utils.DefaultStorageClass.GetName())
 			} else {
-				target = createTargetWithStrategy(defaultSize, corev1.PersistentVolumeFilesystem, cloneType, utils.DefaultStorageClass.GetName())
+				target = createTargetWithStrategy(sourceCapacity, corev1.PersistentVolumeFilesystem, cloneType, utils.DefaultStorageClass.GetName())
 			}
 			target = waitSucceeded(target)
 			Expect(target.Annotations["cdi.kubevirt.io/cloneType"]).To(Equal(cloneType))

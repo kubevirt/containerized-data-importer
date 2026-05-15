@@ -227,7 +227,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				srcPVCDef.Namespace = f.Namespace.Name
 				f.CreateAndPopulateSourcePVC(srcPVCDef, "fill-source", fmt.Sprintf("echo \"hello world\" > %s/data.txt", utils.DefaultPvcMountPath))
 
-				targetDV := utils.NewCloningDataVolume("target-dv", "1Gi", srcPVCDef)
+				targetDV := utils.NewCloningDataVolumeWithStorageSpec("target-dv", "1Gi", srcPVCDef)
 
 				client, err := f.GetCdiClientForServiceAccount(targetNamespace.Name, serviceAccountName)
 				Expect(err).ToNot(HaveOccurred())
@@ -290,7 +290,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				err = f.CrClient.Create(context.TODO(), snapshot)
 				Expect(err).ToNot(HaveOccurred())
 				volumeMode := corev1.PersistentVolumeFilesystem
-				targetDV := utils.NewDataVolumeForSnapshotCloningAndStorageSpec("target-dv", "1Gi", snapshot.Namespace, snapshot.Name, nil, &volumeMode)
+				targetDV := utils.NewDataVolumeForSnapshotCloning("target-dv", "1Gi", snapshot.Namespace, snapshot.Name, nil, &volumeMode)
 
 				client, err := f.GetCdiClientForServiceAccount(targetNamespace.Name, serviceAccountName)
 				Expect(err).ToNot(HaveOccurred())
