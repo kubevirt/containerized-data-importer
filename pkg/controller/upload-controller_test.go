@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -385,6 +386,7 @@ var _ = Describe("reconcilePVC loop", func() {
 			Expect(uploadPod.GetAnnotations()[cc.AnnPodNetwork]).To(Equal("net1"))
 			Expect(uploadPod.GetAnnotations()[cc.AnnPodSidecarInjectionIstio]).To(Equal(cc.AnnPodSidecarInjectionIstioDefault))
 			Expect(uploadPod.GetAnnotations()[cc.AnnPodSidecarInjectionLinkerd]).To(Equal(cc.AnnPodSidecarInjectionLinkerdDefault))
+			Expect(uploadPod.GetAnnotations()[cc.AnnOpenDefaultPorts]).To(Equal(fmt.Sprintf(`[{"protocol":"tcp","port":%d}]`, common.UploadServerPort)))
 			// Should not pass unrelated annotations to the pod
 			Expect(uploadPod.GetAnnotations()["unrelatedAnnotation"]).To(BeEmpty())
 			expectDeadline(uploadPod)
@@ -393,6 +395,9 @@ var _ = Describe("reconcilePVC loop", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: naming.GetServiceNameFromResourceName(uploadResourceName), Namespace: "default"}, uploadService)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(uploadService.Name).To(Equal(uploadResourceName))
+			Expect(uploadService.Spec.Ports[0].Port).To(Equal(int32(common.UploadServerPort)))
+			Expect(uploadPod.GetAnnotations()[cc.AnnOpenDefaultPorts]).To(
+				ContainSubstring(fmt.Sprintf(`"port":%d`, uploadService.Spec.Ports[0].Port)))
 
 			resultPvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: testPvcName, Namespace: "default"}, resultPvc)
