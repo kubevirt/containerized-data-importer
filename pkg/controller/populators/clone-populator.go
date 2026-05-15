@@ -264,7 +264,7 @@ func (r *ClonePopulatorReconciler) Reconcile(ctx context.Context, req reconcile.
 		return reconcile.Result{}, nil
 	}
 
-	if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, r.log); err != nil {
+	if err := cc.UpdatePVCBoundContion(pvc, r.client); err != nil {
 		return reconcile.Result{}, err
 	}
 
