@@ -430,7 +430,7 @@ var _ = Describe("All DataVolume Tests", func() {
 					}
 					dv.Spec.PVC = nil
 					snapshot := createSnapshotInVolumeSnapshotClass("test-snap", dv.Namespace, &expectedSnapshotClass, nil, nil, true)
-					reconciler = createSnapshotCloneReconciler(storageClass, csiDriver, dv, snapshot)
+					reconciler = createSnapshotCloneReconciler(storageClass, csiDriver, dv, snapshot, createDefaultVolumeSnapshotContent())
 					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 					Expect(err).ToNot(HaveOccurred())
 					Expect(result.Requeue).To(BeFalse())
@@ -442,6 +442,82 @@ var _ = Describe("All DataVolume Tests", func() {
 					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(pvc.Spec.Resources.Requests[corev1.ResourceStorage]).To(Equal(*snapshot.Status.RestoreSize))
+				})
+
+				It("should inflate size when cloning from block snapshot to filesystem target with size omitted", func() {
+					dv := newCloneFromSnapshotDataVolume("test-dv")
+					vm := corev1.PersistentVolumeFilesystem
+					dv.Spec.Storage = &cdiv1.StorageSpec{
+						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+						VolumeMode:  &vm,
+					}
+					dv.Spec.PVC = nil
+					snapshot := createSnapshotInVolumeSnapshotClass("test-snap", dv.Namespace, &expectedSnapshotClass, nil, nil, true)
+					blockMode := corev1.PersistentVolumeBlock
+					vsc := &snapshotv1.VolumeSnapshotContent{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "test-snapshot-content-name",
+						},
+						Spec: snapshotv1.VolumeSnapshotContentSpec{
+							Driver:           "csi-plugin",
+							SourceVolumeMode: &blockMode,
+						},
+					}
+					cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+					cdiConfig.Status = cdiv1.CDIConfigStatus{
+						ScratchSpaceStorageClass: testStorageClass,
+						FilesystemOverhead: &cdiv1.FilesystemOverhead{
+							Global: cdiv1.Percent("0.055"),
+						},
+					}
+					cdiConfig.Spec.FeatureGates = []string{featuregates.HonorWaitForFirstConsumer}
+					reconciler = createSnapshotCloneReconcilerWithoutConfig(storageClass, csiDriver, dv, snapshot, vsc, cdiConfig)
+					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(result.Requeue).To(BeFalse())
+					Expect(result.RequeueAfter).To(BeZero())
+					pvc := &corev1.PersistentVolumeClaim{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+					Expect(err).ToNot(HaveOccurred())
+					pvcSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+					Expect(pvcSize.Cmp(*snapshot.Status.RestoreSize)).To(Equal(1),
+						"PVC size %s should be greater than restore size %s due to filesystem overhead inflation",
+						pvcSize.String(), snapshot.Status.RestoreSize.String())
+				})
+
+				It("should inflate size using AnnSourceVolumeMode annotation when VolumeSnapshotContent has no source volume mode", func() {
+					dv := newCloneFromSnapshotDataVolume("test-dv")
+					vm := corev1.PersistentVolumeFilesystem
+					dv.Spec.Storage = &cdiv1.StorageSpec{
+						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+						VolumeMode:  &vm,
+					}
+					dv.Spec.PVC = nil
+					snapshot := createSnapshotInVolumeSnapshotClass("test-snap", dv.Namespace, &expectedSnapshotClass, nil, nil, true)
+					snapshot.Annotations = map[string]string{
+						AnnSourceVolumeMode: string(corev1.PersistentVolumeBlock),
+					}
+					vsc := createDefaultVolumeSnapshotContent()
+					cdiConfig := MakeEmptyCDIConfigSpec(common.ConfigName)
+					cdiConfig.Status = cdiv1.CDIConfigStatus{
+						ScratchSpaceStorageClass: testStorageClass,
+						FilesystemOverhead: &cdiv1.FilesystemOverhead{
+							Global: cdiv1.Percent("0.055"),
+						},
+					}
+					cdiConfig.Spec.FeatureGates = []string{featuregates.HonorWaitForFirstConsumer}
+					reconciler = createSnapshotCloneReconcilerWithoutConfig(storageClass, csiDriver, dv, snapshot, vsc, cdiConfig)
+					result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(result.Requeue).To(BeFalse())
+					Expect(result.RequeueAfter).To(BeZero())
+					pvc := &corev1.PersistentVolumeClaim{}
+					err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+					Expect(err).ToNot(HaveOccurred())
+					pvcSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+					Expect(pvcSize.Cmp(*snapshot.Status.RestoreSize)).To(Equal(1),
+						"PVC size %s should be greater than restore size %s due to filesystem overhead inflation",
+						pvcSize.String(), snapshot.Status.RestoreSize.String())
 				})
 
 				It("should add cloneType annotation", func() {
