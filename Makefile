@@ -21,6 +21,7 @@
 		goveralls \
 		release-description \
 		bazel-generate bazel-build bazel-build-images bazel-push-images \
+		go-build-functest \
 		fossa \
 		lint-metrics
 
@@ -68,6 +69,10 @@ apidocs:
 build-functest:
 	${DO_BAZ} ./hack/build/build-functest.sh
 
+go-build-functest:
+	${DO} ./hack/build/go-build-ginkgo.sh
+	${DO} ./hack/build/build-functest.sh
+
 # WHAT must match go tool style package paths for test targets (e.g. ./path/to/my/package/...)
 test: test-unit test-functional test-lint
 
@@ -96,7 +101,7 @@ format:
 	${DO_BAZ} "./hack/build/format.sh"
 
 manifests:
-	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} CR_NAME=${CR_NAME} CDI_NAMESPACE=${CDI_NAMESPACE} ./hack/build/build-manifests.sh"
+	${DO} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} CR_NAME=${CR_NAME} CDI_NAMESPACE=${CDI_NAMESPACE} ./hack/build/build-manifests.sh"
 
 goveralls: test-unit
 	${DO} "TRAVIS_JOB_ID=${TRAVIS_JOB_ID} TRAVIS_PULL_REQUEST=${TRAVIS_PULL_REQUEST} TRAVIS_BRANCH=${TRAVIS_BRANCH} ./hack/build/goveralls.sh"
