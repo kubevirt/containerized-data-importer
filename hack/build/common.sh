@@ -28,6 +28,10 @@ determine_cri_bin() {
     fi
 }
 
+function go_build() {
+    GOPROXY=${GOPROXY:-""} go build "$@"
+}
+
 CDI_DIR="$(cd $(dirname $0)/../../ && pwd -P)"
 CDI_GO_PACKAGE=kubevirt.io/containerized-data-importer
 BIN_DIR=${CDI_DIR}/bin

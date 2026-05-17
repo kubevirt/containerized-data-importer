@@ -103,6 +103,10 @@ build-functest: ## Build the functional tests (content of tests/ subdirectory)
 	${DO_BAZ} ./hack/build/build-ginkgo.sh
 	${DO_BAZ} ./hack/build/build-functest.sh
 
+go-build-functest: ## Build functional tests without Bazel
+	${DO} ./hack/build/go-build-ginkgo.sh
+	${DO} ./hack/build/build-functest.sh
+
 test: test-unit test-functional test-lint ## execute all tests (_NOTE:_ 'WHAT' is expected to match the go cli pattern for paths e.g. './pkg/...'.  This differs slightly from rest of the 'make' targets)
 
 test-unit: WHAT = ./pkg/... ./cmd/...
@@ -126,7 +130,7 @@ docker-registry-cleanup: ## Clean up all cached images from docker registry. Acc
 publish: manifests push ## Generate a cdi-controller and operator manifests and push the built container images to the registry defined in DOCKER_PREFIX
 
 manifests: ## Generate a cdi-controller and operator manifests in '_out/manifests/'.  Accepts [make variables]\(#make-variables\) DOCKER_TAG, DOCKER_PREFIX, VERBOSITY, PULL_POLICY, CSV_VERSION, QUAY_REPOSITORY, QUAY_NAMESPACE
-	${DO_BAZ} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} CR_NAME=${CR_NAME} CDI_NAMESPACE=${CDI_NAMESPACE} ./hack/build/build-manifests.sh"
+	${DO} "DOCKER_PREFIX=${DOCKER_PREFIX} DOCKER_TAG=${DOCKER_TAG} VERBOSITY=${VERBOSITY} PULL_POLICY=${PULL_POLICY} CR_NAME=${CR_NAME} CDI_NAMESPACE=${CDI_NAMESPACE} ./hack/build/build-manifests.sh"
 
 release-description: ## Generate a release announcement detailing changes between 2 commits (typically tags).  Expects 'RELREF' and 'PREREF' to be set
 	./hack/build/release-description.sh ${RELREF} ${PREREF}
@@ -212,7 +216,7 @@ format: ## Format shell and go source files."
 	help all clean \
 	update-codegen generate bootstrap-ginkgo generate-verify gomod-update apidocs \
 	deps-update deps-verify rpm-deps \
-	build-functest test test-unit test-functional goveralls coverage \
+	build-functest go-build-functest test test-unit test-functional goveralls coverage \
 	docker-registry-cleanup publish manifests release-description builder-push openshift-ci-image-push \
 	cluster-up cluster-down cluster-down-purge cluster-sync \
 	bazel-generate bazel-build bazel-build-images bazel-push-images push \
