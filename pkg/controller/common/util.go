@@ -256,6 +256,9 @@ const (
 	AnnPodNetwork = "k8s.v1.cni.cncf.io/networks"
 	// AnnPodMultusDefaultNetwork is used for specifying default Pod Network
 	AnnPodMultusDefaultNetwork = "v1.multus-cni.io/default-network"
+	// AnnOpenDefaultPorts allows incoming traffic on specific ports through the
+	// pod's default network interface in OVN-Kubernetes managed clusters.
+	AnnOpenDefaultPorts = "k8s.ovn.org/open-default-ports"
 	// AnnPodSidecarInjectionIstio is used for enabling/disabling Pod istio/AspenMesh sidecar injection
 	AnnPodSidecarInjectionIstio = "sidecar.istio.io/inject"
 	// AnnPodSidecarInjectionIstioDefault is the default value passed for AnnPodSidecarInjection
