@@ -779,11 +779,8 @@ func createDesiredClaim(namespace string, targetClaim *corev1.PersistentVolumeCl
 }
 
 func createTempSourceClaim(ctx context.Context, log logr.Logger, namespace string, targetClaim *corev1.PersistentVolumeClaim, snapshot *snapshotv1.VolumeSnapshot, client client.Client) (*corev1.PersistentVolumeClaim, error) {
-	if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
-		return nil, fmt.Errorf("volumeSnapshotContent name not found")
-	}
-	vsc := &snapshotv1.VolumeSnapshotContent{}
-	if err := client.Get(ctx, types.NamespacedName{Name: *snapshot.Status.BoundVolumeSnapshotContentName}, vsc); err != nil {
+	vsc, err := cc.GetSnapshotContentFromSnapshot(ctx, client, snapshot)
+	if err != nil {
 		return nil, err
 	}
 	scName, err := getStorageClassNameForTempSourceClaim(ctx, vsc, client)
@@ -792,10 +789,7 @@ func createTempSourceClaim(ctx context.Context, log logr.Logger, namespace strin
 	}
 	targetCpy := targetClaim.DeepCopy()
 	fallbackVolumeMode := targetCpy.Spec.VolumeMode
-	volumeMode, err := getVolumeModeForTempSourceClaim(log, snapshot, vsc, fallbackVolumeMode)
-	if err != nil {
-		return nil, err
-	}
+	volumeMode := cc.GetSnapshotSourceVolumeMode(log, snapshot, vsc, fallbackVolumeMode)
 	// Get the appropriate size from the snapshot
 	if snapshot.Status == nil || snapshot.Status.RestoreSize == nil || snapshot.Status.RestoreSize.Sign() == -1 {
 		return nil, fmt.Errorf("snapshot has no RestoreSize")
@@ -850,20 +844,4 @@ func getStorageClassNameForTempSourceClaim(ctx context.Context, vsc *snapshotv1.
 	}
 	sort.Strings(matches)
 	return matches[0], nil
-}
-
-func getVolumeModeForTempSourceClaim(log logr.Logger, snapshot *snapshotv1.VolumeSnapshot, vsc *snapshotv1.VolumeSnapshotContent, fallback *corev1.PersistentVolumeMode) (*corev1.PersistentVolumeMode, error) {
-	if vsc.Spec.SourceVolumeMode != nil {
-		// Since 1.29 we should always return here
-		// Older versions did not populate this field and thus need more care
-		return vsc.Spec.SourceVolumeMode, nil
-	}
-
-	if v, ok := snapshot.Annotations[cc.AnnSourceVolumeMode]; ok {
-		mode := corev1.PersistentVolumeMode(v)
-		return &mode, nil
-	}
-
-	log.V(1).Info("Could not infer source volume mode of snapshot, creating a temporary restore with target PVC volume mode")
-	return fallback, nil
 }

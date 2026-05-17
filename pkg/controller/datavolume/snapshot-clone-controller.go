@@ -293,9 +293,26 @@ func (r *SnapshotCloneReconciler) detectCloneSize(log logr.Logger, syncState *dv
 	if pvcSpec.Resources.Requests == nil {
 		pvcSpec.Resources.Requests = corev1.ResourceList{}
 	}
-	pvcSpec.Resources.Requests[corev1.ResourceStorage] = *syncState.snapshot.Status.RestoreSize
 
-	log.V(3).Info("set pvc request size", "size", pvcSpec.Resources.Requests[corev1.ResourceStorage])
+	restoreSize := syncState.snapshot.Status.RestoreSize
+	requestSize := *restoreSize
+
+	if util.ResolveVolumeMode(pvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
+		vsc, err := cc.GetSnapshotContentFromSnapshot(context.TODO(), r.client, syncState.snapshot)
+		if err != nil {
+			return err
+		}
+		sourceVolumeMode := cc.GetSnapshotSourceVolumeMode(log, syncState.snapshot, vsc, pvcSpec.VolumeMode)
+		if sourceVolumeMode != nil && *sourceVolumeMode == corev1.PersistentVolumeBlock {
+			requestSize, err = cc.InflateSizeWithOverhead(context.TODO(), r.client, restoreSize.Value(), pvcSpec)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	pvcSpec.Resources.Requests[corev1.ResourceStorage] = requestSize
+	log.V(3).Info("set pvc request size", "size", requestSize)
 
 	return nil
 }
