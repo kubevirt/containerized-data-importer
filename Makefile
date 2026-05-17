@@ -103,6 +103,10 @@ build-functest: ## Build the functional tests (content of tests/ subdirectory)
 	${DO_BAZ} ./hack/build/build-ginkgo.sh
 	${DO_BAZ} ./hack/build/build-functest.sh
 
+go-build-functest: ## Build functional tests without Bazel
+	${DO} ./hack/build/go-build-ginkgo.sh
+	${DO} ./hack/build/build-functest.sh
+
 test: test-unit test-functional test-lint ## execute all tests (_NOTE:_ 'WHAT' is expected to match the go cli pattern for paths e.g. './pkg/...'.  This differs slightly from rest of the 'make' targets)
 
 test-unit: WHAT = ./pkg/... ./cmd/...
@@ -212,7 +216,7 @@ format: ## Format shell and go source files."
 	help all clean \
 	update-codegen generate bootstrap-ginkgo generate-verify gomod-update apidocs \
 	deps-update deps-verify rpm-deps \
-	build-functest test test-unit test-functional goveralls coverage \
+	build-functest go-build-functest test test-unit test-functional goveralls coverage \
 	docker-registry-cleanup publish manifests release-description builder-push openshift-ci-image-push \
 	cluster-up cluster-down cluster-down-purge cluster-sync \
 	bazel-generate bazel-build bazel-build-images bazel-push-images push \
