@@ -78,7 +78,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests th
 
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", Serial, func() {
 	var originalProfileSpec *cdiv1.StorageProfileSpec
-	var originalMinPvcSize, cloneStorageClassName string
+	var originalMinPvcSize, cloneStorageClassName, testMinPvcSize string
 
 	f := framework.NewFramework("dv-func-test")
 
@@ -94,6 +94,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		Expect(err).ToNot(HaveOccurred())
 		originalMinPvcSize, err = utils.GetMinimumSupportedPVCSize(f.CrClient, cloneStorageClassName)
 		Expect(err).ToNot(HaveOccurred())
+		testMinPvcSize = getTestMinPvcSize(originalMinPvcSize)
 
 		By(fmt.Sprintf("configure storage profile %s", cloneStorageClassName))
 		Expect(
@@ -297,4 +298,15 @@ func createDataVolume(dataVolumeName, testPath string, volumeMode v1.PersistentV
 	f.ForceBindIfWaitForFirstConsumer(pvc)
 
 	return dataVolume, md5
+}
+
+func getTestMinPvcSize(originalMinPvcSize string) string {
+	minSize := "4Gi"
+	if originalMinPvcSize != "" {
+		orig := resource.MustParse(originalMinPvcSize)
+		if orig.Cmp(resource.MustParse(minSize)) > 0 {
+			minSize = originalMinPvcSize
+		}
+	}
+	return minSize
 }
