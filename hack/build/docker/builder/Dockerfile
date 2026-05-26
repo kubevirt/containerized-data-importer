@@ -56,7 +56,7 @@ ENV BAZEL_VERSION=6.5.0
 COPY output-bazel-arch.sh /output-bazel-arch.sh
 
 # Consider using multi-stage builds here instead
-RUN if test "${ARCH}" != "s390x"; then \
+RUN if test "${ARCH}" != "s390x" && test "${ARCH}" != "ppc64le"; then \
 		curl -L -o /usr/bin/bazel https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-$(sh /output-bazel-arch.sh) && \
 		chmod +x /usr/bin/bazel; \
     fi
