@@ -4815,28 +4815,19 @@ rpm(
 rpm(
     name = "vim-minimal-2__8.2.2637-23.el9.aarch64",
     sha256 = "68ab78b16338b49d9669b484c38ee5c09dd4b2901d5aba5d818152b2af4faf2e",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/aarch64/os/Packages/vim-minimal-8.2.2637-23.el9.aarch64.rpm",
-        "https://storage.googleapis.com/builddeps/68ab78b16338b49d9669b484c38ee5c09dd4b2901d5aba5d818152b2af4faf2e",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/68ab78b16338b49d9669b484c38ee5c09dd4b2901d5aba5d818152b2af4faf2e"],
 )
 
 rpm(
     name = "vim-minimal-2__8.2.2637-23.el9.s390x",
     sha256 = "331adbd8d706c421c9db79304486c9da17d399f5cb592ae8402bc8ab8763e51b",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/s390x/os/Packages/vim-minimal-8.2.2637-23.el9.s390x.rpm",
-        "https://storage.googleapis.com/builddeps/331adbd8d706c421c9db79304486c9da17d399f5cb592ae8402bc8ab8763e51b",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/331adbd8d706c421c9db79304486c9da17d399f5cb592ae8402bc8ab8763e51b"],
 )
 
 rpm(
     name = "vim-minimal-2__8.2.2637-23.el9.x86_64",
     sha256 = "2c4291f0fbf23f507cd74c53fdd00ab740cd41b445024a074c4db7ec15421903",
-    urls = [
-        "http://mirror.stream.centos.org/9-stream/BaseOS/x86_64/os/Packages/vim-minimal-8.2.2637-23.el9.x86_64.rpm",
-        "https://storage.googleapis.com/builddeps/2c4291f0fbf23f507cd74c53fdd00ab740cd41b445024a074c4db7ec15421903",
-    ],
+    urls = ["https://storage.googleapis.com/builddeps/2c4291f0fbf23f507cd74c53fdd00ab740cd41b445024a074c4db7ec15421903"],
 )
 
 rpm(
