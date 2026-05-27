@@ -41,6 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	metricsfilters "sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -107,8 +108,9 @@ func main() {
 		LeaderElectionResourceLock: "leases",
 		HealthProbeBindAddress:     ":8444",
 		Metrics: server.Options{
-			BindAddress:   ":8443",
-			SecureServing: true,
+			BindAddress:    ":8443",
+			SecureServing:  true,
+			FilterProvider: metricsfilters.WithAuthenticationAndAuthorization,
 			// Disable HTTP/2 to prevent rapid reset vulnerability
 			// See CVE-2023-44487, CVE-2023-39325
 			TLSOpts: []func(*tls.Config){func(c *tls.Config) {

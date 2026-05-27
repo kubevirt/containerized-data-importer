@@ -209,6 +209,14 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 		},
 	}
 	rules = append(rules, cdicluster.GetClusterRolePolicyRules()...)
+	rules = append(rules, rbacv1.PolicyRule{
+		NonResourceURLs: []string{
+			"/metrics",
+		},
+		Verbs: []string{
+			"get",
+		},
+	})
 	return rules
 }
 

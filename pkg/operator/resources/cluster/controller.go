@@ -21,6 +21,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 )
 
@@ -33,6 +34,8 @@ func createControllerResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createControllerClusterRole(),
 		createControllerClusterRoleBinding(args.Namespace),
+		createMetricsReaderClusterRole(),
+		createMetricsReaderClusterRoleBinding(args.Namespace),
 	}
 }
 
@@ -286,6 +289,17 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 		},
 		{
 			APIGroups: []string{
+				"authentication.k8s.io",
+			},
+			Resources: []string{
+				"tokenreviews",
+			},
+			Verbs: []string{
+				"create",
+			},
+		},
+		{
+			APIGroups: []string{
 				"authorization.k8s.io",
 			},
 			Resources: []string{
@@ -300,4 +314,26 @@ func getControllerClusterPolicyRules() []rbacv1.PolicyRule {
 
 func createControllerClusterRole() *rbacv1.ClusterRole {
 	return utils.ResourceBuilder.CreateClusterRole(controlerClusterRoleName, getControllerClusterPolicyRules())
+}
+
+func createMetricsReaderClusterRole() *rbacv1.ClusterRole {
+	return utils.ResourceBuilder.CreateClusterRole(common.MetricsReaderServiceAccountName, []rbacv1.PolicyRule{
+		{
+			NonResourceURLs: []string{
+				"/metrics",
+			},
+			Verbs: []string{
+				"get",
+			},
+		},
+	})
+}
+
+func createMetricsReaderClusterRoleBinding(namespace string) *rbacv1.ClusterRoleBinding {
+	return utils.ResourceBuilder.CreateClusterRoleBinding(
+		common.MetricsReaderServiceAccountName,
+		common.MetricsReaderServiceAccountName,
+		common.MetricsReaderServiceAccountName,
+		namespace,
+	)
 }
