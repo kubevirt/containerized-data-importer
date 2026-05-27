@@ -673,6 +673,28 @@ var _ = Describe("Controller", func() {
 				Expect(crb.Subjects[0].Namespace).To(Equal(cdiNamespace))
 			})
 
+			It("should create pprof-reader ClusterRole", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				crole := &rbacv1.ClusterRole{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: common.PprofReaderClusterRoleName,
+					},
+				}
+				obj, err := getObject(args.client, crole)
+				Expect(err).ToNot(HaveOccurred())
+				crole = obj.(*rbacv1.ClusterRole)
+
+				Expect(crole.Rules).To(ContainElement(
+					SatisfyAll(
+						HaveField("NonResourceURLs", ContainElements("/debug/pprof", "/debug/pprof/*")),
+						HaveField("Verbs", ContainElement("get")),
+					),
+				))
+			})
+
 			Context("RBAC testing", func() {
 				// https://kubernetes.io/docs/concepts/security/rbac-good-practices/#persistent-volume-creation
 				checkPersistentVolumeCreateViolation := func(rsc string, rule *rbacv1.PolicyRule) {
@@ -2242,6 +2264,7 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.ServiceAccount cdi-metrics-reader"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi-metrics-reader"] = false
 	match[normalCreateSuccess+" *v1.ClusterRoleBinding cdi-metrics-reader"] = false
+	match[normalCreateSuccess+" *v1.ClusterRole cdi-pprof-reader"] = false
 	match[normalCreateEnsured+" SecurityContextConstraint exists"] = false
 
 	return match

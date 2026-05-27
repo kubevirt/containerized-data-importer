@@ -44,3 +44,22 @@ spec:
 ```
 
 Changing the verbosity level will automatically restart the CDI components to re-initialize the loggers with the new value.
+
+## Profiling with pprof
+
+The CDI controller and operator expose [pprof](https://pkg.go.dev/net/http/pprof) endpoints on their metrics server (port 8443) for live runtime profiling which include heap allocations, goroutine stacks, CPU profiles, etc.
+
+Access requires the `cdi-pprof-reader` ClusterRole:
+
+```bash
+kubectl create clusterrolebinding pprof-access \
+  --clusterrole=cdi-pprof-reader \
+  --user=$(kubectl config current-context)
+```
+
+Then port-forward and profile (e.g., heap profile):
+
+```bash
+kubectl port-forward -n cdi deploy/cdi-deployment 8443
+go tool pprof -http=:8080 https+insecure://localhost:8443/debug/pprof/heap
+```

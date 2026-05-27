@@ -54,6 +54,8 @@ const (
 	MetricsReaderServiceAccountName = "cdi-metrics-reader"
 	// MetricsReaderTokenName is the name of the secret containing the cdi-metrics-reader ServiceAccount token
 	MetricsReaderTokenName = "cdi-metrics-reader-token" //nolint:gosec
+	// PprofReaderClusterRoleName is the name of the ClusterRole granting access to pprof endpoints
+	PprofReaderClusterRoleName = "cdi-pprof-reader"
 	// KubePersistentVolumeFillingUpSuppressLabelKey is the label name that helps suppress this alert for our PVCs
 	KubePersistentVolumeFillingUpSuppressLabelKey = "alerts.k8s.io/KubePersistentVolumeFillingUp"
 	// KubePersistentVolumeFillingUpSuppressLabelValue is the label value that helps suppress this alert for our PVCs

@@ -217,6 +217,15 @@ func getClusterPolicyRules() []rbacv1.PolicyRule {
 			"get",
 		},
 	})
+	rules = append(rules, rbacv1.PolicyRule{
+		NonResourceURLs: []string{
+			"/debug/pprof",
+			"/debug/pprof/*",
+		},
+		Verbs: []string{
+			"get",
+		},
+	})
 	return rules
 }
 
