@@ -40,6 +40,8 @@ type GCSDataSource struct {
 	readers *FormatReaders
 	// The image file in scratch space.
 	url *url.URL
+	// cancel cancels the context used for the GCS client and reader
+	cancel context.CancelFunc
 }
 
 // NewGCSDataSource creates a new instance of the GCSDataSource
@@ -58,7 +60,7 @@ func NewGCSDataSource(endpoint, keyFile string) (*GCSDataSource, error) {
 	}
 
 	// Getting Context
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*60) //nolint:govet // todo - solve this: the cancel function returned by context.WithTimeout should be called, not discarded, to avoid a context leak
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
 
 	if ep.Scheme == "gs" {
 		// Using gs:// endpoint and extracting bucket and object name
@@ -71,8 +73,8 @@ func NewGCSDataSource(endpoint, keyFile string) (*GCSDataSource, error) {
 
 	// Creating GCS Client
 	client, err := getGcsClient(ctx, keyFile, options...)
-
 	if err != nil {
+		cancel()
 		klog.Errorf("GCS Importer: Error creating GCS Client")
 		return nil, err
 	}
@@ -80,6 +82,7 @@ func NewGCSDataSource(endpoint, keyFile string) (*GCSDataSource, error) {
 	// Creating GCS Reader
 	gcsReader, err := newReaderFunc(ctx, client, bucket, object)
 	if err != nil {
+		cancel()
 		klog.Errorf("GCS Importer: Error creating Reader")
 		return nil, err
 	}
@@ -88,6 +91,7 @@ func NewGCSDataSource(endpoint, keyFile string) (*GCSDataSource, error) {
 		ep:        ep,
 		keyFile:   keyFile,
 		gcsReader: gcsReader,
+		cancel:    cancel,
 	}, nil
 }
 
@@ -160,6 +164,9 @@ func (sd *GCSDataSource) GetTerminationMessage() *common.TerminationMessage {
 // Close closes any readers or other open resources.
 func (sd *GCSDataSource) Close() error {
 	var err error
+	if sd.cancel != nil {
+		sd.cancel()
+	}
 	if sd.readers != nil {
 		err = sd.readers.Close()
 	}

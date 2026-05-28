@@ -473,7 +473,36 @@ var _ = Describe("Google Cloud Storage data source", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
 	})
+
+	It("Close should cancel the context before closing readers", func() {
+		file, err := os.Open(filepath.Join(imageDir, "cirros.raw"))
+		Expect(err).NotTo(HaveOccurred())
+
+		order := []string{}
+		readers, err := NewFormatReaders(&trackingReadCloser{ReadCloser: file, order: &order}, uint64(0), nil)
+		Expect(err).NotTo(HaveOccurred())
+
+		sd = &GCSDataSource{
+			readers: readers,
+			cancel: func() {
+				order = append(order, "cancel")
+			},
+		}
+
+		Expect(sd.Close()).To(Succeed())
+		Expect(order).To(Equal([]string{"cancel", "reader"}))
+	})
 })
+
+type trackingReadCloser struct {
+	io.ReadCloser
+	order *[]string
+}
+
+func (t *trackingReadCloser) Close() error {
+	*t.order = append(*t.order, "reader")
+	return t.ReadCloser.Close()
+}
 
 // Create Cloud Storage Object Reader pointing to a sample image
 func mockGcsObjectReader(ctx context.Context, client *storage.Client, bucket, object string) (io.ReadCloser, error) {
