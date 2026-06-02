@@ -49,6 +49,7 @@ oci_image(
     architecture = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "//rpm:linux_ppc64le": "ppc64le",
         "//conditions:default": "amd64",
     }),
     os = "linux",
@@ -61,6 +62,10 @@ oci_image(
         ],
         "//conditions:default": [
             "//rpm:cdi_uploadserver_base_x86_64",
+        ],
+        "//rpm:linux_ppc64le": [
+            "//rpm:testimage_ppc64le",
+            ":passwd-tar",
         ],
     }),
     visibility = ["//visibility:private"],
