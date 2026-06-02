@@ -31,7 +31,7 @@ for tag in ${docker_tag}; do
         --define container_prefix=${docker_prefix} \
         --define container_tag=${tag} \
         --host_force_python=PY3 \
-        //:test-container-images //cmd/cdi-operator:cdi-operator-image //cmd/cdi-controller:cdi-controller-image //cmd/cdi-apiserver:cdi-apiserver-image //cmd/cdi-cloner:cdi-cloner-image //cmd/cdi-importer:cdi-importer-image //cmd/cdi-uploadproxy:cdi-uploadproxy-image //cmd/cdi-uploadserver:cdi-uploadserver-image
+        //:testimage_base //cmd/cdi-operator:cdi-operator-image //cmd/cdi-controller:cdi-controller-image //cmd/cdi-apiserver:cdi-apiserver-image //cmd/cdi-cloner:cdi-cloner-image //cmd/cdi-importer:cdi-importer-image //cmd/cdi-uploadproxy:cdi-uploadproxy-image //cmd/cdi-uploadserver:cdi-uploadserver-image
 done
 
 rm -rf ${DIGESTS_DIR}/${ARCHITECTURE}

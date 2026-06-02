@@ -7,7 +7,7 @@ source hack/build/config.sh
 
 # Freezing nginx to avoid segfaults when pulling images with tls
 # May get fixed with 1.25
-NGINX_VERSION="1:1.22.1-4.module_el9+666+132dc76f"
+#NGINX_VERSION="1:1.22.1-4.module_el9+666+132dc76f"
 
 bazeldnf_repos="--repofile repo.yaml"
 if [ "${CUSTOM_REPO}" ]; then
@@ -77,7 +77,7 @@ qemu-img
 testimage="
 crypto-policies-scripts
 qemu-img
-nginx-${NGINX_VERSION}
+nginx
 python3-systemd
 systemd-libs
 openssl

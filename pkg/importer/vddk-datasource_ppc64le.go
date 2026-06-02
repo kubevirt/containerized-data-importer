@@ -1,5 +1,5 @@
-//go:build s390x
-// +build s390x
+//go:build ppc64le
+// +build ppc64le
 
 package importer
 
@@ -46,7 +46,7 @@ func (V VDDKDataSource) IsDeltaCopy() bool {
 }
 
 func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode) (*VDDKDataSource, error) {
-	return nil, errors.New("the s390x architecture does not support VDDK")
+	return nil, errors.New("the ppc64le architecture does not support VDDK")
 }
 
 var _ DataSourceInterface = &VDDKDataSource{}
