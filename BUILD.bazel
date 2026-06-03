@@ -249,11 +249,15 @@ oci_image(
     architecture = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "@io_bazel_rules_go//go/platform:linux_ppc64le": "ppc64le",
         "//conditions:default": "amd64",
     }),
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": [
             "//rpm:testimage_s390x",
+        ],
+        "@io_bazel_rules_go//go/platform:linux_ppc64le": [
+            "//rpm:testimage_ppc64le",
         ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             "//rpm:testimage_aarch64",
@@ -271,11 +275,15 @@ oci_image(
     architecture = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": "s390x",
         "@io_bazel_rules_go//go/platform:linux_arm64": "arm64",
+        "@io_bazel_rules_go//go/platform:linux_ppc64le": "ppc64le",
         "//conditions:default": "amd64",
     }),
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": [
             "//rpm:centos_base_s390x",
+        ],
+        "@io_bazel_rules_go//go/platform:linux_ppc64le": [
+            "//rpm:centos_base_ppc64le",
         ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             "//rpm:centos_base_aarch64",

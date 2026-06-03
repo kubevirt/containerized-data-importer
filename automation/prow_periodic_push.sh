@@ -4,7 +4,7 @@ build_date="$(date +%Y%m%d)"
 cat "$QUAY_PASSWORD" | docker login --username $(cat "$QUAY_USER") --password-stdin=true quay.io
 
 export DOCKER_TAG="${build_date}_$(git show -s --format=%h)"
-export BUILD_ARCH=s390x,aarch64,x86_64
+export BUILD_ARCH=s390x,aarch64,x86_64,ppc64le
 
 make manifests
 make bazel-push-images

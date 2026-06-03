@@ -224,13 +224,13 @@ if [ "${CDI_SYNC}" == "test-infra" ]; then
   fi
 
   # Disable unsupported functest images for s390x
-  if [ "${ARCHITECTURE}" != "s390x" ]; then
+  if [ "${ARCHITECTURE}" != "s390x" ] && [ "${ARCHITECTURE}" != "ppc64le" ]; then
     # Imageio test service:
     _kubectl apply -f "./_out/manifests/imageio.yaml"
   fi
 
   # Disable deploy VDDK on s390x and arm64
-  if [ "${ARCHITECTURE}" != "s390x" ] && [ "${ARCHITECTURE}" != "aarch64" ]; then
+  if [ "${ARCHITECTURE}" != "s390x" ] && [ "${ARCHITECTURE}" != "aarch64" ] && [ "${ARCHITECTURE}" != "ppc64le" ]; then
     # vCenter (VDDK) test service:
     _kubectl apply -f "./_out/manifests/vcenter.yaml"
   fi

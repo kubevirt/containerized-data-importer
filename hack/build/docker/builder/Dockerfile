@@ -56,19 +56,23 @@ ENV BAZEL_VERSION=6.5.0
 COPY output-bazel-arch.sh /output-bazel-arch.sh
 
 # Consider using multi-stage builds here instead
-RUN if test "${ARCH}" != "s390x"; then \
+RUN if test "${ARCH}" != "s390x" && test "${ARCH}" != "ppc64le"; then \
 		curl -L -o /usr/bin/bazel https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-$(sh /output-bazel-arch.sh) && \
 		chmod +x /usr/bin/bazel; \
     fi
 
 
 RUN if test "$(sh /output-bazel-arch.sh)" = x86_64; then \
-      dnf install -y --setopt=install_weak_deps=False  --installroot /usr/s390x-linux-gnu/sys-root --forcearch s390x --releasever 9 \
+      dnf install -y --setopt=install_weak_deps=False --installroot /usr/s390x-linux-gnu/sys-root --forcearch s390x --releasever 9 \
+          glibc-devel \
+          glibc-static && \
+      dnf install -y --setopt=install_weak_deps=False --installroot /usr/powerpc64le-linux-gnu/sys-root --forcearch ppc64le --releasever 9 \
           glibc-devel \
           glibc-static && \
       dnf install -y epel-release && \
       dnf install -y --setopt=install_weak_deps=False \
-          gcc-s390x-linux-gnu && \
+          gcc-s390x-linux-gnu \
+          gcc-powerpc64le-linux-gnu && \
       dnf clean -y all; \
     fi
 

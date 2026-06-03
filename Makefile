@@ -22,7 +22,7 @@ else
 	DO=eval
 	DO_BAZ=eval
 endif
-# x86_64 aarch64 crossbuild-aarch64 s390x crossbuild-s390x
+# x86_64 aarch64 crossbuild-aarch64 s390x crossbuild-s390x crossbuild-ppc64le
 BUILD_ARCH?=$(shell uname -m)
 
 ##@ General
