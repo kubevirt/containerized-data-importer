@@ -6,6 +6,8 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"net/http"
+	"net/http/pprof"
 	"os"
 	"strconv"
 
@@ -209,6 +211,13 @@ func start() {
 			BindAddress:    ":8443",
 			SecureServing:  true,
 			FilterProvider: metricsfilters.WithAuthenticationAndAuthorization,
+			ExtraHandlers: map[string]http.Handler{
+				"/debug/pprof/":        http.HandlerFunc(pprof.Index),
+				"/debug/pprof/cmdline": http.HandlerFunc(pprof.Cmdline),
+				"/debug/pprof/profile": http.HandlerFunc(pprof.Profile),
+				"/debug/pprof/symbol":  http.HandlerFunc(pprof.Symbol),
+				"/debug/pprof/trace":   http.HandlerFunc(pprof.Trace),
+			},
 			// Disable HTTP/2 to prevent rapid reset vulnerability
 			// See CVE-2023-44487, CVE-2023-39325
 			TLSOpts: []func(*tls.Config){func(c *tls.Config) {

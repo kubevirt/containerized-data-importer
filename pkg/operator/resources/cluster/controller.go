@@ -36,6 +36,7 @@ func createControllerResources(args *FactoryArgs) []client.Object {
 		createControllerClusterRoleBinding(args.Namespace),
 		createMetricsReaderClusterRole(),
 		createMetricsReaderClusterRoleBinding(args.Namespace),
+		createPprofReaderClusterRole(),
 	}
 }
 
@@ -336,4 +337,18 @@ func createMetricsReaderClusterRoleBinding(namespace string) *rbacv1.ClusterRole
 		common.MetricsReaderServiceAccountName,
 		namespace,
 	)
+}
+
+func createPprofReaderClusterRole() *rbacv1.ClusterRole {
+	return utils.ResourceBuilder.CreateClusterRole(common.PprofReaderClusterRoleName, []rbacv1.PolicyRule{
+		{
+			NonResourceURLs: []string{
+				"/debug/pprof",
+				"/debug/pprof/*",
+			},
+			Verbs: []string{
+				"get",
+			},
+		},
+	})
 }
