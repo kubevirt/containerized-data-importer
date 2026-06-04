@@ -688,7 +688,7 @@ var _ = Describe("VMware session re-authentication", func() {
 		})
 
 		It("returns true when the error message mentions not authenticated", func() {
-			err := errors.New("ServerFaultCode: The session is not authenticated.")
+			err := errors.New("server fault: the session is not authenticated")
 			Expect(isSessionNotAuthenticated(err)).To(BeTrue())
 		})
 
