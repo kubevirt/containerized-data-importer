@@ -1201,7 +1201,7 @@ func createMockVMwareClient(endpoint string, accessKey string, secKey string, th
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &VMwareClient{
-		conn:       &mockVMwareConnectionOperations{endpoint},
+		conn:       &mockVMwareConnectionOperations{Endpoint: endpoint},
 		cancel:     cancel,
 		context:    ctx,
 		moref:      "vm-1",
