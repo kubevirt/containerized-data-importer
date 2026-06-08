@@ -192,47 +192,6 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 
 	Context("[rfe_id:7101][crit:medium][vendor:cnv-qe@redhat.com][level:component] Metrics and Alert tests", func() {
 
-		It("[test_id:9656] Metric kubevirt_cdi_cr_ready is 0 when CDI is not ready", func() {
-			Eventually(func() int {
-				return getMetricValue(f, "kubevirt_cdi_cr_ready")
-			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", 1))
-
-			crModified = true
-			removeCDI(f, cr)
-
-			By("Creating new CDI with wrong NodeSelector")
-			cdi := &cdiv1.CDI{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: cr.Name,
-				},
-				Spec: cr.Spec,
-			}
-			cdi.Spec.Infra.NodePlacement.NodeSelector = map[string]string{"wrong": "wrong"}
-			_, err := f.CdiClient.CdiV1beta1().CDIs().Create(context.TODO(), cdi, metav1.CreateOptions{})
-			Expect(err).ToNot(HaveOccurred())
-
-			By("Wait for kubevirt_cdi_cr_ready == 0")
-			Eventually(func() int {
-				return getMetricValue(f, "kubevirt_cdi_cr_ready")
-			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", 0))
-
-			waitForPrometheusAlert(f, "CDINotReady")
-
-			By("Revert CDI CR changes")
-			cdi, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			cdi.Spec = cr.Spec
-			_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			waitCDI(f, cr, cdiPods)
-			crModified = false
-
-			By("Wait for kubevirt_cdi_cr_ready == 1")
-			Eventually(func() int {
-				return getMetricValue(f, "kubevirt_cdi_cr_ready")
-			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", 1))
-		})
-
 		It("[test_id:7963] CDI ready metric value as expected when ready to use", func() {
 			Eventually(func() int {
 				return getMetricValue(f, "kubevirt_cdi_cr_ready")

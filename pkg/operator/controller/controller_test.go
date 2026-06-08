@@ -60,6 +60,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	forklift "kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/operator-controller"
 	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules"
 	"kubevirt.io/containerized-data-importer/pkg/monitoring/rules/alerts"
 	clusterResources "kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
@@ -146,6 +147,22 @@ var _ = Describe("Controller", func() {
 				Expect(args.cdi.Finalizers).Should(HaveLen(1))
 
 				validateEvents(args.reconciler, createReadyEventValidationMap())
+			})
+
+			It("should set kubevirt_cdi_cr_ready to 1 when available and 0 when not", func() {
+				args := createArgs()
+				doReconcile(args)
+
+				val, err := metrics.GetReadyValue()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(val).To(Equal(0.0))
+
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+				doReconcile(args)
+
+				val, err = metrics.GetReadyValue()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(val).To(Equal(1.0))
 			})
 
 			It("should create configmap", func() {

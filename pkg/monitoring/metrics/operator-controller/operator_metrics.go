@@ -1,6 +1,7 @@
 package operatorcontroller
 
 import (
+	ioprometheusclient "github.com/prometheus/client_model/go"
 	"github.com/rhobs/operator-observability-toolkit/pkg/operatormetrics"
 )
 
@@ -30,4 +31,13 @@ func SetNotReady() {
 // SetInit sets the readyGauge to -1, 0 is our value for alert to start firing, so can't default to that.
 func SetInit() {
 	readyGauge.Set(-1.0)
+}
+
+// GetReadyValue returns the current value of the readyGauge
+func GetReadyValue() (float64, error) {
+	dto := &ioprometheusclient.Metric{}
+	if err := readyGauge.Write(dto); err != nil {
+		return -1, err
+	}
+	return dto.GetGauge().GetValue(), nil
 }

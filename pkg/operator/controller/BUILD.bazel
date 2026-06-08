@@ -98,6 +98,7 @@ go_test(
     embed = [":go_default_library"],
     deps = [
         "//pkg/common:go_default_library",
+        "//pkg/monitoring/metrics/operator-controller:go_default_library",
         "//pkg/monitoring/rules:go_default_library",
         "//pkg/monitoring/rules/alerts:go_default_library",
         "//pkg/operator/resources/cert:go_default_library",
