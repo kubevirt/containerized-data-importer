@@ -261,6 +261,13 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return dataVolume
 		}
 
+		createHTTPSInsecureSkipVerifyDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
+			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
+			insecureSkipVerify := true
+			dataVolume.Spec.Source.HTTP.InsecureSkipVerify = &insecureSkipVerify
+			return dataVolume
+		}
+
 		createHTTPSDataVolumeWeirdCertFilename := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
 			cm, err := utils.CreateCertConfigMapWeirdFilename(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
@@ -1228,6 +1235,30 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Status:  v1.ConditionFalse,
 					Message: "checksum validation failed",
 					Reason:  "ChecksumError",
+				}}),
+			Entry("succeed creating import dv with insecureSkipVerify defined", dataVolumeTestArguments{
+				name:             "dv-https-import-qcow2",
+				size:             "1Gi",
+				url:              httpsTinyCoreQcow2URL,
+				dvFunc:           createHTTPSInsecureSkipVerifyDataVolume,
+				eventReason:      dvc.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-https-import-qcow2 Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
 				}}),
 		)
 
