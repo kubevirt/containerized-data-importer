@@ -610,6 +610,30 @@ var _ = Describe("Http reader", func() {
 		err = r.Close()
 		Expect(err).ToNot(HaveOccurred())
 	})
+
+	It("should fail to connect to self signed cert", func() {
+		ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+		ep, err := url.Parse(ts.URL)
+		Expect(err).ToNot(HaveOccurred())
+		_, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt, false)
+		Expect(err).To(HaveOccurred())
+		Expect(uint64(0)).To(Equal(total))
+	})
+
+	It("should connect to self signed cert with insecureSkipVerify set to true", func() {
+		ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+		ep, err := url.Parse(ts.URL)
+		Expect(err).ToNot(HaveOccurred())
+		_, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt, true)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uint64(0)).To(Equal(total))
+	})
 })
 
 var _ = Describe("http pollprogress", func() {
