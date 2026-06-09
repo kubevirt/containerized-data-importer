@@ -261,13 +261,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return dataVolume
 		}
 
-		createHTTPSInsecureSkipVerifyDataVolume := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
-			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
-			insecureSkipVerify := true
-			dataVolume.Spec.Source.HTTP.InsecureSkipVerify = &insecureSkipVerify
-			return dataVolume
-		}
-
 		createHTTPSDataVolumeWeirdCertFilename := func(dataVolumeName, size, url string) *cdiv1.DataVolume {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, size, url)
 			cm, err := utils.CreateCertConfigMapWeirdFilename(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
@@ -1237,10 +1230,17 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Reason:  "ChecksumError",
 				}}),
 			Entry("succeed creating import dv with insecureSkipVerify defined", dataVolumeTestArguments{
-				name:             "dv-https-import-qcow2",
-				size:             "1Gi",
-				url:              httpsTinyCoreQcow2URL,
-				dvFunc:           createHTTPSInsecureSkipVerifyDataVolume,
+				// Using the httpsTinyCoreQcow2URL which has a self signed cert.
+				// This will fail without insecureSkipVerify set to true, but should succeed with it.
+				name: "dv-https-insecure-skip-verify-pass",
+				size: "1Gi",
+				url:  httpsTinyCoreQcow2URL,
+				dvFunc: func(name, size, url string) *cdiv1.DataVolume {
+					dv := utils.NewDataVolumeWithHTTPImport(name, size, url)
+					insecureSkipVerify := true
+					dv.Spec.Source.HTTP.InsecureSkipVerify = &insecureSkipVerify
+					return dv
+				},
 				eventReason:      dvc.ImportSucceeded,
 				phase:            cdiv1.Succeeded,
 				checkPermissions: true,
@@ -1251,7 +1251,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				boundCondition: &cdiv1.DataVolumeCondition{
 					Type:    cdiv1.DataVolumeBound,
 					Status:  v1.ConditionTrue,
-					Message: "PVC dv-https-import-qcow2 Bound",
+					Message: "PVC dv-https-insecure-skip-verify-pass Bound",
 					Reason:  "Bound",
 				},
 				runningCondition: &cdiv1.DataVolumeCondition{
