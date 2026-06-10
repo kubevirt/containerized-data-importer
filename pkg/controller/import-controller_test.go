@@ -1256,6 +1256,32 @@ var _ = Describe("getInsecureTLS", func() {
 	)
 })
 
+var _ = Describe("isInsecureTLS", func() {
+	DescribeTable("should", func(source, insecureSkipVerify string, expected bool) {
+		annotations := map[string]string{
+			cc.AnnSource: source,
+		}
+		if insecureSkipVerify != "" {
+			annotations[cc.AnnInsecureSkipVerify] = insecureSkipVerify
+		}
+		pvc := cc.CreatePvc("testPVC", "default", annotations, nil)
+		reconciler := createImportReconciler(pvc)
+
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		result, err := reconciler.isInsecureTLS(pvc, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).To(Equal(expected))
+	},
+		Entry("return true when AnnInsecureSkipVerify is set to true for http source", cc.SourceHTTP, "true", true),
+		Entry("return true when AnnInsecureSkipVerify is set to true for imageio source", cc.SourceImageio, "true", true),
+		Entry("return false when AnnInsecureSkipVerify is not present for http source", cc.SourceHTTP, "", false),
+		Entry("return false when AnnInsecureSkipVerify is not present for imageio source", cc.SourceImageio, "", false),
+	)
+})
+
 var _ = Describe("GetContentType", func() {
 	pvcNoAnno := cc.CreatePvc("testPVCNoAnno", "default", nil, nil)
 	pvcArchiveAnno := cc.CreatePvc("testPVCArchiveAnno", "default", map[string]string{cc.AnnContentType: string(cdiv1.DataVolumeArchive)}, nil)
