@@ -478,10 +478,10 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 
 	It("Should set the InsecureTLS environment variable to true if the AnnInsecureSkipVerify annotation is set to true", func() {
 		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{
-			cc.AnnEndpoint: testEndPoint, 
-			cc.AnnImportPod: "importer-testPvc1", 
-			cc.AnnInsecureSkipVerify: "true", 
-			cc.AnnSource: cc.SourceHTTP,
+			cc.AnnEndpoint:           testEndPoint,
+			cc.AnnImportPod:          "importer-testPvc1",
+			cc.AnnInsecureSkipVerify: "true",
+			cc.AnnSource:             cc.SourceHTTP,
 		}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 		reconciler = createImportReconciler(pvc)
