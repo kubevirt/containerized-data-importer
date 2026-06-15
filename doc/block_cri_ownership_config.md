@@ -39,5 +39,24 @@ CRI-O:
 device_ownership_from_security_context = true
 ```
 
+## k3s and RKE2 (managed containerd configuration)
+Distributions such as k3s and RKE2 generate the containerd `config.toml` on every service start, so editing the file directly does not persist: the change is overwritten on the next restart.
+
+On k3s, prefer the built-in flag, which sets `device_ownership_from_security_context = true` in the generated config (available in recent releases, for example v1.32+):
+```bash
+# CLI flag on server/agent
+k3s server --nonroot-devices
+
+# or in /etc/rancher/k3s/config.yaml
+nonroot-devices: true
+```
+Restart the k3s service on each node afterwards, then recreate any affected CDI pods (already-running pods keep their original device ownership).
+
+If your version does not have the flag, the supported customization path is a containerd config template (`config-v3.toml.tmpl` for containerd v2, `config.toml.tmpl` for containerd v1, in the same directory as the generated `config.toml`). Note one pitfall: TOML does not allow redefining a table, so appending a `[plugins."io.containerd.cri.v1.runtime"]` section after `{{ template "base" . }}` fails with `table io.containerd.cri.v1.runtime already exists` and containerd will not start, leaving the node NotReady. To modify a value that the base template already sets, the template must be a full copy of the generated `config.toml` with the value edited in place. A full-copy template does not pick up future base config changes, so review it after upgrades.
+
+RKE2 uses the same template mechanism and the same pitfall applies; check whether your RKE2 version offers an equivalent flag before falling back to a template.
+
+Verified on k3s v1.34.6 (containerd 2.x) with rook-ceph RBD block-mode PVCs: see [kubevirt/kubevirt#14335](https://github.com/kubevirt/kubevirt/issues/14335).
+
 ## Source
 https://kubernetes.io/blog/2021/11/09/non-root-containers-and-devices/
