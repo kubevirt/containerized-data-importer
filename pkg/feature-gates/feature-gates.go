@@ -21,7 +21,10 @@ const (
 	// it is not an error if PVC of sam name exists before DataVolume is created
 	DataVolumeClaimAdoption = "DataVolumeClaimAdoption"
 
-	// WebhookPvcRendering - if enabled will deploy PVC mutating webhook for PVC rendering instead of the DV controller
+	// WebhookPvcRendering is the legacy feature gate string for PVC webhook rendering
+	// Deprecated: This feature is now always enabled
+	// The string is kept for backward compatibility with existing CDI CRs that list it in featureGates
+	// Use CDIConfigSpec.DisableWebhookPvcRendering to disable if needed
 	WebhookPvcRendering = "WebhookPvcRendering"
 )
 
@@ -48,7 +51,7 @@ func NewFeatureGates(c client.Client) *CDIConfigFeatureGates {
 }
 
 func (f *CDIConfigFeatureGates) isFeatureGateEnabled(featureGate string) (bool, error) {
-	featureGates, err := f.getConfig()
+	featureGates, err := f.getFeatureGates()
 	if err != nil {
 		return false, errors.Wrap(err, "error getting CDIConfig")
 	}
@@ -61,15 +64,6 @@ func (f *CDIConfigFeatureGates) isFeatureGateEnabled(featureGate string) (bool, 
 	return false, nil
 }
 
-func (f *CDIConfigFeatureGates) getConfig() ([]string, error) {
-	config := &cdiv1.CDIConfig{}
-	if err := f.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
-		return nil, err
-	}
-
-	return config.Spec.FeatureGates, nil
-}
-
 // HonorWaitForFirstConsumerEnabled - see the HonorWaitForFirstConsumer const
 func (f *CDIConfigFeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error) {
 	return f.isFeatureGateEnabled(HonorWaitForFirstConsumer)
@@ -80,9 +74,34 @@ func (f *CDIConfigFeatureGates) ClaimAdoptionEnabled() (bool, error) {
 	return f.isFeatureGateEnabled(DataVolumeClaimAdoption)
 }
 
+func (f *CDIConfigFeatureGates) getCDIConfig() (*cdiv1.CDIConfig, error) {
+	config := &cdiv1.CDIConfig{}
+	if err := f.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
+func (f *CDIConfigFeatureGates) getFeatureGates() ([]string, error) {
+	config, err := f.getCDIConfig()
+	if err != nil {
+		return nil, err
+	}
+	return config.Spec.FeatureGates, nil
+}
+
 // WebhookPvcRenderingEnabled tells if webhook PVC rendering is enabled
+// The webhook is enabled by default, it is only disabled when
+// CDIConfigSpec.DisableWebhookPvcRendering is set to true
 func (f *CDIConfigFeatureGates) WebhookPvcRenderingEnabled() (bool, error) {
-	return f.isFeatureGateEnabled(WebhookPvcRendering)
+	config, err := f.getCDIConfig()
+	if err != nil {
+		return false, errors.Wrap(err, "error getting CDIConfig")
+	}
+	if config.Spec.DisableWebhookPvcRendering != nil && *config.Spec.DisableWebhookPvcRendering {
+		return false, nil
+	}
+	return true, nil
 }
 
 // IsWebhookPvcRenderingEnabled tells if webhook PVC rendering is enabled

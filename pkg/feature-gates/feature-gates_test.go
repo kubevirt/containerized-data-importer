@@ -75,6 +75,60 @@ var _ = Describe("Feature Gates", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(featureGates.ClaimAdoptionEnabled()).To(BeFalse())
 	})
+
+	It("WebhookPvcRendering should be enabled by default", func() {
+		featureGates, _ := createFeatureGatesAndClient()
+		enabled, err := featureGates.WebhookPvcRenderingEnabled()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(enabled).To(BeTrue())
+	})
+
+	It("WebhookPvcRendering should be disabled when DisableWebhookPvcRendering is true", func() {
+		featureGates, client := createFeatureGatesAndClient()
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		disableTrue := true
+		cdiConfig.Spec.DisableWebhookPvcRendering = &disableTrue
+		err = client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		enabled, err := featureGates.WebhookPvcRenderingEnabled()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(enabled).To(BeFalse())
+	})
+
+	It("WebhookPvcRendering should remain enabled when DisableWebhookPvcRendering is false", func() {
+		featureGates, client := createFeatureGatesAndClient()
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		disableFalse := false
+		cdiConfig.Spec.DisableWebhookPvcRendering = &disableFalse
+		err = client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		enabled, err := featureGates.WebhookPvcRenderingEnabled()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(enabled).To(BeTrue())
+	})
+
+	It("WebhookPvcRendering should be enabled regardless of legacy featureGates list", func() {
+		featureGates, client := createFeatureGatesAndClient()
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		cdiConfig.Spec.FeatureGates = nil
+		err = client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		enabled, err := featureGates.WebhookPvcRenderingEnabled()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(enabled).To(BeTrue())
+	})
 })
 
 func createFeatureGatesAndClient(objects ...runtime.Object) (FeatureGates, client.Client) {

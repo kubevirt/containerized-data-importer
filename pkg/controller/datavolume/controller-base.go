@@ -1167,7 +1167,6 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 			return nil, err
 		}
 		if isWebhookPvcRenderingEnabled {
-			labels[common.PvcApplyStorageProfileLabel] = "true"
 			if targetPvcSpec.VolumeMode == nil {
 				targetPvcSpec.VolumeMode = ptr.To[corev1.PersistentVolumeMode](cdiv1.PersistentVolumeFromStorageProfile)
 			}
