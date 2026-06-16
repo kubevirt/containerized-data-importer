@@ -120,6 +120,11 @@ spec:
                       Deprecated: Removed in v1.62.
                     format: int32
                     type: integer
+                  disableWebhookPvcRendering:
+                    description: |-
+                      DisableWebhookPvcRendering disables the PVC mutating webhook that completes
+                      PVC specs from StorageProfiles
+                    type: boolean
                   featureGates:
                     description: FeatureGates are a list of specific enabled feature
                       gates
@@ -2637,6 +2642,11 @@ spec:
                       Deprecated: Removed in v1.62.
                     format: int32
                     type: integer
+                  disableWebhookPvcRendering:
+                    description: |-
+                      DisableWebhookPvcRendering disables the PVC mutating webhook that completes
+                      PVC specs from StorageProfiles
+                    type: boolean
                   featureGates:
                     description: FeatureGates are a list of specific enabled feature
                       gates
@@ -5110,6 +5120,11 @@ spec:
                   Deprecated: Removed in v1.62.
                 format: int32
                 type: integer
+              disableWebhookPvcRendering:
+                description: |-
+                  DisableWebhookPvcRendering disables the PVC mutating webhook that completes
+                  PVC specs from StorageProfiles
+                type: boolean
               featureGates:
                 description: FeatureGates are a list of specific enabled feature gates
                 items:

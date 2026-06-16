@@ -6,7 +6,6 @@ spec:
   config:
     featureGates:
     - HonorWaitForFirstConsumer
-    - WebhookPvcRendering
   imagePullPolicy: {{.PullPolicy}}
   infra:
     nodeSelector:

@@ -1057,6 +1057,10 @@ type CDIConfigSpec struct {
 	PodResourceRequirements *corev1.ResourceRequirements `json:"podResourceRequirements,omitempty"`
 	// FeatureGates are a list of specific enabled feature gates
 	FeatureGates []string `json:"featureGates,omitempty"`
+	// DisableWebhookPvcRendering disables the PVC mutating webhook that completes
+	// PVC specs from StorageProfiles
+	// +optional
+	DisableWebhookPvcRendering *bool `json:"disableWebhookPvcRendering,omitempty"`
 	// FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.06 (6% overhead)
 	FilesystemOverhead *FilesystemOverhead `json:"filesystemOverhead,omitempty"`
 	// Preallocation controls whether storage for DataVolumes should be allocated in advance.
