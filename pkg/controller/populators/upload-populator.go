@@ -165,8 +165,8 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		}
 	}
 
-	_, err = r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateUploadAnnotations)
-	if err != nil {
+	r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateUploadAnnotations)
+	if err := r.updatePVC(pvcCopy); err != nil {
 		return reconcile.Result{}, err
 	}
 	if cc.IsPVCComplete(pvcPrime) {

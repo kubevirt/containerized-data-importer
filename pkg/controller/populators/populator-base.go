@@ -18,7 +18,6 @@ package populators
 
 import (
 	"context"
-	"reflect"
 
 	"github.com/go-logr/logr"
 
@@ -251,29 +250,17 @@ var desiredAnnotations = []string{cc.AnnPodPhase, cc.AnnPodReady, cc.AnnPodResta
 	cc.AnnRunningCondition, cc.AnnRunningConditionMessage, cc.AnnRunningConditionReason, cc.AnnPodSchedulable,
 	cc.AnnImportFatalError}
 
-func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim, updateFunc updatePVCAnnotationsFunc) (*corev1.PersistentVolumeClaim, error) {
-	pvcCopy := pvc.DeepCopy()
+func (r *ReconcilerBase) updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim, updateFunc updatePVCAnnotationsFunc) {
 	for _, ann := range desiredAnnotations {
 		if value, ok := pvcPrime.GetAnnotations()[ann]; ok {
-			cc.AddAnnotation(pvcCopy, ann, value)
-		} else if _, ok := pvcCopy.GetAnnotations()[ann]; ok {
-			// if the desired Annotation was deleted from pvcPrime
-			// delete it also in the target pvc
-			delete(pvcCopy.Annotations, ann)
+			cc.AddAnnotation(pvc, ann, value)
+		} else if _, ok := pvc.GetAnnotations()[ann]; ok {
+			delete(pvc.Annotations, ann)
 		}
 	}
 	if updateFunc != nil {
-		updateFunc(pvcCopy, pvcPrime)
+		updateFunc(pvc, pvcPrime)
 	}
-
-	if !reflect.DeepEqual(pvc.ObjectMeta, pvcCopy.ObjectMeta) {
-		err := r.client.Update(context.TODO(), pvcCopy)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return pvcCopy, nil
 }
 
 func (r *ReconcilerBase) updatePVCPrimeNameAnnotation(pvc *corev1.PersistentVolumeClaim, pvcPrimeName string) (bool, error) {
@@ -289,15 +276,12 @@ func (r *ReconcilerBase) updatePVCPrimeNameAnnotation(pvc *corev1.PersistentVolu
 	return true, nil
 }
 
-func (r *ReconcilerBase) updatePVCWithPVCPrimeLabels(pvc *corev1.PersistentVolumeClaim, pvcPrimeLabels map[string]string) (*corev1.PersistentVolumeClaim, error) {
-	pvcCopy := pvc.DeepCopy()
-	cc.CopyAllowedLabels(pvcPrimeLabels, pvcCopy, false)
-	if !reflect.DeepEqual(pvc.ObjectMeta, pvcCopy.ObjectMeta) {
-		if err := r.client.Update(context.TODO(), pvcCopy); err != nil {
-			return nil, err
-		}
-	}
-	return pvcCopy, nil
+func (r *ReconcilerBase) updatePVCWithPVCPrimeLabels(pvc *corev1.PersistentVolumeClaim, pvcPrimeLabels map[string]string) {
+	cc.CopyAllowedLabels(pvcPrimeLabels, pvc, false)
+}
+
+func (r *ReconcilerBase) updatePVC(pvc *corev1.PersistentVolumeClaim) error {
+	return r.client.Update(context.TODO(), pvc)
 }
 
 // reconcile functions

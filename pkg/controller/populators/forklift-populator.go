@@ -354,12 +354,8 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 }
 
 func (r *ForkliftPopulatorReconciler) updatePVCPrime(pvc, pvcPrime *corev1.PersistentVolumeClaim) error {
-	_, err := r.updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime, r.updateAnnotations)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	r.updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime, r.updateAnnotations)
+	return r.updatePVC(pvc)
 }
 
 func (r *ForkliftPopulatorReconciler) updateAnnotations(pvc, pvcPrime *corev1.PersistentVolumeClaim) {

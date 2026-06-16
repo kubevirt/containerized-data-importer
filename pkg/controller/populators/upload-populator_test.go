@@ -200,7 +200,9 @@ var _ = Describe("Datavolume controller reconcile loop", func() {
 		cc.AddAnnotation(pvcPrime, cc.AnnPVCPrimeName, pvcPrime.Name)
 
 		r := createUploadPopulatorReconciler(pvc, pvcPrime)
-		pvc, err := r.updatePVCWithPVCPrimeAnnotations(pvc, pvcPrime, r.updateUploadAnnotations)
+		pvcCopy := pvc.DeepCopy()
+		r.updatePVCWithPVCPrimeAnnotations(pvcCopy, pvcPrime, r.updateUploadAnnotations)
+		err := r.updatePVC(pvcCopy)
 		Expect(err).ToNot(HaveOccurred())
 
 		//should always remove the pvc prime annotation
