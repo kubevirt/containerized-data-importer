@@ -1594,6 +1594,54 @@ var _ = Describe("Import populator", func() {
 		Entry("[test_id:11011]with Blank image without preallocation", utils.BlankMD5, createBlankImportPopulatorCR, false, false),
 	)
 
+	It("should NOT auto-complete PVC when DisableWebhookPvcRendering is set", Serial, func() {
+		By("Saving original CDIConfig state")
+		origConfig, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		origSpec := origConfig.Spec.DeepCopy()
+
+		By("Disabling webhook PVC rendering via CDIConfig")
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.DisableWebhookPvcRendering = ptr.To(true)
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Waiting for the MutatingWebhookConfiguration to be removed")
+		Eventually(func() bool {
+			_, err := f.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+				context.TODO(), "cdi-api-pvc-mutate", metav1.GetOptions{})
+			return err != nil
+		}, 2*time.Minute, 2*time.Second).Should(BeTrue())
+
+		By("Creating a PVC with applyStorageProfile label and without AccessModes")
+		pvcDef := utils.NewPVCDefinition("test-disabled-webhook-pvc", "64Mi", nil,
+			map[string]string{common.PvcApplyStorageProfileLabel: "true"})
+		pvcDef.Spec.AccessModes = nil
+
+		pvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, pvcDef)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying PVC was NOT modified by webhook (webhook is disabled)")
+		pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(
+			context.TODO(), pvc.Name, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Spec.AccessModes).To(BeEmpty(),
+			"AccessModes should NOT have been set because the webhook is disabled")
+
+		By("Restoring CDIConfig to original state")
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			origSpec.DeepCopyInto(config)
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Waiting for the MutatingWebhookConfiguration to be recreated")
+		Eventually(func() error {
+			_, err := f.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+				context.TODO(), "cdi-api-pvc-mutate", metav1.GetOptions{})
+			return err
+		}, 2*time.Minute, 2*time.Second).Should(Succeed())
+	})
+
 	DescribeTable("should import Block PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error) {
 		if !f.IsBlockVolumeStorageClassAvailable() {
 			Skip("Storage Class for block volume is not available")
