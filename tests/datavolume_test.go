@@ -2104,25 +2104,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Entry("[rfe_id:10985][crit:high][test_id:11047] (webhook rendering)", "true", verifyWebhookRenderingEvent),
 		)
 
-		It("should have controller render PVC when DisableWebhookPvcRendering is set", func() {
+		It("should have controller render PVC when DisableWebhookPvcRendering is set", Serial, func() {
 			By("Disabling webhook PVC rendering via CDIConfig")
 			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 				config.DisableWebhookPvcRendering = ptr.To(true)
 			})
 			Expect(err).ToNot(HaveOccurred())
-
-			DeferCleanup(func() {
-				By("Restoring CDIConfig (re-enabling webhook)")
-				err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-					config.DisableWebhookPvcRendering = ptr.To(false)
-				})
-				Expect(err).ToNot(HaveOccurred())
-				Eventually(func() error {
-					_, err := f.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
-						context.TODO(), "cdi-api-pvc-mutate", metav1.GetOptions{})
-					return err
-				}, 2*time.Minute, 2*time.Second).Should(Succeed())
-			})
 
 			By("Waiting for the MutatingWebhookConfiguration to be removed")
 			Eventually(func() bool {
@@ -2162,6 +2149,19 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				}
 				return false
 			}, timeout, pollingInterval).Should(BeTrue())
+
+			By("Re-enabling webhook PVC rendering")
+			err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+				config.DisableWebhookPvcRendering = nil
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Waiting for the MutatingWebhookConfiguration to be re-created")
+			Eventually(func() error {
+				_, err := f.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+					context.TODO(), "cdi-api-pvc-mutate", metav1.GetOptions{})
+				return err
+			}, 2*time.Minute, 2*time.Second).Should(Succeed())
 		})
 
 		It("[test_id:6483]Import pod should not have size corrected on block", func() {
