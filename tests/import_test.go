@@ -1618,15 +1618,16 @@ var _ = Describe("Import populator", func() {
 			map[string]string{common.PvcApplyStorageProfileLabel: "true"})
 		pvcDef.Spec.AccessModes = nil
 
-		pvc, err := utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, pvcDef)
-		Expect(err).ToNot(HaveOccurred())
+		_, err = utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, pvcDef)
+		Expect(err).To(HaveOccurred(), "PVC creation should fail because the webhook is disabled and accessModes is missing")
 
-		By("Verifying PVC was NOT modified by webhook (webhook is disabled)")
-		pvc, err = f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(
-			context.TODO(), pvc.Name, metav1.GetOptions{})
-		Expect(err).ToNot(HaveOccurred())
-		Expect(pvc.Spec.AccessModes).To(BeEmpty(),
-			"AccessModes should NOT have been set because the webhook is disabled")
+		By("Verifying the error is a validation rejection for missing accessModes")
+		statusErr, ok := err.(*k8serrors.StatusError)
+		Expect(ok).To(BeTrue(), "error should be a StatusError")
+		Expect(statusErr.ErrStatus.Reason).To(Equal(metav1.StatusReasonInvalid))
+		Expect(statusErr.ErrStatus.Details.Causes).To(ContainElement(
+			HaveField("Type", Equal(metav1.CauseTypeFieldValueRequired)),
+		))
 
 		By("Restoring CDIConfig to original state")
 		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
