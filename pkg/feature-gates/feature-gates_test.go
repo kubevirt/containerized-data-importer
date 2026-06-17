@@ -26,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -93,11 +92,15 @@ var _ = Describe("Feature Gates", func() {
 		Expect(enabled).To(Equal(expectedEnabled))
 	},
 		Entry("should be enabled by default", nil, nil, true),
-		Entry("should be disabled when DisableWebhookPvcRendering is true", ptr.To(true), nil, false),
-		Entry("should be enabled when DisableWebhookPvcRendering is false", ptr.To(false), nil, true),
+		Entry("should be disabled when DisableWebhookPvcRendering is true", boolPtr(true), nil, false),
+		Entry("should be enabled when DisableWebhookPvcRendering is false", boolPtr(false), nil, true),
 		Entry("should be enabled regardless of legacy featureGates list", nil, []string{}, true),
 	)
 })
+
+func boolPtr(b bool) *bool {
+	return &b
+}
 
 func createFeatureGatesAndClient(objects ...runtime.Object) (FeatureGates, client.Client) {
 	objs := []runtime.Object{}
