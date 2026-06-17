@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -76,59 +77,26 @@ var _ = Describe("Feature Gates", func() {
 		Expect(featureGates.ClaimAdoptionEnabled()).To(BeFalse())
 	})
 
-	It("WebhookPvcRendering should be enabled by default", func() {
-		featureGates, _ := createFeatureGatesAndClient()
-		enabled, err := featureGates.WebhookPvcRenderingEnabled()
-		Expect(err).ToNot(HaveOccurred())
-		Expect(enabled).To(BeTrue())
-	})
-
-	It("WebhookPvcRendering should be disabled when DisableWebhookPvcRendering is true", func() {
-		featureGates, client := createFeatureGatesAndClient()
+	DescribeTable("WebhookPvcRendering", func(disableValue *bool, featureGates []string, expectedEnabled bool) {
+		fg, cl := createFeatureGatesAndClient()
 		cdiConfig := &cdiv1.CDIConfig{}
-		err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		err := cl.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 
-		disableTrue := true
-		cdiConfig.Spec.DisableWebhookPvcRendering = &disableTrue
-		err = client.Update(context.TODO(), cdiConfig)
+		cdiConfig.Spec.DisableWebhookPvcRendering = disableValue
+		cdiConfig.Spec.FeatureGates = featureGates
+		err = cl.Update(context.TODO(), cdiConfig)
 		Expect(err).ToNot(HaveOccurred())
 
-		enabled, err := featureGates.WebhookPvcRenderingEnabled()
+		enabled, err := fg.WebhookPvcRenderingEnabled()
 		Expect(err).ToNot(HaveOccurred())
-		Expect(enabled).To(BeFalse())
-	})
-
-	It("WebhookPvcRendering should remain enabled when DisableWebhookPvcRendering is false", func() {
-		featureGates, client := createFeatureGatesAndClient()
-		cdiConfig := &cdiv1.CDIConfig{}
-		err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
-		Expect(err).ToNot(HaveOccurred())
-
-		disableFalse := false
-		cdiConfig.Spec.DisableWebhookPvcRendering = &disableFalse
-		err = client.Update(context.TODO(), cdiConfig)
-		Expect(err).ToNot(HaveOccurred())
-
-		enabled, err := featureGates.WebhookPvcRenderingEnabled()
-		Expect(err).ToNot(HaveOccurred())
-		Expect(enabled).To(BeTrue())
-	})
-
-	It("WebhookPvcRendering should be enabled regardless of legacy featureGates list", func() {
-		featureGates, client := createFeatureGatesAndClient()
-		cdiConfig := &cdiv1.CDIConfig{}
-		err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
-		Expect(err).ToNot(HaveOccurred())
-
-		cdiConfig.Spec.FeatureGates = nil
-		err = client.Update(context.TODO(), cdiConfig)
-		Expect(err).ToNot(HaveOccurred())
-
-		enabled, err := featureGates.WebhookPvcRenderingEnabled()
-		Expect(err).ToNot(HaveOccurred())
-		Expect(enabled).To(BeTrue())
-	})
+		Expect(enabled).To(Equal(expectedEnabled))
+	},
+		Entry("should be enabled by default", nil, nil, true),
+		Entry("should be disabled when DisableWebhookPvcRendering is true", ptr.To(true), nil, false),
+		Entry("should be enabled when DisableWebhookPvcRendering is false", ptr.To(false), nil, true),
+		Entry("should be enabled regardless of legacy featureGates list", nil, []string{}, true),
+	)
 })
 
 func createFeatureGatesAndClient(objects ...runtime.Object) (FeatureGates, client.Client) {
