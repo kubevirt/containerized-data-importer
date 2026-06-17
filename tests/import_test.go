@@ -3,6 +3,7 @@ package tests_test
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -1622,8 +1623,8 @@ var _ = Describe("Import populator", func() {
 		Expect(err).To(HaveOccurred(), "PVC creation should fail because the webhook is disabled and accessModes is missing")
 
 		By("Verifying the error is a validation rejection for missing accessModes")
-		statusErr, ok := err.(*k8serrors.StatusError)
-		Expect(ok).To(BeTrue(), "error should be a StatusError")
+		var statusErr *k8serrors.StatusError
+		Expect(errors.As(err, &statusErr)).To(BeTrue(), "error should be a StatusError")
 		Expect(statusErr.ErrStatus.Reason).To(Equal(metav1.StatusReasonInvalid))
 		Expect(statusErr.ErrStatus.Details.Causes).To(ContainElement(
 			HaveField("Type", Equal(metav1.CauseTypeFieldValueRequired)),
