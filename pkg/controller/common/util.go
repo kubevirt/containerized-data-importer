@@ -2376,3 +2376,16 @@ func CopyEvents(srcPVC, targetPVC client.Object, c client.Client, recorder recor
 		recorder.Event(targetPVC, newEvent.Type, newEvent.Reason, formattedMsg)
 	}
 }
+
+// The current webhook is enabled by default, it is only disabled when
+// CDIConfigSpec.DisableWebhookPvcRendering is set to true
+func IsWebhookPvcRenderingEnabled(c client.Client) (bool, error) {
+	config := &cdiv1.CDIConfig{}
+	if err := c.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
+		return false, errors.Wrap(err, "error getting CDIConfig")
+	}
+	if config.Spec.DisableWebhookPvcRendering != nil && *config.Spec.DisableWebhookPvcRendering {
+		return false, nil
+	}
+	return true, nil
+}

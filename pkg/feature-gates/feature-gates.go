@@ -35,9 +35,6 @@ type FeatureGates interface {
 
 	// ClaimAdoptionEnabled - see the DataVolumeClaimAdoption const
 	ClaimAdoptionEnabled() (bool, error)
-
-	// WebhookPvcRenderingEnabled - see the WebhookPvcRendering const
-	WebhookPvcRenderingEnabled() (bool, error)
 }
 
 // CDIConfigFeatureGates is a util for determining whether an optional feature is enabled or not.
@@ -74,38 +71,10 @@ func (f *CDIConfigFeatureGates) ClaimAdoptionEnabled() (bool, error) {
 	return f.isFeatureGateEnabled(DataVolumeClaimAdoption)
 }
 
-func (f *CDIConfigFeatureGates) getCDIConfig() (*cdiv1.CDIConfig, error) {
+func (f *CDIConfigFeatureGates) getFeatureGates() ([]string, error) {
 	config := &cdiv1.CDIConfig{}
 	if err := f.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
 		return nil, err
 	}
-	return config, nil
-}
-
-func (f *CDIConfigFeatureGates) getFeatureGates() ([]string, error) {
-	config, err := f.getCDIConfig()
-	if err != nil {
-		return nil, err
-	}
 	return config.Spec.FeatureGates, nil
-}
-
-// WebhookPvcRenderingEnabled tells if webhook PVC rendering is enabled
-// The webhook is enabled by default, it is only disabled when
-// CDIConfigSpec.DisableWebhookPvcRendering is set to true
-func (f *CDIConfigFeatureGates) WebhookPvcRenderingEnabled() (bool, error) {
-	config, err := f.getCDIConfig()
-	if err != nil {
-		return false, errors.Wrap(err, "error getting CDIConfig")
-	}
-	if config.Spec.DisableWebhookPvcRendering != nil && *config.Spec.DisableWebhookPvcRendering {
-		return false, nil
-	}
-	return true, nil
-}
-
-// IsWebhookPvcRenderingEnabled tells if webhook PVC rendering is enabled
-func IsWebhookPvcRenderingEnabled(c client.Client) (bool, error) {
-	gates := NewFeatureGates(c)
-	return gates.WebhookPvcRenderingEnabled()
 }

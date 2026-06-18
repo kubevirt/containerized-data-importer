@@ -1162,7 +1162,7 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 	annotations[cc.AnnCreatedForDataVolume] = string(dataVolume.UID)
 
 	if dataVolume.Spec.Storage != nil && labels[common.PvcApplyStorageProfileLabel] == "true" {
-		isWebhookPvcRenderingEnabled, err := featuregates.IsWebhookPvcRenderingEnabled(r.client)
+		isWebhookPvcRenderingEnabled, err := cc.IsWebhookPvcRenderingEnabled(r.client)
 		if err != nil {
 			return nil, err
 		}

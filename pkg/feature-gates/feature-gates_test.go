@@ -76,31 +76,7 @@ var _ = Describe("Feature Gates", func() {
 		Expect(featureGates.ClaimAdoptionEnabled()).To(BeFalse())
 	})
 
-	DescribeTable("WebhookPvcRendering", func(disableValue *bool, featureGates []string, expectedEnabled bool) {
-		fg, cl := createFeatureGatesAndClient()
-		cdiConfig := &cdiv1.CDIConfig{}
-		err := cl.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
-		Expect(err).ToNot(HaveOccurred())
-
-		cdiConfig.Spec.DisableWebhookPvcRendering = disableValue
-		cdiConfig.Spec.FeatureGates = featureGates
-		err = cl.Update(context.TODO(), cdiConfig)
-		Expect(err).ToNot(HaveOccurred())
-
-		enabled, err := fg.WebhookPvcRenderingEnabled()
-		Expect(err).ToNot(HaveOccurred())
-		Expect(enabled).To(Equal(expectedEnabled))
-	},
-		Entry("should be enabled by default", nil, nil, true),
-		Entry("should be disabled when DisableWebhookPvcRendering is true", boolPtr(true), nil, false),
-		Entry("should be enabled when DisableWebhookPvcRendering is false", boolPtr(false), nil, true),
-		Entry("should be enabled regardless of legacy featureGates list", nil, []string{}, true),
-	)
 })
-
-func boolPtr(b bool) *bool {
-	return &b
-}
 
 func createFeatureGatesAndClient(objects ...runtime.Object) (FeatureGates, client.Client) {
 	objs := []runtime.Object{}
