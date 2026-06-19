@@ -3946,10 +3946,6 @@
       "type": "integer",
       "format": "int32"
      },
-     "disableWebhookPvcRendering": {
-      "description": "DisableWebhookPvcRendering disables the PVC mutating webhook that completes PVC specs from StorageProfiles",
-      "type": "boolean"
-     },
      "featureGates": {
       "description": "FeatureGates are a list of specific enabled feature gates",
       "type": "array",
@@ -4005,6 +4001,10 @@
      },
      "uploadProxyURLOverride": {
       "description": "Override the URL used when uploading to a DataVolume",
+      "type": "string"
+     },
+     "webhookPvcRendering": {
+      "description": "WebhookPvcRendering controls whether the PVC mutating webhook that completes PVC specs from StorageProfiles is enabled or disabled Allowed values are \"Enabled\" (default) and \"Disabled\"",
       "type": "string"
      }
     }

@@ -24,7 +24,7 @@ const (
 	// WebhookPvcRendering is the legacy feature gate string for PVC webhook rendering
 	// Deprecated: This feature is now always enabled
 	// The string is kept for backward compatibility with existing CDI CRs that list it in featureGates
-	// Use CDIConfigSpec.DisableWebhookPvcRendering to disable if needed
+	// Use CDIConfigSpec.WebhookPvcRendering = "Disabled" to disable if needed
 	WebhookPvcRendering = "WebhookPvcRendering"
 )
 

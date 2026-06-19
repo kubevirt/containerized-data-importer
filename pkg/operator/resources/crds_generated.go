@@ -120,11 +120,6 @@ spec:
                       Deprecated: Removed in v1.62.
                     format: int32
                     type: integer
-                  disableWebhookPvcRendering:
-                    description: |-
-                      DisableWebhookPvcRendering disables the PVC mutating webhook that completes
-                      PVC specs from StorageProfiles
-                    type: boolean
                   featureGates:
                     description: FeatureGates are a list of specific enabled feature
                       gates
@@ -440,6 +435,12 @@ spec:
                     type: object
                   uploadProxyURLOverride:
                     description: Override the URL used when uploading to a DataVolume
+                    type: string
+                  webhookPvcRendering:
+                    description: |-
+                      WebhookPvcRendering controls whether the PVC mutating webhook that completes
+                      PVC specs from StorageProfiles is enabled or disabled
+                      Allowed values are "Enabled" (default) and "Disabled"
                     type: string
                 type: object
               customizeComponents:
@@ -2642,11 +2643,6 @@ spec:
                       Deprecated: Removed in v1.62.
                     format: int32
                     type: integer
-                  disableWebhookPvcRendering:
-                    description: |-
-                      DisableWebhookPvcRendering disables the PVC mutating webhook that completes
-                      PVC specs from StorageProfiles
-                    type: boolean
                   featureGates:
                     description: FeatureGates are a list of specific enabled feature
                       gates
@@ -2962,6 +2958,12 @@ spec:
                     type: object
                   uploadProxyURLOverride:
                     description: Override the URL used when uploading to a DataVolume
+                    type: string
+                  webhookPvcRendering:
+                    description: |-
+                      WebhookPvcRendering controls whether the PVC mutating webhook that completes
+                      PVC specs from StorageProfiles is enabled or disabled
+                      Allowed values are "Enabled" (default) and "Disabled"
                     type: string
                 type: object
               customizeComponents:
@@ -5120,11 +5122,6 @@ spec:
                   Deprecated: Removed in v1.62.
                 format: int32
                 type: integer
-              disableWebhookPvcRendering:
-                description: |-
-                  DisableWebhookPvcRendering disables the PVC mutating webhook that completes
-                  PVC specs from StorageProfiles
-                type: boolean
               featureGates:
                 description: FeatureGates are a list of specific enabled feature gates
                 items:
@@ -5438,6 +5435,12 @@ spec:
                 type: object
               uploadProxyURLOverride:
                 description: Override the URL used when uploading to a DataVolume
+                type: string
+              webhookPvcRendering:
+                description: |-
+                  WebhookPvcRendering controls whether the PVC mutating webhook that completes
+                  PVC specs from StorageProfiles is enabled or disabled
+                  Allowed values are "Enabled" (default) and "Disabled"
                 type: string
             type: object
           status:

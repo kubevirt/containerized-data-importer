@@ -16635,10 +16635,10 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 							},
 						},
 					},
-					"disableWebhookPvcRendering": {
+					"webhookPvcRendering": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisableWebhookPvcRendering disables the PVC mutating webhook that completes PVC specs from StorageProfiles",
-							Type:        []string{"boolean"},
+							Description: "WebhookPvcRendering controls whether the PVC mutating webhook that completes PVC specs from StorageProfiles is enabled or disabled Allowed values are \"Enabled\" (default) and \"Disabled\"",
+							Type:        []string{"string"},
 							Format:      "",
 						},
 					},

@@ -175,11 +175,6 @@ func (in *CDIConfigSpec) DeepCopyInto(out *CDIConfigSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
-	if in.DisableWebhookPvcRendering != nil {
-		in, out := &in.DisableWebhookPvcRendering, &out.DisableWebhookPvcRendering
-		*out = new(bool)
-		**out = **in
-	}
 	if in.FilesystemOverhead != nil {
 		in, out := &in.FilesystemOverhead, &out.FilesystemOverhead
 		*out = new(FilesystemOverhead)

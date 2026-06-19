@@ -1603,7 +1603,7 @@ var _ = Describe("Import populator", func() {
 
 		By("Disabling webhook PVC rendering via CDIConfig")
 		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-			config.DisableWebhookPvcRendering = ptr.To(true)
+			config.WebhookPvcRendering = cdiv1.WebhookPvcRenderingDisabled
 		})
 		Expect(err).ToNot(HaveOccurred())
 

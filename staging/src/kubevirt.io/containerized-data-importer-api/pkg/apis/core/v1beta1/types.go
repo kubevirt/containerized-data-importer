@@ -1044,6 +1044,17 @@ type FilesystemOverhead struct {
 	StorageClass map[string]Percent `json:"storageClass,omitempty"`
 }
 
+// WebhookPvcRenderingPolicy defines the policy for PVC mutating webhook rendering
+type WebhookPvcRenderingPolicy string
+
+const (
+	// WebhookPvcRenderingEnabled means the PVC mutating webhook is active and completes PVC specs from StorageProfiles
+	WebhookPvcRenderingEnabled WebhookPvcRenderingPolicy = "Enabled"
+	// WebhookPvcRenderingDisabled means the PVC mutating webhook is not active;
+	// only PVCs created via DataVolumes will be rendered by the controller
+	WebhookPvcRenderingDisabled WebhookPvcRenderingPolicy = "Disabled"
+)
+
 // CDIConfigSpec defines specification for user configuration
 type CDIConfigSpec struct {
 	// Override the URL used when uploading to a DataVolume
@@ -1057,10 +1068,11 @@ type CDIConfigSpec struct {
 	PodResourceRequirements *corev1.ResourceRequirements `json:"podResourceRequirements,omitempty"`
 	// FeatureGates are a list of specific enabled feature gates
 	FeatureGates []string `json:"featureGates,omitempty"`
-	// DisableWebhookPvcRendering disables the PVC mutating webhook that completes
-	// PVC specs from StorageProfiles
+	// WebhookPvcRendering controls whether the PVC mutating webhook that completes
+	// PVC specs from StorageProfiles is enabled or disabled
+	// Allowed values are "Enabled" (default) and "Disabled"
 	// +optional
-	DisableWebhookPvcRendering *bool `json:"disableWebhookPvcRendering,omitempty"`
+	WebhookPvcRendering WebhookPvcRenderingPolicy `json:"webhookPvcRendering,omitempty"`
 	// FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.06 (6% overhead)
 	FilesystemOverhead *FilesystemOverhead `json:"filesystemOverhead,omitempty"`
 	// Preallocation controls whether storage for DataVolumes should be allocated in advance.

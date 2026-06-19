@@ -16,7 +16,7 @@ To opt in to webhook auto-completion on a PVC, apply the label `cdi.kubevirt.io/
 
 ### Disabling the webhook
 
-In case of emergency (e.g. webhook misbehavior), you can disable it by setting `disableWebhookPvcRendering: true` in the CDI config spec:
+In case of emergency (e.g. webhook misbehavior), you can disable it by setting `webhookPvcRendering: "Disabled"` in the CDI config spec:
 
 ```yaml
 apiVersion: cdi.kubevirt.io/v1beta1
@@ -24,13 +24,13 @@ kind: CDI
 [...]
 spec:
   config:
-    disableWebhookPvcRendering: true
+    webhookPvcRendering: "Disabled"
 [...]
 ```
 
 When disabled, the `MutatingWebhookConfiguration` is removed and the DataVolume controller falls back to rendering PVC fields itself.
 
-To re-enable, remove the field or set it to `false`.
+To re-enable, remove the field or set it to `"Enabled"`.
 
 ## Usage
 

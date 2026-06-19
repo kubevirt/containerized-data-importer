@@ -12,7 +12,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -424,7 +423,7 @@ func createPvcNoSize(name, ns string, annotations, labels map[string]string) *v1
 }
 
 var _ = Describe("IsWebhookPvcRenderingEnabled", func() {
-	var createCDIConfigClient = func(disableValue *bool) *fake.ClientBuilder {
+	var createCDIConfigClient = func(policy cdiv1.WebhookPvcRenderingPolicy) *fake.ClientBuilder {
 		s := scheme.Scheme
 		Expect(cdiv1.AddToScheme(s)).To(Succeed())
 
@@ -433,21 +432,21 @@ var _ = Describe("IsWebhookPvcRenderingEnabled", func() {
 				Name: common.ConfigName,
 			},
 			Spec: cdiv1.CDIConfigSpec{
-				DisableWebhookPvcRendering: disableValue,
+				WebhookPvcRendering: policy,
 			},
 		}
 		return fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(cdiConfig)
 	}
 
-	DescribeTable("should reflect DisableWebhookPvcRendering config", func(disableValue *bool, expectedEnabled bool) {
-		cl := createCDIConfigClient(disableValue).Build()
+	DescribeTable("should reflect WebhookPvcRendering config", func(policy cdiv1.WebhookPvcRenderingPolicy, expectedEnabled bool) {
+		cl := createCDIConfigClient(policy).Build()
 		enabled, err := IsWebhookPvcRenderingEnabled(cl)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(enabled).To(Equal(expectedEnabled))
 	},
-		Entry("enabled by default when field is nil", nil, true),
-		Entry("disabled when DisableWebhookPvcRendering is true", ptr.To(true), false),
-		Entry("enabled when DisableWebhookPvcRendering is false", ptr.To(false), true),
+		Entry("enabled by default when field is empty", cdiv1.WebhookPvcRenderingPolicy(""), true),
+		Entry("enabled when explicitly set to Enabled", cdiv1.WebhookPvcRenderingEnabled, true),
+		Entry("disabled when set to Disabled", cdiv1.WebhookPvcRenderingDisabled, false),
 	)
 
 	It("should return error when CDIConfig is not found", func() {

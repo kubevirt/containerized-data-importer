@@ -2107,7 +2107,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		It("should have controller render PVC when DisableWebhookPvcRendering is set", Serial, func() {
 			By("Disabling webhook PVC rendering via CDIConfig")
 			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-				config.DisableWebhookPvcRendering = ptr.To(true)
+				config.WebhookPvcRendering = cdiv1.WebhookPvcRenderingDisabled
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -2152,7 +2152,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Re-enabling webhook PVC rendering")
 			err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
-				config.DisableWebhookPvcRendering = nil
+				config.WebhookPvcRendering = cdiv1.WebhookPvcRenderingEnabled
 			})
 			Expect(err).ToNot(HaveOccurred())
 
