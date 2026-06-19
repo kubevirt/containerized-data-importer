@@ -2104,7 +2104,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Entry("[rfe_id:10985][crit:high][test_id:11047] (webhook rendering)", "true", verifyWebhookRenderingEvent),
 		)
 
-		It("should have controller render PVC when DisableWebhookPvcRendering is set", Serial, func() {
+		It("should have controller render PVC when webhook is disabled", Serial, func() {
 			By("Disabling webhook PVC rendering via CDIConfig")
 			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 				config.WebhookPvcRendering = cdiv1.WebhookPvcRenderingDisabled
@@ -2118,7 +2118,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				return err != nil
 			}, 2*time.Minute, 2*time.Second).Should(BeTrue())
 
-			By("Creating a DataVolume with applyStorageProfile label")
+			By("Creating a DataVolume without applyStorageProfile label")
 			requestedSize := resource.MustParse("100Mi")
 			spec := cdiv1.StorageSpec{
 				Resources: v1.VolumeResourceRequirements{
@@ -2127,8 +2127,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					},
 				},
 			}
-			dataVolume := createLabeledDataVolumeForImport(f, spec,
-				map[string]string{common.PvcApplyStorageProfileLabel: "true"})
+			dataVolume := createDataVolumeForImport(f, spec)
 
 			By("Waiting for PVC to be created")
 			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)

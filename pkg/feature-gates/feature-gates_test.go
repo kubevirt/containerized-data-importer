@@ -75,7 +75,6 @@ var _ = Describe("Feature Gates", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(featureGates.ClaimAdoptionEnabled()).To(BeFalse())
 	})
-
 })
 
 func createFeatureGatesAndClient(objects ...runtime.Object) (FeatureGates, client.Client) {
