@@ -55,7 +55,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"rook-ceph.cephfs.csi.ceph.com":         {{rwx, file}, {rwo, file}},
 	"openshift-storage.cephfs.csi.ceph.com": {{rwx, file}, {rwo, file}},
 	// LINSTOR
-	"linstor.csi.linbit.com": createAllButRWXFileCapabilities(),
+	"linstor.csi.linbit.com": createLinstorCapabilities(),
 	// DELL Unity XT
 	"csi-unity.dellemc.com":     createAllButRWXFileCapabilities(),
 	"csi-unity.dellemc.com/nfs": createAllFSCapabilities(),
@@ -557,6 +557,28 @@ func createAllButRWXFileCapabilities() []StorageCapabilities {
 	return []StorageCapabilities{
 		{rwx, block},
 		{rwo, block},
+		{rwo, file},
+		{rox, block},
+		{rox, file},
+	}
+}
+
+// createLinstorCapabilities returns the capabilities for linstor.csi.linbit.com.
+//
+// Block is listed first so it stays the preferred volume mode: on LINSTOR/DRBD
+// shared access (RWX) is served natively at the Block level via DRBD
+// dual-primary, so a fully-unspecified request defaults to {rwx, block} (no
+// NFS). {rwx, file} is also advertised, after the block modes, because LINSTOR
+// can serve RWX in Filesystem mode through its highly-available NFS-Ganesha
+// export (linstor-csi-nfs-server). Advertising it lets shared-filesystem
+// workloads be satisfied on LINSTOR — notably KubeVirt vm-state backend storage,
+// which is Filesystem-mode and must be RWX to live-migrate. {rwo, file} is kept
+// for ordinary non-shared filesystem volumes.
+func createLinstorCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{
+		{rwx, block},
+		{rwo, block},
+		{rwx, file},
 		{rwo, file},
 		{rox, block},
 		{rox, file},
