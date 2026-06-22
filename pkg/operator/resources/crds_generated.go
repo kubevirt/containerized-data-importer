@@ -436,6 +436,12 @@ spec:
                   uploadProxyURLOverride:
                     description: Override the URL used when uploading to a DataVolume
                     type: string
+                  webhookPvcRendering:
+                    description: |-
+                      WebhookPvcRendering controls whether the PVC mutating webhook that completes
+                      PVC specs from StorageProfiles is enabled or disabled
+                      Allowed values are "Enabled" (default) and "Disabled"
+                    type: string
                 type: object
               customizeComponents:
                 description: CustomizeComponents defines patches for components deployed
@@ -2953,6 +2959,12 @@ spec:
                   uploadProxyURLOverride:
                     description: Override the URL used when uploading to a DataVolume
                     type: string
+                  webhookPvcRendering:
+                    description: |-
+                      WebhookPvcRendering controls whether the PVC mutating webhook that completes
+                      PVC specs from StorageProfiles is enabled or disabled
+                      Allowed values are "Enabled" (default) and "Disabled"
+                    type: string
                 type: object
               customizeComponents:
                 description: CustomizeComponents defines patches for components deployed
@@ -5423,6 +5435,12 @@ spec:
                 type: object
               uploadProxyURLOverride:
                 description: Override the URL used when uploading to a DataVolume
+                type: string
+              webhookPvcRendering:
+                description: |-
+                  WebhookPvcRendering controls whether the PVC mutating webhook that completes
+                  PVC specs from StorageProfiles is enabled or disabled
+                  Allowed values are "Enabled" (default) and "Disabled"
                 type: string
             type: object
           status:

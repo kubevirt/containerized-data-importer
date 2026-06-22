@@ -16635,6 +16635,13 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 							},
 						},
 					},
+					"webhookPvcRendering": {
+						SchemaProps: spec.SchemaProps{
+							Description: "WebhookPvcRendering controls whether the PVC mutating webhook that completes PVC specs from StorageProfiles is enabled or disabled Allowed values are \"Enabled\" (default) and \"Disabled\"",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"filesystemOverhead": {
 						SchemaProps: spec.SchemaProps{
 							Description: "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.06 (6% overhead)",

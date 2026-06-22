@@ -21,7 +21,10 @@ const (
 	// it is not an error if PVC of sam name exists before DataVolume is created
 	DataVolumeClaimAdoption = "DataVolumeClaimAdoption"
 
-	// WebhookPvcRendering - if enabled will deploy PVC mutating webhook for PVC rendering instead of the DV controller
+	// WebhookPvcRendering is the legacy feature gate string for PVC webhook rendering
+	// Deprecated: This feature is now always enabled
+	// The string is kept for backward compatibility with existing CDI CRs that list it in featureGates
+	// Use CDIConfigSpec.WebhookPvcRendering = "Disabled" to disable if needed
 	WebhookPvcRendering = "WebhookPvcRendering"
 )
 
@@ -32,9 +35,6 @@ type FeatureGates interface {
 
 	// ClaimAdoptionEnabled - see the DataVolumeClaimAdoption const
 	ClaimAdoptionEnabled() (bool, error)
-
-	// WebhookPvcRenderingEnabled - see the WebhookPvcRendering const
-	WebhookPvcRenderingEnabled() (bool, error)
 }
 
 // CDIConfigFeatureGates is a util for determining whether an optional feature is enabled or not.
@@ -48,7 +48,7 @@ func NewFeatureGates(c client.Client) *CDIConfigFeatureGates {
 }
 
 func (f *CDIConfigFeatureGates) isFeatureGateEnabled(featureGate string) (bool, error) {
-	featureGates, err := f.getConfig()
+	featureGates, err := f.getFeatureGates()
 	if err != nil {
 		return false, errors.Wrap(err, "error getting CDIConfig")
 	}
@@ -61,15 +61,6 @@ func (f *CDIConfigFeatureGates) isFeatureGateEnabled(featureGate string) (bool, 
 	return false, nil
 }
 
-func (f *CDIConfigFeatureGates) getConfig() ([]string, error) {
-	config := &cdiv1.CDIConfig{}
-	if err := f.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
-		return nil, err
-	}
-
-	return config.Spec.FeatureGates, nil
-}
-
 // HonorWaitForFirstConsumerEnabled - see the HonorWaitForFirstConsumer const
 func (f *CDIConfigFeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error) {
 	return f.isFeatureGateEnabled(HonorWaitForFirstConsumer)
@@ -80,13 +71,10 @@ func (f *CDIConfigFeatureGates) ClaimAdoptionEnabled() (bool, error) {
 	return f.isFeatureGateEnabled(DataVolumeClaimAdoption)
 }
 
-// WebhookPvcRenderingEnabled tells if webhook PVC rendering is enabled
-func (f *CDIConfigFeatureGates) WebhookPvcRenderingEnabled() (bool, error) {
-	return f.isFeatureGateEnabled(WebhookPvcRendering)
-}
-
-// IsWebhookPvcRenderingEnabled tells if webhook PVC rendering is enabled
-func IsWebhookPvcRenderingEnabled(c client.Client) (bool, error) {
-	gates := NewFeatureGates(c)
-	return gates.WebhookPvcRenderingEnabled()
+func (f *CDIConfigFeatureGates) getFeatureGates() ([]string, error) {
+	config := &cdiv1.CDIConfig{}
+	if err := f.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
+		return nil, err
+	}
+	return config.Spec.FeatureGates, nil
 }
