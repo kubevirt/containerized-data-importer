@@ -1406,20 +1406,59 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
 
 			if shouldSucceed {
+				waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
+
 				By("verifying pvc was created")
-				pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 
-				By("verifying datavolume succeeded")
-				err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dataVolumeName)
-				Expect(err).ToNot(HaveOccurred())
+				readyCondition := &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				}
+				boundCondition := &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: fmt.Sprintf("PVC %s Bound", dataVolumeName),
+					Reason:  "Bound",
+				}
+				runningCondition := &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}
+
+				By("Verifying the DV has the correct conditions")
+				utils.WaitForConditions(f, dataVolumeName, f.Namespace.Name, timeout, pollingInterval, readyCondition, runningCondition, boundCondition)
 
 				By("verifying pvc is bound")
-				Expect(pvc.Status.Phase).To(Equal(v1.ClaimBound))
-			} else {
-				By("verifying datavolume fails")
-				err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Failed, dataVolumeName)
+				err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, dataVolume.Namespace, v1.ClaimBound, dataVolumeName)
 				Expect(err).ToNot(HaveOccurred())
+			} else {
+				By("verifying pvc was created")
+				_, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("verifying importer fails due to certificate validation")
+				Eventually(func() bool {
+					importer, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
+					if err != nil || importer == nil {
+						return false
+					}
+					if importer.Status.Phase == v1.PodFailed {
+						return true
+					}
+					if len(importer.Status.ContainerStatuses) > 0 && importer.Status.ContainerStatuses[0].RestartCount > 0 {
+						return true
+					}
+					return false
+				}, timeout, pollingInterval).Should(BeTrue())
+
+				By("verifying datavolume did not succeed")
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dv.Status.Phase).NotTo(Equal(cdiv1.Succeeded))
 			}
 		},
 			Entry("[test_id:XXXX]succeed importing VDDK data volume without certConfigMap (fallback to insecure)", "", true),

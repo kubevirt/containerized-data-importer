@@ -37,6 +37,7 @@ import (
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
+	"github.com/vmware/govmomi/session"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/methods"
 	"github.com/vmware/govmomi/vim25/mo"
@@ -300,16 +301,9 @@ func createVMwareClient(cfg VMwareClientConfig) (*VMwareClient, error) {
 		}
 	}
 
-	// Log in to vCenter
 	ctx, cancel := context.WithCancel(context.Background())
-	conn, err := govmomi.NewClient(ctx, vmwURL, actualInsecureTLS)
-	if err != nil {
-		klog.Errorf("Unable to connect to vCenter: %v", err)
-		cancel()
-		return nil, err
-	}
 
-	// Configure certificate validation if certDir is provided and not using insecure mode
+	soapClient := soap.NewClient(vmwURL, actualInsecureTLS)
 	if cfg.CertDir != "" && !cfg.InsecureTLS {
 		certPool, err := createCertPool(cfg.CertDir)
 		if err != nil {
@@ -317,13 +311,34 @@ func createVMwareClient(cfg VMwareClientConfig) (*VMwareClient, error) {
 			cancel()
 			return nil, err
 		}
-		// Set the RootCAs on the soap client's TLS config
 		if certPool != nil {
-			conn.Client.DefaultTransport().TLSClientConfig.RootCAs = certPool
+			soapClient.DefaultTransport().TLSClientConfig.RootCAs = certPool
 			klog.Infof("Configured VMware client with certificates from %s", cfg.CertDir)
 		}
 	} else if actualInsecureTLS {
 		klog.Warningf("Connecting to VMware with insecure TLS (certificate validation disabled)")
+	}
+	if cfg.Thumbprint != "" {
+		soapClient.SetThumbprint(vmwURL.Host, cfg.Thumbprint)
+	}
+
+	vimClient, err := vim25.NewClient(ctx, soapClient)
+	if err != nil {
+		klog.Errorf("Unable to connect to vCenter: %v", err)
+		cancel()
+		return nil, err
+	}
+
+	conn := &govmomi.Client{
+		Client:         vimClient,
+		SessionManager: session.NewManager(vimClient),
+	}
+	if vmwURL.User != nil {
+		if err = conn.Login(ctx, vmwURL.User); err != nil {
+			klog.Errorf("Unable to log in to vCenter: %v", err)
+			cancel()
+			return nil, err
+		}
 	}
 
 	moref, vm, err := FindVM(ctx, conn, cfg.UUID)
