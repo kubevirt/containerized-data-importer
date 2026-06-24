@@ -165,7 +165,7 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 	log.V(1).Info("reconciling Clone PVCs")
 
 	if checkPVC(pvc, cc.AnnCloneRequest, log) {
-		if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log); err != nil {
+		if err := cc.UpdatePVCBoundConditionFromEvents(pvc, r.client, log); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
