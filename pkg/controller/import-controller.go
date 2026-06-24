@@ -208,7 +208,7 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 
 	// only want to update bound condition for relevant type
 	if checkPVC(pvc, cc.AnnEndpoint, log) || checkPVC(pvc, cc.AnnSource, log) {
-		if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log); err != nil {
+		if err := cc.UpdatePVCBoundConditionFromEvents(pvc, r.client, log); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
@@ -460,7 +460,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 				return err
 			}
 		}
-	} else {
+	} else if anno[cc.AnnBoundConditionReason] == creatingScratch {
 		// No scratch space, or scratch space is bound, remove annotation
 		delete(anno, cc.AnnBoundCondition)
 		delete(anno, cc.AnnBoundConditionMessage)
