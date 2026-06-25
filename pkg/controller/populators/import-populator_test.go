@@ -198,6 +198,69 @@ var _ = Describe("Import populator tests", func() {
 			Expect(found).To(BeFalse())
 		})
 
+		It("Should not copy ClaimMisbound event from primePVC to targetPVC", func() {
+			targetPVC := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPVC.Spec.DataSourceRef = dataSourceRef
+			volumeImportSource := getVolumeImportSource(true, nsName)
+
+			pvcPrime := getPVCPrime(targetPVC, nil) // automatically creates a pvcPrime with the same name as the targetPVC
+
+			importSucceededEvent := corev1.Event{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "importSucceededEvent",
+					Namespace: targetPVC.Namespace,
+				},
+				InvolvedObject: corev1.ObjectReference{
+					Name: pvcPrime.Name,
+					UID:  pvcPrime.UID,
+				},
+				Reason:  importSucceeded,
+				Message: "Import succeeded",
+			}
+			claimMisboundEvent := corev1.Event{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "claimMisboundEvent",
+					Namespace: targetPVC.Namespace,
+				},
+				InvolvedObject: corev1.ObjectReference{
+					Name: pvcPrime.Name,
+					UID:  pvcPrime.UID,
+				},
+				Reason:  EventReasonClaimMisbound,
+				Message: "Claim is misbound",
+			}
+
+			By("Creating reconciler with fake PVC prime events")
+			reconciler = createImportPopulatorReconciler(targetPVC, pvcPrime, volumeImportSource, sc, &importSucceededEvent, &claimMisboundEvent)
+
+			By("Reconcile")
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			recorder := reconciler.recorder.(*record.FakeRecorder)
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Checking targetPVC events")
+			close(recorder.Events)
+
+			// NOTE: ContainsElement expects a slice, which recorder.Events is not
+			claimMisboundEventfound := false
+			importSucceededEventFound := false
+
+			Expect(recorder.Events).To(Not(BeEmpty()))
+
+			for event := range recorder.Events {
+				if strings.Contains(event, fmt.Sprintf("%s [%s]", EventReasonClaimMisbound, pvcPrime.Name)) {
+					claimMisboundEventfound = true
+				}
+				if strings.Contains(event, fmt.Sprintf("%s [%s]", importSucceeded, pvcPrime.Name)) {
+					importSucceededEventFound = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(claimMisboundEventfound).To(BeFalse())
+			Expect(importSucceededEventFound).To(BeTrue())
+		})
+
 		It("Should trigger failed import event when pod phase is podfailed", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
