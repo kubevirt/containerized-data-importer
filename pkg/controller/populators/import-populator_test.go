@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -42,7 +43,9 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -459,6 +462,27 @@ var _ = Describe("Import populator tests", func() {
 
 			By("Reconcile")
 			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, pv, volumeImportSource, sc)
+			var operations []string
+			reconciler.client = interceptor.NewClient(reconciler.client.(client.WithWatch), interceptor.Funcs{
+				Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+					pvc, ok := obj.(*corev1.PersistentVolumeClaim)
+					if !ok {
+						return c.Update(ctx, obj, opts...)
+					}
+					old := &corev1.PersistentVolumeClaim{}
+					if err := c.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, old); err == nil {
+						if !reflect.DeepEqual(old.Labels, pvc.Labels) {
+							operations = append(operations, "labels")
+						}
+						oldPhase, currentPhase := old.Annotations[AnnPodPhase], pvc.Annotations[AnnPodPhase]
+						if currentPhase == string(corev1.PodSucceeded) && oldPhase != currentPhase {
+							operations = append(operations, "phase")
+						}
+					}
+					return c.Update(ctx, obj, opts...)
+				},
+			})
+
 			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
 			Expect(err).To(Not(HaveOccurred()))
 			Expect(result).ToNot(BeNil())
@@ -472,6 +496,9 @@ var _ = Describe("Import populator tests", func() {
 			Expect(updatedPVC.Labels).To(HaveKeyWithValue(testInstancetypeKubevirtIoKey, testInstancetypeKubevirtIoValue))
 			Expect(updatedPVC.Labels).To(HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoValueExisting))
 			Expect(updatedPVC.Labels).ToNot(HaveKey(testUndesiredKey))
+
+			By("Verify labels are updated before AnnPodPhase=Succeeded and phase is set once")
+			Expect(operations).To(Equal([]string{"labels", "phase"}))
 		})
 
 		It("Should set multistage migration annotations on PVC prime", func() {
@@ -707,7 +734,6 @@ func createImportPopulatorReconcilerWithoutConfig(objects ...runtime.Object) *Im
 	for _, ia := range getIndexArgs() {
 		builder = builder.WithIndex(ia.obj, ia.field, ia.extractValue)
 	}
-
 	cl := builder.Build()
 
 	rec := record.NewFakeRecorder(10)
