@@ -21,57 +21,20 @@ import (
 	"bytes"
 	"context"
 	"os/exec"
-	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/pkg/errors"
-	"golang.org/x/sys/unix"
 
 	"k8s.io/klog/v2"
 )
 
-// ProcessLimiter defines the methods limiting resources of a Process
-type ProcessLimiter interface {
-	SetAddressSpaceLimit(pid int, value uint64) error
-	SetCPUTimeLimit(pid int, value uint64) error
-}
-
 // ProcessLimitValues specifies the resource limits available to a process
 type ProcessLimitValues struct {
-	AddressSpaceLimit uint64
-	CPUTimeLimit      uint64
+	CPUTimeLimit uint64
 }
-
-type processLimiter struct{}
 
 var execCommand = exec.Command
 var execCommandContext = exec.CommandContext
-
-var limiter = NewProcessLimiter()
-
-// NewProcessLimiter returns a new ProcessLimiter
-func NewProcessLimiter() ProcessLimiter {
-	return &processLimiter{}
-}
-
-func (p *processLimiter) SetAddressSpaceLimit(pid int, value uint64) error {
-	return prlimit(pid, unix.RLIMIT_AS, &syscall.Rlimit{Cur: value, Max: value})
-}
-
-func (p *processLimiter) SetCPUTimeLimit(pid int, value uint64) error {
-	return prlimit(pid, unix.RLIMIT_CPU, &syscall.Rlimit{Cur: value, Max: value})
-}
-
-// SetAddressSpaceLimit sets a limit on total address space of a process
-func SetAddressSpaceLimit(pid int, value uint64) error {
-	return limiter.SetAddressSpaceLimit(pid, value)
-}
-
-// SetCPUTimeLimit sets a limit on the total cpu time a process may have
-func SetCPUTimeLimit(pid int, value uint64) error {
-	return limiter.SetCPUTimeLimit(pid, value)
-}
 
 // scanLinesWithCR is an alternate split function that works with carriage returns as well
 // as new lines.
@@ -159,13 +122,6 @@ func executeWithLimits(limits *ProcessLimitValues, callback func(string), logErr
 	go processScanner(scanner, &buf, stdoutDone, callback)
 	go processScanner(errScanner, &errBuf, stderrDone, callback)
 
-	if limits != nil && limits.AddressSpaceLimit > 0 {
-		klog.V(3).Infof("Setting Address space limit to %d\n", limits.AddressSpaceLimit)
-		err = SetAddressSpaceLimit(cmd.Process.Pid, limits.AddressSpaceLimit)
-		if err != nil {
-			return nil, errors.Wrap(err, "Couldn't set address space limit")
-		}
-	}
 	<-stdoutDone
 	<-stderrDone
 	// The wait has to be after the reading channels are finished otherwise there is a race where the wait completes and closes stdout/err before anything
@@ -182,12 +138,4 @@ func executeWithLimits(limits *ProcessLimitValues, callback func(string), logErr
 		return errBuf.Bytes(), errors.Wrapf(err, "%s execution failed", command)
 	}
 	return output, nil
-}
-
-func prlimit(pid int, limit int, value *syscall.Rlimit) error {
-	_, _, e1 := syscall.RawSyscall6(syscall.SYS_PRLIMIT64, uintptr(pid), uintptr(limit), uintptr(unsafe.Pointer(value)), 0, 0, 0)
-	if e1 != 0 {
-		return errors.Wrapf(e1, "error setting prlimit on %d with value %d on pid %d", limit, value, pid)
-	}
-	return nil
 }
