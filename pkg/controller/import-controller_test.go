@@ -916,6 +916,40 @@ var _ = Describe("Update PVC from POD", func() {
 			},
 		))
 	})
+
+	It("Should not remove non-scratch bound condition annotations", func() {
+		eventBasedBoundReason := "Pending"
+		eventBasedBoundMessage := "PVC testPvc1 Pending"
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{
+			cc.AnnEndpoint:              testEndPoint,
+			cc.AnnPodPhase:              string(corev1.PodPending),
+			cc.AnnBoundCondition:        "false",
+			cc.AnnBoundConditionMessage: eventBasedBoundMessage,
+			cc.AnnBoundConditionReason:  eventBasedBoundReason,
+		}, nil, corev1.ClaimPending)
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodPending,
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Waiting: &v1.ContainerStateWaiting{
+							Message: "Pending",
+						},
+					},
+				},
+			},
+		}
+		reconciler = createImportReconciler(pvc, pod)
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
+		Expect(err).ToNot(HaveOccurred())
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPvc.GetAnnotations()[cc.AnnBoundCondition]).To(Equal("false"))
+		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionMessage]).To(Equal(eventBasedBoundMessage))
+		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionReason]).To(Equal(eventBasedBoundReason))
+	})
 })
 
 var _ = Describe("Create Importer Pod", func() {
