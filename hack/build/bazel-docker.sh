@@ -129,6 +129,10 @@ if [ -n "$DOCKER_CA_CERT_FILE" ]; then
     volumes="$volumes -v ${DOCKER_CA_CERT_FILE}:${DOCKERIZED_CUSTOM_CA_PATH}:ro,z"
 fi
 
+if [ -n "${BAZEL_CACHE_GOOGLE_CREDENTIALS-}" ] && [ -f "${BAZEL_CACHE_GOOGLE_CREDENTIALS}" ]; then
+    volumes="$volumes -v ${BAZEL_CACHE_GOOGLE_CREDENTIALS}:${BAZEL_CACHE_GOOGLE_CREDENTIALS}:ro,z"
+fi
+
 # Ensure that a bazel server is running
 if [ -z "$(${CDI_CRI} ps --format '{{.Names}}' | grep ${BAZEL_BUILDER_SERVER})" ]; then
     ${CDI_CRI} run --ulimit nofile=10000:10000 $DISABLE_SECCOMP --network host -d ${volumes} --security-opt label=disable --name ${BAZEL_BUILDER_SERVER} -e "GOPATH=/root/go" -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
