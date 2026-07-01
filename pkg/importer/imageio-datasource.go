@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -294,7 +295,7 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 		return err
 	}
 	isBlock := !info.Mode().IsRegular()
-	preallocated := info.Size() >= int64(is.contentLength)
+	preallocated := is.contentLength <= math.MaxInt64 && info.Size() >= int64(is.contentLength)
 
 	// Choose seek for regular files, and hole punching for block devices and pre-allocated files
 	zeroRange := AppendZeroWithTruncate
@@ -305,20 +306,26 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 	// Transfer all the non-zero extents, and try to quickly write out blocks of all zero bytes for extents that only contain zero
 	for index, extent := range extentsReader.extents {
 		if extent.Zero {
-			err = zeroRange(outFile, extent.Start, extent.Length)
+			if extent.Start > math.MaxInt64 || extent.Length > math.MaxInt64 {
+				return errors.New("extent offset or length exceeds maximum int64 size")
+			}
+			err = zeroRange(outFile, int64(extent.Start), int64(extent.Length)) //nolint:gosec // G115: bounds checked above
 			if err != nil {
 				klog.Infof("Initial zero method failed, trying AppendZeroWithWrite instead. Error was: %v", err)
-				zeroRange = AppendZeroWithWrite // If the initial choice fails, fall back to regular file writing
-				err = zeroRange(outFile, extent.Start, extent.Length)
+				zeroRange = AppendZeroWithWrite                                     // If the initial choice fails, fall back to regular file writing
+				err = zeroRange(outFile, int64(extent.Start), int64(extent.Length)) //nolint:gosec // G115: bounds checked above
 				if err != nil {
 					return errors.Wrap(err, "failed to zero range on destination")
 				}
 			}
-			is.readers.progressReader.Current += uint64(extent.Length)
+			is.readers.progressReader.Current += extent.Length
 		} else {
 			klog.Infof("Downloading %d-byte extent at offset %d", extent.Length, extent.Start)
-			responseBody, err := extentsReader.GetRange(extent.Start, extent.Start+extent.Length-1)
-			if err != nil { // Ignore special EOF case, extents should give the exact right size to read
+			if extent.Start > math.MaxInt64 || extent.Start+extent.Length-1 > math.MaxInt64 {
+				return errors.New("extent range exceeds maximum int64 size")
+			}
+			responseBody, err := extentsReader.GetRange(int64(extent.Start), int64(extent.Start+extent.Length-1)) //nolint:gosec // G115: bounds checked above
+			if err != nil {                                                                                       // Ignore special EOF case, extents should give the exact right size to read
 				return errors.Wrap(err, "failed to get range")
 			}
 			final := (index == (len(extentsReader.extents) - 1))
@@ -348,7 +355,7 @@ func (is *ImageioDataSource) transferExtent(source io.ReadCloser, dest io.Writer
 	if err != nil {
 		return errors.Wrap(err, "failed to write to file")
 	}
-	if written != extent.Length {
+	if written < 0 || uint64(written) != extent.Length { //nolint:gosec // G115: written validated non-negative
 		return errors.New("failed to copy total extent length")
 	}
 
@@ -401,10 +408,10 @@ func (is *ImageioDataSource) renewExtentsTicket(transferID string, extentsReader
 
 // imageioExtent holds information about a particular sequence of bytes, decodable from the ImageIO API.
 type imageioExtent struct {
-	Start  int64 `json:"start"`
-	Length int64 `json:"length"`
-	Zero   bool  `json:"zero"`
-	Hole   bool  `json:"hole"`
+	Start  uint64 `json:"start"`
+	Length uint64 `json:"length"`
+	Zero   bool   `json:"zero"`
+	Hole   bool   `json:"hole"`
 }
 
 // extentReader wraps the ImageIO extents API with the ReadCloser interface so that it can be used
@@ -582,9 +589,9 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 
 		// Add up all extents to calculate true total data size
 		total = 0
-		nonzero := int64(0)
+		nonzero := uint64(0)
 		for _, extent := range extents {
-			total += uint64(extent.Length)
+			total += extent.Length
 			if !extent.Zero {
 				nonzero += extent.Length
 			}
@@ -595,7 +602,7 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 			client:      client,
 			extents:     extents,
 			transferURL: transferURL,
-			size:        int64(total),
+			size:        int64(total), //nolint:gosec // G115: total bounded by disk size < math.MaxInt64
 		}
 	} else {
 		req, err := http.NewRequest(http.MethodGet, transferURL, nil)
@@ -906,6 +913,9 @@ func getTransfer(conn ConnectionInterface, disk *ovirtsdk4.Disk, snapshot *ovirt
 		}
 	}
 
+	if totalSize < 0 {
+		return it, uint64(0), errors.New("disk size is negative")
+	}
 	return it, uint64(totalSize), nil
 }
 

@@ -838,8 +838,8 @@ var _ = Describe("VDDK get block status", func() {
 		}
 		expectedBlocks := []*BlockStatusData{
 			{
-				Offset: extent.Start,
-				Length: extent.Length,
+				Offset: uint64(extent.Start),  //nolint:gosec // G115: test constants, always positive
+				Length: uint64(extent.Length), //nolint:gosec // G115: test constants, always positive
 				Flags:  0,
 			},
 		}
@@ -862,8 +862,8 @@ var _ = Describe("VDDK get block status", func() {
 		}
 		expectedBlocks := []*BlockStatusData{
 			{
-				Offset: extent.Start,
-				Length: extent.Length,
+				Offset: uint64(extent.Start),  //nolint:gosec // G115: test constants, always positive
+				Length: uint64(extent.Length), //nolint:gosec // G115: test constants, always positive
 				Flags:  0,
 			},
 		}
@@ -884,8 +884,8 @@ var _ = Describe("VDDK get block status", func() {
 		}
 		expectedBlocks := []*BlockStatusData{
 			{
-				Offset: extent.Start,
-				Length: extent.Length,
+				Offset: uint64(extent.Start),  //nolint:gosec // G115: test constants, always positive
+				Length: uint64(extent.Length), //nolint:gosec // G115: test constants, always positive
 				Flags:  0,
 			},
 		}
@@ -917,8 +917,8 @@ var _ = Describe("VDDK get block status", func() {
 		}
 		expectedBlocks := []*BlockStatusData{
 			{
-				Offset: extent.Start,
-				Length: extent.Length,
+				Offset: uint64(extent.Start),  //nolint:gosec // G115: test constants, always positive
+				Length: uint64(extent.Length), //nolint:gosec // G115: test constants, always positive
 				Flags:  0,
 			},
 		}
@@ -972,8 +972,8 @@ var _ = Describe("VDDK get block status", func() {
 		}
 		expectedBlocks := []*BlockStatusData{
 			{
-				Offset: extent.Start,
-				Length: extent.Length,
+				Offset: uint64(extent.Start),  //nolint:gosec // G115: test constants, always positive
+				Length: uint64(extent.Length), //nolint:gosec // G115: test constants, always positive
 				Flags:  0,
 			},
 		}
@@ -1007,8 +1007,8 @@ var _ = Describe("VDDK get block status", func() {
 
 		blocks := GetBlockStatus(&mockNbdOperations{}, extent)
 		for index, block := range blocks {
-			Expect(block.Offset).To(Equal(int64(index * MaxBlockStatusLength)))
-			Expect(block.Length).To(Equal(int64(MaxBlockStatusLength)))
+			Expect(block.Offset).To(Equal(uint64(index) * MaxBlockStatusLength))
+			Expect(block.Length).To(Equal(uint64(MaxBlockStatusLength)))
 			if index%2 == 0 {
 				Expect(block.Flags).To(Equal(uint32(0)))
 			} else {
@@ -1040,7 +1040,7 @@ func defaultMockNbdFunctions() mockNbdFunctions {
 	}
 	ops.BlockStatus = func(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error {
 		err := 0
-		callback("base:allocation", offset, []uint32{uint32(length), 0}, &err)
+		callback("base:allocation", offset, []uint32{uint32(length), 0}, &err) //nolint:gosec // uint64 to uint32, test mock with small values
 		return nil
 	}
 	return ops
@@ -1111,6 +1111,9 @@ type mockVddkDataSink struct {
 
 func (sink *mockVddkDataSink) ZeroRange(offset int64, length int64) error {
 	buf := bytes.Repeat([]byte{0x00}, int(length))
+	if offset < 0 {
+		return errors.New("negative offset")
+	}
 	_, err := sink.Pwrite(buf, uint64(offset))
 	return err
 }
@@ -1118,7 +1121,7 @@ func (sink *mockVddkDataSink) ZeroRange(offset int64, length int64) error {
 func (sink *mockVddkDataSink) Pwrite(buf []byte, offset uint64) (int, error) {
 	copy(mockSinkBuffer[offset:offset+uint64(len(buf))], buf)
 	if len(buf) > sink.position {
-		sink.position = int(offset) + len(buf)
+		sink.position = int(offset) + len(buf) //nolint:gosec // uint64 to int, test mock with small values
 	}
 	return len(buf), nil
 }
