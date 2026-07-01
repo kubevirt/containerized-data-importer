@@ -83,6 +83,9 @@ func ParseEnvVar(envVarName string, decode bool) (string, error) {
 // Read reads bytes from the stream and updates the prometheus clone_progress metric according to the progress.
 func (r *CountingReader) Read(p []byte) (n int, err error) {
 	n, err = r.Reader.Read(p)
+	if n < 0 {
+		return n, fmt.Errorf("unexpected negative read count: %d", n)
+	}
 	r.Current += uint64(n)
 	r.Done = errors.Is(err, io.EOF)
 	return n, err
