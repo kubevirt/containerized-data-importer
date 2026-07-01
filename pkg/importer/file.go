@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"strconv"
@@ -57,8 +58,18 @@ func GetAvailableSpace(path string) (int64, error) {
 	if err != nil {
 		return int64(-1), err
 	}
-	//nolint:unconvert
-	return int64(stat.Bavail) * int64(stat.Bsize), nil
+	if stat.Bavail > math.MaxInt64 {
+		return math.MaxInt64, nil
+	}
+	avail := int64(stat.Bavail)
+	bsize := int64(stat.Bsize) //nolint:unconvert // type varies by platform
+	if bsize <= 0 {
+		return 0, nil
+	}
+	if avail > math.MaxInt64/bsize {
+		return math.MaxInt64, nil
+	}
+	return avail * bsize, nil
 }
 
 // GetAvailableSpaceBlock gets the amount of available space at the block device path specified.
