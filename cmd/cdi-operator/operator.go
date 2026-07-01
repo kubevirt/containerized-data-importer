@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -83,7 +84,12 @@ func main() {
 	// implementing the logr.Logger interface. This logger will
 	// be propagated through the whole operator, generating
 	// uniform and structured logs.
-	logf.SetLogger(zap.New(zap.Level(zapcore.Level(-1*verbosityLevel)), zap.UseDevMode(debug)))
+	// Note: zapcore.Level is an int8, so we need to convert the verbosityLevel (which has no reason to be an int) to an int8.
+	level := int8(1)
+	if verbosityLevel >= 0 && verbosityLevel <= math.MaxInt8 {
+		level = int8(verbosityLevel)
+	}
+	logf.SetLogger(zap.New(zap.Level(zapcore.Level(-1*level)), zap.UseDevMode(debug)))
 
 	printVersion()
 

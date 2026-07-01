@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -372,7 +373,11 @@ func main() {
 		klog.Fatalf("Unable to get environment variables: %v\n", errors.WithStack(err))
 	}
 
-	logf.SetLogger(zap.New(zap.Level(zapcore.Level(-1*verbosityLevel)), zap.UseDevMode(debug)))
+	level := int8(1)
+	if verbosityLevel >= 0 && verbosityLevel <= math.MaxInt8 {
+		level = int8(verbosityLevel)
+	}
+	logf.SetLogger(zap.New(zap.Level(zapcore.Level(-1*level)), zap.UseDevMode(debug)))
 	logf.Log.WithName("main").Info("Verbosity level", "verbose", verbose, "debug", debug)
 
 	if err = createReadyFile(); err != nil {
