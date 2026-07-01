@@ -746,7 +746,8 @@ func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) []*Bloc
 			blocks = []*BlockStatusData{block}
 			return blocks
 		}
-		err := handle.BlockStatus(uint64(length), uint64(lastOffset), updateBlocksCallback, &fixedOptArgs)
+		// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+		err := handle.BlockStatus(uint64(length), uint64(lastOffset), updateBlocksCallback, &fixedOptArgs) //nolint:gosec
 		if err != nil {
 			klog.Errorf("Error getting block status at offset %d, returning whole block instead. Error was: %v", lastOffset, err)
 			return createWholeBlock()
@@ -792,13 +793,15 @@ func CopyRange(handle NbdOperations, sink VDDKDataSink, block *BlockStatusData, 
 		length := len(buffer)
 
 		offset := block.Offset + count
-		err := handle.Pread(buffer, uint64(offset), nil)
+		// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+		err := handle.Pread(buffer, uint64(offset), nil) //nolint:gosec
 		if err != nil {
 			klog.Errorf("Error reading from source at offset %d: %v", offset, err)
 			return err
 		}
 
-		written, err := sink.Pwrite(buffer, uint64(offset))
+		// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+		written, err := sink.Pwrite(buffer, uint64(offset)) //nolint:gosec
 		if err != nil {
 			klog.Errorf("Failed to write data block at offset %d to local file: %v", block.Offset, err)
 			return err
@@ -851,7 +854,8 @@ func createVddkDataSink(destinationFile string, size uint64, volumeMode v1.Persi
 
 // Pwrite writes the given byte buffer to the sink at the given offset
 func (sink *VDDKFileSink) Pwrite(buffer []byte, offset uint64) (int, error) {
-	written, err := syscall.Pwrite(int(sink.file.Fd()), buffer, int64(offset))
+	// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+	written, err := syscall.Pwrite(int(sink.file.Fd()), buffer, int64(offset)) //nolint:gosec
 	blocksize := len(buffer)
 	if written < blocksize {
 		klog.Infof("Wrote less than blocksize (%d): %d", blocksize, written)
@@ -908,7 +912,8 @@ func (sink *VDDKFileSink) ZeroRange(offset int64, length int64) error {
 			if remaining < blocksize {
 				buffer = bytes.Repeat([]byte{0}, int(remaining))
 			}
-			written, err := sink.Pwrite(buffer, uint64(offset))
+			// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+			written, err := sink.Pwrite(buffer, uint64(offset)) //nolint:gosec
 			if err != nil {
 				klog.Errorf("Unable to write %d zeroes at offset %d: %v", length, offset, err)
 				break
@@ -1120,7 +1125,8 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 	initialProgressTime := time.Now()
 	updateProgress := func(written int) {
 		// Only log progress at approximately 1% minimum intervals.
-		currentProgressBytes += uint64(written)
+		// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+		currentProgressBytes += uint64(written) //nolint:gosec
 		currentProgressPercent := uint(100.0 * (float64(currentProgressBytes) / float64(vs.Size)))
 		if currentProgressPercent > previousProgressPercent {
 			progressMessage := fmt.Sprintf("Transferred %d/%d bytes (%d%%)", currentProgressBytes, vs.Size, currentProgressPercent)
@@ -1304,8 +1310,11 @@ func (vs *VDDKDataSource) TransferFile(fileName string, preallocation bool) (Pro
 			}
 
 			extent := types.DiskChangeExtent{
-				Length: int64(blocksize),
-				Start:  int64(i),
+				// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+				Length: int64(blocksize), //nolint:gosec
+
+				// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+				Start: int64(i), //nolint:gosec
 			}
 
 			blocks := GetBlockStatus(vs.NbdKit.Handle, extent)

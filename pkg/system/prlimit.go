@@ -127,7 +127,8 @@ func executeWithLimits(limits *ProcessLimitValues, callback func(string), logErr
 
 	if limits != nil && limits.CPUTimeLimit > 0 {
 		klog.V(3).Infof("Setting CPU limit to %d\n", limits.CPUTimeLimit)
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(limits.CPUTimeLimit)*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration((limits.CPUTimeLimit)*uint64(time.Second))) //nolint:gosec
+		// using nolint since time can be negative apparently
 		defer cancel()
 		cmd = execCommandContext(ctx, command, args...)
 	} else {

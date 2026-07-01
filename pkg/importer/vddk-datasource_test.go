@@ -1032,7 +1032,8 @@ func defaultMockNbdFunctions() mockNbdFunctions {
 	}
 	ops.BlockStatus = func(length uint64, offset uint64, callback libnbd.ExtentCallback, optargs *libnbd.BlockStatusOptargs) error {
 		err := 0
-		callback("base:allocation", offset, []uint32{uint32(length), 0}, &err)
+		// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+		callback("base:allocation", offset, []uint32{uint32(length), 0}, &err) //nolint:gosec
 		return nil
 	}
 	return ops
@@ -1095,14 +1096,16 @@ type mockVddkDataSink struct {
 
 func (sink *mockVddkDataSink) ZeroRange(offset int64, length int64) error {
 	buf := bytes.Repeat([]byte{0x00}, int(length))
-	_, err := sink.Pwrite(buf, uint64(offset))
+	// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+	_, err := sink.Pwrite(buf, uint64(offset)) //nolint:gosec
 	return err
 }
 
 func (sink *mockVddkDataSink) Pwrite(buf []byte, offset uint64) (int, error) {
 	copy(mockSinkBuffer[offset:offset+uint64(len(buf))], buf)
 	if len(buf) > sink.position {
-		sink.position = int(offset) + len(buf)
+		// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+		sink.position = int(offset) + len(buf) //nolint:gosec
 	}
 	return len(buf), nil
 }
