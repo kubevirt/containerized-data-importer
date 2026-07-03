@@ -30,7 +30,10 @@ function configure_storage() {
     _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/releases/download/$HPP_RELEASE/hostpathprovisioner_cr.yaml -n hostpath-provisioner
     _kubectl apply -f https://github.com/kubevirt/hostpath-provisioner-operator/releases/download/$HPP_RELEASE/storageclass-wffc-csi.yaml
     _kubectl patch storageclass hostpath-provisioner -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  elif [ -n "${BLOCK_SC}" ]; then
+    echo "Default storage class set to ${BLOCK_SC}"
+    _kubectl patch storageclass "${BLOCK_SC}" -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
   else
-    echo "Local storage not needed for external provider..."
+    echo "No storage configuration for external provider..."
   fi
 }
