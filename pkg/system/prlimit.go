@@ -20,6 +20,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	stderrors "errors"
+	"os"
 	"os/exec"
 	"syscall"
 	"time"
@@ -152,8 +154,12 @@ func executeWithLimits(limits *ProcessLimitValues, callback func(string), logErr
 		return nil, errors.Wrapf(err, "Couldn't start %s", command)
 	}
 	defer func() {
-		err = cmd.Process.Kill()
-		klog.Errorf("failed to kill the process; %v", err)
+		// On the success path cmd.Wait() has already reaped the process, so
+		// Kill() returns os.ErrProcessDone. That is expected here, only log
+		// when the process is still around and Kill genuinely fails.
+		if killErr := cmd.Process.Kill(); killErr != nil && !stderrors.Is(killErr, os.ErrProcessDone) {
+			klog.Errorf("failed to kill the process; %v", killErr)
+		}
 	}()
 
 	go processScanner(scanner, &buf, stdoutDone, callback)
