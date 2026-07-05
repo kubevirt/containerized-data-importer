@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	neturl "net/url"
@@ -11,12 +13,13 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/clientcmd"
+	openapicommon "k8s.io/kube-openapi/pkg/common"
 
 	cdiClientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
-	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/importer"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
@@ -81,17 +84,39 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed getting DataImportCron %s/%s: %v", cronNamespace, cronName, err)
 	}
-	cc.AddAnnotation(dataImportCron, controller.AnnLastCronTime, time.Now().Format(time.RFC3339))
+
+	patch := []patchOp{
+		newAnnotationPatch(controller.AnnLastCronTime, time.Now().Format(time.RFC3339)),
+	}
 
 	if digest != "" && digest != dataImportCron.Annotations[controller.AnnSourceDesiredDigest] {
-		cc.AddAnnotation(dataImportCron, controller.AnnSourceDesiredDigest, digest)
+		patch = append(patch, newAnnotationPatch(controller.AnnSourceDesiredDigest, digest))
 		log.Printf("Digest updated")
 	} else {
 		log.Printf("No digest update")
 	}
 
-	_, err = cdiClient.CdiV1beta1().DataImportCrons(cronNamespace).Update(context.TODO(), dataImportCron, metav1.UpdateOptions{})
+	patchBytes, err := json.Marshal(patch)
 	if err != nil {
-		log.Fatalf("Failed updating DataImportCron %s/%s: %v", cronNamespace, cronName, err)
+		log.Fatalf("Failed marshalling patch for DataImportCron %s/%s: %v", cronNamespace, cronName, err)
+	}
+
+	_, err = cdiClient.CdiV1beta1().DataImportCrons(cronNamespace).Patch(context.TODO(), cronName, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
+	if err != nil {
+		log.Fatalf("Failed patching DataImportCron %s/%s: %v", cronNamespace, cronName, err)
+	}
+}
+
+type patchOp struct {
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value string `json:"value"`
+}
+
+func newAnnotationPatch(key, value string) patchOp {
+	return patchOp{
+		Op:    "add",
+		Path:  fmt.Sprintf("/metadata/annotations/%s", openapicommon.EscapeJsonPointer(key)),
+		Value: value,
 	}
 }
