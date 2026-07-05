@@ -22,6 +22,11 @@ source "${script_dir}"/config.sh
 
 WORK_DIR="/go/src/kubevirt.io/containerized-data-importer"
 
+if [ ! -d "${CACHE_DIR}" ]; then
+  echo "Creating cache directory: ${CACHE_DIR}"
+  mkdir -p "${CACHE_DIR}"
+fi
+
 # Execute the build
 [ -t 1 ] && USE_TTY="-it"
 ${CDI_CRI} run ${USE_TTY} \
