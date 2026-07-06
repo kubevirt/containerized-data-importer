@@ -285,6 +285,44 @@ var _ = Describe("Import populator tests", func() {
 			Entry("retain pod annotation is passed", AnnPodRetainAfterCompletion, "true", "true"),
 		)
 
+		It("Should set AnnInsecureSkipVerify on PVC Prime when InsecureSkipVerify is true", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, map[string]string{}, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
+			volumeImportSource.Spec.Source.HTTP.InsecureSkipVerify = ptr.To(true)
+
+			By("Reconcile")
+			reconciler = createImportPopulatorReconciler(targetPvc, volumeImportSource, sc)
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Checking PVC' annotations")
+			pvcPrime, err := reconciler.getPVCPrime(targetPvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvcPrime).ToNot(BeNil())
+			Expect(pvcPrime.GetAnnotations()[AnnInsecureSkipVerify]).To(Equal("true"))
+		})
+
+		It("Should not set AnnInsecureSkipVerify on PVC Prime when InsecureSkipVerify is not set", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, map[string]string{}, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
+
+			By("Reconcile")
+			reconciler = createImportPopulatorReconciler(targetPvc, volumeImportSource, sc)
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Checking PVC' annotations")
+			pvcPrime, err := reconciler.getPVCPrime(targetPvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvcPrime).ToNot(BeNil())
+			_, exists := pvcPrime.GetAnnotations()[AnnInsecureSkipVerify]
+			Expect(exists).To(BeFalse())
+		})
+
 		It("Should not copy target PVC labels to PVC Prime", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name,
 				map[string]string{}, map[string]string{"custom-label": "value"}, corev1.ClaimPending)

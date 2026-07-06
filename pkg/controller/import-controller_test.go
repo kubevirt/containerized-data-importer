@@ -439,7 +439,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 	})
 
 	It("Should not set the InsecureTLS environment variable if the AnnInsecureSkipVerify annotation is set to false", func() {
-		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "importer-testPvc1", cc.AnnInsecureSkipVerify: "false"}, nil)
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "importer-testPvc1", cc.AnnInsecureSkipVerify: "false", cc.AnnSource: cc.SourceHTTP}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 		reconciler = createImportReconciler(pvc)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
@@ -458,7 +458,7 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 	})
 
 	It("Should set the InsecureTLS environment variable to false if the AnnInsecureSkipVerify annotation is absent", func() {
-		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "importer-testPvc1"}, nil)
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "importer-testPvc1", cc.AnnSource: cc.SourceHTTP}, nil)
 		pvc.Status.Phase = v1.ClaimBound
 		reconciler = createImportReconciler(pvc)
 		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
@@ -1339,7 +1339,9 @@ var _ = Describe("isInsecureTLS", func() {
 	},
 		Entry("return true when AnnInsecureSkipVerify is set to true for http source", cc.SourceHTTP, "true", true),
 		Entry("return true when AnnInsecureSkipVerify is set to true for imageio source", cc.SourceImageio, "true", true),
+		Entry("return false when AnnInsecureSkipVerify is set to false for http source", cc.SourceHTTP, "false", false),
 		Entry("return false when AnnInsecureSkipVerify is not present for http source", cc.SourceHTTP, "", false),
+		Entry("return false when AnnInsecureSkipVerify is set to false for imageio source", cc.SourceImageio, "false", false),
 		Entry("return false when AnnInsecureSkipVerify is not present for imageio source", cc.SourceImageio, "", false),
 	)
 })
