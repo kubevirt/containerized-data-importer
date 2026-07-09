@@ -17,6 +17,7 @@ limitations under the License.
 package importer
 
 import (
+	"context"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -41,6 +42,7 @@ const (
 // 1. Info -> Transfer
 // 2. Transfer -> Convert
 type RegistryDataSource struct {
+	ctx               context.Context
 	endpoint          string
 	accessKey         string
 	secKey            string
@@ -55,7 +57,7 @@ type RegistryDataSource struct {
 }
 
 // NewRegistryDataSource creates a new instance of the Registry Data Source.
-func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, certDir string, insecureTLS bool) *RegistryDataSource {
+func NewRegistryDataSource(ctx context.Context, endpoint, accessKey, secKey, imageArchitecture, certDir string, insecureTLS bool) *RegistryDataSource {
 	allCertDir, err := CreateCertificateDir(certDir)
 	if err != nil {
 		klog.Infof("Error creating allCertDir %v", err)
@@ -68,6 +70,7 @@ func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, certD
 		allCertDir = certDir
 	}
 	return &RegistryDataSource{
+		ctx:               ctx,
 		endpoint:          endpoint,
 		accessKey:         accessKey,
 		secKey:            secKey,
@@ -99,7 +102,7 @@ func (rd *RegistryDataSource) Transfer(path string, preallocation bool) (Process
 	}
 
 	klog.V(1).Infof("Copying registry image to scratch space.")
-	rd.info, err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.imageArchitecture, rd.certDir, rd.insecureTLS, preallocation)
+	rd.info, err = CopyRegistryImage(rd.ctx, rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.imageArchitecture, rd.certDir, rd.insecureTLS, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, errors.Wrapf(err, "Failed to read registry image")
 	}

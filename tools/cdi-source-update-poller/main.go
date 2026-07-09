@@ -7,7 +7,9 @@ import (
 	"net/http"
 	neturl "net/url"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,13 +52,16 @@ func init() {
 }
 
 func main() {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
 	allCertDir, err := importer.CreateCertificateDir(certDir)
 	if err != nil {
 		log.Printf("Ignore common certificate dir: %v", err)
 		allCertDir = certDir
 	}
 
-	digest, err := importer.GetImageDigest(url, accessKey, secretKey, allCertDir, insecureTLS)
+	digest, err := importer.GetImageDigest(ctx, url, accessKey, secretKey, allCertDir, insecureTLS)
 	if err != nil {
 		log.Fatalf("Failed to get image digest: %v", err)
 	}
@@ -77,7 +82,7 @@ func main() {
 		log.Fatalf("Failed to create Clientset: %v", err)
 	}
 
-	dataImportCron, err := cdiClient.CdiV1beta1().DataImportCrons(cronNamespace).Get(context.TODO(), cronName, metav1.GetOptions{})
+	dataImportCron, err := cdiClient.CdiV1beta1().DataImportCrons(cronNamespace).Get(ctx, cronName, metav1.GetOptions{})
 	if err != nil {
 		log.Fatalf("Failed getting DataImportCron %s/%s: %v", cronNamespace, cronName, err)
 	}
@@ -90,7 +95,7 @@ func main() {
 		log.Printf("No digest update")
 	}
 
-	_, err = cdiClient.CdiV1beta1().DataImportCrons(cronNamespace).Update(context.TODO(), dataImportCron, metav1.UpdateOptions{})
+	_, err = cdiClient.CdiV1beta1().DataImportCrons(cronNamespace).Update(ctx, dataImportCron, metav1.UpdateOptions{})
 	if err != nil {
 		log.Fatalf("Failed updating DataImportCron %s/%s: %v", cronNamespace, cronName, err)
 	}

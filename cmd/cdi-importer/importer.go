@@ -13,13 +13,16 @@ package main
 //    ImporterSecretKey     Optional. Secret key is the password to your account.
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -99,6 +102,9 @@ func touchDoneFile() {
 func main() {
 	defer klog.Flush()
 
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
 	certsDirectory, err := os.MkdirTemp("", "certsdir")
 	if err != nil {
 		panic(err)
@@ -146,7 +152,7 @@ func main() {
 		}
 	} else {
 		waitForReadyFile()
-		exitCode := handleImport(source, contentType, volumeMode, imageSize, filesystemOverhead, preallocation)
+		exitCode := handleImport(ctx, source, contentType, volumeMode, imageSize, filesystemOverhead, preallocation)
 		if exitCode != 0 {
 			os.Exit(exitCode)
 		}
@@ -174,6 +180,7 @@ func handleEmptyImage(contentType string, imageSize string, availableDestSpace i
 }
 
 func handleImport(
+	ctx context.Context,
 	source string,
 	contentType string,
 	volumeMode v1.PersistentVolumeMode,
@@ -182,7 +189,7 @@ func handleImport(
 	preallocation bool) int {
 	klog.V(1).Infoln("begin import process")
 
-	ds := newDataSource(source, contentType, volumeMode)
+	ds := newDataSource(ctx, source, contentType, volumeMode)
 	defer ds.Close()
 
 	processor := newDataProcessor(contentType, volumeMode, ds, imageSize, filesystemOverhead, preallocation)
@@ -271,7 +278,7 @@ func getImporterDestPath(contentType string, volumeMode v1.PersistentVolumeMode)
 	return dest
 }
 
-func newDataSource(source string, contentType string, volumeMode v1.PersistentVolumeMode) importer.DataSourceInterface {
+func newDataSource(ctx context.Context, source string, contentType string, volumeMode v1.PersistentVolumeMode) importer.DataSourceInterface {
 	ep, _ := util.ParseEnvVar(common.ImporterEndpoint, false)
 	acc, _ := util.ParseEnvVar(common.ImporterAccessKeyID, false)
 	sec, _ := util.ParseEnvVar(common.ImporterSecretKey, false)
@@ -303,7 +310,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 		}
 		return ds
 	case cc.SourceRegistry:
-		ds := importer.NewRegistryDataSource(ep, acc, sec, registryImageArchitecture, certDir, insecureTLS)
+		ds := importer.NewRegistryDataSource(ctx, ep, acc, sec, registryImageArchitecture, certDir, insecureTLS)
 		return ds
 	case cc.SourceS3:
 		ds, err := importer.NewS3DataSource(ep, acc, sec, certDir)

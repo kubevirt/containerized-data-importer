@@ -44,10 +44,6 @@ const (
 
 var errReadingLayer = errors.New("Error reading layer")
 
-func commandTimeoutContext() (context.Context, context.CancelFunc) {
-	return context.WithCancel(context.Background())
-}
-
 func buildSourceContext(accessKey, secKey, imageArchitecture, certDir string, insecureRegistry bool) *types.SystemContext {
 	ctx := &types.SystemContext{}
 	if accessKey != "" && secKey != "" {
@@ -195,11 +191,12 @@ func safeJoinPaths(dir, path string) (v string, err error) {
 	return "", fmt.Errorf("%s: %s", "content filepath is tainted", path)
 }
 
-func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir string, insecureRegistry, stopAtFirst, preallocation bool) (*types.ImageInspectInfo, error) {
+func copyRegistryImage(ctx context.Context, url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir string, insecureRegistry, stopAtFirst, preallocation bool) (*types.ImageInspectInfo, error) {
 	klog.Infof("Downloading image from '%v', copying file from '%v' to '%v'", url, pathPrefix, destDir)
 
-	ctx, cancel := commandTimeoutContext()
-	defer cancel()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	srcCtx := buildSourceContext(accessKey, secKey, imageArchitecture, certDir, insecureRegistry)
 
 	src, err := readImageSource(ctx, srcCtx, url)
@@ -217,7 +214,7 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchite
 
 	// in the event that target is not a manifest list / image index
 	if srcCtx.ArchitectureChoice != "" {
-		if err := validateImagePlatformMatch(srcCtx, imgCloser); err != nil {
+		if err := validateImagePlatformMatch(ctx, srcCtx, imgCloser); err != nil {
 			klog.Errorf("Error validating architecture: %v", err)
 			return nil, fmt.Errorf("Error validating architecture: %w", err)
 		}
@@ -257,8 +254,8 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchite
 	return info, nil
 }
 
-func validateImagePlatformMatch(sys *types.SystemContext, img types.Image) error {
-	config, err := img.OCIConfig(context.Background())
+func validateImagePlatformMatch(ctx context.Context, sys *types.SystemContext, img types.Image) error {
+	config, err := img.OCIConfig(ctx)
 	if err != nil {
 		return err
 	}
@@ -274,11 +271,12 @@ func validateImagePlatformMatch(sys *types.SystemContext, img types.Image) error
 // secKey: secretKey for the registry described in url.
 // certDir: directory public CA keys are stored for registry identity verification
 // insecureRegistry: boolean if true will allow insecure registries.
-func GetImageDigest(url, accessKey, secKey, certDir string, insecureRegistry bool) (string, error) {
+func GetImageDigest(ctx context.Context, url, accessKey, secKey, certDir string, insecureRegistry bool) (string, error) {
 	klog.Infof("Inspecting image from '%v'", url)
 
-	ctx, cancel := commandTimeoutContext()
-	defer cancel()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	srcCtx := buildSourceContext(accessKey, secKey, "", certDir, insecureRegistry)
 
 	src, err := readImageSource(ctx, srcCtx, url)
@@ -287,7 +285,7 @@ func GetImageDigest(url, accessKey, secKey, certDir string, insecureRegistry boo
 	}
 	defer closeImage(src)
 
-	imageManifest, _, err := src.GetManifest(context.Background(), nil)
+	imageManifest, _, err := src.GetManifest(ctx, nil)
 	if err != nil {
 		return "", err
 	}
@@ -309,8 +307,8 @@ func GetImageDigest(url, accessKey, secKey, certDir string, insecureRegistry boo
 // imageArchitecture: image index filter for CPU architecture.
 // certDir: directory public CA keys are stored for registry identity verification
 // insecureRegistry: boolean if true will allow insecure registries.
-func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir string, insecureRegistry, preallocation bool) (*types.ImageInspectInfo, error) {
-	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir, insecureRegistry, true, preallocation)
+func CopyRegistryImage(ctx context.Context, url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir string, insecureRegistry, preallocation bool) (*types.ImageInspectInfo, error) {
+	return copyRegistryImage(ctx, url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir, insecureRegistry, true, preallocation)
 }
 
 // CopyRegistryImageAll download image from registry with docker image API. It will extract all files under the pathPrefix
@@ -321,6 +319,6 @@ func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchite
 // secKey: secretKey for the registry described in url.
 // certDir: directory public CA keys are stored for registry identity verification
 // insecureRegistry: boolean if true will allow insecure registries.
-func CopyRegistryImageAll(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry, preallocation bool) (*types.ImageInspectInfo, error) {
-	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, "", certDir, insecureRegistry, false, preallocation)
+func CopyRegistryImageAll(ctx context.Context, url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry, preallocation bool) (*types.ImageInspectInfo, error) {
+	return copyRegistryImage(ctx, url, destDir, pathPrefix, accessKey, secKey, "", certDir, insecureRegistry, false, preallocation)
 }
