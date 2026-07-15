@@ -1756,6 +1756,9 @@ func UpdateHTTPAnnotations(annotations map[string]string, http *cdiv1.DataVolume
 	if http.Checksum != "" {
 		annotations[AnnChecksum] = http.Checksum
 	}
+	if http.InsecureSkipVerify != nil && *http.InsecureSkipVerify {
+		annotations[AnnInsecureSkipVerify] = "true"
+	}
 	for index, header := range http.ExtraHeaders {
 		annotations[fmt.Sprintf("%s.%d", AnnExtraHeaders, index)] = header
 	}

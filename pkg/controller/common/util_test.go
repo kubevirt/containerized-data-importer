@@ -34,6 +34,38 @@ var _ = Describe("GetRequestedImageSize", func() {
 	})
 })
 
+var _ = Describe("UpdateHTTPAnnotations", func() {
+	It("Should set AnnInsecureSkipVerify to true when DataVolumeSourceHTTP.InsecureSkipVerify is true", func() {
+		insecureSkipVerify := true
+		annotations := map[string]string{}
+		UpdateHTTPAnnotations(annotations, &cdiv1.DataVolumeSourceHTTP{
+			URL:                "http://example.com",
+			InsecureSkipVerify: &insecureSkipVerify,
+		})
+		Expect(annotations[AnnInsecureSkipVerify]).To(Equal("true"))
+	})
+
+	It("Should not set AnnInsecureSkipVerify when DataVolumeSourceHTTP.InsecureSkipVerify is false", func() {
+		insecureSkipVerify := false
+		annotations := map[string]string{}
+		UpdateHTTPAnnotations(annotations, &cdiv1.DataVolumeSourceHTTP{
+			URL:                "http://example.com",
+			InsecureSkipVerify: &insecureSkipVerify,
+		})
+		_, exists := annotations[AnnInsecureSkipVerify]
+		Expect(exists).To(BeFalse())
+	})
+
+	It("Should not set AnnInsecureSkipVerify when DataVolumeSourceHTTP.InsecureSkipVerify is absent", func() {
+		annotations := map[string]string{}
+		UpdateHTTPAnnotations(annotations, &cdiv1.DataVolumeSourceHTTP{
+			URL: "http://example.com",
+		})
+		_, exists := annotations[AnnInsecureSkipVerify]
+		Expect(exists).To(BeFalse())
+	})
+})
+
 var _ = Describe("GetStorageClassByName", func() {
 	It("Should return the default storage class name", func() {
 		client := CreateClient(

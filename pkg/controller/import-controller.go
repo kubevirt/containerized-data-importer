@@ -713,9 +713,9 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 }
 
 func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim, cdiConfig *cdiv1.CDIConfig) (bool, error) {
-	// Check if insecureSkipVerify annotation is set (only applicable for ImageIO sources)
+	// Check if insecureSkipVerify annotation is set (only applicable for ImageIO sources and HTTP sources)
 	source, sourceOk := pvc.Annotations[cc.AnnSource]
-	if sourceOk && source == cc.SourceImageio {
+	if sourceOk && (source == cc.SourceImageio || source == cc.SourceHTTP) {
 		if insecureSkipVerify, ok := pvc.Annotations[cc.AnnInsecureSkipVerify]; ok && insecureSkipVerify == "true" {
 			return true, nil
 		}
