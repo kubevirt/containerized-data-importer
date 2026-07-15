@@ -23,7 +23,6 @@ spec:
       - name: http
         image: {{ .DockerRepo }}/cdi-func-test-bad-webserver:{{ .DockerTag }}
         imagePullPolicy: {{ .PullPolicy }}
-        command: ["/app/tools/cdi-func-test-bad-webserver/cdi-func-test-bad-webserver-image.binary"]
         env:
         - name: CDI_NAMESPACE
           valueFrom:
