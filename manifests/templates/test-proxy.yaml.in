@@ -26,7 +26,6 @@ spec:
       - name: http
         image: {{ .DockerRepo }}/cdi-func-test-proxy:{{ .DockerTag }}
         imagePullPolicy: {{ .PullPolicy }}
-        command: ["/app/tools/cdi-func-test-proxy/cdi-func-test-proxy-image.binary"]
         env:
         - name: CDI_NAMESPACE
           valueFrom:
