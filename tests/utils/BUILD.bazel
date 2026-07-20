@@ -14,6 +14,7 @@ go_library(
         "populators.go",
         "pv.go",
         "pvc.go",
+        "registry.go",
         "secrets.go",
         "services.go",
         "storageprofile.go",
