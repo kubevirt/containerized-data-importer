@@ -805,7 +805,7 @@ func getDataVolumeSourceRegistry(f *framework.Framework) (*cdiv1.DataVolumeSourc
 		url = fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs)
 		pullMethod = cdiv1.RegistryPullPod
 	} else {
-		url = fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix)
+		url = utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
 		pullMethod = cdiv1.RegistryPullNode
 	}
 	reg.URL = &url
