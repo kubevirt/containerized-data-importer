@@ -1010,19 +1010,25 @@ var _ = Describe("Preallocation", func() {
 	dvName := "import-dv"
 
 	var (
-		dataVolume              *cdiv1.DataVolume
-		err                     error
-		tinyCoreIsoURL          = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
-		tinyCoreQcow2URL        = func() string { return fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs) }
-		tinyCoreTarURL          = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
-		tinyCoreRegistryURL     = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
-		imageioURL              = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
-		vcenterURL              = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
-		config                  *cdiv1.CDIConfig
-		origSpec                *cdiv1.CDIConfigSpec
-		trustedRegistryURL      = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
-		trustedRegistryURLQcow2 = func() string { return fmt.Sprintf(utils.TrustedRegistryURLQcow2, f.DockerPrefix) }
-		trustedRegistryIS       = func() string { return fmt.Sprintf(utils.TrustedRegistryIS, f.DockerPrefix) }
+		dataVolume          *cdiv1.DataVolume
+		err                 error
+		tinyCoreIsoURL      = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
+		tinyCoreQcow2URL    = func() string { return fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs) }
+		tinyCoreTarURL      = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
+		tinyCoreRegistryURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
+		imageioURL          = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
+		vcenterURL          = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
+		config              *cdiv1.CDIConfig
+		origSpec            *cdiv1.CDIConfigSpec
+		trustedRegistryURL  = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
+		}
+		trustedRegistryURLQcow2 = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.CirrosQcow2ImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
+		}
+		trustedRegistryIS = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName)).String()
+		}
 	)
 
 	BeforeEach(func() {
@@ -1343,9 +1349,11 @@ var _ = Describe("Import populator", func() {
 		pvcPrime           *v1.PersistentVolumeClaim
 		tinyCoreIsoURL     = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
 		tinyCoreArchiveURL = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
-		trustedRegistryURL = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
-		imageioURL         = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
-		vcenterURL         = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
+		trustedRegistryURL = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
+		}
+		imageioURL = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
+		vcenterURL = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
 	)
 
 	// importPopulationPVCDefinition creates a PVC with import datasourceref
@@ -2096,8 +2104,12 @@ var _ = Describe("Containerdisk envs to PVC labels", func() {
 
 	var (
 		tinyCoreRegistryURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
-		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
-		trustedRegistryIS   = func() string { return fmt.Sprintf(utils.TrustedRegistryIS, f.DockerPrefix) }
+		trustedRegistryURL  = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
+		}
+		trustedRegistryIS = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName)).String()
+		}
 	)
 
 	DescribeTable("Import should add KUBEVIRT_IO_ env vars to PVC labels when source is registry", func(pullMethod cdiv1.RegistryPullMethod, urlFn func() string, isImageStream bool) {
@@ -2191,7 +2203,9 @@ var _ = Describe("Multi-arch image pull", func() {
 	var (
 		f                         = framework.NewFramework(namespacePrefix)
 		tinyCoreMultiarchRegistry = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
-		trustedRegistryURL        = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
+		trustedRegistryURL        = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
+		}
 	)
 
 	It("Should succeed to pull multi-arch image matching architecture with pull method Pod", func() {
