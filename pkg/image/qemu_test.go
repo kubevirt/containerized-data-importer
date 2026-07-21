@@ -150,7 +150,7 @@ func init() {
 	ownerUID = "1111-1111-111"
 }
 
-var expectedLimits = &system.ProcessLimitValues{AddressSpaceLimit: 1 << 30, CPUTimeLimit: 30}
+var expectedLimits = &system.ProcessLimitValues{CPUTimeLimit: 30}
 
 var _ = Describe("Convert to Raw", func() {
 	var tmpDir, destPath string

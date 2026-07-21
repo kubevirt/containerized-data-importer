@@ -40,9 +40,8 @@ import (
 )
 
 const (
-	networkTimeoutSecs = 3600    //max is 10000
-	maxMemory          = 1 << 30 //value from OpenStack Nova
-	maxCPUSecs         = 30      //value from OpenStack Nova
+	networkTimeoutSecs = 3600 //max is 10000
+	maxCPUSecs         = 30   //value from OpenStack Nova
 	matcherString      = "\\((\\d?\\d\\.\\d\\d)\\/100%\\)"
 )
 
@@ -75,7 +74,7 @@ var (
 	ErrLargerPVCRequired = errors.New("A larger PVC is required")
 
 	qemuExecFunction = system.ExecWithLimits
-	qemuInfoLimits   = &system.ProcessLimitValues{AddressSpaceLimit: maxMemory, CPUTimeLimit: maxCPUSecs}
+	qemuInfoLimits   = &system.ProcessLimitValues{CPUTimeLimit: maxCPUSecs}
 	qemuIterface     = NewQEMUOperations()
 	re               = regexp.MustCompile(matcherString)
 
