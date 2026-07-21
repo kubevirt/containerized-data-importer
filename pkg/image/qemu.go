@@ -35,16 +35,10 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
-	"kubevirt.io/containerized-data-importer/pkg/system"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
-const (
-	networkTimeoutSecs = 3600    //max is 10000
-	maxMemory          = 1 << 30 //value from OpenStack Nova
-	maxCPUSecs         = 30      //value from OpenStack Nova
-	matcherString      = "\\((\\d?\\d\\.\\d\\d)\\/100%\\)"
-)
+const matcherString = "\\((\\d?\\d\\.\\d\\d)\\/100%\\)"
 
 // ImgInfo contains the virtual image information.
 type ImgInfo struct {
@@ -65,19 +59,20 @@ type QEMUOperations interface {
 	Info(url *url.URL) (*ImgInfo, error)
 	Validate(*url.URL, int64) error
 	CreateBlankImage(string, resource.Quantity, bool) error
+	PreallocateBlankBlock(string, resource.Quantity) error
 	Rebase(backingFile string, delta string) error
 	Commit(image string) error
 }
 
-type qemuOperations struct{}
+type qemuOperations struct {
+	cmd *qemuCmd
+}
 
 var (
 	ErrLargerPVCRequired = errors.New("A larger PVC is required")
 
-	qemuExecFunction = system.ExecWithLimits
-	qemuInfoLimits   = &system.ProcessLimitValues{AddressSpaceLimit: maxMemory, CPUTimeLimit: maxCPUSecs}
-	qemuIterface     = NewQEMUOperations()
-	re               = regexp.MustCompile(matcherString)
+	qemuInterface = NewQEMUOperations()
+	re            = regexp.MustCompile(matcherString)
 
 	ownerUID                    string
 	convertPreallocationMethods = [][]string{
@@ -101,10 +96,10 @@ func init() {
 
 // NewQEMUOperations returns the default implementation of QEMUOperations
 func NewQEMUOperations() QEMUOperations {
-	return &qemuOperations{}
+	return &qemuOperations{cmd: newQemuCmd()}
 }
 
-func convertToRaw(src, dest string, preallocate bool, cacheMode string) error {
+func (o *qemuOperations) convertToRaw(src, dest string, preallocate bool, cacheMode string) error {
 	cacheMode, err := getCacheMode(dest, cacheMode)
 	if err != nil {
 		return err
@@ -112,12 +107,12 @@ func convertToRaw(src, dest string, preallocate bool, cacheMode string) error {
 	args := []string{"convert", "-t", cacheMode, "-p", "-O", "raw", src, dest}
 
 	if preallocate {
-		err = addPreallocation(args, convertPreallocationMethods, func(args []string) ([]byte, error) {
-			return qemuExecFunction(nil, reportProgress, "qemu-img", args...)
+		err = addPreallocation(args, convertPreallocationMethods, func(args []string) error {
+			return o.cmd.ExecWithProgress(args...)
 		})
 	} else {
 		klog.V(1).Infof("Running qemu-img with args: %v", args)
-		_, err = qemuExecFunction(nil, reportProgress, "qemu-img", args...)
+		err = o.cmd.ExecWithProgress(args...)
 	}
 	if err != nil {
 		os.Remove(dest)
@@ -166,7 +161,7 @@ func (o *qemuOperations) ConvertToRawStream(url *url.URL, dest string, prealloca
 	if len(url.Scheme) > 0 && url.Scheme != "nbd+unix" {
 		return fmt.Errorf("not valid schema %s", url.Scheme)
 	}
-	return convertToRaw(url.String(), dest, preallocate, cacheMode)
+	return o.convertToRaw(url.String(), dest, preallocate, cacheMode)
 }
 
 // convertQuantityToQemuSize translates a quantity string into a Qemu compatible string.
@@ -179,20 +174,15 @@ func convertQuantityToQemuSize(size resource.Quantity) string {
 	return strconv.FormatInt(int64Size, 10)
 }
 
-// Resize resizes the given image to size
-func Resize(image string, size resource.Quantity, preallocate bool) error {
-	return qemuIterface.Resize(image, size, preallocate)
-}
-
 func (o *qemuOperations) Resize(image string, size resource.Quantity, preallocate bool) error {
 	var err error
 	args := []string{"resize", "-f", "raw", image, convertQuantityToQemuSize(size)}
 	if preallocate {
-		err = addPreallocation(args, resizePreallocationMethods, func(args []string) ([]byte, error) {
-			return qemuExecFunction(nil, nil, "qemu-img", args...)
+		err = addPreallocation(args, resizePreallocationMethods, func(args []string) error {
+			return o.cmd.Exec(args...)
 		})
 	} else {
-		_, err = qemuExecFunction(nil, nil, "qemu-img", args...)
+		err = o.cmd.Exec(args...)
 	}
 	if err != nil {
 		return errors.Wrapf(err, "Error resizing image %s", image)
@@ -212,16 +202,16 @@ func checkOutputQemuImgInfo(output []byte, image string) (*ImgInfo, error) {
 
 // Info returns information about the image from the url
 func Info(url *url.URL) (*ImgInfo, error) {
-	return qemuIterface.Info(url)
+	return qemuInterface.Info(url)
 }
 
 func (o *qemuOperations) Info(url *url.URL) (*ImgInfo, error) {
 	if len(url.Scheme) > 0 && url.Scheme != "nbd+unix" && url.Scheme != "file" {
 		return nil, fmt.Errorf("not valid schema %s", url.Scheme)
 	}
-	output, err := qemuExecFunction(qemuInfoLimits, nil, "qemu-img", "info", "--output=json", url.String())
+	output, err := o.cmd.Info(qemuInfoTimeout, url)
 	if err != nil {
-		errorMsg := fmt.Sprintf("%s, %s", output, err.Error())
+		errorMsg := err.Error()
 		if url.Scheme == "nbd+unix" {
 			if nbdkitLog, err := os.ReadFile(common.NbdkitLogPath); err == nil {
 				errorMsg += " " + string(nbdkitLog)
@@ -268,12 +258,12 @@ func (o *qemuOperations) Validate(url *url.URL, availableSize int64) error {
 
 // ConvertToRawStream converts an http accessible image to raw format without locally caching the image
 func ConvertToRawStream(url *url.URL, dest string, preallocate bool, cacheMode string) error {
-	return qemuIterface.ConvertToRawStream(url, dest, preallocate, cacheMode)
+	return qemuInterface.ConvertToRawStream(url, dest, preallocate, cacheMode)
 }
 
 // Validate does basic validation of a qemu image
 func Validate(url *url.URL, availableSize int64) error {
-	return qemuIterface.Validate(url, availableSize)
+	return qemuInterface.Validate(url, availableSize)
 }
 
 func reportProgress(line string) {
@@ -293,7 +283,7 @@ func reportProgress(line string) {
 // CreateBlankImage creates empty raw image
 func CreateBlankImage(dest string, size resource.Quantity, preallocate bool) error {
 	klog.V(1).Infof("creating raw image with size %s, preallocation %v", size.String(), preallocate)
-	return qemuIterface.CreateBlankImage(dest, size, preallocate)
+	return qemuInterface.CreateBlankImage(dest, size, preallocate)
 }
 
 // CreateBlankImage creates a raw image with a given size
@@ -304,7 +294,7 @@ func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity, p
 		klog.V(1).Infof("Added preallocation")
 		args = append(args, []string{"-o", "preallocation=falloc"}...)
 	}
-	_, err := qemuExecFunction(nil, nil, "qemu-img", args...)
+	err := o.cmd.Exec(args...)
 	if err != nil {
 		os.Remove(dest)
 		return errors.Wrap(err, fmt.Sprintf("could not create raw image with size %s in %s", size.String(), dest))
@@ -319,7 +309,7 @@ func (o *qemuOperations) CreateBlankImage(dest string, size resource.Quantity, p
 	return nil
 }
 
-func execPreallocationBlock(dest string, bs, count, offset int64) error {
+func (o *qemuOperations) execPreallocationBlock(dest string, bs, count, offset int64) error {
 	oflag := "oflag=seek_bytes"
 	supportDirectIO, err := odirectChecker.CheckBlockDevice(dest)
 	if err != nil {
@@ -329,7 +319,7 @@ func execPreallocationBlock(dest string, bs, count, offset int64) error {
 		oflag += ",direct"
 	}
 	args := []string{"if=/dev/zero", "of=" + dest, fmt.Sprintf("bs=%d", bs), fmt.Sprintf("count=%d", count), fmt.Sprintf("seek=%d", offset), oflag}
-	_, err = qemuExecFunction(nil, nil, "dd", args...)
+	err = o.cmd.ExecRaw("dd", args...)
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("Could not preallocate blank block volume at %s, running dd for size %d, offset %d", dest, bs*count, offset))
 	}
@@ -339,6 +329,10 @@ func execPreallocationBlock(dest string, bs, count, offset int64) error {
 
 // PreallocateBlankBlock writes requested amount of zeros to block device mounted at dest
 func PreallocateBlankBlock(dest string, size resource.Quantity) error {
+	return qemuInterface.PreallocateBlankBlock(dest, size)
+}
+
+func (o *qemuOperations) PreallocateBlankBlock(dest string, size resource.Quantity) error {
 	klog.V(3).Infof("block volume size is %s", size.String())
 
 	qemuSize, err := strconv.ParseInt(convertQuantityToQemuSize(size), 10, 64)
@@ -346,29 +340,27 @@ func PreallocateBlankBlock(dest string, size resource.Quantity) error {
 		return errors.Wrap(err, fmt.Sprintf("Could not parse size for preallocating blank block volume at %s with size %s", dest, size.String()))
 	}
 	countBlocks, remainder := qemuSize/units.MiB, qemuSize%units.MiB
-	err = execPreallocationBlock(dest, units.MiB, countBlocks, 0)
+	err = o.execPreallocationBlock(dest, units.MiB, countBlocks, 0)
 	if err != nil {
 		return err
 	}
 	if remainder != 0 {
-		return execPreallocationBlock(dest, remainder, 1, countBlocks*units.MiB)
+		return o.execPreallocationBlock(dest, remainder, 1, countBlocks*units.MiB)
 	}
 	return nil
 }
 
-func addPreallocation(args []string, preallocationMethods [][]string, qemuFn func(args []string) ([]byte, error)) error {
+func addPreallocation(args []string, preallocationMethods [][]string, qemuFn func(args []string) error) error {
 	var err error
 	for _, preallocationMethod := range preallocationMethods {
-		var output []byte
-
 		klog.V(1).Infof("Adding preallocation method: %v", preallocationMethod)
-		// For some subcommands (e.g. resize), preallocation optinos must come before other options
+		// For some subcommands (e.g. resize), preallocation options must come before other options
 		argsToTry := append([]string{args[0]}, preallocationMethod...)
 		argsToTry = append(argsToTry, args[1:]...)
 		klog.V(1).Infof("Attempting preallocation method, qemu-img args: %v", argsToTry)
 
-		output, err = qemuFn(argsToTry)
-		if err != nil && strings.Contains(string(output), "Unsupported preallocation mode") {
+		err = qemuFn(argsToTry)
+		if err != nil && isUnsupportedPreallocation(err) {
 			klog.V(1).Infof("Unsupported preallocation mode. Retrying")
 		} else {
 			break
@@ -378,19 +370,23 @@ func addPreallocation(args []string, preallocationMethods [][]string, qemuFn fun
 	return err
 }
 
+func isUnsupportedPreallocation(err error) bool {
+	var execErr *cmdExecError
+	if errors.As(err, &execErr) {
+		return strings.Contains(execErr.stderr, "Unsupported preallocation mode")
+	}
+	return strings.Contains(err.Error(), "Unsupported preallocation mode")
+}
+
 // Rebase changes a QCOW's backing file to point to a previously-downloaded base image.
 // Depends on original image having been downloaded as raw.
 func (o *qemuOperations) Rebase(backingFile string, delta string) error {
 	klog.V(1).Infof("Rebasing %s onto %s", delta, backingFile)
-	args := []string{"rebase", "-p", "-u", "-F", "raw", "-b", backingFile, delta}
-	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", args...)
-	return err
+	return o.cmd.ExecWithProgress("rebase", "-p", "-u", "-F", "raw", "-b", backingFile, delta)
 }
 
 // Commit takes the changes written to a QCOW and applies them to its raw backing file.
 func (o *qemuOperations) Commit(image string) error {
 	klog.V(1).Infof("Committing %s to backing file...", image)
-	args := []string{"commit", "-p", image}
-	_, err := qemuExecFunction(nil, reportProgress, "qemu-img", args...)
-	return err
+	return o.cmd.ExecWithProgress("commit", "-p", image)
 }
