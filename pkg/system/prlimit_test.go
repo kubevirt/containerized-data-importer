@@ -34,6 +34,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/pkg/errors"
+
+	"k8s.io/klog/v2"
 )
 
 var _ = Describe("Process Limits", func() {
@@ -72,6 +74,30 @@ var _ = Describe("Process Limits", func() {
 		Entry("address space limit fails", fakeCommandContext, newTestProcessLimiter(errors.New("Set address limit fails"), nil), limits, "faker", "", "Set address limit fails", "", "", ""),
 		Entry("command exit bad", fakeCommandContext, nullLimiter, limits, "faker", "", "exit status 1", "1", "", ""),
 	)
+
+	It("should not log a kill error when the command succeeds", func() {
+		// cmd.Wait() reaps the process on success, so the deferred Kill()
+		// hits an already-finished process. That must not surface as an
+		// error log, otherwise every successful command run looks like a
+		// failure to whoever is reading the logs.
+		var logBuf bytes.Buffer
+		klog.LogToStderr(false)
+		klog.SetOutput(&logBuf)
+		defer func() {
+			klog.SetOutput(nil)
+			klog.LogToStderr(true)
+		}()
+
+		replaceExecCommandContext(fakeCommandContext, func() {
+			replaceLimiter(nil, func() {
+				_, err := ExecWithLimits(realLimits, testProgress, "faker", "0", "", "")
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+
+		klog.Flush()
+		Expect(logBuf.String()).NotTo(ContainSubstring("failed to kill the process"))
+	})
 
 	DescribeTable("limits actually work", func(timeout time.Duration, f limitFunction, command, errString string, args ...string) {
 		_, err := runFakeCommandWithTimeout(timeout, f, command, args...)
