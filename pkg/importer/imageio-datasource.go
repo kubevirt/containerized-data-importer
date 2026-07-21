@@ -294,7 +294,8 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 		return err
 	}
 	isBlock := !info.Mode().IsRegular()
-	preallocated := info.Size() >= int64(is.contentLength)
+	// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+	preallocated := info.Size() >= int64(is.contentLength) //nolint:gosec
 
 	// Choose seek for regular files, and hole punching for block devices and pre-allocated files
 	zeroRange := AppendZeroWithTruncate
@@ -314,7 +315,8 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 					return errors.Wrap(err, "failed to zero range on destination")
 				}
 			}
-			is.readers.progressReader.Current += uint64(extent.Length)
+			// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+			is.readers.progressReader.Current += uint64(extent.Length) //nolint:gosec
 		} else {
 			klog.Infof("Downloading %d-byte extent at offset %d", extent.Length, extent.Start)
 			responseBody, err := extentsReader.GetRange(extent.Start, extent.Start+extent.Length-1)
@@ -584,7 +586,8 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 		total = 0
 		nonzero := int64(0)
 		for _, extent := range extents {
-			total += uint64(extent.Length)
+			// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+			total += uint64(extent.Length) //nolint:gosec
 			if !extent.Zero {
 				nonzero += extent.Length
 			}
@@ -595,7 +598,8 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 			client:      client,
 			extents:     extents,
 			transferURL: transferURL,
-			size:        int64(total),
+			// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+			size: int64(total), //nolint:gosec
 		}
 	} else {
 		req, err := http.NewRequest(http.MethodGet, transferURL, nil)
@@ -906,7 +910,8 @@ func getTransfer(conn ConnectionInterface, disk *ovirtsdk4.Disk, snapshot *ovirt
 		}
 	}
 
-	return it, uint64(totalSize), nil
+	// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+	return it, uint64(totalSize), nil //nolint:gosec
 }
 
 func loadCA(certDir string) (*x509.CertPool, error) {

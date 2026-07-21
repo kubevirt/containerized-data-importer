@@ -372,7 +372,8 @@ func main() {
 		klog.Fatalf("Unable to get environment variables: %v\n", errors.WithStack(err))
 	}
 
-	logf.SetLogger(zap.New(zap.Level(zapcore.Level(-1*verbosityLevel)), zap.UseDevMode(debug)))
+	// using nolint since Atoi, used for verbosityLevel, strictly returns an int
+	logf.SetLogger(zap.New(zap.Level(zapcore.Level(-1*int8(verbosityLevel))), zap.UseDevMode(debug))) //nolint:gosec
 	logf.Log.WithName("main").Info("Verbosity level", "verbose", verbose, "debug", debug)
 
 	if err = createReadyFile(); err != nil {

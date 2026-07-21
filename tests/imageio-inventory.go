@@ -492,7 +492,8 @@ func getSnapshotSize(snapshot string) uint64 {
 	path := getSnapshotPath(snapshot)
 	info, err := os.Stat(path)
 	gomega.Expect(err).ToNot(gomega.HaveOccurred())
-	return uint64(info.Size())
+	// using nolint since changing the type would cause multiple type mismatch errors to the point of it being better to just ignore the error
+	return uint64(info.Size()) //nolint:gosec
 }
 
 // Get snapshot type from file extension, just raw or cow.

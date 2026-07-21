@@ -58,7 +58,7 @@ func GetAvailableSpace(path string) (int64, error) {
 		return int64(-1), err
 	}
 	//nolint:unconvert
-	return int64(stat.Bavail) * int64(stat.Bsize), nil
+	return int64(stat.Bavail) * int64(stat.Bsize), nil //nolint:gosec
 }
 
 // GetAvailableSpaceBlock gets the amount of available space at the block device path specified.
