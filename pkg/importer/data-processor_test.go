@@ -626,6 +626,10 @@ func (o *fakeQEMUOperations) Commit(image string) error {
 	return nil
 }
 
+func (o *fakeQEMUOperations) PreallocateBlankBlock(dest string, size resource.Quantity) error {
+	return nil
+}
+
 func NewQEMUAllErrors() image.QEMUOperations {
 	err := errors.New("qemu should not be called from this test override with replaceQEMUOperations")
 	return NewFakeQEMUOperations(err, err, fakeInfoOpRetVal{nil, err}, err, err, nil)
