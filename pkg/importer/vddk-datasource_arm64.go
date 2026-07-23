@@ -7,8 +7,6 @@ import (
 	"errors"
 	"net/url"
 
-	v1 "k8s.io/api/core/v1"
-
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
@@ -44,8 +42,8 @@ func (V VDDKDataSource) IsDeltaCopy() bool {
 	return false
 }
 
-func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode) (*VDDKDataSource, error) {
-	return nil, errors.New("the arrch64 architecture does not support VDDK")
+func NewVDDKDataSource(cfg VDDKDataSourceConfig) (*VDDKDataSource, error) {
+	return nil, errors.New("the arm64 architecture does not support VDDK")
 }
 
 var _ DataSourceInterface = &VDDKDataSource{}
