@@ -442,7 +442,7 @@ var _ = Describe("DataImportCron", Serial, func() {
 		By("Create DataImportCron with only initial poller job")
 		cron = utils.NewDataImportCron(cronName, "1Gi", scheduleOnceAYear, dataSourceName, importsToKeep, *reg)
 		retentionPolicy := cdiv1.DataImportCronRetainNone
-		url := fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix)
+		url := utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
 		pullMethod := cdiv1.RegistryPullNode
 		cron.Spec.RetentionPolicy = &retentionPolicy
 		cron.Spec.Template.Spec.Source.Registry.URL = &url
@@ -843,7 +843,7 @@ func getDataVolumeSourceRegistry(f *framework.Framework) (*cdiv1.DataVolumeSourc
 		url = fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs)
 		pullMethod = cdiv1.RegistryPullPod
 	} else {
-		url = fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix)
+		url = utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
 		pullMethod = cdiv1.RegistryPullNode
 	}
 	reg.URL = &url
