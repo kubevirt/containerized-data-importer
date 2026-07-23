@@ -551,6 +551,25 @@ spec:
     ...
 ```
 
+## Service Account
+You can optionally specify a `serviceAccountName` on the DataVolume. The importer or uploader pod created for the DataVolume will run under this ServiceAccount. This is particularly useful with registry imports using `pullMethod: node`, where the node's container runtime pulls the image using the ServiceAccount's image pull secrets.
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: "example-sa-dv"
+spec:
+  serviceAccountName: my-import-sa
+  source:
+    registry:
+      url: "docker://my-private-registry:5000/my-image"
+      pullMethod: node
+  storage:
+    resources:
+      requests:
+        storage: 5Gi
+```
+
 ## Kubevirt integration
 [Kubevirt](https://github.com/kubevirt/kubevirt) is an extension to Kubernetes that allows one to run Virtual Machines(VM) on the same infra structure as the containers managed by Kubernetes. CDI provides a mechanism to get a disk image into a PVC in order for Kubevirt to consume it. The following steps have to be taken in order for Kubevirt to consume a CDI provided disk image.
 1. Create a PVC with an annotation to for instance import from an external URL.
