@@ -66,8 +66,8 @@ func main() {
 		klog.Fatal(err)
 	}
 
-	if err := util.CopyDir("/tmp/source/", *outDir); err != nil {
-		klog.Fatal(err)
+	if err := os.CopyFS(*outDir, os.DirFS("/tmp/source/")); err != nil {
+		klog.Fatal(errors.Wrap(err, "failed to copy source directory"))
 	}
 
 	klog.Info("File initialization completed without error.")
