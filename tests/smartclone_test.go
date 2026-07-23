@@ -78,7 +78,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests th
 
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", Serial, func() {
 	var originalProfileSpec *cdiv1.StorageProfileSpec
-	var originalMinPvcSize, cloneStorageClassName string
+	var originalMinPvcSize, cloneStorageClassName, testMinPvcSize string
 
 	f := framework.NewFramework("dv-func-test")
 
@@ -94,6 +94,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		Expect(err).ToNot(HaveOccurred())
 		originalMinPvcSize, err = utils.GetMinimumSupportedPVCSize(f.CrClient, cloneStorageClassName)
 		Expect(err).ToNot(HaveOccurred())
+		testMinPvcSize = getTestMinPvcSize(originalMinPvcSize)
 
 		By(fmt.Sprintf("configure storage profile %s", cloneStorageClassName))
 		Expect(
@@ -124,7 +125,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 
-		verifyPVCRequestedSize(dataVolume, f, testMinPvcSize)
+		verifyPVCRequestedSizeExceeds(dataVolume, f, testMinPvcSize)
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, expectedMd5)
 	})
 
@@ -227,7 +228,14 @@ func verifyPVCRequestedSize(dataVolume *cdiv1.DataVolume, f *framework.Framework
 	pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
 	Expect(err).ToNot(HaveOccurred())
 	quantity := resource.MustParse(size)
-	Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal((&quantity).Value()))
+	Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(Equal(quantity.Value()))
+}
+
+func verifyPVCRequestedSizeExceeds(dataVolume *cdiv1.DataVolume, f *framework.Framework, minSize string) {
+	pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+	Expect(err).ToNot(HaveOccurred())
+	minQuantity := resource.MustParse(minSize)
+	Expect(pvc.Spec.Resources.Requests.Storage().Value()).To(BeNumerically(">", minQuantity.Value()))
 }
 
 func waitForDvPhase(phase cdiv1.DataVolumePhase, dataVolume *cdiv1.DataVolume, f *framework.Framework) {
@@ -290,4 +298,15 @@ func createDataVolume(dataVolumeName, testPath string, volumeMode v1.PersistentV
 	f.ForceBindIfWaitForFirstConsumer(pvc)
 
 	return dataVolume, md5
+}
+
+func getTestMinPvcSize(originalMinPvcSize string) string {
+	minSize := "4Gi"
+	if originalMinPvcSize != "" {
+		orig := resource.MustParse(originalMinPvcSize)
+		if orig.Cmp(resource.MustParse(minSize)) > 0 {
+			minSize = originalMinPvcSize
+		}
+	}
+	return minSize
 }
