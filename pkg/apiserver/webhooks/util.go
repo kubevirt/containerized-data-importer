@@ -24,6 +24,8 @@ import (
 	neturl "net/url"
 	"reflect"
 
+	"github.com/opencontainers/go-digest"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	field "k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -156,6 +158,25 @@ func validateDataVolumeSourceRegistry(sourceRegistry *cdiv1.DataVolumeSourceRegi
 			Field:   field.Child("source", "Registry", "importMethod").String(),
 		})
 		return causes
+	}
+
+	if sourceRegistry.LayerDigest != nil {
+		if importMethod != nil && *importMethod == cdiv1.RegistryPullNode {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueNotSupported,
+				Message: "Node pull import method is not supported with LayerDigest",
+				Field:   field.Child("source", "Registry", "layerDigest").String(),
+			})
+			return causes
+		}
+		if _, err := digest.Parse(*sourceRegistry.LayerDigest); err != nil {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: fmt.Sprintf("LayerDigest '%s' is not a valid OCI digest", *sourceRegistry.LayerDigest),
+				Field:   field.Child("source", "Registry", "layerDigest").String(),
+			})
+			return causes
+		}
 	}
 
 	return causes
