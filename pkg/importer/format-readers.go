@@ -61,6 +61,7 @@ type FormatReaders struct {
 	ArchiveXz         bool
 	ArchiveGz         bool
 	ArchiveZstd       bool
+	Tar               bool
 	progressReader    *prometheusutil.ProgressReader
 	checksumValidator *ChecksumValidator
 }
@@ -179,6 +180,8 @@ func (fr *FormatReaders) fileFormatSelector(hdr *image.Header) {
 			fr.Archived = true
 			fr.ArchiveXz = true
 		}
+	case "tar":
+		fr.Tar = true
 	case "qcow2":
 		r, err = fr.qcow2NopReader(hdr)
 		fr.Convert = true

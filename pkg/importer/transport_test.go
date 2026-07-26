@@ -21,12 +21,20 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/opencontainers/go-digest"
 )
 
 var _ = Describe("Registry Importer", func() {
 	source := "oci-archive:" + imageFile
 	malformedSource := "oci-archive:" + filepath.Join(imageDir, "malformed-registry-image.tar")
 	multiArchSource := "oci-archive:" + filepath.Join(imageDir, "multiarch-registry-image.tar")
+	// custom raw+zstd OCI artifact
+	kubevirtOCISource := "oci-archive:" + filepath.Join(imageDir, "kubevirt-vm-oci-image.tar")
+	const (
+		kubevirtOCISourceLayerDigest  = "sha256:2ceaa0be93303092e09bcdbe5818dd3dd12ff1b94d6d776a9821ce26f9ad3de8"
+		kubevirtOCISourceDataChecksum = "sha256:768e41980147dfefa8aa16d4559137e319e5c3e2594c35a78cffdb590d268fac"
+	)
 
 	var tmpDir string
 	var err error
@@ -42,7 +50,7 @@ var _ = Describe("Registry Importer", func() {
 	})
 
 	DescribeTable("Should extract a single file", func(source string) {
-		info, err := CopyRegistryImage(source, tmpDir, "disk/cirros-0.3.4-x86_64-disk.img", "", "", "", "", false, false)
+		info, err := CopyRegistryImage(source, tmpDir, "disk/cirros-0.3.4-x86_64-disk.img", "", "", "", "", "", false, false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(info).ToNot(BeNil())
 
@@ -64,7 +72,7 @@ var _ = Describe("Registry Importer", func() {
 		Expect(file).To(BeARegularFile())
 	})
 	It("Should return an error if a single file is not found", func() {
-		info, err := CopyRegistryImage(source, tmpDir, "disk/invalid.img", "", "", "", "", false, false)
+		info, err := CopyRegistryImage(source, tmpDir, "disk/invalid.img", "", "", "", "", "", false, false)
 		Expect(err).To(HaveOccurred())
 		Expect(info).To(BeNil())
 
@@ -77,8 +85,22 @@ var _ = Describe("Registry Importer", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(info).To(BeNil())
 	})
+	It("Should extract a raw disk blob by layer digest", func() {
+		info, err := CopyRegistryImage(kubevirtOCISource, tmpDir, "disk", "", "", "", kubevirtOCISourceLayerDigest, "", false, false)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info).To(BeNil())
+
+		file := filepath.Join(tmpDir, "disk", "disk.img")
+		Expect(file).To(BeARegularFile())
+
+		data, err := os.ReadFile(file)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(data).To(HaveLen(65536))
+		Expect(digest.FromBytes(data)).To(Equal(digest.Digest(kubevirtOCISourceDataChecksum)))
+	})
+
 	DescribeTable("Should correctly assert image architecture", func(source string, architecture string, wantErr bool) {
-		info, err := CopyRegistryImage(source, tmpDir, "disk/", "", "", architecture, "", false, false)
+		info, err := CopyRegistryImage(source, tmpDir, "disk/", "", "", architecture, "", "", false, false)
 		if wantErr {
 			Expect(err).To(HaveOccurred())
 			Expect(info).To(BeNil())
