@@ -18352,6 +18352,13 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref common.ReferenceC
 							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.PlatformOptions"),
 						},
 					},
+					"layerDigest": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LayerDigest specifies a digest to fetch a single OCI layer directly",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},

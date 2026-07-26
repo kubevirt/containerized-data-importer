@@ -215,6 +215,9 @@ type DataVolumeSourceRegistry struct {
 	//Platform describes the minimum runtime requirements of the image
 	// +optional
 	Platform *PlatformOptions `json:"platform,omitempty"`
+	//LayerDigest specifies a digest to fetch a single OCI layer directly
+	// +optional
+	LayerDigest *string `json:"layerDigest,omitempty"`
 }
 
 type PlatformOptions struct {

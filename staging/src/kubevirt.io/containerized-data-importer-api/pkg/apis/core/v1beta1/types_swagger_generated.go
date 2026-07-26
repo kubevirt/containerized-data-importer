@@ -115,6 +115,7 @@ func (DataVolumeSourceRegistry) SwaggerDoc() map[string]string {
 		"secretRef":     "SecretRef provides the secret reference needed to access the Registry source\n+optional",
 		"certConfigMap": "CertConfigMap provides a reference to the Registry certs\n+optional",
 		"platform":      "Platform describes the minimum runtime requirements of the image\n+optional",
+		"layerDigest":   "LayerDigest specifies a digest to fetch a single OCI layer directly\n+optional",
 	}
 }
 
