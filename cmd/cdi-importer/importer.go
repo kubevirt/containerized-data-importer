@@ -283,6 +283,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 	insecureTLS, _ := strconv.ParseBool(os.Getenv(common.InsecureTLSVar))
 	thumbprint, _ := util.ParseEnvVar(common.ImporterThumbprint, false)
 	registryImageArchitecture, _ := util.ParseEnvVar(common.ImporterRegistryImageArchitecture, false)
+	registryImageLayerDigest, _ := util.ParseEnvVar(common.ImporterRegistryImageLayerDigest, false)
 
 	currentCheckpoint, _ := util.ParseEnvVar(common.ImporterCurrentCheckpoint, false)
 	previousCheckpoint, _ := util.ParseEnvVar(common.ImporterPreviousCheckpoint, false)
@@ -303,7 +304,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 		}
 		return ds
 	case cc.SourceRegistry:
-		ds := importer.NewRegistryDataSource(ep, acc, sec, registryImageArchitecture, certDir, insecureTLS)
+		ds := importer.NewRegistryDataSource(ep, acc, sec, registryImageArchitecture, registryImageLayerDigest, certDir, insecureTLS)
 		return ds
 	case cc.SourceS3:
 		ds, err := importer.NewS3DataSource(ep, acc, sec, certDir)

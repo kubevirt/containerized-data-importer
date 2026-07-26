@@ -104,6 +104,7 @@ type importPodEnvVar struct {
 	secretExtraHeaders        []string
 	cacheMode                 string
 	registryImageArchitecture string
+	registryImageLayerDigest  string
 	checksum                  string
 }
 
@@ -659,6 +660,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, cc.AnnCurrentCheckpoint)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, cc.AnnFinalCheckpoint)
 		podEnvVar.registryImageArchitecture = getValueFromAnnotation(pvc, cc.AnnRegistryImageArchitecture)
+		podEnvVar.registryImageLayerDigest = getValueFromAnnotation(pvc, cc.AnnRegistryImageLayerDigest)
 		podEnvVar.checksum = getValueFromAnnotation(pvc, cc.AnnChecksum)
 
 		for annotation, value := range pvc.Annotations {
@@ -1427,6 +1429,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.ImporterRegistryImageArchitecture,
 			Value: podEnvVar.registryImageArchitecture,
+		},
+		{
+			Name:  common.ImporterRegistryImageLayerDigest,
+			Value: podEnvVar.registryImageLayerDigest,
 		},
 		{
 			Name:  common.ImporterChecksum,

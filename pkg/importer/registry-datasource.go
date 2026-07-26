@@ -45,6 +45,7 @@ type RegistryDataSource struct {
 	accessKey         string
 	secKey            string
 	imageArchitecture string
+	imageLayerDigest  string
 	certDir           string
 	insecureTLS       bool
 	imageDir          string
@@ -55,7 +56,7 @@ type RegistryDataSource struct {
 }
 
 // NewRegistryDataSource creates a new instance of the Registry Data Source.
-func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, certDir string, insecureTLS bool) *RegistryDataSource {
+func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, imageLayerDigest, certDir string, insecureTLS bool) *RegistryDataSource {
 	allCertDir, err := CreateCertificateDir(certDir)
 	if err != nil {
 		klog.Infof("Error creating allCertDir %v", err)
@@ -72,6 +73,7 @@ func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, certD
 		accessKey:         accessKey,
 		secKey:            secKey,
 		imageArchitecture: imageArchitecture,
+		imageLayerDigest:  imageLayerDigest,
 		certDir:           allCertDir,
 		insecureTLS:       insecureTLS,
 	}
