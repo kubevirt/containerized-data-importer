@@ -16,12 +16,11 @@ limitations under the License.
 package image
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
-	"strings"
 	"syscall"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -33,7 +32,6 @@ import (
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-importer"
-	"kubevirt.io/containerized-data-importer/pkg/system"
 	"kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
 
@@ -144,13 +142,12 @@ const backingFileValidateJSON = `
 }
 `
 
-type execFunctionType func(*system.ProcessLimitValues, func(string), string, ...string) ([]byte, error)
+type runCmdFunc func(context.Context, string, ...string) ([]byte, error)
+type runCmdWithStreamFunc func(context.Context, func(string), string, ...string) error
 
 func init() {
 	ownerUID = "1111-1111-111"
 }
-
-var expectedLimits = &system.ProcessLimitValues{AddressSpaceLimit: 1 << 30, CPUTimeLimit: 30}
 
 var _ = Describe("Convert to Raw", func() {
 	var tmpDir, destPath string
@@ -171,45 +168,40 @@ var _ = Describe("Convert to Raw", func() {
 	})
 
 	It("should return no error if exec function returns no error", func() {
-		replaceExecFunction(mockExecFunction("", "", nil, "convert", "-p", "-O", "raw", "source", destPath), func() {
-			err := convertToRaw("source", destPath, false, "")
-			Expect(err).NotTo(HaveOccurred())
-		})
+		ops := newTestOpsWithStream(mockRunCmdWithStreaming("", "convert", "-p", "-O", "raw", "source", destPath))
+		err := ops.convertToRaw("source", destPath, false, "")
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("should return conversion error if exec function returns error", func() {
-		replaceExecFunction(mockExecFunction("", "exit 1", nil, "convert", "-p", "-O", "raw", "source", destPath), func() {
-			err := convertToRaw("source", destPath, false, "")
-			Expect(err).To(HaveOccurred())
-			Expect(strings.Contains(err.Error(), "could not convert image to raw")).To(BeTrue())
-		})
+		ops := newTestOpsWithStream(mockRunCmdWithStreaming("exit 1", "convert", "-p", "-O", "raw", "source", destPath))
+		err := ops.convertToRaw("source", destPath, false, "")
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError(ContainSubstring("could not convert image to raw")))
 	})
 
 	It("should stream file to destination", func() {
-		replaceExecFunction(mockExecFunction("", "", nil, "convert", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
-			ep, err := url.Parse("/somefile/somewhere")
-			Expect(err).NotTo(HaveOccurred())
-			err = ConvertToRawStream(ep, destPath, false, "")
-			Expect(err).NotTo(HaveOccurred())
-		})
+		ops := newTestOpsWithStream(mockRunCmdWithStreaming("", "convert", "-p", "-O", "raw", "/somefile/somewhere", destPath))
+		ep, err := url.Parse("/somefile/somewhere")
+		Expect(err).NotTo(HaveOccurred())
+		err = ops.ConvertToRawStream(ep, destPath, false, "")
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("should add preallocation if requested", func() {
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-o", "preallocation=falloc", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
-			ep, err := url.Parse("/somefile/somewhere")
-			Expect(err).NotTo(HaveOccurred())
-			err = ConvertToRawStream(ep, destPath, true, "")
-			Expect(err).NotTo(HaveOccurred())
-		})
+		ops := newTestOpsWithStream(mockRunCmdWithStreamingStrict("", "convert", "-o", "preallocation=falloc", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", destPath))
+		ep, err := url.Parse("/somefile/somewhere")
+		Expect(err).NotTo(HaveOccurred())
+		err = ops.ConvertToRawStream(ep, destPath, true, "")
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("should not add preallocation if not requested", func() {
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
-			ep, err := url.Parse("/somefile/somewhere")
-			Expect(err).NotTo(HaveOccurred())
-			err = ConvertToRawStream(ep, destPath, false, "")
-			Expect(err).NotTo(HaveOccurred())
-		})
+		ops := newTestOpsWithStream(mockRunCmdWithStreamingStrict("", "convert", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", destPath))
+		ep, err := url.Parse("/somefile/somewhere")
+		Expect(err).NotTo(HaveOccurred())
+		err = ops.ConvertToRawStream(ep, destPath, false, "")
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	Context("cache mode adjusted according to O_DIRECT support", func() {
@@ -231,12 +223,11 @@ var _ = Describe("Convert to Raw", func() {
 		})
 
 		It("should use cache=none when destination supports O_DIRECT", func() {
-			replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "none", "-p", "-O", "raw", "/somefile/somewhere", destPath), func() {
-				ep, err := url.Parse("/somefile/somewhere")
-				Expect(err).NotTo(HaveOccurred())
-				err = ConvertToRawStream(ep, destPath, false, common.CacheModeTryNone)
-				Expect(err).NotTo(HaveOccurred())
-			})
+			ops := newTestOpsWithStream(mockRunCmdWithStreamingStrict("", "convert", "-t", "none", "-p", "-O", "raw", "/somefile/somewhere", destPath))
+			ep, err := url.Parse("/somefile/somewhere")
+			Expect(err).NotTo(HaveOccurred())
+			err = ops.ConvertToRawStream(ep, destPath, false, common.CacheModeTryNone)
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should use cache=writeback when destination does not support O_DIRECT", func() {
@@ -246,12 +237,11 @@ var _ = Describe("Convert to Raw", func() {
 			_, err := os.Create(tmpFsDestPath)
 			Expect(err).NotTo(HaveOccurred())
 
-			replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", tmpFsDestPath), func() {
-				ep, err := url.Parse("/somefile/somewhere")
-				Expect(err).NotTo(HaveOccurred())
-				err = ConvertToRawStream(ep, tmpFsDestPath, false, common.CacheModeTryNone)
-				Expect(err).NotTo(HaveOccurred())
-			})
+			ops := newTestOpsWithStream(mockRunCmdWithStreamingStrict("", "convert", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", tmpFsDestPath))
+			ep, err := url.Parse("/somefile/somewhere")
+			Expect(err).NotTo(HaveOccurred())
+			err = ops.ConvertToRawStream(ep, tmpFsDestPath, false, common.CacheModeTryNone)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 })
@@ -261,50 +251,45 @@ var _ = Describe("Resize", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
 		size := convertQuantityToQemuSize(quantity)
-		replaceExecFunction(mockExecFunction("", "", nil, "resize", "-f", "raw", "image", size), func() {
-			o := NewQEMUOperations()
-			err = o.Resize("image", quantity, false)
-			Expect(err).NotTo(HaveOccurred())
-		})
+		ops := newTestOpsWithRun(mockRunCmd("", "", "resize", "-f", "raw", "image", size))
+		err = ops.Resize("image", quantity, false)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Should fail if qemu-img resize fails", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
 		size := convertQuantityToQemuSize(quantity)
-		replaceExecFunction(mockExecFunction("", "exit 1", nil, "resize", "-f", "raw", "image", size), func() {
-			o := NewQEMUOperations()
-			err = o.Resize("image", quantity, false)
-			Expect(err).To(HaveOccurred())
-			Expect(strings.Contains(err.Error(), "Error resizing image")).To(BeTrue())
-		})
+		ops := newTestOpsWithRun(mockRunCmd("", "exit 1", "resize", "-f", "raw", "image", size))
+		err = ops.Resize("image", quantity, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError(ContainSubstring("Error resizing image")))
 	})
 })
 
 var _ = Describe("Validate", func() {
 	imageName, _ := url.Parse("myimage.qcow2")
 
-	DescribeTable("Validate should", func(execfunc execFunctionType, errString string, image *url.URL) {
-		replaceExecFunction(execfunc, func() {
-			err := Validate(image, 42949672960)
+	DescribeTable("Validate should", func(mockFn runCmdFunc, errString string, image *url.URL) {
+		ops := newTestOpsWithRun(mockFn)
+		err := ops.Validate(image, 42949672960)
 
-			if errString == "" {
-				Expect(err).NotTo(HaveOccurred())
-			} else {
-				Expect(err).To(HaveOccurred())
-				rootErr := errors.Cause(err)
-				if rootErr.Error() != errString {
-					Fail(fmt.Sprintf("got wrong failure: [%s], expected [%s]", rootErr, errString))
-				}
+		if errString == "" {
+			Expect(err).NotTo(HaveOccurred())
+		} else {
+			Expect(err).To(HaveOccurred())
+			rootErr := errors.Cause(err)
+			if rootErr.Error() != errString {
+				Fail(fmt.Sprintf("got wrong failure: [%s], expected [%s]", rootErr, errString))
 			}
-		})
+		}
 	},
-		Entry("should return success", mockExecFunction(goodValidateJSON, "", expectedLimits, "info", "--output=json", imageName.String()), "", imageName),
-		Entry("should return error", mockExecFunction("explosion", "exit 1", expectedLimits), "explosion, exit 1", imageName),
-		Entry("should return error on bad json", mockExecFunction(badValidateJSON, "", expectedLimits), "unexpected end of JSON input", imageName),
-		Entry("should return error on bad format", mockExecFunction(badFormatValidateJSON, "", expectedLimits), fmt.Sprintf("Invalid format raw2 for image %s", imageName), imageName),
-		Entry("should return error on invalid backing file", mockExecFunction(backingFileValidateJSON, "", expectedLimits), fmt.Sprintf("Image %s is invalid because it has invalid backing file backing-file.qcow2", imageName), imageName),
-		Entry("should return error when PVC is too small", mockExecFunction(hugeValidateJSON, "", expectedLimits), fmt.Sprintf("virtual image size %d is larger than the reported available storage %d. A larger PVC is required", 52949672960, 42949672960), imageName),
+		Entry("should return success", mockRunCmd(goodValidateJSON, "", "info", "--output=json", imageName.String()), "", imageName),
+		Entry("should return error", mockRunCmd("explosion", "exit 1"), "exit 1", imageName),
+		Entry("should return error on bad json", mockRunCmd(badValidateJSON, ""), "unexpected end of JSON input", imageName),
+		Entry("should return error on bad format", mockRunCmd(badFormatValidateJSON, ""), fmt.Sprintf("Invalid format raw2 for image %s", imageName), imageName),
+		Entry("should return error on invalid backing file", mockRunCmd(backingFileValidateJSON, ""), fmt.Sprintf("Image %s is invalid because it has invalid backing file backing-file.qcow2", imageName), imageName),
+		Entry("should return error when PVC is too small", mockRunCmd(hugeValidateJSON, ""), fmt.Sprintf("virtual image size %d is larger than the reported available storage %d. A larger PVC is required", 52949672960, 42949672960), imageName),
 	)
 
 })
@@ -383,41 +368,37 @@ var _ = Describe("Create blank image", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
 		size := convertQuantityToQemuSize(quantity)
-		replaceExecFunction(mockExecFunction("", "", nil, "create", "-f", "raw", destPath, size), func() {
-			err = CreateBlankImage(destPath, quantity, false)
-			Expect(err).ToNot(HaveOccurred())
-		})
+		ops := newTestOpsWithRun(mockRunCmd("", "", "create", "-f", "raw", destPath, size))
+		err = ops.CreateBlankImage(destPath, quantity, false)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("Should fail if qemu-img resize fails", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
 		size := convertQuantityToQemuSize(quantity)
-		replaceExecFunction(mockExecFunction("", "exit 1", nil, "create", "-f", "raw", destPath, size), func() {
-			err = CreateBlankImage(destPath, quantity, false)
-			Expect(err).To(HaveOccurred())
-			Expect(strings.Contains(err.Error(), "could not create raw image with size ")).To(BeTrue())
-		})
+		ops := newTestOpsWithRun(mockRunCmd("", "exit 1", "create", "-f", "raw", destPath, size))
+		err = ops.CreateBlankImage(destPath, quantity, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError(ContainSubstring("could not create raw image with size ")))
 	})
 
 	It("should add preallocation if requested", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
 		size := convertQuantityToQemuSize(quantity)
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, "create", "-f", "raw", destPath, size, "-o", "preallocation=falloc"), func() {
-			err = CreateBlankImage(destPath, quantity, true)
-			Expect(err).ToNot(HaveOccurred())
-		})
+		ops := newTestOpsWithRun(mockRunCmdStrict("", "", "create", "-f", "raw", destPath, size, "-o", "preallocation=falloc"))
+		err = ops.CreateBlankImage(destPath, quantity, true)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("should not add preallocation if not requested", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
 		size := convertQuantityToQemuSize(quantity)
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, "create", "-f", "raw", destPath, size), func() {
-			err = CreateBlankImage(destPath, quantity, false)
-			Expect(err).ToNot(HaveOccurred())
-		})
+		ops := newTestOpsWithRun(mockRunCmdStrict("", "", "create", "-f", "raw", destPath, size))
+		err = ops.CreateBlankImage(destPath, quantity, false)
+		Expect(err).ToNot(HaveOccurred())
 	})
 })
 
@@ -450,10 +431,9 @@ var _ = Describe("Create preallocated blank block", func() {
 	It("Should complete successfully if preallocation succeeds", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
-		replaceExecFunction(mockExecFunction("", "", nil, "if=/dev/zero", "of="+destPath, "bs=1048576", "count=10240", "seek=0", "oflag=seek_bytes,direct"), func() {
-			err = PreallocateBlankBlock(destPath, quantity)
-			Expect(err).NotTo(HaveOccurred())
-		})
+		ops := newTestOpsWithRun(mockRunCmd("", "", "if=/dev/zero", "of="+destPath, "bs=1048576", "count=10240", "seek=0", "oflag=seek_bytes,direct"))
+		err = ops.PreallocateBlankBlock(destPath, quantity)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Should complete successfully with tmpfs dest without O_DIRECT if preallocation succeeds", func() {
@@ -463,10 +443,9 @@ var _ = Describe("Create preallocated blank block", func() {
 		Expect(err).NotTo(HaveOccurred())
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
-		replaceExecFunction(mockExecFunction("", "", nil, "if=/dev/zero", "of="+tmpFsDestPath, "bs=1048576", "count=10240", "seek=0", "oflag=seek_bytes"), func() {
-			err = PreallocateBlankBlock(tmpFsDestPath, quantity)
-			Expect(err).NotTo(HaveOccurred())
-		})
+		ops := newTestOpsWithRun(mockRunCmd("", "", "if=/dev/zero", "of="+tmpFsDestPath, "bs=1048576", "count=10240", "seek=0", "oflag=seek_bytes"))
+		err = ops.PreallocateBlankBlock(tmpFsDestPath, quantity)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Should complete successfully with value not aligned to 1MiB", func() {
@@ -474,29 +453,27 @@ var _ = Describe("Create preallocated blank block", func() {
 		Expect(err).NotTo(HaveOccurred())
 		firstCallArgs := []string{"if=/dev/zero", "of=" + destPath, "bs=1048576", "count=5120", "seek=0", "oflag=seek_bytes,direct"}
 		secondCallArgs := []string{"if=/dev/zero", "of=" + destPath, "bs=524288", "count=1", "seek=5368709120", "oflag=seek_bytes,direct"}
-		replaceExecFunction(mockExecFunctionTwoCalls("", "", nil, firstCallArgs, secondCallArgs), func() {
-			err = PreallocateBlankBlock(destPath, quantity)
-			Expect(err).NotTo(HaveOccurred())
-		})
+		ops := newTestOpsWithRun(mockRunCmdTwoCalls("", "", firstCallArgs, secondCallArgs))
+		err = ops.PreallocateBlankBlock(destPath, quantity)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Should fail if preallocation fails", func() {
 		quantity, err := resource.ParseQuantity("10Gi")
 		Expect(err).NotTo(HaveOccurred())
-		replaceExecFunction(mockExecFunction("", "exit 1", nil, "if=/dev/zero", "of="+destPath, "bs=1048576", "count=10240", "seek=0", "oflag=seek_bytes,direct"), func() {
-			err = PreallocateBlankBlock(destPath, quantity)
-			Expect(strings.Contains(err.Error(), "Could not preallocate blank block volume at")).To(BeTrue())
-		})
+		ops := newTestOpsWithRun(mockRunCmd("", "exit 1", "if=/dev/zero", "of="+destPath, "bs=1048576", "count=10240", "seek=0", "oflag=seek_bytes,direct"))
+		err = ops.PreallocateBlankBlock(destPath, quantity)
+		Expect(err).To(MatchError(ContainSubstring("Could not preallocate blank block volume at")))
 	})
 })
 
 var _ = Describe("Try different preallocation modes", func() {
 	It("Should try falloc first", func() {
 		calledCount := 0
-		err := addPreallocation([]string{"command"}, convertPreallocationMethods, func(args []string) ([]byte, error) {
+		err := addPreallocation([]string{"command"}, convertPreallocationMethods, func(args []string) error {
 			Expect(args).To(Equal([]string{"command", "-o", "preallocation=falloc"}))
 			calledCount++
-			return []byte{}, nil
+			return nil
 		})
 
 		Expect(err).NotTo(HaveOccurred())
@@ -505,14 +482,14 @@ var _ = Describe("Try different preallocation modes", func() {
 
 	It("Should try full if falloc fails", func() {
 		calledCount := 0
-		err := addPreallocation([]string{"command"}, convertPreallocationMethods, func(args []string) ([]byte, error) {
+		err := addPreallocation([]string{"command"}, convertPreallocationMethods, func(args []string) error {
 			if args[2] == "preallocation=falloc" {
 				calledCount++
-				return []byte("Unsupported preallocation mode"), fmt.Errorf("No, no, no")
+				return &cmdExecError{name: "qemu-img", stderr: "Unsupported preallocation mode: falloc", err: fmt.Errorf("exit status 1")}
 			}
 			Expect(args).To(Equal([]string{"command", "-o", "preallocation=full"}))
 			calledCount++
-			return []byte{}, nil
+			return nil
 		})
 
 		Expect(err).NotTo(HaveOccurred())
@@ -521,14 +498,14 @@ var _ = Describe("Try different preallocation modes", func() {
 
 	It("Should try -S0 if full fails", func() {
 		calledCount := 0
-		err := addPreallocation([]string{"command"}, convertPreallocationMethods, func(args []string) ([]byte, error) {
+		err := addPreallocation([]string{"command"}, convertPreallocationMethods, func(args []string) error {
 			if calledCount < 2 {
 				calledCount++
-				return []byte("Unsupported preallocation mode"), fmt.Errorf("No, no, no")
+				return &cmdExecError{name: "qemu-img", stderr: "Unsupported preallocation mode: full", err: fmt.Errorf("exit status 1")}
 			}
 			Expect(args).To(Equal([]string{"command", "-S", "0"}))
 			calledCount++
-			return []byte{}, nil
+			return nil
 		})
 
 		Expect(err).NotTo(HaveOccurred())
@@ -537,9 +514,9 @@ var _ = Describe("Try different preallocation modes", func() {
 
 	It("Should fail if output is different than 'Unsupported preallocation'", func() {
 		calledCount := 0
-		err := addPreallocation([]string{"command"}, convertPreallocationMethods, func(args []string) ([]byte, error) {
+		err := addPreallocation([]string{"command"}, convertPreallocationMethods, func(args []string) error {
 			calledCount++
-			return []byte("General Protection Fault"), fmt.Errorf("No, no, no")
+			return &cmdExecError{name: "qemu-img", stderr: "General Protection Fault", err: fmt.Errorf("exit status 1")}
 		})
 
 		Expect(err).To(HaveOccurred())
@@ -549,26 +526,20 @@ var _ = Describe("Try different preallocation modes", func() {
 
 var _ = Describe("Rebase and commit", func() {
 	It("Should successfully rebase image", func() {
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, "rebase", "-p", "-u", "-F", "raw", "-b", "backing-file", "delta"), func() {
-			o := NewQEMUOperations()
-			err := o.Rebase("backing-file", "delta")
-			Expect(err).NotTo(HaveOccurred())
-		})
+		ops := newTestOpsWithStream(mockRunCmdWithStreamingStrict("", "rebase", "-p", "-u", "-F", "raw", "-b", "backing-file", "delta"))
+		err := ops.Rebase("backing-file", "delta")
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Should successfully commit image to base", func() {
-		replaceExecFunction(mockExecFunctionStrict("", "", nil, "commit", "-p", "delta"), func() {
-			o := NewQEMUOperations()
-			err := o.Commit("delta")
-			Expect(err).NotTo(HaveOccurred())
-		})
+		ops := newTestOpsWithStream(mockRunCmdWithStreamingStrict("", "commit", "-p", "delta"))
+		err := ops.Commit("delta")
+		Expect(err).NotTo(HaveOccurred())
 	})
 })
 
-func mockExecFunction(output, errString string, expectedLimits *system.ProcessLimitValues, checkArgs ...string) execFunctionType {
-	return func(limits *system.ProcessLimitValues, f func(string), cmd string, args ...string) (bytes []byte, err error) {
-		Expect(reflect.DeepEqual(expectedLimits, limits)).To(BeTrue())
-
+func mockRunCmd(output, errString string, checkArgs ...string) runCmdFunc {
+	return func(_ context.Context, name string, args ...string) (bytes []byte, err error) {
 		for _, ca := range checkArgs {
 			found := false
 			for _, a := range args {
@@ -577,8 +548,7 @@ func mockExecFunction(output, errString string, expectedLimits *system.ProcessLi
 					break
 				}
 			}
-			// if not found will fail and show the diff in the args
-			if found != true {
+			if !found {
 				Expect(checkArgs).To(Equal(args))
 			}
 		}
@@ -594,10 +564,8 @@ func mockExecFunction(output, errString string, expectedLimits *system.ProcessLi
 	}
 }
 
-func mockExecFunctionStrict(output, errString string, expectedLimits *system.ProcessLimitValues, checkArgs ...string) execFunctionType {
-	return func(limits *system.ProcessLimitValues, f func(string), cmd string, args ...string) (bytes []byte, err error) {
-		Expect(reflect.DeepEqual(expectedLimits, limits)).To(BeTrue())
-
+func mockRunCmdStrict(output, errString string, checkArgs ...string) runCmdFunc {
+	return func(_ context.Context, name string, args ...string) (bytes []byte, err error) {
 		Expect(checkArgs).To(Equal(args))
 
 		if output != "" {
@@ -611,11 +579,9 @@ func mockExecFunctionStrict(output, errString string, expectedLimits *system.Pro
 	}
 }
 
-func mockExecFunctionTwoCalls(output, errString string, expectedLimits *system.ProcessLimitValues, firstCallArgs []string, secondCallArgs []string) execFunctionType {
+func mockRunCmdTwoCalls(output, errString string, firstCallArgs []string, secondCallArgs []string) runCmdFunc {
 	firstCall := true
-	return func(limits *system.ProcessLimitValues, f func(string), cmd string, args ...string) (bytes []byte, err error) {
-		Expect(reflect.DeepEqual(expectedLimits, limits)).To(BeTrue())
-
+	return func(_ context.Context, name string, args ...string) (bytes []byte, err error) {
 		if firstCall {
 			Expect(firstCallArgs).To(Equal(args))
 			firstCall = false
@@ -634,11 +600,47 @@ func mockExecFunctionTwoCalls(output, errString string, expectedLimits *system.P
 	}
 }
 
-func replaceExecFunction(replacement execFunctionType, f func()) {
-	orig := qemuExecFunction
-	if replacement != nil {
-		qemuExecFunction = replacement
-		defer func() { qemuExecFunction = orig }()
+func mockRunCmdWithStreaming(errString string, checkArgs ...string) runCmdWithStreamFunc {
+	return func(_ context.Context, _ func(string), name string, args ...string) error {
+		for _, ca := range checkArgs {
+			found := false
+			for _, a := range args {
+				if ca == a {
+					found = true
+					break
+				}
+			}
+			if !found {
+				Expect(checkArgs).To(Equal(args))
+			}
+		}
+
+		if errString != "" {
+			return errors.New(errString)
+		}
+		return nil
 	}
-	f()
+}
+
+func mockRunCmdWithStreamingStrict(errString string, checkArgs ...string) runCmdWithStreamFunc {
+	return func(_ context.Context, _ func(string), name string, args ...string) error {
+		Expect(checkArgs).To(Equal(args))
+
+		if errString != "" {
+			return errors.New(errString)
+		}
+		return nil
+	}
+}
+
+func newTestOpsWithRun(run runCmdFunc) *qemuOperations {
+	cmd := newQemuCmd()
+	cmd.run = run
+	return &qemuOperations{cmd: cmd}
+}
+
+func newTestOpsWithStream(stream runCmdWithStreamFunc) *qemuOperations {
+	cmd := newQemuCmd()
+	cmd.stream = stream
+	return &qemuOperations{cmd: cmd}
 }

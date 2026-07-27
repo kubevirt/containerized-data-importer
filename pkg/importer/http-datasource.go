@@ -84,14 +84,13 @@ type HTTPDataSource struct {
 	contentLength uint64
 	// checksumValidator validates the checksum of downloaded data
 	checksumValidator *ChecksumValidator
-
-	n image.NbdkitOperation
+	n                 image.NbdkitOperation
 }
 
 var createNbdkitCurl = image.NewNbdkitCurl
 
 // NewHTTPDataSource creates a new instance of the http data provider.
-func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType, checksum string) (*HTTPDataSource, error) {
+func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType, checksum string, insecureSkipVerify bool) (*HTTPDataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to parse endpoint %q", endpoint)
@@ -104,7 +103,7 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		return nil, errors.Wrap(err, "Error getting extra headers for HTTP client")
 	}
 
-	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir, extraHeaders, secretExtraHeaders, contentType)
+	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir, extraHeaders, secretExtraHeaders, contentType, insecureSkipVerify)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -292,31 +291,32 @@ func createCertPool(certDir string) (*x509.CertPool, error) {
 		}
 	}
 
-	// append server CA certificates
-	files, err := os.ReadDir(certDir)
-	if err != nil {
-		return nil, errors.Wrapf(err, "Error listing files in %s", certDir)
-	}
-
-	for _, file := range files {
-		if file.IsDir() || file.Name()[0] == '.' {
-			continue
-		}
-
-		fp := path.Join(certDir, file.Name())
-
-		klog.Infof("Attempting to get certs from %s", fp)
-
-		certs, err := os.ReadFile(fp)
+	// append server CA certificates if the directory exists
+	if certDir != "" {
+		files, err := os.ReadDir(certDir)
 		if err != nil {
-			return nil, errors.Wrapf(err, "Error reading file %s", fp)
+			return nil, errors.Wrapf(err, "Error listing files in %s", certDir)
 		}
 
-		if ok := certPool.AppendCertsFromPEM(certs); !ok {
-			klog.Warningf("No certs in %s", fp)
+		for _, file := range files {
+			if file.IsDir() || file.Name()[0] == '.' {
+				continue
+			}
+
+			fp := path.Join(certDir, file.Name())
+
+			klog.Infof("Attempting to get certs from %s", fp)
+
+			certs, err := os.ReadFile(fp)
+			if err != nil {
+				return nil, errors.Wrapf(err, "Error reading file %s", fp)
+			}
+
+			if ok := certPool.AppendCertsFromPEM(certs); !ok {
+				klog.Warningf("No certs in %s", fp)
+			}
 		}
 	}
-
 	return certPool, nil
 }
 
@@ -325,7 +325,14 @@ func createHTTPClient(certDir string, insecureSkipVerify bool) (*http.Client, er
 		// Don't set timeout here, since that will be an absolute timeout, we need a relative to last progress timeout.
 	}
 
-	if certDir == "" && !insecureSkipVerify {
+	// if any cluster wide certs are configured, they will exist in the proxy cert dir
+	proxyCertDir, err := os.ReadDir(common.ImporterProxyCertDir)
+
+	if err != nil && !os.IsNotExist(err) {
+		klog.Warningf("Unable to read proxy cert directory %v", err)
+	}
+
+	if certDir == "" && len(proxyCertDir) == 0 && !insecureSkipVerify {
 		return client, nil
 	}
 	// the default transport contains Proxy configurations to use environment variables and default timeouts
@@ -365,9 +372,9 @@ func addExtraheaders(req *http.Request, extraHeaders []string) {
 	req.Header.Add("User-Agent", defaultUserAgent)
 }
 
-func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string, extraHeaders, secretExtraHeaders []string, contentType cdiv1.DataVolumeContentType) (io.ReadCloser, uint64, bool, error) {
+func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string, extraHeaders, secretExtraHeaders []string, contentType cdiv1.DataVolumeContentType, insecureSkipVerify bool) (io.ReadCloser, uint64, bool, error) {
 	var brokenForQemuImg bool
-	client, err := createHTTPClient(certDir, false)
+	client, err := createHTTPClient(certDir, insecureSkipVerify)
 	if err != nil {
 		return nil, uint64(0), false, errors.Wrap(err, "Error creating http client")
 	}

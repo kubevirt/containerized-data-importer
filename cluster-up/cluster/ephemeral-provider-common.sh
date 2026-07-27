@@ -91,6 +91,10 @@ function _add_common_params() {
 
     params=" --dns-port $KUBEVIRT_DNS_HOST_PORT $params"
 
+    if [ "$KUBEVIRT_SECONDARY_NIC_BRIDGES" == "true" ]; then
+        params=" --enable-secondary-nic-bridges $params"
+    fi
+
     if [[ $TARGET =~ windows_sysprep.* ]] && [ -n "$WINDOWS_SYSPREP_NFS_DIR" ]; then
         params=" --nfs-data $WINDOWS_SYSPREP_NFS_DIR $params"
     elif [[ $TARGET =~ windows.* ]] && [ -n "$WINDOWS_NFS_DIR" ]; then
@@ -250,10 +254,13 @@ function _add_common_params() {
         params=" --swapiness=$KUBEVIRT_SWAPPINESS $params"
     fi
 
-    if [ $KUBEVIRT_UNLIMITEDSWAP == "true" ]; then
-        params=" --unlimited-swap $params"
+    if [ ! -z "$KUBEVIRT_SWAP_BEHAVIOR" ]; then
+        params=" --swap-behavior=$KUBEVIRT_SWAP_BEHAVIOR $params"
     fi
 
+    if [ -n "$KUBEVIRT_VSOCK_CHILD_NS_MODE" ]; then
+        params=" --vsock-child-ns-mode=$KUBEVIRT_VSOCK_CHILD_NS_MODE $params"
+    fi
 
     if [ -n "$KUBEVIRTCI_PROXY" ]; then
         params=" --docker-proxy=$KUBEVIRTCI_PROXY $params"

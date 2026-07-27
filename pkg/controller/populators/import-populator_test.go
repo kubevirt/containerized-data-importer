@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -42,7 +43,9 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -195,6 +198,69 @@ var _ = Describe("Import populator tests", func() {
 			Expect(found).To(BeFalse())
 		})
 
+		It("Should not copy ClaimMisbound event from primePVC to targetPVC", func() {
+			targetPVC := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPVC.Spec.DataSourceRef = dataSourceRef
+			volumeImportSource := getVolumeImportSource(true, nsName)
+
+			pvcPrime := getPVCPrime(targetPVC, nil) // automatically creates a pvcPrime with the same name as the targetPVC
+
+			importSucceededEvent := corev1.Event{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "importSucceededEvent",
+					Namespace: targetPVC.Namespace,
+				},
+				InvolvedObject: corev1.ObjectReference{
+					Name: pvcPrime.Name,
+					UID:  pvcPrime.UID,
+				},
+				Reason:  importSucceeded,
+				Message: "Import succeeded",
+			}
+			claimMisboundEvent := corev1.Event{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "claimMisboundEvent",
+					Namespace: targetPVC.Namespace,
+				},
+				InvolvedObject: corev1.ObjectReference{
+					Name: pvcPrime.Name,
+					UID:  pvcPrime.UID,
+				},
+				Reason:  EventReasonClaimMisbound,
+				Message: "Claim is misbound",
+			}
+
+			By("Creating reconciler with fake PVC prime events")
+			reconciler = createImportPopulatorReconciler(targetPVC, pvcPrime, volumeImportSource, sc, &importSucceededEvent, &claimMisboundEvent)
+
+			By("Reconcile")
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			recorder := reconciler.recorder.(*record.FakeRecorder)
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Checking targetPVC events")
+			close(recorder.Events)
+
+			// NOTE: ContainsElement expects a slice, which recorder.Events is not
+			claimMisboundEventfound := false
+			importSucceededEventFound := false
+
+			Expect(recorder.Events).To(Not(BeEmpty()))
+
+			for event := range recorder.Events {
+				if strings.Contains(event, fmt.Sprintf("%s [%s]", EventReasonClaimMisbound, pvcPrime.Name)) {
+					claimMisboundEventfound = true
+				}
+				if strings.Contains(event, fmt.Sprintf("%s [%s]", importSucceeded, pvcPrime.Name)) {
+					importSucceededEventFound = true
+				}
+			}
+			reconciler.recorder = nil
+			Expect(claimMisboundEventfound).To(BeFalse())
+			Expect(importSucceededEventFound).To(BeTrue())
+		})
+
 		It("Should trigger failed import event when pod phase is podfailed", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
 			targetPvc.Spec.DataSourceRef = dataSourceRef
@@ -284,6 +350,44 @@ var _ = Describe("Import populator tests", func() {
 			Entry("multus default network is passed", AnnPodMultusDefaultNetwork, "test", "test"),
 			Entry("retain pod annotation is passed", AnnPodRetainAfterCompletion, "true", "true"),
 		)
+
+		It("Should set AnnInsecureSkipVerify on PVC Prime when InsecureSkipVerify is true", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, map[string]string{}, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
+			volumeImportSource.Spec.Source.HTTP.InsecureSkipVerify = ptr.To(true)
+
+			By("Reconcile")
+			reconciler = createImportPopulatorReconciler(targetPvc, volumeImportSource, sc)
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Checking PVC' annotations")
+			pvcPrime, err := reconciler.getPVCPrime(targetPvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvcPrime).ToNot(BeNil())
+			Expect(pvcPrime.GetAnnotations()[AnnInsecureSkipVerify]).To(Equal("true"))
+		})
+
+		It("Should not set AnnInsecureSkipVerify on PVC Prime when InsecureSkipVerify is not set", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, map[string]string{}, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			volumeImportSource := getVolumeImportSource(true, metav1.NamespaceDefault)
+
+			By("Reconcile")
+			reconciler = createImportPopulatorReconciler(targetPvc, volumeImportSource, sc)
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(Not(HaveOccurred()))
+			Expect(result).To(Not(BeNil()))
+
+			By("Checking PVC' annotations")
+			pvcPrime, err := reconciler.getPVCPrime(targetPvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvcPrime).ToNot(BeNil())
+			_, exists := pvcPrime.GetAnnotations()[AnnInsecureSkipVerify]
+			Expect(exists).To(BeFalse())
+		})
 
 		It("Should not copy target PVC labels to PVC Prime", func() {
 			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name,
@@ -459,6 +563,27 @@ var _ = Describe("Import populator tests", func() {
 
 			By("Reconcile")
 			reconciler = createImportPopulatorReconciler(targetPvc, pvcPrime, pv, volumeImportSource, sc)
+			var operations []string
+			reconciler.client = interceptor.NewClient(reconciler.client.(client.WithWatch), interceptor.Funcs{
+				Update: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.UpdateOption) error {
+					pvc, ok := obj.(*corev1.PersistentVolumeClaim)
+					if !ok {
+						return c.Update(ctx, obj, opts...)
+					}
+					old := &corev1.PersistentVolumeClaim{}
+					if err := c.Get(ctx, types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}, old); err == nil {
+						if !reflect.DeepEqual(old.Labels, pvc.Labels) {
+							operations = append(operations, "labels")
+						}
+						oldPhase, currentPhase := old.Annotations[AnnPodPhase], pvc.Annotations[AnnPodPhase]
+						if currentPhase == string(corev1.PodSucceeded) && oldPhase != currentPhase {
+							operations = append(operations, "phase")
+						}
+					}
+					return c.Update(ctx, obj, opts...)
+				},
+			})
+
 			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
 			Expect(err).To(Not(HaveOccurred()))
 			Expect(result).ToNot(BeNil())
@@ -472,6 +597,9 @@ var _ = Describe("Import populator tests", func() {
 			Expect(updatedPVC.Labels).To(HaveKeyWithValue(testInstancetypeKubevirtIoKey, testInstancetypeKubevirtIoValue))
 			Expect(updatedPVC.Labels).To(HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoValueExisting))
 			Expect(updatedPVC.Labels).ToNot(HaveKey(testUndesiredKey))
+
+			By("Verify labels are updated before AnnPodPhase=Succeeded and phase is set once")
+			Expect(operations).To(Equal([]string{"labels", "phase"}))
 		})
 
 		It("Should set multistage migration annotations on PVC prime", func() {
@@ -707,7 +835,6 @@ func createImportPopulatorReconcilerWithoutConfig(objects ...runtime.Object) *Im
 	for _, ia := range getIndexArgs() {
 		builder = builder.WithIndex(ia.obj, ia.field, ia.extractValue)
 	}
-
 	cl := builder.Build()
 
 	rec := record.NewFakeRecorder(10)

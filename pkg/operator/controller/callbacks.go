@@ -42,7 +42,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cluster"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
 	sdk "kubevirt.io/controller-lifecycle-operator-sdk/pkg/sdk"
@@ -483,7 +482,7 @@ func reconcilePvcMutatingWebhook(args *callbacks.ReconcileCallbackArgs) error {
 		return nil
 	}
 
-	enabled, err := featuregates.IsWebhookPvcRenderingEnabled(args.Client)
+	enabled, err := cc.IsWebhookPvcRenderingEnabled(args.Client)
 	if err != nil {
 		return cc.IgnoreNotFound(err)
 	}

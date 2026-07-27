@@ -699,6 +699,106 @@ var _ = Describe("VDDK log watcher", func() {
 	)
 })
 
+var _ = Describe("VMware session re-authentication", func() {
+	notAuthenticatedFault := func() error {
+		return soap.WrapVimFault(&types.NotAuthenticated{})
+	}
+
+	Describe("isSessionNotAuthenticated", func() {
+		It("returns false for nil", func() {
+			Expect(isSessionNotAuthenticated(nil)).To(BeFalse())
+		})
+
+		It("returns true for a NotAuthenticated vim fault", func() {
+			Expect(isSessionNotAuthenticated(notAuthenticatedFault())).To(BeTrue())
+		})
+
+		It("returns true for a NotAuthenticatedFault vim fault", func() {
+			Expect(isSessionNotAuthenticated(soap.WrapVimFault(&types.NotAuthenticatedFault{}))).To(BeTrue())
+		})
+
+		It("returns true when the error message mentions not authenticated", func() {
+			err := errors.New("server fault: the session is not authenticated")
+			Expect(isSessionNotAuthenticated(err)).To(BeTrue())
+		})
+
+		It("returns true for a wrapped NotAuthenticated error", func() {
+			err := fmt.Errorf("query failed: %w", notAuthenticatedFault())
+			Expect(isSessionNotAuthenticated(err)).To(BeTrue())
+		})
+
+		It("returns false for unrelated errors", func() {
+			Expect(isSessionNotAuthenticated(errors.New("connection reset"))).To(BeFalse())
+		})
+	})
+
+	Describe("withVMwareReloginRetry", func() {
+		var conn *mockVMwareConnectionOperations
+		var vmware *VMwareClient
+
+		BeforeEach(func() {
+			conn = &mockVMwareConnectionOperations{Endpoint: "http://vcenter.test"}
+			vmware = &VMwareClient{
+				conn:     conn,
+				context:  context.Background(),
+				username: "vcenter-user",
+				password: "vcenter-pass",
+			}
+		})
+
+		It("runs the operation once when it succeeds", func() {
+			attempts := 0
+			err := vmware.withVMwareReloginRetry(func() error {
+				attempts++
+				return nil
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(attempts).To(Equal(1))
+			Expect(conn.loginCalls).To(Equal(0))
+		})
+
+		It("re-logins and retries after a NotAuthenticated fault", func() {
+			attempts := 0
+			err := vmware.withVMwareReloginRetry(func() error {
+				attempts++
+				if attempts == 1 {
+					return notAuthenticatedFault()
+				}
+				return nil
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(attempts).To(Equal(2))
+			Expect(conn.loginCalls).To(Equal(1))
+			Expect(conn.lastLoginUser).ToNot(BeNil())
+			Expect(conn.lastLoginUser.Username()).To(Equal("vcenter-user"))
+			password, _ := conn.lastLoginUser.Password()
+			Expect(password).To(Equal("vcenter-pass"))
+		})
+
+		It("returns the original error when the failure is not authentication related", func() {
+			original := errors.New("disk not found")
+			err := vmware.withVMwareReloginRetry(func() error {
+				return original
+			})
+			Expect(err).To(Equal(original))
+			Expect(conn.loginCalls).To(Equal(0))
+		})
+
+		It("returns an error when re-login fails", func() {
+			conn.LoginFunc = func(context.Context, *url.Userinfo) error {
+				return errors.New("login refused")
+			}
+			err := vmware.withVMwareReloginRetry(func() error {
+				return notAuthenticatedFault()
+			})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("failed to re-authenticate VMware session"))
+			Expect(err.Error()).To(ContainSubstring("login refused"))
+			Expect(conn.loginCalls).To(Equal(1))
+		})
+	})
+})
+
 var _ = Describe("VDDK get block status", func() {
 	defaultMockNbd := defaultMockNbdFunctions()
 	BeforeEach(func() {
@@ -1021,7 +1121,19 @@ func createMockVddkDataSink(destinationFile string, size uint64, volumeMode v1.P
 }
 
 type mockVMwareConnectionOperations struct {
-	Endpoint string
+	Endpoint      string
+	LoginFunc     func(context.Context, *url.Userinfo) error
+	loginCalls    int
+	lastLoginUser *url.Userinfo
+}
+
+func (ops *mockVMwareConnectionOperations) Login(ctx context.Context, u *url.Userinfo) error {
+	ops.loginCalls++
+	ops.lastLoginUser = u
+	if ops.LoginFunc != nil {
+		return ops.LoginFunc(ctx, u)
+	}
+	return nil
 }
 
 func (ops *mockVMwareConnectionOperations) Logout(context.Context) error {
@@ -1089,7 +1201,7 @@ func createMockVMwareClient(endpoint string, accessKey string, secKey string, th
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &VMwareClient{
-		conn:       &mockVMwareConnectionOperations{endpoint},
+		conn:       &mockVMwareConnectionOperations{Endpoint: endpoint},
 		cancel:     cancel,
 		context:    ctx,
 		moref:      "vm-1",

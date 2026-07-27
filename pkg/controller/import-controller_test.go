@@ -437,6 +437,68 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("Pod is not owned by PVC"))
 	})
+
+	It("Should not set the InsecureTLS environment variable if the AnnInsecureSkipVerify annotation is set to false", func() {
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "importer-testPvc1", cc.AnnInsecureSkipVerify: "false", cc.AnnSource: cc.SourceHTTP}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		reconciler = createImportReconciler(pvc)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+		foundAnnInsecureSkipVerify := false
+		for _, envVar := range pod.Spec.Containers[0].Env {
+			if envVar.Name == common.InsecureTLSVar {
+				foundAnnInsecureSkipVerify = true
+				Expect(envVar.Value).To(Equal("false"))
+			}
+		}
+		Expect(foundAnnInsecureSkipVerify).To(BeTrue())
+	})
+
+	It("Should set the InsecureTLS environment variable to false if the AnnInsecureSkipVerify annotation is absent", func() {
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "importer-testPvc1", cc.AnnSource: cc.SourceHTTP}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		reconciler = createImportReconciler(pvc)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+		foundAnnInsecureSkipVerify := false
+		for _, envVar := range pod.Spec.Containers[0].Env {
+			if envVar.Name == common.InsecureTLSVar {
+				foundAnnInsecureSkipVerify = true
+				Expect(envVar.Value).To(Equal("false"))
+			}
+		}
+		Expect(foundAnnInsecureSkipVerify).To(BeTrue())
+	})
+
+	It("Should set the InsecureTLS environment variable to true if the AnnInsecureSkipVerify annotation is set to true", func() {
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{
+			cc.AnnEndpoint:           testEndPoint,
+			cc.AnnImportPod:          "importer-testPvc1",
+			cc.AnnInsecureSkipVerify: "true",
+			cc.AnnSource:             cc.SourceHTTP,
+		}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		reconciler = createImportReconciler(pvc)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+		foundAnnInsecureSkipVerify := false
+		for _, envVar := range pod.Spec.Containers[0].Env {
+			if envVar.Name == common.InsecureTLSVar {
+				foundAnnInsecureSkipVerify = true
+				Expect(envVar.Value).To(Equal("true"))
+			}
+		}
+		Expect(foundAnnInsecureSkipVerify).To(BeTrue())
+	})
 })
 
 var _ = Describe("Update PVC from POD", func() {
@@ -916,6 +978,40 @@ var _ = Describe("Update PVC from POD", func() {
 			},
 		))
 	})
+
+	It("Should not remove non-scratch bound condition annotations", func() {
+		eventBasedBoundReason := "Pending"
+		eventBasedBoundMessage := "PVC testPvc1 Pending"
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{
+			cc.AnnEndpoint:              testEndPoint,
+			cc.AnnPodPhase:              string(corev1.PodPending),
+			cc.AnnBoundCondition:        "false",
+			cc.AnnBoundConditionMessage: eventBasedBoundMessage,
+			cc.AnnBoundConditionReason:  eventBasedBoundReason,
+		}, nil, corev1.ClaimPending)
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodPending,
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Waiting: &v1.ContainerStateWaiting{
+							Message: "Pending",
+						},
+					},
+				},
+			},
+		}
+		reconciler = createImportReconciler(pvc, pod)
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
+		Expect(err).ToNot(HaveOccurred())
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPvc.GetAnnotations()[cc.AnnBoundCondition]).To(Equal("false"))
+		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionMessage]).To(Equal(eventBasedBoundMessage))
+		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionReason]).To(Equal(eventBasedBoundReason))
+	})
 })
 
 var _ = Describe("Create Importer Pod", func() {
@@ -1256,6 +1352,34 @@ var _ = Describe("getInsecureTLS", func() {
 	)
 })
 
+var _ = Describe("isInsecureTLS", func() {
+	DescribeTable("should", func(source, insecureSkipVerify string, expected bool) {
+		annotations := map[string]string{
+			cc.AnnSource: source,
+		}
+		if insecureSkipVerify != "" {
+			annotations[cc.AnnInsecureSkipVerify] = insecureSkipVerify
+		}
+		pvc := cc.CreatePvc("testPVC", "default", annotations, nil)
+		reconciler := createImportReconciler(pvc)
+
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		result, err := reconciler.isInsecureTLS(pvc, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).To(Equal(expected))
+	},
+		Entry("return true when AnnInsecureSkipVerify is set to true for http source", cc.SourceHTTP, "true", true),
+		Entry("return true when AnnInsecureSkipVerify is set to true for imageio source", cc.SourceImageio, "true", true),
+		Entry("return false when AnnInsecureSkipVerify is set to false for http source", cc.SourceHTTP, "false", false),
+		Entry("return false when AnnInsecureSkipVerify is not present for http source", cc.SourceHTTP, "", false),
+		Entry("return false when AnnInsecureSkipVerify is set to false for imageio source", cc.SourceImageio, "false", false),
+		Entry("return false when AnnInsecureSkipVerify is not present for imageio source", cc.SourceImageio, "", false),
+	)
+})
+
 var _ = Describe("GetContentType", func() {
 	pvcNoAnno := cc.CreatePvc("testPVCNoAnno", "default", nil, nil)
 	pvcArchiveAnno := cc.CreatePvc("testPVCArchiveAnno", "default", map[string]string{cc.AnnContentType: string(cdiv1.DataVolumeArchive)}, nil)
@@ -1482,7 +1606,6 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 type FakeFeatureGates struct {
 	honorWaitForFirstConsumerEnabled bool
 	claimAdoptionEnabled             bool
-	webhookPvcRenderingEnabled       bool
 }
 
 func (f *FakeFeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error) {
@@ -1491,10 +1614,6 @@ func (f *FakeFeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error) {
 
 func (f *FakeFeatureGates) ClaimAdoptionEnabled() (bool, error) {
 	return f.claimAdoptionEnabled, nil
-}
-
-func (f *FakeFeatureGates) WebhookPvcRenderingEnabled() (bool, error) {
-	return f.webhookPvcRenderingEnabled, nil
 }
 
 func createPendingPvc(name, ns string, annotations, labels map[string]string) *v1.PersistentVolumeClaim {

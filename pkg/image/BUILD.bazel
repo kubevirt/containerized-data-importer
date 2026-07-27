@@ -4,6 +4,7 @@ go_library(
     name = "go_default_library",
     srcs = [
         "directio.go",
+        "exec.go",
         "filefmt.go",
         "nbdkit.go",
         "qemu.go",
@@ -14,7 +15,6 @@ go_library(
     deps = [
         "//pkg/common:go_default_library",
         "//pkg/monitoring/metrics/cdi-importer:go_default_library",
-        "//pkg/system:go_default_library",
         "//pkg/util:go_default_library",
         "//vendor/github.com/docker/go-units:go_default_library",
         "//vendor/github.com/pkg/errors:go_default_library",
@@ -27,6 +27,7 @@ go_library(
 go_test(
     name = "go_default_test",
     srcs = [
+        "exec_test.go",
         "filefmt_test.go",
         "qemu_suite_test.go",
         "qemu_test.go",
@@ -35,7 +36,6 @@ go_test(
     deps = [
         "//pkg/common:go_default_library",
         "//pkg/monitoring/metrics/cdi-importer:go_default_library",
-        "//pkg/system:go_default_library",
         "//pkg/util/prometheus:go_default_library",
         "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",

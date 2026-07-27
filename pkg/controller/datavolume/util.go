@@ -44,7 +44,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
-	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
@@ -119,7 +118,7 @@ func renderPvcSpec(client client.Client, recorder record.EventRecorder, log logr
 func pvcFromStorage(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaimSpec, error) {
 	var pvcSpec *v1.PersistentVolumeClaimSpec
 
-	isWebhookRenderingEnabled, err := featuregates.IsWebhookPvcRenderingEnabled(client)
+	isWebhookRenderingEnabled, err := cc.IsWebhookPvcRenderingEnabled(client)
 	if err != nil {
 		return nil, err
 	}

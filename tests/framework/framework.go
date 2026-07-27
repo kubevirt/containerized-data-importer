@@ -135,7 +135,7 @@ type Framework struct {
 // cannot work when called during test tree construction.
 func NewFramework(prefix string, config ...Config) *Framework {
 	cfg := Config{
-		FeatureGates: []string{featuregates.HonorWaitForFirstConsumer, featuregates.WebhookPvcRendering},
+		FeatureGates: []string{featuregates.HonorWaitForFirstConsumer},
 	}
 	if len(config) > 0 {
 		cfg = config[0]

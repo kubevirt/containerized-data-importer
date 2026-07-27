@@ -3,6 +3,7 @@ package tests_test
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -1009,19 +1010,25 @@ var _ = Describe("Preallocation", func() {
 	dvName := "import-dv"
 
 	var (
-		dataVolume              *cdiv1.DataVolume
-		err                     error
-		tinyCoreIsoURL          = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
-		tinyCoreQcow2URL        = func() string { return fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs) }
-		tinyCoreTarURL          = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
-		tinyCoreRegistryURL     = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
-		imageioURL              = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
-		vcenterURL              = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
-		config                  *cdiv1.CDIConfig
-		origSpec                *cdiv1.CDIConfigSpec
-		trustedRegistryURL      = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
-		trustedRegistryURLQcow2 = func() string { return fmt.Sprintf(utils.TrustedRegistryURLQcow2, f.DockerPrefix) }
-		trustedRegistryIS       = func() string { return fmt.Sprintf(utils.TrustedRegistryIS, f.DockerPrefix) }
+		dataVolume          *cdiv1.DataVolume
+		err                 error
+		tinyCoreIsoURL      = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
+		tinyCoreQcow2URL    = func() string { return fmt.Sprintf(utils.TinyCoreQcow2URL, f.CdiInstallNs) }
+		tinyCoreTarURL      = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
+		tinyCoreRegistryURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
+		imageioURL          = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
+		vcenterURL          = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
+		config              *cdiv1.CDIConfig
+		origSpec            *cdiv1.CDIConfigSpec
+		trustedRegistryURL  = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
+		}
+		trustedRegistryURLQcow2 = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.CirrosQcow2ImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
+		}
+		trustedRegistryIS = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName)).String()
+		}
 	)
 
 	BeforeEach(func() {
@@ -1342,9 +1349,11 @@ var _ = Describe("Import populator", func() {
 		pvcPrime           *v1.PersistentVolumeClaim
 		tinyCoreIsoURL     = func() string { return fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs) }
 		tinyCoreArchiveURL = func() string { return fmt.Sprintf(utils.TarArchiveURL, f.CdiInstallNs) }
-		trustedRegistryURL = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
-		imageioURL         = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
-		vcenterURL         = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
+		trustedRegistryURL = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
+		}
+		imageioURL = func() string { return fmt.Sprintf(utils.ImageioURL, f.CdiInstallNs) }
+		vcenterURL = func() string { return fmt.Sprintf(utils.VcenterURL, f.CdiInstallNs) }
 	)
 
 	// importPopulationPVCDefinition creates a PVC with import datasourceref
@@ -1593,6 +1602,55 @@ var _ = Describe("Import populator", func() {
 		Entry("[test_id:11010]with Blank image with preallocation", utils.BlankMD5, createBlankImportPopulatorCR, true, false),
 		Entry("[test_id:11011]with Blank image without preallocation", utils.BlankMD5, createBlankImportPopulatorCR, false, false),
 	)
+
+	It("should NOT auto-complete PVC when DisableWebhookPvcRendering is set", Serial, func() {
+		By("Saving original CDIConfig state")
+		origConfig, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		origSpec := origConfig.Spec.DeepCopy()
+
+		By("Disabling webhook PVC rendering via CDIConfig")
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			config.WebhookPvcRendering = cdiv1.WebhookPvcRenderingDisabled
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Waiting for the MutatingWebhookConfiguration to be removed")
+		Eventually(func() bool {
+			_, err := f.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+				context.TODO(), "cdi-api-pvc-mutate", metav1.GetOptions{})
+			return err != nil
+		}, 2*time.Minute, 2*time.Second).Should(BeTrue())
+
+		By("Creating a PVC with applyStorageProfile label and without AccessModes")
+		pvcDef := utils.NewPVCDefinition("test-disabled-webhook-pvc", "64Mi", nil,
+			map[string]string{common.PvcApplyStorageProfileLabel: "true"})
+		pvcDef.Spec.AccessModes = nil
+
+		_, err = utils.CreatePVCFromDefinition(f.K8sClient, f.Namespace.Name, pvcDef)
+		Expect(err).To(HaveOccurred(), "PVC creation should fail because the webhook is disabled and accessModes is missing")
+
+		By("Verifying the error is a validation rejection for missing accessModes")
+		var statusErr *k8serrors.StatusError
+		Expect(errors.As(err, &statusErr)).To(BeTrue(), "error should be a StatusError")
+		Expect(statusErr.ErrStatus.Reason).To(Equal(metav1.StatusReasonInvalid))
+		Expect(statusErr.ErrStatus.Details.Causes).To(ContainElement(
+			HaveField("Type", Equal(metav1.CauseTypeFieldValueRequired)),
+		))
+
+		By("Restoring CDIConfig to original state")
+		err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+			origSpec.DeepCopyInto(config)
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Waiting for the MutatingWebhookConfiguration to be recreated")
+		Eventually(func() error {
+			_, err := f.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+				context.TODO(), "cdi-api-pvc-mutate", metav1.GetOptions{})
+			return err
+		}, 2*time.Minute, 2*time.Second).Should(Succeed())
+	})
 
 	DescribeTable("should import Block PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error) {
 		if !f.IsBlockVolumeStorageClassAvailable() {
@@ -2046,8 +2104,12 @@ var _ = Describe("Containerdisk envs to PVC labels", func() {
 
 	var (
 		tinyCoreRegistryURL = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
-		trustedRegistryURL  = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
-		trustedRegistryIS   = func() string { return fmt.Sprintf(utils.TrustedRegistryIS, f.DockerPrefix) }
+		trustedRegistryURL  = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
+		}
+		trustedRegistryIS = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName)).String()
+		}
 	)
 
 	DescribeTable("Import should add KUBEVIRT_IO_ env vars to PVC labels when source is registry", func(pullMethod cdiv1.RegistryPullMethod, urlFn func() string, isImageStream bool) {
@@ -2141,7 +2203,9 @@ var _ = Describe("Multi-arch image pull", func() {
 	var (
 		f                         = framework.NewFramework(namespacePrefix)
 		tinyCoreMultiarchRegistry = func() string { return fmt.Sprintf(utils.TinyCoreIsoRegistryURL, f.CdiInstallNs) }
-		trustedRegistryURL        = func() string { return fmt.Sprintf(utils.TrustedRegistryURL, f.DockerPrefix) }
+		trustedRegistryURL        = func() string {
+			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
+		}
 	)
 
 	It("Should succeed to pull multi-arch image matching architecture with pull method Pod", func() {

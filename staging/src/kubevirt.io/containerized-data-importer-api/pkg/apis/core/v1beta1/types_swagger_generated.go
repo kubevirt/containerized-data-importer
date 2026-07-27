@@ -133,6 +133,7 @@ func (DataVolumeSourceHTTP) SwaggerDoc() map[string]string {
 		"extraHeaders":       "ExtraHeaders is a list of strings containing extra headers to include with HTTP transfer requests\n+optional",
 		"secretExtraHeaders": "SecretExtraHeaders is a list of Secret references, each containing an extra HTTP header that may include sensitive information\n+optional",
 		"checksum":           "Checksum is the expected checksum of the file. Format: \"algorithm:hash\", e.g., \"sha256:1234abcd...\" or \"md5:5678efgh...\"\nSupported algorithms: md5, sha1, sha256, sha512\nIf specified, the importer will verify the downloaded content matches this checksum\n+optional",
+		"insecureSkipVerify": "InsecureSkipVerify is a flag to skip certificate verification for the HTTP endpoint\n+optional",
 	}
 }
 
@@ -532,6 +533,7 @@ func (CDIConfigSpec) SwaggerDoc() map[string]string {
 		"scratchSpaceStorageClass": "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
 		"podResourceRequirements":  "ResourceRequirements describes the compute resource requirements.",
 		"featureGates":             "FeatureGates are a list of specific enabled feature gates",
+		"webhookPvcRendering":      "WebhookPvcRendering controls whether the PVC mutating webhook that completes\nPVC specs from StorageProfiles is enabled or disabled\nAllowed values are \"Enabled\" (default) and \"Disabled\"\n+optional",
 		"filesystemOverhead":       "FilesystemOverhead describes the space reserved for overhead when using Filesystem volumes. A value is between 0 and 1, if not defined it is 0.06 (6% overhead)",
 		"preallocation":            "Preallocation controls whether storage for DataVolumes should be allocated in advance.",
 		"insecureRegistries":       "InsecureRegistries is a list of TLS disabled registries",

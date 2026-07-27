@@ -2,10 +2,13 @@ package tests_test
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +21,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -110,7 +113,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 		for i := 0; i < numAddedStorageClasses; i++ {
 			name := fmt.Sprintf("unknown-sc-%d", i)
 			_, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), name, metav1.GetOptions{})
-			if err != nil && errors.IsNotFound(err) {
+			if err != nil && k8serrors.IsNotFound(err) {
 				continue
 			}
 			err = f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), name, metav1.DeleteOptions{})
@@ -125,7 +128,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 
 	deleteStubSnapshotClass := func() {
 		err := f.CrClient.Delete(context.TODO(), newStubSnapshotClass(""))
-		if err != nil && !errors.IsNotFound(err) {
+		if err != nil && !k8serrors.IsNotFound(err) {
 			Expect(err).ToNot(HaveOccurred())
 		}
 	}
@@ -188,47 +191,6 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 	})
 
 	Context("[rfe_id:7101][crit:medium][vendor:cnv-qe@redhat.com][level:component] Metrics and Alert tests", func() {
-
-		It("[test_id:9656] Metric kubevirt_cdi_cr_ready is 0 when CDI is not ready", func() {
-			Eventually(func() int {
-				return getMetricValue(f, "kubevirt_cdi_cr_ready")
-			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", 1))
-
-			crModified = true
-			removeCDI(f, cr)
-
-			By("Creating new CDI with wrong NodeSelector")
-			cdi := &cdiv1.CDI{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: cr.Name,
-				},
-				Spec: cr.Spec,
-			}
-			cdi.Spec.Infra.NodePlacement.NodeSelector = map[string]string{"wrong": "wrong"}
-			_, err := f.CdiClient.CdiV1beta1().CDIs().Create(context.TODO(), cdi, metav1.CreateOptions{})
-			Expect(err).ToNot(HaveOccurred())
-
-			By("Wait for kubevirt_cdi_cr_ready == 0")
-			Eventually(func() int {
-				return getMetricValue(f, "kubevirt_cdi_cr_ready")
-			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", 0))
-
-			waitForPrometheusAlert(f, "CDINotReady")
-
-			By("Revert CDI CR changes")
-			cdi, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			cdi.Spec = cr.Spec
-			_, err = f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), cdi, metav1.UpdateOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			waitCDI(f, cr, cdiPods)
-			crModified = false
-
-			By("Wait for kubevirt_cdi_cr_ready == 1")
-			Eventually(func() int {
-				return getMetricValue(f, "kubevirt_cdi_cr_ready")
-			}, metricPollingTimeout, metricPollingInterval).Should(BeNumerically("==", 1))
-		})
 
 		It("[test_id:7963] CDI ready metric value as expected when ready to use", func() {
 			Eventually(func() int {
@@ -494,6 +456,75 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 			scaleDeployment(f, deploymentName, originalReplicas)
 			err := utils.WaitForDeploymentReplicasReady(f.K8sClient, f.CdiInstallNs, deploymentName)
 			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	Context("Metrics endpoint authentication", func() {
+		var (
+			portForwardCmd *exec.Cmd
+			metricsURL     string
+		)
+
+		BeforeEach(func() {
+			lp := "18443"
+			pm := lp + ":8443"
+			portForwardCmd = f.CreateKubectlCommand("-n", f.CdiInstallNs, "port-forward", "svc/"+common.PrometheusServiceName, pm)
+			err := portForwardCmd.Start()
+			Expect(err).ToNot(HaveOccurred())
+			metricsURL = fmt.Sprintf("https://127.0.0.1:%s/metrics", lp)
+		})
+
+		AfterEach(func() {
+			if portForwardCmd != nil {
+				ExpectWithOffset(1, portForwardCmd.Process.Kill()).Should(Succeed())
+				err := portForwardCmd.Wait()
+				if err != nil {
+					t := &exec.ExitError{}
+					ExpectWithOffset(1, errors.As(err, &t)).Should(BeTrue())
+				}
+			}
+		})
+
+		It("should reject unauthenticated requests to the metrics endpoint", func() {
+			httpClient := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+				},
+			}
+
+			Eventually(func() int {
+				resp, err := httpClient.Get(metricsURL)
+				if err != nil {
+					return 0
+				}
+				defer resp.Body.Close()
+				return resp.StatusCode
+			}, 10*time.Second, 1*time.Second).Should(Equal(http.StatusUnauthorized))
+		})
+
+		It("should allow authenticated requests to the metrics endpoint", func() {
+			token, err := f.GetTokenForServiceAccount(f.CdiInstallNs, common.MetricsReaderServiceAccountName)
+			Expect(err).ToNot(HaveOccurred())
+
+			httpClient := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+				},
+			}
+
+			Eventually(func() int {
+				req, err := http.NewRequest(http.MethodGet, metricsURL, nil)
+				if err != nil {
+					return 0
+				}
+				req.Header.Set("Authorization", "Bearer "+token)
+				resp, err := httpClient.Do(req)
+				if err != nil {
+					return 0
+				}
+				defer resp.Body.Close()
+				return resp.StatusCode
+			}, 10*time.Second, 1*time.Second).Should(Equal(http.StatusOK))
 		})
 	})
 

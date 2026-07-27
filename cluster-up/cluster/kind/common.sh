@@ -154,8 +154,8 @@ function prepare_config() {
 master_ip="127.0.0.1"
 kubeconfig=${BASE_PATH}/$KUBEVIRT_PROVIDER/.kubeconfig
 kubectl=${BASE_PATH}/$KUBEVIRT_PROVIDER/.kubectl
-docker_prefix=localhost:${HOST_PORT}/kubevirt
-manifest_docker_prefix=registry:5000/kubevirt
+docker_prefix=\${DOCKER_PREFIX:-localhost:${HOST_PORT}/kubevirt}
+manifest_docker_prefix=\${DOCKER_PREFIX:-registry:5000/kubevirt}
 EOF
 }
 
@@ -269,6 +269,11 @@ function setup_kind() {
       _kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/"$KUBEVIRT_CUSTOM_CDI_VERSION"/cdi-operator.yaml
       _kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/"$KUBEVIRT_CUSTOM_CDI_VERSION"/cdi-cr.yaml
     fi
+
+    # remove the rancher.io kind default storageClass
+    _kubectl delete --ignore-not-found sc standard
+    # install the local storageClass for KubeVirt tests
+    _kubectl apply -f $KIND_MANIFESTS_DIR/local-storage-class.yaml
 
 }
 

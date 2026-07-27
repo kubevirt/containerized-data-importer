@@ -11,8 +11,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes/scheme"
+
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
@@ -27,6 +31,38 @@ var _ = Describe("GetRequestedImageSize", func() {
 		result, err := GetRequestedImageSize(createPvcNoSize("testPVC", "default", nil, nil))
 		Expect(err).To(HaveOccurred())
 		Expect(result).To(Equal(""))
+	})
+})
+
+var _ = Describe("UpdateHTTPAnnotations", func() {
+	It("Should set AnnInsecureSkipVerify to true when DataVolumeSourceHTTP.InsecureSkipVerify is true", func() {
+		insecureSkipVerify := true
+		annotations := map[string]string{}
+		UpdateHTTPAnnotations(annotations, &cdiv1.DataVolumeSourceHTTP{
+			URL:                "http://example.com",
+			InsecureSkipVerify: &insecureSkipVerify,
+		})
+		Expect(annotations[AnnInsecureSkipVerify]).To(Equal("true"))
+	})
+
+	It("Should not set AnnInsecureSkipVerify when DataVolumeSourceHTTP.InsecureSkipVerify is false", func() {
+		insecureSkipVerify := false
+		annotations := map[string]string{}
+		UpdateHTTPAnnotations(annotations, &cdiv1.DataVolumeSourceHTTP{
+			URL:                "http://example.com",
+			InsecureSkipVerify: &insecureSkipVerify,
+		})
+		_, exists := annotations[AnnInsecureSkipVerify]
+		Expect(exists).To(BeFalse())
+	})
+
+	It("Should not set AnnInsecureSkipVerify when DataVolumeSourceHTTP.InsecureSkipVerify is absent", func() {
+		annotations := map[string]string{}
+		UpdateHTTPAnnotations(annotations, &cdiv1.DataVolumeSourceHTTP{
+			URL: "http://example.com",
+		})
+		_, exists := annotations[AnnInsecureSkipVerify]
+		Expect(exists).To(BeFalse())
 	})
 })
 
@@ -417,3 +453,40 @@ func createPvcNoSize(name, ns string, annotations, labels map[string]string) *v1
 		},
 	}
 }
+
+var _ = Describe("IsWebhookPvcRenderingEnabled", func() {
+	var createCDIConfigClient = func(policy cdiv1.WebhookPvcRenderingPolicy) *fake.ClientBuilder {
+		s := scheme.Scheme
+		Expect(cdiv1.AddToScheme(s)).To(Succeed())
+
+		cdiConfig := &cdiv1.CDIConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: common.ConfigName,
+			},
+			Spec: cdiv1.CDIConfigSpec{
+				WebhookPvcRendering: policy,
+			},
+		}
+		return fake.NewClientBuilder().WithScheme(s).WithRuntimeObjects(cdiConfig)
+	}
+
+	DescribeTable("should reflect WebhookPvcRendering config", func(policy cdiv1.WebhookPvcRenderingPolicy, expectedEnabled bool) {
+		cl := createCDIConfigClient(policy).Build()
+		enabled, err := IsWebhookPvcRenderingEnabled(cl)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(enabled).To(Equal(expectedEnabled))
+	},
+		Entry("enabled by default when field is empty", cdiv1.WebhookPvcRenderingPolicy(""), true),
+		Entry("enabled when explicitly set to Enabled", cdiv1.WebhookPvcRenderingEnabled, true),
+		Entry("disabled when set to Disabled", cdiv1.WebhookPvcRenderingDisabled, false),
+	)
+
+	It("should return error when CDIConfig is not found", func() {
+		s := scheme.Scheme
+		Expect(cdiv1.AddToScheme(s)).To(Succeed())
+		cl := fake.NewClientBuilder().WithScheme(s).Build()
+
+		_, err := IsWebhookPvcRenderingEnabled(cl)
+		Expect(err).To(HaveOccurred())
+	})
+})

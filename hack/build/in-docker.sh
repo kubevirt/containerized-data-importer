@@ -36,6 +36,7 @@ ${CDI_CRI} run ${USE_TTY} \
     -e RUN_UID=$(id -u) \
     -e RUN_GID=$(id -g) \
     -e KUBEVIRTCI_RUNTIME=${KUBEVIRTCI_RUNTIME} \
+    -e GIT_CONFIG_PARAMETERS="'safe.directory=/go/src/kubevirt.io/containerized-data-importer'" \
     -e GOCACHE=/gocache \
     -w ${WORK_DIR} \
     ${BUILDER_IMAGE} "$1"

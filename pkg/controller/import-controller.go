@@ -208,7 +208,7 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 
 	// only want to update bound condition for relevant type
 	if checkPVC(pvc, cc.AnnEndpoint, log) || checkPVC(pvc, cc.AnnSource, log) {
-		if err := cc.UpdatePVCBoundContionFromEvents(pvc, r.client, log); err != nil {
+		if err := cc.UpdatePVCBoundConditionFromEvents(pvc, r.client, log); err != nil {
 			return reconcile.Result{}, err
 		}
 	}
@@ -460,7 +460,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 				return err
 			}
 		}
-	} else {
+	} else if anno[cc.AnnBoundConditionReason] == creatingScratch {
 		// No scratch space, or scratch space is bound, remove annotation
 		delete(anno, cc.AnnBoundCondition)
 		delete(anno, cc.AnnBoundConditionMessage)
@@ -713,9 +713,9 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 }
 
 func (r *ImportReconciler) isInsecureTLS(pvc *corev1.PersistentVolumeClaim, cdiConfig *cdiv1.CDIConfig) (bool, error) {
-	// Check if insecureSkipVerify annotation is set (only applicable for ImageIO sources)
+	// Check if insecureSkipVerify annotation is set (only applicable for ImageIO sources and HTTP sources)
 	source, sourceOk := pvc.Annotations[cc.AnnSource]
-	if sourceOk && source == cc.SourceImageio {
+	if sourceOk && (source == cc.SourceImageio || source == cc.SourceHTTP) {
 		if insecureSkipVerify, ok := pvc.Annotations[cc.AnnInsecureSkipVerify]; ok && insecureSkipVerify == "true" {
 			return true, nil
 		}

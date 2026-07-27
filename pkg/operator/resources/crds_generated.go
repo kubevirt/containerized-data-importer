@@ -436,6 +436,12 @@ spec:
                   uploadProxyURLOverride:
                     description: Override the URL used when uploading to a DataVolume
                     type: string
+                  webhookPvcRendering:
+                    description: |-
+                      WebhookPvcRendering controls whether the PVC mutating webhook that completes
+                      PVC specs from StorageProfiles is enabled or disabled
+                      Allowed values are "Enabled" (default) and "Disabled"
+                    type: string
                 type: object
               customizeComponents:
                 description: CustomizeComponents defines patches for components deployed
@@ -2953,6 +2959,12 @@ spec:
                   uploadProxyURLOverride:
                     description: Override the URL used when uploading to a DataVolume
                     type: string
+                  webhookPvcRendering:
+                    description: |-
+                      WebhookPvcRendering controls whether the PVC mutating webhook that completes
+                      PVC specs from StorageProfiles is enabled or disabled
+                      Allowed values are "Enabled" (default) and "Disabled"
+                    type: string
                 type: object
               customizeComponents:
                 description: CustomizeComponents defines patches for components deployed
@@ -5424,6 +5436,12 @@ spec:
               uploadProxyURLOverride:
                 description: Override the URL used when uploading to a DataVolume
                 type: string
+              webhookPvcRendering:
+                description: |-
+                  WebhookPvcRendering controls whether the PVC mutating webhook that completes
+                  PVC specs from StorageProfiles is enabled or disabled
+                  Allowed values are "Enabled" (default) and "Disabled"
+                type: string
             type: object
           status:
             description: CDIConfigStatus provides the most recently observed status
@@ -5977,6 +5995,10 @@ spec:
                                 items:
                                   type: string
                                 type: array
+                              insecureSkipVerify:
+                                description: InsecureSkipVerify is a flag to skip
+                                  certificate verification for the HTTP endpoint
+                                type: boolean
                               secretExtraHeaders:
                                 description: SecretExtraHeaders is a list of Secret
                                   references, each containing an extra HTTP header
@@ -6992,6 +7014,10 @@ spec:
                         items:
                           type: string
                         type: array
+                      insecureSkipVerify:
+                        description: InsecureSkipVerify is a flag to skip certificate
+                          verification for the HTTP endpoint
+                        type: boolean
                       secretExtraHeaders:
                         description: SecretExtraHeaders is a list of Secret references,
                           each containing an extra HTTP header that may include sensitive
@@ -8082,6 +8108,10 @@ spec:
                         items:
                           type: string
                         type: array
+                      insecureSkipVerify:
+                        description: InsecureSkipVerify is a flag to skip certificate
+                          verification for the HTTP endpoint
+                        type: boolean
                       secretExtraHeaders:
                         description: SecretExtraHeaders is a list of Secret references,
                           each containing an extra HTTP header that may include sensitive

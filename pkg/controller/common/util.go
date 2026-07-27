@@ -370,6 +370,9 @@ const (
 
 	// AnnPVCPrimeName annotation is the name of the PVC' that is used to populate the PV which is then rebound to the target PVC
 	AnnPVCPrimeName = AnnAPIGroup + "/storage.populator.pvcPrime"
+
+	// ClaimMisbound event reason
+	EventReasonClaimMisbound = "ClaimMisbound"
 )
 
 // Size-detection pod error codes
@@ -1753,6 +1756,9 @@ func UpdateHTTPAnnotations(annotations map[string]string, http *cdiv1.DataVolume
 	if http.Checksum != "" {
 		annotations[AnnChecksum] = http.Checksum
 	}
+	if http.InsecureSkipVerify != nil && *http.InsecureSkipVerify {
+		annotations[AnnInsecureSkipVerify] = "true"
+	}
 	for index, header := range http.ExtraHeaders {
 		annotations[fmt.Sprintf("%s.%d", AnnExtraHeaders, index)] = header
 	}
@@ -2242,9 +2248,9 @@ func sortEvents(events *corev1.EventList, usingPopulator bool, pvcPrimeName stri
 	})
 }
 
-// UpdatePVCBoundContionFromEvents updates the bound condition annotations on the PVC based on recent events
+// UpdatePVCBoundConditionFromEvents updates the bound condition annotations on the PVC based on recent events
 // This function can be used by both controller and populator packages to update PVC bound condition information
-func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client.Client, log logr.Logger) error {
+func UpdatePVCBoundConditionFromEvents(pvc *corev1.PersistentVolumeClaim, c client.Client, log logr.Logger) error {
 	currentPvcCopy := pvc.DeepCopy()
 
 	anno := pvc.GetAnnotations()
@@ -2373,6 +2379,25 @@ func CopyEvents(srcPVC, targetPVC client.Object, c client.Client, recorder recor
 		if _, exists := eventMap[formattedMsg]; exists {
 			continue
 		}
+
+		// simply check if event is a ClaimMisbound event, if so, skip it
+		if newEvent.Reason == EventReasonClaimMisbound {
+			continue
+		}
+
 		recorder.Event(targetPVC, newEvent.Type, newEvent.Reason, formattedMsg)
 	}
+}
+
+// IsWebhookPvcRenderingEnabled returns true unless
+// CDIConfigSpec.WebhookPvcRendering is explicitly set to "Disabled"
+func IsWebhookPvcRenderingEnabled(c client.Client) (bool, error) {
+	config := &cdiv1.CDIConfig{}
+	if err := c.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
+		return false, errors.Wrap(err, "error getting CDIConfig")
+	}
+	if config.Spec.WebhookPvcRendering == cdiv1.WebhookPvcRenderingDisabled {
+		return false, nil
+	}
+	return true, nil
 }

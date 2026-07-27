@@ -1,0 +1,21 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["filters.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/sigs.k8s.io/controller-runtime/pkg/metrics/filters",
+    importpath = "sigs.k8s.io/controller-runtime/pkg/metrics/filters",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/go-logr/logr:go_default_library",
+        "//vendor/k8s.io/apimachinery/pkg/util/wait:go_default_library",
+        "//vendor/k8s.io/apiserver/pkg/apis/apiserver:go_default_library",
+        "//vendor/k8s.io/apiserver/pkg/authentication/authenticatorfactory:go_default_library",
+        "//vendor/k8s.io/apiserver/pkg/authorization/authorizer:go_default_library",
+        "//vendor/k8s.io/apiserver/pkg/authorization/authorizerfactory:go_default_library",
+        "//vendor/k8s.io/client-go/kubernetes/typed/authentication/v1:go_default_library",
+        "//vendor/k8s.io/client-go/kubernetes/typed/authorization/v1:go_default_library",
+        "//vendor/k8s.io/client-go/rest:go_default_library",
+        "//vendor/sigs.k8s.io/controller-runtime/pkg/metrics/server:go_default_library",
+    ],
+)

@@ -10,19 +10,27 @@ CDI volume populators already cover almost all DV import/clone/upload functional
 
 ## Configuration
 
-To be fully compatible with any external tools that may already use CDI, this feature has to be enabled by the feature gate: `WebhookPvcRendering`. In the released `cdi-cr` it is enabled by default. To disable it, remove the feature gate from the `CDI` custom resource spec.config (see [cdi-config doc](./cdi-config.md)).
+PVC Mutating Webhook Rendering is **enabled by default** in CDI. The webhook is always deployed and requires no explicit configuration to activate.
 
-A Snippet below shows CDI resource with `WebhookPvcRendering` enabled.
+To opt in to webhook auto-completion on a PVC, apply the label `cdi.kubevirt.io/applyStorageProfile: "true"` (see [Usage](#usage) below).
+
+### Disabling the webhook
+
+In case of emergency (e.g. webhook misbehavior), you can disable it by setting `webhookPvcRendering: "Disabled"` in the CDI config spec:
+
 ```yaml
 apiVersion: cdi.kubevirt.io/v1beta1
 kind: CDI
 [...]
 spec:
   config:
-    featureGates:
-    - WebhookPvcRendering
+    webhookPvcRendering: "Disabled"
 [...]
 ```
+
+When disabled, the `MutatingWebhookConfiguration` is removed and the DataVolume controller falls back to rendering PVC fields itself.
+
+To re-enable, remove the field or set it to `"Enabled"`.
 
 ## Usage
 

@@ -1229,6 +1229,37 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "checksum validation failed",
 					Reason:  "ChecksumError",
 				}}),
+			Entry("succeed creating import dv with insecureSkipVerify defined", dataVolumeTestArguments{
+				// Using the httpsTinyCoreQcow2URL which has a self signed cert.
+				// This will fail without insecureSkipVerify set to true, but should succeed with it.
+				name: "dv-https-insecure-skip-verify-pass",
+				size: "1Gi",
+				url:  httpsTinyCoreQcow2URL,
+				dvFunc: func(name, size, url string) *cdiv1.DataVolume {
+					dv := utils.NewDataVolumeWithHTTPImport(name, size, url)
+					insecureSkipVerify := true
+					dv.Spec.Source.HTTP.InsecureSkipVerify = &insecureSkipVerify
+					return dv
+				},
+				eventReason:      dvc.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-https-insecure-skip-verify-pass Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
 		)
 
 		savedVddkConfigMap := common.VddkConfigMap + "-saved"
@@ -2103,6 +2134,65 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Entry("[test_id:5913] (controller rendering)", "false", verifyControllerRenderingEvent),
 			Entry("[rfe_id:10985][crit:high][test_id:11047] (webhook rendering)", "true", verifyWebhookRenderingEvent),
 		)
+
+		It("should have controller render PVC when webhook is disabled", Serial, func() {
+			By("Disabling webhook PVC rendering via CDIConfig")
+			err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+				config.WebhookPvcRendering = cdiv1.WebhookPvcRenderingDisabled
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Waiting for the MutatingWebhookConfiguration to be removed")
+			Eventually(func() bool {
+				_, err := f.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+					context.TODO(), "cdi-api-pvc-mutate", metav1.GetOptions{})
+				return err != nil
+			}, 2*time.Minute, 2*time.Second).Should(BeTrue())
+
+			By("Creating a DataVolume without applyStorageProfile label")
+			requestedSize := resource.MustParse("100Mi")
+			spec := cdiv1.StorageSpec{
+				Resources: v1.VolumeResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceStorage: requestedSize,
+					},
+				},
+			}
+			dataVolume := createDataVolumeForImport(f, spec)
+
+			By("Waiting for PVC to be created")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Verifying PVC has AccessModes set by controller (not webhook)")
+			Expect(pvc.Spec.AccessModes).ToNot(BeEmpty(),
+				"AccessModes should have been rendered by the controller as fallback")
+
+			By("Verifying controller rendering event")
+			Eventually(func() bool {
+				events, err := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace,
+					"--field-selector=involvedObject.kind=DataVolume")
+				if err == nil {
+					return strings.Contains(events, controller.ErrClaimNotValid) ||
+						strings.Contains(events, controller.NotFound) ||
+						pvc.Spec.AccessModes != nil
+				}
+				return false
+			}, timeout, pollingInterval).Should(BeTrue())
+
+			By("Re-enabling webhook PVC rendering")
+			err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+				config.WebhookPvcRendering = cdiv1.WebhookPvcRenderingEnabled
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Waiting for the MutatingWebhookConfiguration to be re-created")
+			Eventually(func() error {
+				_, err := f.K8sClient.AdmissionregistrationV1().MutatingWebhookConfigurations().Get(
+					context.TODO(), "cdi-api-pvc-mutate", metav1.GetOptions{})
+				return err
+			}, 2*time.Minute, 2*time.Second).Should(Succeed())
+		})
 
 		It("[test_id:6483]Import pod should not have size corrected on block", func() {
 			SetFilesystemOverhead(f, "0.50", "0.50")

@@ -4002,6 +4002,10 @@
      "uploadProxyURLOverride": {
       "description": "Override the URL used when uploading to a DataVolume",
       "type": "string"
+     },
+     "webhookPvcRendering": {
+      "description": "WebhookPvcRendering controls whether the PVC mutating webhook that completes PVC specs from StorageProfiles is enabled or disabled Allowed values are \"Enabled\" (default) and \"Disabled\"",
+      "type": "string"
      }
     }
    },
@@ -4793,6 +4797,10 @@
        "type": "string",
        "default": ""
       }
+     },
+     "insecureSkipVerify": {
+      "description": "InsecureSkipVerify is a flag to skip certificate verification for the HTTP endpoint",
+      "type": "boolean"
      },
      "secretExtraHeaders": {
       "description": "SecretExtraHeaders is a list of Secret references, each containing an extra HTTP header that may include sensitive information",

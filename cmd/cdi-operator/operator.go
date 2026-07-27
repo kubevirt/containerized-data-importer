@@ -20,6 +20,8 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"net/http"
+	"net/http/pprof"
 	"os"
 	"runtime"
 	"strconv"
@@ -41,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	metricsfilters "sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
@@ -107,8 +110,16 @@ func main() {
 		LeaderElectionResourceLock: "leases",
 		HealthProbeBindAddress:     ":8444",
 		Metrics: server.Options{
-			BindAddress:   ":8443",
-			SecureServing: true,
+			BindAddress:    ":8443",
+			SecureServing:  true,
+			FilterProvider: metricsfilters.WithAuthenticationAndAuthorization,
+			ExtraHandlers: map[string]http.Handler{
+				"/debug/pprof/":        http.HandlerFunc(pprof.Index),
+				"/debug/pprof/cmdline": http.HandlerFunc(pprof.Cmdline),
+				"/debug/pprof/profile": http.HandlerFunc(pprof.Profile),
+				"/debug/pprof/symbol":  http.HandlerFunc(pprof.Symbol),
+				"/debug/pprof/trace":   http.HandlerFunc(pprof.Trace),
+			},
 			// Disable HTTP/2 to prevent rapid reset vulnerability
 			// See CVE-2023-44487, CVE-2023-39325
 			TLSOpts: []func(*tls.Config){func(c *tls.Config) {

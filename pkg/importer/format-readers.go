@@ -18,12 +18,12 @@ package importer
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/hex"
 	"io"
 	"strconv"
 
 	"github.com/klauspost/compress/zstd"
+	gzip "github.com/klauspost/pgzip"
 	"github.com/pkg/errors"
 	"github.com/ulikunitz/xz"
 

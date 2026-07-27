@@ -39,6 +39,7 @@ import (
 func createControllerResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createControllerServiceAccount(),
+		createMetricsReaderServiceAccount(),
 		createControllerRoleBinding(),
 		createControllerRole(),
 		createControllerDeployment(args.ControllerImage,
@@ -170,6 +171,10 @@ func createControllerRole() *rbacv1.Role {
 
 func createControllerServiceAccount() *corev1.ServiceAccount {
 	return utils.ResourceBuilder.CreateServiceAccount(common.ControllerServiceAccountName)
+}
+
+func createMetricsReaderServiceAccount() *corev1.ServiceAccount {
+	return utils.ResourceBuilder.CreateServiceAccount(common.MetricsReaderServiceAccountName)
 }
 
 func createControllerDeployment(controllerImage, importerImage, clonerImage, ovirtPopulatorImage, uploadServerImage, verbosity, pullPolicy string, imagePullSecrets []corev1.LocalObjectReference, priorityClassName string, infraNodePlacement *sdkapi.NodePlacement, replicas int32) *appsv1.Deployment {

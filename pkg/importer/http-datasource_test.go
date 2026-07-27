@@ -76,14 +76,14 @@ var _ = Describe("Http data source", func() {
 	})
 
 	It("NewHTTPDataSource should fail when called with an invalid endpoint", func() {
-		_, err = NewHTTPDataSource("httpd://!@#$%^&*()dgsdd&3r53/invalid", "", "", "", cdiv1.DataVolumeKubeVirt, "")
+		_, err = NewHTTPDataSource("httpd://!@#$%^&*()dgsdd&3r53/invalid", "", "", "", cdiv1.DataVolumeKubeVirt, "", false)
 		Expect(err).To(HaveOccurred())
 		Expect(strings.Contains(err.Error(), "unable to parse endpoint")).To(BeTrue())
 	})
 
 	It("NewHTTPDataSource should fail when called with an invalid certdir", func() {
 		image := ts.URL + "/" + cirrosFileName
-		_, err = NewHTTPDataSource(image, "", "", "/invaliddir", cdiv1.DataVolumeKubeVirt, "")
+		_, err = NewHTTPDataSource(image, "", "", "/invaliddir", cdiv1.DataVolumeKubeVirt, "", false)
 		Expect(err).To(HaveOccurred())
 	})
 
@@ -92,7 +92,7 @@ var _ = Describe("Http data source", func() {
 		if image != "" {
 			image = ts.URL + "/" + image
 		}
-		dp, err = NewHTTPDataSource(image, "", "", "", contentType, "")
+		dp, err = NewHTTPDataSource(image, "", "", "", contentType, "", false)
 		dp.brokenForQemuImg = brokenForQemuImg
 		Expect(err).NotTo(HaveOccurred())
 		newPhase, err := dp.Info()
@@ -117,7 +117,7 @@ var _ = Describe("Http data source", func() {
 		if image != "" {
 			image = ts.URL + "/" + image
 		}
-		dp, err = NewHTTPDataSource(image, "", "", "", contentType, "")
+		dp, err = NewHTTPDataSource(image, "", "", "", contentType, "", false)
 		Expect(err).NotTo(HaveOccurred())
 		_, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
@@ -152,7 +152,7 @@ var _ = Describe("Http data source", func() {
 	)
 
 	DescribeTable("should succeed when writing to a valid file with phase", func(expectedPhase ProcessingPhase, brokenForQemuImg bool, imageType string) {
-		dp, err = NewHTTPDataSource(ts.URL+"/"+imageType, "", "", "", cdiv1.DataVolumeKubeVirt, "")
+		dp, err = NewHTTPDataSource(ts.URL+"/"+imageType, "", "", "", cdiv1.DataVolumeKubeVirt, "", false)
 		dp.brokenForQemuImg = brokenForQemuImg
 		Expect(err).NotTo(HaveOccurred())
 		result, err := dp.Info()
@@ -182,7 +182,7 @@ var _ = Describe("Http data source", func() {
 				w.WriteHeader(http.StatusInternalServerError)
 			}
 		}))
-		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt, "")
+		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt, "", false)
 		Expect(err).NotTo(HaveOccurred())
 		_, err := dp.Info()
 		Expect(err).NotTo(HaveOccurred())
@@ -215,7 +215,7 @@ var _ = Describe("Http data source", func() {
 		It("should fail when created with invalid checksum format", func() {
 			image := ts.URL + "/" + cirrosFileName
 			// Invalid format: missing colon
-			_, err := NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, "sha256abc123")
+			_, err := NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, "sha256abc123", false)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid checksum"))
 		})
@@ -223,7 +223,7 @@ var _ = Describe("Http data source", func() {
 		It("should fail when created with unsupported checksum algorithm", func() {
 			image := ts.URL + "/" + cirrosFileName
 			// Unsupported algorithm
-			_, err := NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, "crc32:12345678")
+			_, err := NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, "crc32:12345678", false)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("invalid checksum"))
 		})
@@ -231,7 +231,7 @@ var _ = Describe("Http data source", func() {
 		It("should succeed with valid checksum during transfer", func() {
 			image := ts.URL + "/" + cirrosFileName
 			checksum := "sha256:" + testDataSHA256
-			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, checksum)
+			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, checksum, false)
 			Expect(err).NotTo(HaveOccurred())
 
 			_, err := dp.Info()
@@ -257,7 +257,7 @@ var _ = Describe("Http data source", func() {
 			image := ts.URL + "/" + cirrosFileName
 			// Use an incorrect checksum (all zeros)
 			incorrectChecksum := "sha256:0000000000000000000000000000000000000000000000000000000000000000"
-			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, incorrectChecksum)
+			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, incorrectChecksum, false)
 			Expect(err).NotTo(HaveOccurred())
 
 			_, err := dp.Info()
@@ -277,7 +277,7 @@ var _ = Describe("Http data source", func() {
 			archiveChecksum := "sha256:" + archiveDataSHA256
 
 			image := ts.URL + "/" + diskimageTarFileName
-			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeArchive, archiveChecksum)
+			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeArchive, archiveChecksum, false)
 			Expect(err).NotTo(HaveOccurred())
 
 			_, err := dp.Info()
@@ -292,7 +292,7 @@ var _ = Describe("Http data source", func() {
 			image := ts.URL + "/" + diskimageTarFileName
 			// Use an incorrect checksum
 			incorrectChecksum := "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeArchive, incorrectChecksum)
+			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeArchive, incorrectChecksum, false)
 			Expect(err).NotTo(HaveOccurred())
 
 			_, err := dp.Info()
@@ -307,7 +307,7 @@ var _ = Describe("Http data source", func() {
 		It("should succeed with valid checksum during TransferFile", func() {
 			image := ts.URL + "/" + cirrosFileName
 			checksum := "sha256:" + testDataSHA256
-			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, checksum)
+			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, checksum, false)
 			dp.brokenForQemuImg = true // Force TransferFile path
 			Expect(err).NotTo(HaveOccurred())
 
@@ -332,7 +332,7 @@ var _ = Describe("Http data source", func() {
 			image := ts.URL + "/" + cirrosFileName
 			// Use an incorrect checksum
 			incorrectChecksum := "sha256:2222222222222222222222222222222222222222222222222222222222222222"
-			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, incorrectChecksum)
+			dp, err = NewHTTPDataSource(image, "", "", "", cdiv1.DataVolumeKubeVirt, incorrectChecksum, false)
 			dp.brokenForQemuImg = true // Force TransferFile path
 			Expect(err).NotTo(HaveOccurred())
 
@@ -353,7 +353,7 @@ var _ = Describe("Http data source", func() {
 			Expect(os.Unsetenv(common.ImporterPullMethod)).To(Succeed())
 		})
 
-		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt, "")
+		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt, "", false)
 		Expect(err).NotTo(HaveOccurred())
 
 		termMsg := dp.GetTerminationMessage()
@@ -368,7 +368,7 @@ var _ = Describe("Http data source", func() {
 
 		ts2 := createTestServer(imageDir, emptyEnv)
 
-		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt, "")
+		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt, "", false)
 		Expect(err).NotTo(HaveOccurred())
 
 		termMsg := dp.GetTerminationMessage()
@@ -390,7 +390,7 @@ var _ = Describe("Http data source", func() {
 			"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE=fedora",
 		})
 
-		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt, "")
+		dp, err = NewHTTPDataSource(ts2.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt, "", false)
 		Expect(err).NotTo(HaveOccurred())
 
 		termMsg := dp.GetTerminationMessage()
@@ -417,16 +417,34 @@ var _ = Describe("Http client", func() {
 
 		err = os.WriteFile(path.Join(tempDir, "tls.crt"), certBytes, 0600)
 		Expect(err).ToNot(HaveOccurred())
+
+		// create and populate proxy cert dir
+		err = os.Mkdir(common.ImporterProxyCertDir, 0755)
+		Expect(err).ToNot(HaveOccurred())
+
+		keyPair, err = triple.NewCA("proxy.cdi.kubevirt.io")
+		Expect(err).ToNot(HaveOccurred())
+
+		certBytes = cert.EncodeCertPEM(keyPair.Cert)
+
+		err = os.WriteFile(path.Join(common.ImporterProxyCertDir, "tls.crt"), certBytes, 0600)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		if tempDir != "" {
 			os.RemoveAll(tempDir)
 		}
+
+		os.RemoveAll(common.ImporterProxyCertDir)
 	})
 
-	It("should load the cert", func() {
-		client, err := createHTTPClient(tempDir, false)
+	DescribeTable("should load", func(useCertDir bool) {
+		certDir := ""
+		if useCertDir {
+			certDir = tempDir
+		}
+		client, err := createHTTPClient(certDir, false)
 		Expect(err).ToNot(HaveOccurred())
 
 		transport := client.Transport.(*http.Transport)
@@ -438,14 +456,17 @@ var _ = Describe("Http client", func() {
 		systemCAs, err := x509.SystemCertPool()
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(activeCAs.Subjects()).Should(HaveLen(len(systemCAs.Subjects()) + 1)) //nolint:staticcheck // todo: Subjects() is deprecated - check this
-	})
-
+		// since we added certs these should be different
+		Expect(activeCAs.Equal(systemCAs)).To(BeFalse())
+	},
+		Entry("the certs when cert dir exists", true),
+		Entry("the proxy cert when cert dir doesn't exist", false),
+	)
 })
 
 var _ = Describe("Http reader", func() {
 	It("should fail when passed an invalid cert directory", func() {
-		_, total, _, err := createHTTPReader(context.Background(), nil, "", "", "/invalid", nil, nil, cdiv1.DataVolumeKubeVirt)
+		_, total, _, err := createHTTPReader(context.Background(), nil, "", "", "/invalid", nil, nil, cdiv1.DataVolumeKubeVirt, false)
 		Expect(err).To(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
 	})
@@ -462,7 +483,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, _, err := createHTTPReader(context.Background(), ep, "user", "password", "", nil, nil, cdiv1.DataVolumeKubeVirt)
+		r, total, _, err := createHTTPReader(context.Background(), ep, "user", "password", "", nil, nil, cdiv1.DataVolumeKubeVirt, false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
 		err = r.Close()
@@ -485,7 +506,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, _, err := createHTTPReader(context.Background(), ep, "user", "password", "", nil, nil, cdiv1.DataVolumeKubeVirt)
+		r, total, _, err := createHTTPReader(context.Background(), ep, "user", "password", "", nil, nil, cdiv1.DataVolumeKubeVirt, false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
 		err = r.Close()
@@ -507,7 +528,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt)
+		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt, false)
 		Expect(brokenForQemuImg).To(BeFalse())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
@@ -528,7 +549,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt)
+		r, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt, false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
 		err = r.Close()
@@ -552,7 +573,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt)
+		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt, false)
 		Expect(brokenForQemuImg).To(BeTrue())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
@@ -572,7 +593,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt)
+		r, total, brokenForQemuImg, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt, false)
 		Expect(brokenForQemuImg).To(BeTrue())
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(25)).To(Equal(total))
@@ -587,7 +608,7 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		_, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt)
+		_, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt, false)
 		Expect(err).To(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
 		Expect("expected status code 200, got 500. Status: 500 Internal Server Error").To(Equal(err.Error()))
@@ -604,11 +625,35 @@ var _ = Describe("Http reader", func() {
 		defer ts.Close()
 		ep, err := url.Parse(ts.URL)
 		Expect(err).ToNot(HaveOccurred())
-		r, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", []string{"Extra-Header: 123"}, nil, cdiv1.DataVolumeKubeVirt)
+		r, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", []string{"Extra-Header: 123"}, nil, cdiv1.DataVolumeKubeVirt, false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
 		err = r.Close()
 		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("should fail to connect to self signed cert", func() {
+		ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+		ep, err := url.Parse(ts.URL)
+		Expect(err).ToNot(HaveOccurred())
+		_, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt, false)
+		Expect(err).To(HaveOccurred())
+		Expect(uint64(0)).To(Equal(total))
+	})
+
+	It("should connect to self signed cert with insecureSkipVerify set to true", func() {
+		ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+		ep, err := url.Parse(ts.URL)
+		Expect(err).ToNot(HaveOccurred())
+		_, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt, true)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(uint64(0)).To(Equal(total))
 	})
 })
 

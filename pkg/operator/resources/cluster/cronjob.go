@@ -45,6 +45,7 @@ func getCronJobClusterPolicyRules() []rbacv1.PolicyRule {
 				"get",
 				"list",
 				"update",
+				"patch",
 			},
 		},
 	}
