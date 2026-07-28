@@ -14,7 +14,42 @@ import (
 	"k8s.io/client-go/rest"
 	certutil "k8s.io/client-go/util/cert"
 	"k8s.io/klog/v2"
+
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
+
+// helper function to add labels to config map
+func addCdiTestLabels(existing map[string]string) map[string]string {
+	if existing == nil {
+		existing = make(map[string]string)
+	}
+	existing[common.AppKubernetesManagedByLabel] = "cdi-testing"
+	existing[common.AppKubernetesComponentLabel] = "storage"
+	existing[common.AppKubernetesPartOfLabel] = "testing"
+	return existing
+}
+
+// helper function to get owning pod reference
+func getOwningPodRef(client kubernetes.Interface, namespace string) (*metav1.OwnerReference, error) {
+	podName := os.Getenv("HOSTNAME")
+	if podName == "" {
+		return nil, errors.New("HOSTNAME env var not set, cannot determine pod name")
+	}
+
+	pod, err := client.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+	if err != nil {
+		return nil, errors.Wrapf(err, "Error getting pod %s", podName)
+	}
+
+	isController := true
+	return &metav1.OwnerReference{
+		APIVersion: "v1",
+		Kind:       "Pod",
+		Name:       pod.Name,
+		UID:        pod.UID,
+		Controller: &isController,
+	}, nil
+}
 
 // CreateCertForTestService creates a TLS key/cert for a service, writes them to files
 // and creates a config map containing the cert
@@ -30,6 +65,10 @@ func CreateCertForTestService(namespace, serviceName, configMapName, certDir, ce
 	if err != nil {
 		return errors.Wrap(err, "Error creating kubernetes client")
 	}
+	ownerRef, err := getOwningPodRef(clientset, namespace)
+	if err != nil {
+		klog.Warningf("Could not determine owning pod, ConfigMap will have no OwnerReference: %v", err)
+	}
 
 	if err := os.MkdirAll(certDir, 0777); err != nil {
 		return errors.Wrapf(err, "Error making %s", certDir)
@@ -44,11 +83,15 @@ func CreateCertForTestService(namespace, serviceName, configMapName, certDir, ce
 
 	cm := &v1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: configMapName,
+			Name:   configMapName,
+			Labels: addCdiTestLabels(nil),
 		},
 		Data: map[string]string{
 			certFileName: string(certBytes),
 		},
+	}
+	if ownerRef != nil {
+		cm.OwnerReferences = []metav1.OwnerReference{*ownerRef}
 	}
 
 	stored, err := clientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), configMapName, metav1.GetOptions{})
@@ -64,6 +107,10 @@ func CreateCertForTestService(namespace, serviceName, configMapName, certDir, ce
 	} else {
 		cpy := stored.DeepCopy()
 		cpy.Data = cm.Data
+		addCdiTestLabels(cpy.Labels)
+		if ownerRef != nil {
+			cpy.OwnerReferences = []metav1.OwnerReference{*ownerRef}
+		}
 		_, err := clientset.CoreV1().ConfigMaps(namespace).Update(context.TODO(), cpy, metav1.UpdateOptions{})
 		if err != nil {
 			return err
