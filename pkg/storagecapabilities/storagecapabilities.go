@@ -196,6 +196,8 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"openshift-storage.cephfs.csi.ceph.com":    cdiv1.CloneStrategyCsiClone,
 	"pxd.portworx.com/nfs":                     cdiv1.CloneStrategyCsiClone,
 	"pxd.portworx.com":                         cdiv1.CloneStrategyCsiClone,
+	"pxd.portworx.com/pure_block":              cdiv1.CloneStrategyCsiClone,
+	"pxd.portworx.com/pure_fa_file":            cdiv1.CloneStrategyCsiClone,
 	"topolvm.cybozu.com":                       cdiv1.CloneStrategyHostAssisted,
 	"topolvm.io":                               cdiv1.CloneStrategyHostAssisted,
 	"infinibox-csi-driver/iscsiorfibrechannel": cdiv1.CloneStrategyCsiClone,

@@ -584,6 +584,33 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Entry("provisioner that is known to prefer csi clone", "csi-powermax.dellemc.com", cdiv1.CloneStrategyCsiClone, false),
 	)
 
+	DescribeTable("should set cloneStrategy for pxd.portworx.com according to backend parameter", func(scParameters map[string]string, expectedCloneStrategy cdiv1.CDICloneStrategy) {
+		provisioner := "pxd.portworx.com"
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
+		storageClass.Parameters = scParameters
+		reconciler = createStorageProfileReconciler(storageClass, createVolumeSnapshotContentCrd(), createVolumeSnapshotClassCrd(), createVolumeSnapshotCrd())
+		snapClass := createSnapshotClass(snapshotClassName, nil, provisioner)
+		err := reconciler.client.Create(context.TODO(), snapClass)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+
+		storageProfileList := &cdiv1.StorageProfileList{}
+		err = reconciler.client.List(context.TODO(), storageProfileList, &client.ListOptions{})
+
+		Expect(err).ToNot(HaveOccurred())
+		Expect(storageProfileList.Items).To(HaveLen(1))
+
+		sp := storageProfileList.Items[0]
+		Expect(*sp.Status.StorageClass).To(Equal(storageClassName))
+		Expect(*sp.Status.CloneStrategy).To(Equal(expectedCloneStrategy))
+	},
+		Entry("no backend parameter", map[string]string{}, cdiv1.CloneStrategyCsiClone),
+		Entry("backend parameter set to pure_block", map[string]string{"backend": "pure_block"}, cdiv1.CloneStrategyCsiClone),
+		Entry("backend parameter set to pure_fa_file", map[string]string{"backend": "pure_fa_file"}, cdiv1.CloneStrategyCsiClone),
+	)
+
 	DescribeTable("Should set the StorageProfileStatus metric correctly", func(provisioner string, isComplete bool) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
 		reconciler = createStorageProfileReconciler(storageClass)
