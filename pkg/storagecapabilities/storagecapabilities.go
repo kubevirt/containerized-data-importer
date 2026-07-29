@@ -111,10 +111,10 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"kubernetes.io/portworx-volume/nfs": {{rwx, file}, {rwo, file}},
 	"kubernetes.io/portworx-volume":     {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
 	// Portworx CSI
-	"pxd.portworx.com/nfs":          {{rwx, file}, {rwo, file}},
-	"pxd.portworx.com":              {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
-	"pxd.portworx.com/pure_block":   {{rwx, block}, {rwo, block}, {rwo, file}},
-	"pxd.portworx.com/pure_fa_file": {{rwx, file}, {rwo, file}},
+	"pxd.portworx.com/nfs":        {{rwx, file}, {rwo, file}},
+	"pxd.portworx.com":            {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
+	ProvisionerPortworxPureBlock:  {{rwx, block}, {rwo, block}, {rwo, file}},
+	ProvisionerPortworxPureFAFile: {{rwx, file}, {rwo, file}},
 	// Trident
 	"csi.trident.netapp.io/ontap-nas": {{rwx, file}, {rwo, file}},
 	"csi.trident.netapp.io/ontap-san": {{rwx, block}},
@@ -196,8 +196,8 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"openshift-storage.cephfs.csi.ceph.com":    cdiv1.CloneStrategyCsiClone,
 	"pxd.portworx.com/nfs":                     cdiv1.CloneStrategyCsiClone,
 	"pxd.portworx.com":                         cdiv1.CloneStrategyCsiClone,
-	"pxd.portworx.com/pure_block":              cdiv1.CloneStrategyCsiClone,
-	"pxd.portworx.com/pure_fa_file":            cdiv1.CloneStrategyCsiClone,
+	ProvisionerPortworxPureBlock:               cdiv1.CloneStrategyCsiClone,
+	ProvisionerPortworxPureFAFile:              cdiv1.CloneStrategyCsiClone,
 	"topolvm.cybozu.com":                       cdiv1.CloneStrategyHostAssisted,
 	"topolvm.io":                               cdiv1.CloneStrategyHostAssisted,
 	"infinibox-csi-driver/iscsiorfibrechannel": cdiv1.CloneStrategyCsiClone,
@@ -279,6 +279,10 @@ const (
 	ProvisionerHPPOverlayCSI = "kubevirt.io.hostpath-provisioner/overlay"
 	// ProvisionerHPPLegacy is the Legacy variant for the hostpath-provisioner
 	ProvisionerHPPLegacy = "kubevirt.io/hostpath-provisioner"
+	// ProvisionerPortworxPureBlock is the Portworx CSI provisioner key derived for StorageClasses with parameter backend=pure_block
+	ProvisionerPortworxPureBlock = "pxd.portworx.com/pure_block"
+	// ProvisionerPortworxPureFAFile is the Portworx CSI provisioner key derived for StorageClasses with parameter backend=pure_fa_file
+	ProvisionerPortworxPureFAFile = "pxd.portworx.com/pure_fa_file"
 )
 
 // UnsupportedProvisioners is a hash of provisioners which are known not to work with CDI
@@ -421,9 +425,9 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		// https://docs.portworx.com/portworx-enterprise/operations/operate-kubernetes/storage-operations/manage-kubevirt-vms.html#create-a-storageclass
 		if val, exists := sc.Parameters["backend"]; exists {
 			if val == "pure_block" {
-				return "pxd.portworx.com/pure_block"
+				return ProvisionerPortworxPureBlock
 			} else if val == "pure_fa_file" {
-				return "pxd.portworx.com/pure_fa_file"
+				return ProvisionerPortworxPureFAFile
 			}
 		} else {
 			opts := strings.Split(sc.Parameters["sharedv4_mount_options"], ",")
