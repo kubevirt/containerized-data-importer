@@ -492,6 +492,48 @@ var _ = Describe("Controller", func() {
 				validateEvents(args.reconciler, createReadyEventValidationMap())
 			})
 
+			It("should not have datavolumes/source in view ClusterRole", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				crole := &rbacv1.ClusterRole{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "cdi.kubevirt.io:view",
+					},
+				}
+				obj, err := getObject(args.client, crole)
+				Expect(err).ToNot(HaveOccurred())
+				crole = obj.(*rbacv1.ClusterRole)
+
+				Expect(crole.Rules).ToNot(ContainElement(
+					HaveField("Resources", ContainElement("datavolumes/source")),
+				))
+			})
+
+			It("should create clone-sourcer ClusterRole", func() {
+				args := createArgs()
+				doReconcile(args)
+				Expect(setDeploymentsReady(args)).To(BeTrue())
+
+				crole := &rbacv1.ClusterRole{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "cdi.kubevirt.io:clone-sourcer",
+					},
+				}
+				obj, err := getObject(args.client, crole)
+				Expect(err).ToNot(HaveOccurred())
+				crole = obj.(*rbacv1.ClusterRole)
+
+				Expect(crole.Rules).To(ConsistOf(rbacv1.PolicyRule{
+					APIGroups: []string{"cdi.kubevirt.io"},
+					Resources: []string{"datavolumes/source"},
+					Verbs:     []string{"create"},
+				}))
+
+				Expect(crole.Labels).ToNot(HaveKey(HavePrefix("rbac.authorization.k8s.io/aggregate-to-")))
+			})
+
 			Context("RBAC testing", func() {
 				// https://kubernetes.io/docs/concepts/security/rbac-good-practices/#persistent-volume-creation
 				checkPersistentVolumeCreateViolation := func(rsc string, rule *rbacv1.PolicyRule) {
@@ -1972,6 +2014,7 @@ func createNotReadyEventValidationMap() map[string]bool {
 	match[normalCreateSuccess+" *v1.ClusterRole cdi.kubevirt.io:admin"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi.kubevirt.io:edit"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi.kubevirt.io:view"] = false
+	match[normalCreateSuccess+" *v1.ClusterRole cdi.kubevirt.io:clone-sourcer"] = false
 	match[normalCreateSuccess+" *v1.ClusterRole cdi.kubevirt.io:config-reader"] = false
 	match[normalCreateSuccess+" *v1.ClusterRoleBinding cdi.kubevirt.io:config-reader"] = false
 	match[normalCreateSuccess+" *v1.ServiceAccount cdi-apiserver"] = false
