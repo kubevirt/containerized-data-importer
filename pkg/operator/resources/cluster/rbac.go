@@ -29,6 +29,7 @@ func createAggregateClusterRoles(_ *FactoryArgs) []client.Object {
 		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:admin", "admin", getAdminPolicyRules()),
 		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:edit", "edit", getEditPolicyRules()),
 		utils.ResourceBuilder.CreateAggregateClusterRole("cdi.kubevirt.io:view", "view", getViewPolicyRules()),
+		utils.ResourceBuilder.CreateClusterRole("cdi.kubevirt.io:clone-sourcer", getCloneSourcerPolicyRules()),
 		createConfigReaderClusterRole("cdi.kubevirt.io:config-reader"),
 		createConfigReaderClusterRoleBinding("cdi.kubevirt.io:config-reader"),
 	}
@@ -106,6 +107,11 @@ func getViewPolicyRules() []rbacv1.PolicyRule {
 				"watch",
 			},
 		},
+	}
+}
+
+func getCloneSourcerPolicyRules() []rbacv1.PolicyRule {
+	return []rbacv1.PolicyRule{
 		{
 			APIGroups: []string{
 				"cdi.kubevirt.io",
