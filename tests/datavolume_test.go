@@ -1854,6 +1854,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				},
 				Provisioner: "unknown-provisioner",
 			}
+
+			utils.AddOCSExternalLabel(f.K8sClient, sc)
+
 			sc, err := f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			tempScName = sc.Name
@@ -2490,6 +2493,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				ResourceVersion: "",
 				Annotations:     sc.Annotations,
 			}
+
+			utils.AddOCSExternalLabel(f.K8sClient, sc)
+
 			testSc, err = f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
