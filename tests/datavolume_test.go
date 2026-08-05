@@ -1346,6 +1346,125 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				}}),
 		)
 
+		// Certificate validation tests for VDDK
+		DescribeTable("VDDK certificate validation", Label("VDDK"), func(certConfigMap string, shouldSucceed bool) {
+			// Use unique DV name per entry to avoid conflicts when table runs multiple entries
+			var dataVolumeName string
+			if certConfigMap != "" {
+				dataVolumeName = "dv-import-vddk-cert-test-with-cert"
+			} else {
+				dataVolumeName = "dv-import-vddk-cert-test-insecure"
+			}
+
+			createVddkDataVolumeWithCert := func(dvName, size, url string) *cdiv1.DataVolume {
+				// Find vcenter-simulator pod
+				pod, err := utils.FindPodByPrefix(f.K8sClient, f.CdiInstallNs, "vcenter-deployment", "app=vcenter")
+				Expect(err).ToNot(HaveOccurred())
+				Expect(pod).ToNot(BeNil())
+
+				// Get test VM UUID
+				id, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmid")
+				Expect(err).ToNot(HaveOccurred())
+				vmid, err := uuid.Parse(strings.TrimSpace(id))
+				Expect(err).ToNot(HaveOccurred())
+
+				// Get disk name
+				disk, err := f.RunKubectlCommand("exec", "-n", pod.Namespace, pod.Name, "--", "cat", "/tmp/vmdisk")
+				Expect(err).ToNot(HaveOccurred())
+				disk = strings.TrimSpace(disk)
+				Expect(err).ToNot(HaveOccurred())
+
+				// Create VDDK login secret
+				stringData := map[string]string{
+					common.KeyAccess: "user",
+					common.KeySecret: "pass",
+				}
+				backingFile := disk
+				secretRef := "vddksecret"
+				thumbprint := "testprint"
+				s, _ := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, stringData, nil, f.Namespace.Name, secretRef))
+
+				// Create cert ConfigMap if specified. File host CA does not sign vcsim's cert,
+				// so when certConfigMap is set the import is expected to fail (TLS verification).
+				var certCM string
+				if certConfigMap != "" {
+					certCM, err = utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
+					Expect(err).ToNot(HaveOccurred())
+				}
+
+				return utils.NewDataVolumeWithVddkImportAndCertConfigMap(utils.VDDKImportParams{
+					DataVolumeName: dvName, Size: size, BackingFile: backingFile, SecretRef: s.Name,
+					Thumbprint: thumbprint, HTTPURL: url, UUID: vmid.String(), CertConfigMap: certCM,
+				})
+			}
+
+			dataVolume := createVddkDataVolumeWithCert(dataVolumeName, "100Mi", vcenterURL())
+
+			By(fmt.Sprintf("creating new datavolume %s with certConfigMap=%s", dataVolumeName, certConfigMap))
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			if shouldSucceed {
+				waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
+
+				By("verifying pvc was created")
+				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+
+				readyCondition := &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				}
+				boundCondition := &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: fmt.Sprintf("PVC %s Bound", dataVolumeName),
+					Reason:  "Bound",
+				}
+				runningCondition := &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}
+
+				By("Verifying the DV has the correct conditions")
+				utils.WaitForConditions(f, dataVolumeName, f.Namespace.Name, timeout, pollingInterval, readyCondition, runningCondition, boundCondition)
+
+				By("verifying pvc is bound")
+				err = utils.WaitForPersistentVolumeClaimPhase(f.K8sClient, dataVolume.Namespace, v1.ClaimBound, dataVolumeName)
+				Expect(err).ToNot(HaveOccurred())
+			} else {
+				By("verifying pvc was created")
+				_, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("verifying importer fails due to certificate validation")
+				Eventually(func() bool {
+					importer, err := utils.FindPodByPrefix(f.K8sClient, f.Namespace.Name, common.ImporterPodName, common.CDILabelSelector)
+					if err != nil || importer == nil {
+						return false
+					}
+					if importer.Status.Phase == v1.PodFailed {
+						return true
+					}
+					if len(importer.Status.ContainerStatuses) > 0 && importer.Status.ContainerStatuses[0].RestartCount > 0 {
+						return true
+					}
+					return false
+				}, timeout, pollingInterval).Should(BeTrue())
+
+				By("verifying datavolume did not succeed")
+				dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolumeName, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dv.Status.Phase).NotTo(Equal(cdiv1.Succeeded))
+			}
+		},
+			Entry("[test_id:XXXX]succeed importing VDDK data volume without certConfigMap (fallback to insecure)", "", true),
+			Entry("[test_id:XXXX]fail importing VDDK data volume when certConfigMap CA does not sign vcsim", "vddk-ca-cert", false),
+		)
+
 		// similar to other tables but with check of quota
 		DescribeTable("should fail create pvc in namespace with storge quota, then succeed once the quota is large enough", testDataVolumeWithQuota,
 			Entry("[test_id:7737]when creating import dv with given valid url", dataVolumeTestArguments{
