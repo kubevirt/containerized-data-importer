@@ -1,0 +1,15 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "auto.go",
+        "configuration.go",
+        "defaults.go",
+        "doc.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/aws-sdk-go-v2/aws/defaults",
+    importpath = "github.com/aws/aws-sdk-go-v2/aws/defaults",
+    visibility = ["//visibility:public"],
+    deps = ["//vendor/github.com/aws/aws-sdk-go-v2/aws:go_default_library"],
+)
