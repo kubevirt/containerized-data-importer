@@ -88,6 +88,14 @@ var _ = Describe("Registry data source", func() {
 		Expect(termMesg.Labels).To(HaveKeyWithValue("instancetype.kubevirt.io/default-preference", "fedora"))
 	})
 
+	It("Transfer should return error for bootc image", func() {
+		ds = NewRegistryDataSource("oci-archive:"+filepath.Join(imageDir, "bootc-registry-image.tar"), "", "", "", "", true)
+		result, err := ds.Transfer(tmpDir, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("bootc image detected"))
+		Expect(ProcessingPhaseError).To(Equal(result))
+	})
+
 	It("getImageFileName should return an error with non-existing image directory", func() {
 		_, err := getImageFileName("/invalid")
 		Expect(err).To(HaveOccurred())

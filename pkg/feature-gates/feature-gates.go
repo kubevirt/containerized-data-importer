@@ -26,6 +26,10 @@ const (
 	// The string is kept for backward compatibility with existing CDI CRs that list it in featureGates
 	// Use CDIConfigSpec.WebhookPvcRendering = "Disabled" to disable if needed
 	WebhookPvcRendering = "WebhookPvcRendering"
+
+	// BootcImageImport - if enabled will allow importing bootc/ostree-bootable container images
+	// by converting them to bootable disk images using bootc install to-disk
+	BootcImageImport = "BootcImageImport"
 )
 
 // FeatureGates is a util for determining whether an optional feature is enabled or not.
@@ -35,6 +39,9 @@ type FeatureGates interface {
 
 	// ClaimAdoptionEnabled - see the DataVolumeClaimAdoption const
 	ClaimAdoptionEnabled() (bool, error)
+
+	// BootcImageImportEnabled - see the BootcImageImport const
+	BootcImageImportEnabled() (bool, error)
 }
 
 // CDIConfigFeatureGates is a util for determining whether an optional feature is enabled or not.
@@ -69,6 +76,11 @@ func (f *CDIConfigFeatureGates) HonorWaitForFirstConsumerEnabled() (bool, error)
 // ClaimAdoptionEnabled - see the DataVolumeClaimAdoption const
 func (f *CDIConfigFeatureGates) ClaimAdoptionEnabled() (bool, error) {
 	return f.isFeatureGateEnabled(DataVolumeClaimAdoption)
+}
+
+// BootcImageImportEnabled - see the BootcImageImport const
+func (f *CDIConfigFeatureGates) BootcImageImportEnabled() (bool, error) {
+	return f.isFeatureGateEnabled(BootcImageImport)
 }
 
 func (f *CDIConfigFeatureGates) getFeatureGates() ([]string, error) {

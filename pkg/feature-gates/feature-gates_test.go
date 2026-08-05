@@ -75,6 +75,23 @@ var _ = Describe("Feature Gates", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(featureGates.ClaimAdoptionEnabled()).To(BeFalse())
 	})
+
+	It("Should reflect BootcImageImport config changes", func() {
+		featureGates, client := createFeatureGatesAndClient()
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		cdiConfig.Spec.FeatureGates = []string{BootcImageImport}
+		err = client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(featureGates.BootcImageImportEnabled()).To(BeTrue())
+
+		cdiConfig.Spec.FeatureGates = nil
+		err = client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(featureGates.BootcImageImportEnabled()).To(BeFalse())
+	})
 })
 
 func createFeatureGatesAndClient(objects ...runtime.Object) (FeatureGates, client.Client) {
