@@ -1012,6 +1012,58 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionMessage]).To(Equal(eventBasedBoundMessage))
 		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionReason]).To(Equal(eventBasedBoundReason))
 	})
+
+	It("Should not update PVC while pod is waiting on scheduler (non-Unschedulable)", func() {
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{
+			cc.AnnEndpoint:  testEndPoint,
+			cc.AnnPodPhase:  string(corev1.PodPending),
+			cc.AnnImportPod: "importer-testPvc1",
+		}, nil, corev1.ClaimPending)
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodPending,
+			Conditions: []corev1.PodCondition{{
+				Type:   corev1.PodScheduled,
+				Status: corev1.ConditionFalse,
+				Reason: "SchedulerError",
+			}},
+		}
+		reconciler = createImportReconciler(pvc, pod)
+		originalRV := pvc.ResourceVersion
+
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
+		Expect(err).ToNot(HaveOccurred())
+
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPvc.ResourceVersion).To(Equal(originalRV))
+	})
+
+	It("Should update AnnPodSchedulable when pod is Unschedulable", func() {
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{
+			cc.AnnEndpoint: testEndPoint,
+			cc.AnnPodPhase: string(corev1.PodPending),
+		}, nil, corev1.ClaimPending)
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodPending,
+			Conditions: []corev1.PodCondition{{
+				Type:   corev1.PodScheduled,
+				Status: corev1.ConditionFalse,
+				Reason: corev1.PodReasonUnschedulable,
+			}},
+		}
+		reconciler = createImportReconciler(pvc, pod)
+
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
+		Expect(err).ToNot(HaveOccurred())
+
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPvc.GetAnnotations()[cc.AnnPodSchedulable]).To(Equal("false"))
+	})
 })
 
 var _ = Describe("Create Importer Pod", func() {

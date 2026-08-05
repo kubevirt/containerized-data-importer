@@ -309,6 +309,9 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 	}
 
 	if !cc.IsPVCComplete(pvc) {
+		if pod != nil && isPodWaitingForScheduler(pod) {
+			return reconcile.Result{}, nil
+		}
 		// We are not done yet, force a re-reconcile in 2 seconds to get an update.
 		log.V(1).Info("Force Reconcile pvc import not finished", "pvc.Name", pvc.Name)
 
@@ -378,7 +381,27 @@ func (r *ImportReconciler) initPvcPodName(pvc *corev1.PersistentVolumeClaim, log
 	return nil
 }
 
+// isPodWaitingForScheduler returns true when PodScheduled is False for a reason
+// other than Unschedulable (e.g. SchedulerError from VolumeBinding RV races).
+func isPodWaitingForScheduler(pod *corev1.Pod) bool {
+	if pod.Status.Phase != corev1.PodPending {
+		return false
+	}
+	for _, cond := range pod.Status.Conditions {
+		if cond.Type != corev1.PodScheduled {
+			continue
+		}
+		return cond.Status == corev1.ConditionFalse && cond.Reason != corev1.PodReasonUnschedulable
+	}
+	return false
+}
+
 func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, log logr.Logger) error {
+	// Avoid PVC writes while the scheduler is retrying to prevent RV churn.
+	if isPodWaitingForScheduler(pod) && pvc.Annotations[cc.AnnPodPhase] != "" {
+		return nil
+	}
+
 	// Keep a copy of the original for comparison later.
 	currentPvcCopy := pvc.DeepCopyObject()
 
