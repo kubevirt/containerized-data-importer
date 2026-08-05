@@ -1,0 +1,13 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["arn_parser.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/aws-sdk-go-v2/service/s3/internal/arn",
+    importpath = "github.com/aws/aws-sdk-go-v2/service/s3/internal/arn",
+    visibility = ["//vendor/github.com/aws/aws-sdk-go-v2/service/s3:__subpackages__"],
+    deps = [
+        "//vendor/github.com/aws/aws-sdk-go-v2/aws/arn:go_default_library",
+        "//vendor/github.com/aws/aws-sdk-go-v2/service/internal/s3shared/arn:go_default_library",
+    ],
+)

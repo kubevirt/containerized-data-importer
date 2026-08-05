@@ -1,0 +1,16 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "doc.go",
+        "split.go",
+        "string_slice.go",
+        "strings.go",
+        "uri.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/smithy-go/endpoints/private/rulesfn",
+    importpath = "github.com/aws/smithy-go/endpoints/private/rulesfn",
+    visibility = ["//visibility:public"],
+    deps = ["//vendor/github.com/aws/smithy-go/transport/http:go_default_library"],
+)

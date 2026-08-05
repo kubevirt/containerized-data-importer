@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "const.go",
+        "header_rules.go",
+        "headers.go",
+        "hmac.go",
+        "host.go",
+        "time.go",
+        "util.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/aws-sdk-go-v2/internal/v4a/internal/v4",
+    importpath = "github.com/aws/aws-sdk-go-v2/internal/v4a/internal/v4",
+    visibility = ["//vendor/github.com/aws/aws-sdk-go-v2:__subpackages__"],
+    deps = ["//vendor/github.com/aws/aws-sdk-go-v2/internal/strings:go_default_library"],
+)
