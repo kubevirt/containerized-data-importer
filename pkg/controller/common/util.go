@@ -2325,9 +2325,11 @@ func UpdatePVCBoundConditionFromEvents(pvc *corev1.PersistentVolumeClaim, c clie
 	anno[AnnBoundConditionReason] = "Pending"
 	anno[AnnBoundConditionMessage] = boundMessage
 
-	patch := client.MergeFrom(currentPvcCopy)
-	if err := c.Patch(context.TODO(), pvc, patch); err != nil {
-		return err
+	if !reflect.DeepEqual(currentPvcCopy, pvc) {
+		patch := client.MergeFrom(currentPvcCopy)
+		if err := c.Patch(context.TODO(), pvc, patch); err != nil {
+			return err
+		}
 	}
 
 	return nil
