@@ -11,11 +11,11 @@ make bazel-push-images
 
 base_url="kubevirt-prow/devel/nightly/release/kubevirt/containerized-data-importer"
 bucket_dir="${base_url}/${build_date}"
-gsutil cp ./_out/manifests/release/cdi-operator.yaml gs://$bucket_dir/cdi-operator.yaml
-gsutil cp ./_out/manifests/release/cdi-cr.yaml gs://$bucket_dir/cdi-cr.yaml
+gcloud storage cp ./_out/manifests/release/cdi-operator.yaml gs://$bucket_dir/cdi-operator.yaml
+gcloud storage cp ./_out/manifests/release/cdi-cr.yaml gs://$bucket_dir/cdi-cr.yaml
 
 echo ${build_date} > ./_out/build_date
-gsutil cp ./_out/build_date gs://${base_url}/latest
+gcloud storage cp ./_out/build_date gs://${base_url}/latest
 
 git show -s --format=%H > ./_out/commit
-gsutil cp ./_out/commit gs://${bucket_dir}/commit
+gcloud storage cp ./_out/commit gs://${bucket_dir}/commit
