@@ -27,6 +27,7 @@ import (
 
 	"k8s.io/klog/v2"
 
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
@@ -48,6 +49,9 @@ type RegistryDataSource struct {
 	certDir           string
 	insecureTLS       bool
 	imageDir          string
+	pullMethod        string
+	imageRootDir      string
+	envFile           string
 	//The discovered image file in scratch space.
 	url *url.URL
 	//The discovered image info from the registry.
@@ -55,7 +59,7 @@ type RegistryDataSource struct {
 }
 
 // NewRegistryDataSource creates a new instance of the Registry Data Source.
-func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, certDir string, insecureTLS bool) *RegistryDataSource {
+func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, certDir string, insecureTLS bool, pullMethod string, imageRootDir string, envFile string) *RegistryDataSource {
 	allCertDir, err := CreateCertificateDir(certDir)
 	if err != nil {
 		klog.Infof("Error creating allCertDir %v", err)
@@ -74,6 +78,9 @@ func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, certD
 		imageArchitecture: imageArchitecture,
 		certDir:           allCertDir,
 		insecureTLS:       insecureTLS,
+		pullMethod:        pullMethod,
+		imageRootDir:      imageRootDir,
+		envFile:           envFile,
 	}
 }
 
@@ -82,26 +89,49 @@ func (rd *RegistryDataSource) Info() (ProcessingPhase, error) {
 	return ProcessingPhaseTransferScratch, nil
 }
 
+func isBootcImage(basePath string) bool {
+	for _, dir := range []string{"sysroot", "ostree"} {
+		if fi, err := os.Stat(filepath.Join(basePath, dir)); err == nil && fi.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
 // Transfer is called to transfer the data from the source registry to a temporary location.
 func (rd *RegistryDataSource) Transfer(path string, preallocation bool) (ProcessingPhase, error) {
-	rd.imageDir = filepath.Join(path, containerDiskImageDir)
-	if err := CleanAll(rd.imageDir); err != nil {
-		return ProcessingPhaseError, err
-	}
+	if rd.pullMethod == string(cdiv1.RegistryPullNode) {
+		if rd.imageRootDir == "" {
+			klog.Errorf("ImporterImageRootDir environment variable is empty or not set")
+			return ProcessingPhaseError, errors.New("ImporterImageRootDir environment variable is empty or not set")
+		}
 
-	size, err := GetAvailableSpace(path)
-	if err != nil {
-		return ProcessingPhaseError, err
-	}
-	if size <= int64(0) {
-		//Path provided is invalid.
-		return ProcessingPhaseError, ErrInvalidPath
-	}
+		klog.V(1).Infof("Found image root dir environment variable: %s", rd.imageRootDir)
+		if isBootcImage(rd.imageRootDir) {
+			klog.Infof("Detected bootc/ostree-bootable container image")
+			return ProcessingPhaseError, errors.Wrapf(ErrBootcImageDetected, "Failed to read registry image")
+		}
 
-	klog.V(1).Infof("Copying registry image to scratch space.")
-	rd.info, err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.imageArchitecture, rd.certDir, rd.insecureTLS, preallocation)
-	if err != nil {
-		return ProcessingPhaseError, errors.Wrapf(err, "Failed to read registry image")
+		rd.imageDir = filepath.Join(rd.imageRootDir, containerDiskImageDir)
+	} else {
+		rd.imageDir = filepath.Join(path, containerDiskImageDir)
+		if err := CleanAll(rd.imageDir); err != nil {
+			return ProcessingPhaseError, err
+		}
+
+		size, err := GetAvailableSpace(path)
+		if err != nil {
+			return ProcessingPhaseError, err
+		}
+		if size <= int64(0) {
+			// Path provided is invalid.
+			return ProcessingPhaseError, ErrInvalidPath
+		}
+		klog.V(1).Infof("Copying registry image to scratch space.")
+		rd.info, err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.imageArchitecture, rd.certDir, rd.insecureTLS, preallocation)
+		if err != nil {
+			return ProcessingPhaseError, errors.Wrapf(err, "Failed to read registry image")
+		}
 	}
 
 	imageFile, err := getImageFileName(rd.imageDir)
@@ -127,6 +157,26 @@ func (rd *RegistryDataSource) GetURL() *url.URL {
 
 // GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
 func (rd *RegistryDataSource) GetTerminationMessage() *common.TerminationMessage {
+	if rd.pullMethod == string(cdiv1.RegistryPullNode) {
+		if rd.envFile == "" {
+			klog.Errorf("ImporterEnvFile environment variable is empty or not set")
+			return nil
+		}
+		data, err := os.ReadFile(rd.envFile)
+		if err != nil {
+			klog.Errorf("Failed to read env file: %v", err)
+			return nil
+		}
+		klog.V(1).Infof("Found env file: %s", rd.envFile)
+
+		envString := strings.Split(strings.TrimSpace(string(data)), "\n")
+		klog.V(1).Infof("Found environment variables: %s", envString)
+
+		return &common.TerminationMessage{
+			Labels: envsToLabels(envString),
+		}
+	}
+
 	if rd.info == nil {
 		return nil
 	}
