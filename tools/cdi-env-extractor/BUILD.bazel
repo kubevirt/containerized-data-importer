@@ -4,24 +4,20 @@ load("@rules_pkg//:pkg.bzl", "pkg_tar")
 go_library(
     name = "go_default_library",
     srcs = ["main.go"],
-    importpath = "kubevirt.io/containerized-data-importer/tools/cdi-containerimage-server",
+    importpath = "kubevirt.io/containerized-data-importer/tools/cdi-env-extractor",
     visibility = ["//visibility:private"],
-    deps = [
-        "//pkg/common:go_default_library",
-        "//vendor/github.com/pkg/errors:go_default_library",
-    ],
 )
 
 go_binary(
-    name = "cdi-containerimage-server",
+    name = "cdi-env-extractor",
     embed = [":go_default_library"],
     pure = "on",
     visibility = ["//visibility:public"],
 )
 
 pkg_tar(
-    name = "cdi-containerimage-server-bin",
-    srcs = [":cdi-containerimage-server"],
+    name = "cdi-env-extractor-bin",
+    srcs = [":cdi-env-extractor"],
     extension = "tar.gz",
     package_dir = "/usr/bin/",
     visibility = ["//visibility:public"],

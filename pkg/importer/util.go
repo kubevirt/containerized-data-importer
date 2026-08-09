@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -92,4 +93,13 @@ func envToLabel(env string) string {
 	label += strings.Join(strings.Split(after, "_"), "-")
 
 	return strings.ToLower(label)
+}
+
+func isBootcImage(basePath string) bool {
+	for _, dir := range []string{"sysroot", "ostree"} {
+		if fi, err := os.Stat(filepath.Join(basePath, dir)); err == nil && fi.IsDir() {
+			return true
+		}
+	}
+	return false
 }

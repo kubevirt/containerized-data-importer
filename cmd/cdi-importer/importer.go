@@ -19,8 +19,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
-	"time"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -43,57 +41,6 @@ const (
 func init() {
 	klog.InitFlags(nil)
 	flag.Parse()
-}
-
-func waitForReadyFile() {
-	const readyFileTimeoutSeconds = 60
-	readyFile, _ := util.ParseEnvVar(common.ImporterReadyFile, false)
-	if readyFile == "" {
-		return
-	}
-	for i := 0; i < readyFileTimeoutSeconds; i++ {
-		if _, err := os.Stat(readyFile); err == nil {
-			return
-		}
-		time.Sleep(time.Second)
-	}
-	err := util.WriteTerminationMessage(fmt.Sprintf("Timeout waiting for file %s", readyFile))
-	if err != nil {
-		klog.Errorf("%+v", err)
-	}
-	os.Exit(1)
-}
-
-func getHTTPEp(ep string) string {
-	readyFile, err := util.ParseEnvVar(common.ImporterReadyFile, false)
-	if err != nil {
-		klog.Errorf("Failed parsing env var %s: %+v", common.ImporterReadyFile, err)
-		os.Exit(1)
-	}
-	if len(readyFile) == 0 {
-		return ep
-	}
-	imageName, err := os.ReadFile(readyFile)
-	if err != nil {
-		klog.Errorf("Failed reading file %s: %+v", readyFile, err)
-		os.Exit(1)
-	}
-	if len(imageName) == 0 {
-		return ep
-	}
-	return strings.TrimSuffix(ep, common.DiskImageName) + string(imageName)
-}
-
-func touchDoneFile() {
-	doneFile, _ := util.ParseEnvVar(common.ImporterDoneFile, false)
-	if doneFile == "" {
-		return
-	}
-	f, err := os.OpenFile(doneFile, os.O_CREATE|os.O_EXCL, 0666)
-	if err != nil {
-		klog.Errorf("Failed creating file %s: %+v", doneFile, err)
-	}
-	f.Close()
 }
 
 func main() {
@@ -145,7 +92,6 @@ func main() {
 			os.Exit(1)
 		}
 	} else {
-		waitForReadyFile()
 		exitCode := handleImport(source, contentType, volumeMode, imageSize, filesystemOverhead, preallocation)
 		if exitCode != 0 {
 			os.Exit(exitCode)
@@ -224,7 +170,6 @@ func handleImport(
 	termMsg.PreallocationApplied = ptr.To(processor.PreallocationApplied())
 	termMsg.Message = ptr.To(completeMessage)
 
-	touchDoneFile()
 	if err := writeTerminationMessage(termMsg); err != nil {
 		klog.Errorf("%+v", err)
 		return 1
@@ -291,7 +236,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 
 	switch source {
 	case cc.SourceHTTP:
-		ds, err := importer.NewHTTPDataSource(getHTTPEp(ep), acc, sec, certDir, cdiv1.DataVolumeContentType(contentType), checksum, insecureTLS)
+		ds, err := importer.NewHTTPDataSource(ep, acc, sec, certDir, cdiv1.DataVolumeContentType(contentType), checksum, insecureTLS)
 		if err != nil {
 			errorCannotConnectDataSource(err, "http")
 		}
