@@ -47,7 +47,7 @@ oci_image(
         ":cdi-importer-bin",
         "//cmd/openstack-populator:openstack-populator-bin",
         "//cmd/ovirt-populator:ovirt-populator-bin",
-        "//tools/cdi-containerimage-server:cdi-containerimage-server-bin",
+        "//tools/cdi-env-extractor:cdi-env-extractor-bin",
         "//tools/cdi-image-size-detection:cdi-image-size-detection-bin",
         "//tools/cdi-source-update-poller:cdi-source-update-poller-bin",
     ],
