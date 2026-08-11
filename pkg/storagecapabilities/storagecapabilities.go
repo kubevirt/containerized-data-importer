@@ -101,6 +101,12 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"block.csi.ibm.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// IBM VPC Block CSI
 	"vpc.block.csi.ibm.io": {{rwo, block}, {rwo, file}},
+	// IBM VPC File CSI
+	"vpc.file.csi.ibm.io":         {{rwx, file}, {rwo, file}},
+	"vpc.file.csi.ibm.io/dp2":     {{rwx, file}, {rwo, file}},
+	"vpc.file.csi.ibm.io/dp2-rwo": {{rwo, file}},
+	"vpc.file.csi.ibm.io/rfs":     {{rwx, file}, {rwo, file}},
+	"vpc.file.csi.ibm.io/rfs-rwo": {{rwo, file}},
 	// Portworx in-tree CSI
 	"kubernetes.io/portworx-volume/nfs": {{rwx, file}, {rwo, file}},
 	"kubernetes.io/portworx-volume":     {{rwx, block}, {rwx, file}, {rwo, block}, {rwo, file}},
@@ -159,6 +165,11 @@ var SourceFormatsByProvisionerKey = map[string]cdiv1.DataImportCronSourceFormat{
 	"csi.trident.netapp.io/gcnv-flex":    cdiv1.DataImportCronSourceFormatSnapshot,
 	"pd.csi.storage.gke.io":              cdiv1.DataImportCronSourceFormatSnapshot,
 	"pd.csi.storage.gke.io/hyperdisk":    cdiv1.DataImportCronSourceFormatSnapshot,
+	"vpc.file.csi.ibm.io":                cdiv1.DataImportCronSourceFormatSnapshot,
+	"vpc.file.csi.ibm.io/dp2":            cdiv1.DataImportCronSourceFormatSnapshot,
+	"vpc.file.csi.ibm.io/dp2-rwo":        cdiv1.DataImportCronSourceFormatSnapshot,
+	"vpc.file.csi.ibm.io/rfs":            cdiv1.DataImportCronSourceFormatSnapshot,
+	"vpc.file.csi.ibm.io/rfs-rwo":        cdiv1.DataImportCronSourceFormatSnapshot,
 }
 
 // CloneStrategyByProvisionerKey defines the advised clone strategy for a provisioner
@@ -172,6 +183,11 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"spectrumscale.csi.ibm.com":                cdiv1.CloneStrategyCsiClone,
 	"block.csi.ibm.com":                        cdiv1.CloneStrategyCsiClone,
 	"vpc.block.csi.ibm.io":                     cdiv1.CloneStrategyHostAssisted,
+	"vpc.file.csi.ibm.io":                      cdiv1.CloneStrategySnapshot,
+	"vpc.file.csi.ibm.io/dp2":                  cdiv1.CloneStrategySnapshot,
+	"vpc.file.csi.ibm.io/dp2-rwo":              cdiv1.CloneStrategySnapshot,
+	"vpc.file.csi.ibm.io/rfs":                  cdiv1.CloneStrategySnapshot,
+	"vpc.file.csi.ibm.io/rfs-rwo":              cdiv1.CloneStrategySnapshot,
 	"rbd.csi.ceph.com":                         cdiv1.CloneStrategyCsiClone,
 	"rook-ceph.rbd.csi.ceph.com":               cdiv1.CloneStrategyCsiClone,
 	"openshift-storage.rbd.csi.ceph.com":       cdiv1.CloneStrategyCsiClone,
@@ -210,6 +226,11 @@ var MinimumSupportedPVCSizeByProvisionerKey = map[string]string{
 	"csi.san.synology.com/smb":   "1Gi",
 	// https://cloud.google.com/netapp/volumes/docs/discover/service-levels
 	"csi.trident.netapp.io/gcnv-flex": "1Gi",
+	// IBM VPC File Storage
+	"vpc.file.csi.ibm.io/rfs":     "1Gi",
+	"vpc.file.csi.ibm.io/rfs-rwo": "1Gi",
+	"vpc.file.csi.ibm.io/dp2":     "10Gi",
+	"vpc.file.csi.ibm.io/dp2-rwo": "10Gi",
 }
 
 // UseReadWriteOnceForDataImportCronByProvisionerKey is a hash of provisioners which require RWO access mode for DataImportCron PVCs
@@ -537,6 +558,30 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 			return "csi.san.synology.com/nfs"
 		default:
 			return "UNKNOWN"
+		}
+	},
+	"vpc.file.csi.ibm.io": func(sc *storagev1.StorageClass) string {
+		// https://cloud.ibm.com/docs/vpc?topic=vpc-file-storage-profiles&interface=ui
+		if sc.Parameters == nil {
+			return "vpc.file.csi.ibm.io"
+		}
+		profile := sc.Parameters["profile"]
+		// When vmState is true, use RWO-specific variants
+		vmState := sc.Parameters["vmState"]
+
+		switch profile {
+		case "rfs":
+			if vmState == "true" {
+				return "vpc.file.csi.ibm.io/rfs-rwo"
+			}
+			return "vpc.file.csi.ibm.io/rfs"
+		case "dp2":
+			if vmState == "true" {
+				return "vpc.file.csi.ibm.io/dp2-rwo"
+			}
+			return "vpc.file.csi.ibm.io/dp2"
+		default:
+			return "vpc.file.csi.ibm.io"
 		}
 	},
 }
