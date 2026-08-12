@@ -489,6 +489,8 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Entry("provisioner with minimum and StorageProfile annotated with no-size", "ebs.csi.aws.com/io1", ptr.To(""), ptr.To("")),
 		Entry("provisioner without minimum and StorageProfile annotated", "rbd.csi.ceph.com", ptr.To("1Mi"), ptr.To("1Mi")),
 		Entry("provisioner without minimum and StorageProfile not annotated", "prov", nil, nil),
+		Entry("HPE XP provisioner with minimum and StorageProfile not annotated", "xspc.csi.hpe.com", nil, ptr.To("1Gi")),
+		Entry("Hitachi HSPC provisioner with minimum and StorageProfile not annotated", "hspc.csi.hitachi.com", nil, ptr.To("1Gi")),
 	)
 
 	Context("DataImportCron annotations", func() {

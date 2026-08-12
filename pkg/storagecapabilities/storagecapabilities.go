@@ -92,7 +92,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"pd.csi.storage.gke.io":           {{rwo, block}, {rwo, file}},
 	"pd.csi.storage.gke.io/hyperdisk": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// Hitachi
-	"hspc.csi.hitachi.com": {{rwx, block}, {rwo, block}, {rwo, file}},
+	ProvisionerHitachiHSPC: {{rwx, block}, {rwo, block}, {rwo, file}},
 	// HPE
 	"csi.hpe.com": {{rwx, block}, {rwo, block}, {rwo, file}},
 	// IBM HCI/GPFS2 (Spectrum Scale / Spectrum Fusion)
@@ -178,7 +178,7 @@ var CloneStrategyByProvisionerKey = map[string]cdiv1.CDICloneStrategy{
 	"csi-isilon.dellemc.com":                   cdiv1.CloneStrategyCsiClone,
 	"csi-powermax.dellemc.com":                 cdiv1.CloneStrategyCsiClone,
 	"csi-powerstore.dellemc.com":               cdiv1.CloneStrategyHostAssisted,
-	"hspc.csi.hitachi.com":                     cdiv1.CloneStrategyCsiClone,
+	ProvisionerHitachiHSPC:                     cdiv1.CloneStrategyCsiClone,
 	"csi.hpe.com":                              cdiv1.CloneStrategyCsiClone,
 	"spectrumscale.csi.ibm.com":                cdiv1.CloneStrategyCsiClone,
 	"block.csi.ibm.com":                        cdiv1.CloneStrategyCsiClone,
@@ -233,6 +233,9 @@ var MinimumSupportedPVCSizeByProvisionerKey = map[string]string{
 	"vpc.file.csi.ibm.io/rfs-rwo": "1Gi",
 	"vpc.file.csi.ibm.io/dp2":     "10Gi",
 	"vpc.file.csi.ibm.io/dp2-rwo": "10Gi",
+	// HPE XP8 (OEM of Hitachi VSP) and Hitachi HSPC enforce a minimum LDEV size
+	ProvisionerHPEXP:       "1Gi",
+	ProvisionerHitachiHSPC: "1Gi",
 }
 
 // UseReadWriteOnceForDataImportCronByProvisionerKey is a hash of provisioners which require RWO access mode for DataImportCron PVCs
@@ -283,6 +286,10 @@ const (
 	ProvisionerPortworxPureBlock = "pxd.portworx.com/pure_block"
 	// ProvisionerPortworxPureFAFile is the Portworx CSI provisioner key derived for StorageClasses with parameter backend=pure_fa_file
 	ProvisionerPortworxPureFAFile = "pxd.portworx.com/pure_fa_file"
+	// ProvisionerHitachiHSPC is the Hitachi Storage Plug-in for Containers CSI provisioner
+	ProvisionerHitachiHSPC = "hspc.csi.hitachi.com"
+	// ProvisionerHPEXP is the HPE XP8 CSI provisioner (OEM of Hitachi VSP)
+	ProvisionerHPEXP = "xspc.csi.hpe.com"
 )
 
 // UnsupportedProvisioners is a hash of provisioners which are known not to work with CDI
