@@ -42,7 +42,13 @@ const (
 	whFilePrefix = ".wh."
 )
 
-var errReadingLayer = errors.New("Error reading layer")
+var (
+	errReadingLayer = errors.New("Error reading layer")
+
+	// ErrBootcImageDetected is returned when a bootc/ostree-bootable container image is detected
+	// but conversion is not yet implemented.
+	ErrBootcImageDetected = errors.New("bootc image detected: this image contains an ostree-based bootable OS (containers.bootc=1 or ostree.bootable=1) and cannot be imported as a regular container disk; bootc-to-disk conversion is not yet implemented")
+)
 
 func commandTimeoutContext() (context.Context, context.CancelFunc) {
 	return context.WithCancel(context.Background())
@@ -223,6 +229,10 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchite
 		}
 	}
 
+	if err := checkBootcImage(ctx, imgCloser); err != nil {
+		return nil, err
+	}
+
 	cache := blobinfocache.DefaultCache(srcCtx)
 	found := false
 	layers := imgCloser.LayerInfos()
@@ -255,6 +265,25 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchite
 	}
 
 	return info, nil
+}
+
+const (
+	bootcImageLabel   = "containers.bootc"
+	ostreeBootLabel   = "ostree.bootable"
+	bootcLabelEnabled = "1"
+)
+
+func checkBootcImage(ctx context.Context, img types.Image) error {
+	info, err := img.Inspect(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to inspect image for bootc detection: %w", err)
+	}
+	if info.Labels[bootcImageLabel] == bootcLabelEnabled ||
+		info.Labels[ostreeBootLabel] == bootcLabelEnabled {
+		klog.Infof("Detected bootc/ostree-bootable container image")
+		return ErrBootcImageDetected
+	}
+	return nil
 }
 
 func validateImagePlatformMatch(sys *types.SystemContext, img types.Image) error {

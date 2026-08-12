@@ -27,6 +27,7 @@ var _ = Describe("Registry Importer", func() {
 	source := "oci-archive:" + imageFile
 	malformedSource := "oci-archive:" + filepath.Join(imageDir, "malformed-registry-image.tar")
 	multiArchSource := "oci-archive:" + filepath.Join(imageDir, "multiarch-registry-image.tar")
+	bootcSource := "oci-archive:" + filepath.Join(imageDir, "bootc-registry-image.tar")
 
 	var tmpDir string
 	var err error
@@ -92,4 +93,17 @@ var _ = Describe("Registry Importer", func() {
 		Entry("when archive is an image index and architecture doesn't match specified architecture", multiArchSource, "invalid", true),
 		Entry("when archive is an image index and architecture matches specified architecture", multiArchSource, "amd64", false),
 	)
+
+	It("Should detect a bootc image and return ErrBootcImageDetected", func() {
+		info, err := CopyRegistryImage(bootcSource, tmpDir, "disk/", "", "", "", "", false, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError(ErrBootcImageDetected))
+		Expect(info).To(BeNil())
+	})
+
+	It("Should not detect a non-bootc image as bootc", func() {
+		info, err := CopyRegistryImage(source, tmpDir, "disk/cirros-0.3.4-x86_64-disk.img", "", "", "", "", false, false)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(info).ToNot(BeNil())
+	})
 })

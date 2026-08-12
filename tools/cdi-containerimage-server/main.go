@@ -35,12 +35,25 @@ func getImageFilename(dir string) (string, error) {
 	return entries[0].Name(), nil
 }
 
+func isBootcImage() bool {
+	for _, dir := range []string{"/sysroot", "/ostree"} {
+		if fi, err := os.Stat(dir); err == nil && fi.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
 	port := flag.Int("p", 8100, "server port")
 	directory := flag.String("image-dir", ".", "directory to serve")
 	readyFile := flag.String("ready-file", "/shared/ready", "file to create when ready for connections")
 	doneFile := flag.String("done-file", "/shared/done", "file created when the client is done")
 	flag.Parse()
+
+	if isBootcImage() {
+		log.Fatal("bootc image detected: this image contains an ostree-based bootable OS and cannot be imported as a regular container disk; bootc-to-disk conversion is not yet implemented")
+	}
 
 	if err := printFiles(*directory); err != nil {
 		log.Fatalf("Failed walking the directory %s: %v", *directory, err)
