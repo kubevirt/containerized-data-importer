@@ -1166,6 +1166,11 @@ func (in *DataVolumeSourceRegistry) DeepCopyInto(out *DataVolumeSourceRegistry) 
 		*out = new(PlatformOptions)
 		**out = **in
 	}
+	if in.LayerDigest != nil {
+		in, out := &in.LayerDigest, &out.LayerDigest
+		*out = new(string)
+		**out = **in
+	}
 	return
 }
 

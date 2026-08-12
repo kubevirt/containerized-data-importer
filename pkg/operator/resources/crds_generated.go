@@ -6069,6 +6069,10 @@ spec:
                                 description: ImageStream is the name of image stream
                                   for import
                                 type: string
+                              layerDigest:
+                                description: LayerDigest specifies a digest to fetch
+                                  a single OCI layer directly
+                                type: string
                               platform:
                                 description: Platform describes the minimum runtime
                                   requirements of the image
@@ -7091,6 +7095,10 @@ spec:
                         type: string
                       imageStream:
                         description: ImageStream is the name of image stream for import
+                        type: string
+                      layerDigest:
+                        description: LayerDigest specifies a digest to fetch a single
+                          OCI layer directly
                         type: string
                       platform:
                         description: Platform describes the minimum runtime requirements
@@ -8176,6 +8184,10 @@ spec:
                         type: string
                       imageStream:
                         description: ImageStream is the name of image stream for import
+                        type: string
+                      layerDigest:
+                        description: LayerDigest specifies a digest to fetch a single
+                          OCI layer directly
                         type: string
                       platform:
                         description: Platform describes the minimum runtime requirements

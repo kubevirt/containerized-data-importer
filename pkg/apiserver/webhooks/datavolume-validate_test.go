@@ -195,6 +195,37 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(BeTrue())
 		})
 
+		Context("registry with LayerDigest", func() {
+
+			const (
+				sha256Digest    = "sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+				sha512Digest    = "sha512:cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+				malformedDigest = "malformedDigest"
+			)
+			DescribeTable("should validate Registry source LayerDigest with PullMethod", func(pullMethod *cdiv1.RegistryPullMethod, expected bool) {
+				dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
+				dataVolume.Spec.Source.Registry.LayerDigest = ptr.To[string](sha256Digest)
+				dataVolume.Spec.Source.Registry.PullMethod = pullMethod
+				resp := validateDataVolumeCreate(dataVolume)
+				Expect(resp.Allowed).To(Equal(expected))
+			},
+				Entry("reject with node PullMethod", ptr.To(cdiv1.RegistryPullNode), false),
+				Entry("accept with pod PullMethod", ptr.To(cdiv1.RegistryPullPod), true),
+				Entry("accept with no PullMethod", nil, true),
+			)
+
+			DescribeTable("should validate Registry source LayerDigest validity", func(layerDigest string, expected bool) {
+				dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
+				dataVolume.Spec.Source.Registry.LayerDigest = ptr.To(layerDigest)
+				resp := validateDataVolumeCreate(dataVolume)
+				Expect(resp.Allowed).To(Equal(expected))
+			},
+				Entry("reject for malformed digest", malformedDigest, false),
+				Entry("accept for valid sha256 digest", sha256Digest, true),
+				Entry("accept for valid sha512 digest", sha512Digest, true),
+			)
+		})
+
 		It("should accept DataVolume with PVC source on create", func() {
 			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
 			pvc := &corev1.PersistentVolumeClaim{

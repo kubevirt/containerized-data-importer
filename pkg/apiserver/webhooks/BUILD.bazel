@@ -27,6 +27,7 @@ go_library(
         "//vendor/github.com/appscode/jsonpatch:go_default_library",
         "//vendor/github.com/docker/go-units:go_default_library",
         "//vendor/github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned:go_default_library",
+        "//vendor/github.com/opencontainers/go-digest:go_default_library",
         "//vendor/github.com/robfig/cron/v3:go_default_library",
         "//vendor/k8s.io/api/admission/v1:go_default_library",
         "//vendor/k8s.io/api/admissionregistration/v1:go_default_library",

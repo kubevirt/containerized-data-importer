@@ -27,6 +27,7 @@ require (
 	github.com/kubevirt/monitoring/pkg/metrics/parser v0.0.0-20230627123556-81a891d4462a
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
+	github.com/opencontainers/go-digest v1.0.0
 	github.com/openshift/api v0.0.0-20241107155230-d37bb9f7e380
 	github.com/openshift/client-go v0.0.0-20241001162912-da6d55e4611f
 	github.com/openshift/custom-resource-status v1.1.2
@@ -130,7 +131,6 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
-	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/opencontainers/runtime-spec v1.2.0 // indirect
 	github.com/ovirt/go-ovirt-client-log/v2 v2.2.0 // indirect
