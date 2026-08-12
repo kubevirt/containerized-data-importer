@@ -72,10 +72,10 @@ buildifier_prebuilt_register_toolchains(
 
 http_archive(
     name = "io_bazel_rules_go",
-    sha256 = "130739704540caa14e77c54810b9f01d6d9ae897d53eedceb40fd6b75efc3c23",
+    sha256 = "a729c8ed2447c90fe140077689079ca0acfb7580ec41637f312d650ce9d93d96",
     urls = [
-        "https://github.com/bazel-contrib/rules_go/releases/download/v0.54.1/rules_go-v0.54.1.zip",
-        "https://storage.googleapis.com/builddeps/130739704540caa14e77c54810b9f01d6d9ae897d53eedceb40fd6b75efc3c23",
+        "https://github.com/bazel-contrib/rules_go/releases/download/v0.57.0/rules_go-v0.57.0.zip",
+        "https://storage.googleapis.com/builddeps/a729c8ed2447c90fe140077689079ca0acfb7580ec41637f312d650ce9d93d96",
     ],
 )
 
