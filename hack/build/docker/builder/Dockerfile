@@ -38,7 +38,7 @@ ADD https://storage.googleapis.com/builddeps/swagger2markup-cli-1.3.3.jar /opt/s
 
 ENV JAVA_HOME=/usr/lib/jvm/java-11
 
-ENV GIMME_GO_VERSION=1.24.9 GOPATH="/go" GO111MODULE="on"
+ENV GIMME_GO_VERSION=1.25.12 GOPATH="/go" GO111MODULE="on"
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
 
