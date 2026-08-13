@@ -68,6 +68,7 @@ func CreateContainer(name, image, verbosity, pullPolicy string) corev1.Container
 		},
 		AllowPrivilegeEscalation: ptr.To[bool](false),
 		RunAsNonRoot:             ptr.To[bool](true),
+		ReadOnlyRootFilesystem:   ptr.To(true),
 	}
 	return *container
 }
@@ -88,6 +89,7 @@ func CreatePortsContainer(name, image, pullPolicy string, ports []corev1.Contain
 		},
 		AllowPrivilegeEscalation: ptr.To[bool](false),
 		RunAsNonRoot:             ptr.To[bool](true),
+		ReadOnlyRootFilesystem:   ptr.To(true),
 	}
 	return *container
 }

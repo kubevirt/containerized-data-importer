@@ -80,6 +80,9 @@ const (
 	normalCreateEnsured              = "Normal CreateResourceSuccess Successfully ensured"
 	normalDeleteResourceSuccess      = "Normal DeleteResourceSuccess Deleted deployment cdi-deployment successfully"
 	normalDeleteResourceSuccesWorker = "Normal DeleteResourceSuccess Deleted worker resources successfully"
+
+	tmpVolumeName = "tmp-dir"
+	tmpMountPath  = "/tmp"
 )
 
 type args struct {
@@ -255,6 +258,45 @@ var _ = Describe("Controller", func() {
 
 				for _, d := range deploymentList.Items {
 					Expect(d.Spec.Template.GetAnnotations()[secv1.RequiredSCCAnnotation]).To(Equal(common.RestrictedSCCName))
+
+					for _, c := range d.Spec.Template.Spec.Containers {
+						Expect(c.SecurityContext).ToNot(BeNil(),
+							"container %s in deployment %s has no SecurityContext", c.Name, d.Name)
+						Expect(c.SecurityContext.ReadOnlyRootFilesystem).ToNot(BeNil(),
+							"container %s in deployment %s has no ReadOnlyRootFilesystem", c.Name, d.Name)
+						Expect(*c.SecurityContext.ReadOnlyRootFilesystem).To(BeTrue(),
+							"container %s in deployment %s should have ReadOnlyRootFilesystem=true", c.Name, d.Name)
+					}
+
+					if d.Name == common.CDIControllerResourceName {
+						hasTmpVolume := false
+						for _, vol := range d.Spec.Template.Spec.Volumes {
+							if vol.Name == tmpVolumeName {
+								Expect(vol.VolumeSource.EmptyDir).ToNot(BeNil())
+								hasTmpVolume = true
+								break
+							}
+						}
+						Expect(hasTmpVolume).To(BeTrue(),
+							"deployment %s should have %s emptyDir volume for readiness probe %s/ready", d.Name, tmpVolumeName, tmpMountPath)
+
+						for _, c := range d.Spec.Template.Spec.Containers {
+							hasTmpMount := false
+							for _, m := range c.VolumeMounts {
+								if m.Name == tmpVolumeName && m.MountPath == tmpMountPath {
+									hasTmpMount = true
+									break
+								}
+							}
+							Expect(hasTmpMount).To(BeTrue(),
+								"container %s in deployment %s should mount %s", c.Name, d.Name, tmpMountPath)
+						}
+					} else {
+						for _, vol := range d.Spec.Template.Spec.Volumes {
+							Expect(vol.Name).ToNot(Equal(tmpVolumeName),
+								"deployment %s should not have %s volume (minimalist approach)", d.Name, tmpVolumeName)
+						}
+					}
 				}
 
 				scc := &secv1.SecurityContextConstraints{
