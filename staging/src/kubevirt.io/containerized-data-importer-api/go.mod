@@ -1,6 +1,6 @@
 module kubevirt.io/containerized-data-importer-api
 
-go 1.24.0
+go 1.25.0
 
 require (
 	k8s.io/api v0.31.5
@@ -22,8 +22,8 @@ require (
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	golang.org/x/net v0.48.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/utils v0.0.0-20240921022957-49e7df575cb6 // indirect
