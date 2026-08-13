@@ -36,6 +36,8 @@ import (
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
+const tmpVolumeName = "tmp-dir"
+
 func createControllerResources(args *FactoryArgs) []client.Object {
 	return []client.Object{
 		createControllerServiceAccount(),
@@ -265,6 +267,10 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, ovi
 	}
 	container.VolumeMounts = []corev1.VolumeMount{
 		{
+			Name:      tmpVolumeName,
+			MountPath: "/tmp",
+		},
+		{
 			Name:      "cdi-api-signing-key",
 			MountPath: controller.TokenKeyDir,
 		},
@@ -294,6 +300,12 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, ovi
 
 	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
 	deployment.Spec.Template.Spec.Volumes = []corev1.Volume{
+		{
+			Name: tmpVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
 		{
 			Name: "cdi-api-signing-key",
 			VolumeSource: corev1.VolumeSource{

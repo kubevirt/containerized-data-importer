@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -488,5 +489,135 @@ var _ = Describe("IsWebhookPvcRenderingEnabled", func() {
 
 		_, err := IsWebhookPvcRenderingEnabled(cl)
 		Expect(err).To(HaveOccurred())
+	})
+})
+
+var _ = Describe("SetRestrictedSecurityContext", func() {
+	var podSpec *v1.PodSpec
+
+	BeforeEach(func() {
+		podSpec = &v1.PodSpec{
+			Containers: []v1.Container{
+				{Name: "main"},
+			},
+			InitContainers: []v1.Container{
+				{Name: "init"},
+			},
+		}
+	})
+
+	DescribeTable("should enforce container-level SecurityContext fields",
+		func(check func(sc *v1.SecurityContext)) {
+			SetRestrictedSecurityContext(podSpec)
+			for _, c := range append(podSpec.Containers, podSpec.InitContainers...) {
+				Expect(c.SecurityContext).NotTo(BeNil(), "container %s", c.Name)
+				check(c.SecurityContext)
+			}
+		},
+		Entry("ReadOnlyRootFilesystem=true", func(sc *v1.SecurityContext) {
+			Expect(sc.ReadOnlyRootFilesystem).NotTo(BeNil())
+			Expect(*sc.ReadOnlyRootFilesystem).To(BeTrue())
+		}),
+		Entry("AllowPrivilegeEscalation=false", func(sc *v1.SecurityContext) {
+			Expect(sc.AllowPrivilegeEscalation).NotTo(BeNil())
+			Expect(*sc.AllowPrivilegeEscalation).To(BeFalse())
+		}),
+		Entry("RunAsNonRoot=true", func(sc *v1.SecurityContext) {
+			Expect(sc.RunAsNonRoot).NotTo(BeNil())
+			Expect(*sc.RunAsNonRoot).To(BeTrue())
+		}),
+		Entry("RunAsUser=QemuSubGid", func(sc *v1.SecurityContext) {
+			Expect(sc.RunAsUser).NotTo(BeNil())
+			Expect(*sc.RunAsUser).To(Equal(common.QemuSubGid))
+		}),
+		Entry("drops ALL capabilities", func(sc *v1.SecurityContext) {
+			Expect(sc.Capabilities).NotTo(BeNil())
+			Expect(sc.Capabilities.Drop).To(ContainElement(v1.Capability("ALL")))
+		}),
+		Entry("SeccompProfile=RuntimeDefault", func(sc *v1.SecurityContext) {
+			Expect(sc.SeccompProfile).NotTo(BeNil())
+			Expect(sc.SeccompProfile.Type).To(Equal(v1.SeccompProfileTypeRuntimeDefault))
+		}),
+	)
+
+	It("should set pod-level SeccompProfile to RuntimeDefault", func() {
+		SetRestrictedSecurityContext(podSpec)
+		Expect(podSpec.SecurityContext).NotTo(BeNil())
+		Expect(podSpec.SecurityContext.SeccompProfile).NotTo(BeNil())
+		Expect(podSpec.SecurityContext.SeccompProfile.Type).To(Equal(v1.SeccompProfileTypeRuntimeDefault))
+	})
+
+	It("should enforce ReadOnlyRootFilesystem=true even if previously set to false", func() {
+		podSpec.Containers[0].SecurityContext = &v1.SecurityContext{
+			ReadOnlyRootFilesystem: ptr.To(false),
+		}
+		SetRestrictedSecurityContext(podSpec)
+		Expect(*podSpec.Containers[0].SecurityContext.ReadOnlyRootFilesystem).To(BeTrue())
+	})
+
+	Context("tmp volume", func() {
+		It("should add an emptyDir volume named tmp-dir", func() {
+			SetRestrictedSecurityContext(podSpec)
+			var found bool
+			for _, vol := range podSpec.Volumes {
+				if vol.Name == tmpVolumeName {
+					Expect(vol.VolumeSource.EmptyDir).NotTo(BeNil())
+					found = true
+					break
+				}
+			}
+			Expect(found).To(BeTrue(), "expected tmp-dir volume to be present")
+		})
+
+		It("should mount /tmp on all containers and init containers", func() {
+			SetRestrictedSecurityContext(podSpec)
+			for _, c := range append(podSpec.Containers, podSpec.InitContainers...) {
+				var hasTmpMount bool
+				for _, m := range c.VolumeMounts {
+					if m.Name == tmpVolumeName && m.MountPath == "/tmp" {
+						hasTmpMount = true
+						break
+					}
+				}
+				Expect(hasTmpMount).To(BeTrue(), "container %s should have /tmp mount", c.Name)
+			}
+		})
+
+		It("should not duplicate tmp-dir volume if already present", func() {
+			podSpec.Volumes = []v1.Volume{
+				{
+					Name: tmpVolumeName,
+					VolumeSource: v1.VolumeSource{
+						EmptyDir: &v1.EmptyDirVolumeSource{},
+					},
+				},
+			}
+			SetRestrictedSecurityContext(podSpec)
+			count := 0
+			for _, vol := range podSpec.Volumes {
+				if vol.Name == tmpVolumeName {
+					count++
+				}
+			}
+			Expect(count).To(Equal(1))
+		})
+	})
+
+	Context("FSGroup", func() {
+		It("should set FSGroup when containers have VolumeMounts", func() {
+			podSpec.Containers[0].VolumeMounts = []v1.VolumeMount{
+				{Name: "data", MountPath: "/data"},
+			}
+			SetRestrictedSecurityContext(podSpec)
+			Expect(podSpec.SecurityContext.FSGroup).NotTo(BeNil())
+			Expect(*podSpec.SecurityContext.FSGroup).To(Equal(common.QemuSubGid))
+		})
+
+		It("should not set FSGroup when no VolumeMounts are present", func() {
+			SetRestrictedSecurityContext(podSpec)
+			if podSpec.SecurityContext.FSGroup != nil {
+				Expect(*podSpec.SecurityContext.FSGroup).NotTo(Equal(common.QemuSubGid))
+			}
+		})
 	})
 })

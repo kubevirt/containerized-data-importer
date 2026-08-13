@@ -1103,7 +1103,7 @@ var _ = Describe("Create Importer Pod", func() {
 			Expect(pod.Spec.Containers[0].VolumeDevices[0].DevicePath).To(Equal(common.WriteBlockPath))
 			if scratchPvcName != nil {
 				By("Verifying scratch space is set if available")
-				Expect(pod.Spec.Containers[0].VolumeMounts).To(HaveLen(1))
+				Expect(pod.Spec.Containers[0].VolumeMounts).To(HaveLen(2))
 				Expect(pod.Spec.Containers[0].VolumeMounts[0].Name).To(Equal(cc.ScratchVolName))
 				Expect(pod.Spec.Containers[0].VolumeMounts[0].MountPath).To(Equal(common.ScratchDataDir))
 			}
@@ -1112,7 +1112,7 @@ var _ = Describe("Create Importer Pod", func() {
 			Expect(pod.Spec.Containers[0].VolumeMounts[0].MountPath).To(Equal(common.ImporterDataDir))
 			if scratchPvcName != nil {
 				By("Verifying scratch space is set if available")
-				Expect(pod.Spec.Containers[0].VolumeMounts).To(HaveLen(2))
+				Expect(pod.Spec.Containers[0].VolumeMounts).To(HaveLen(3))
 				Expect(pod.Spec.Containers[0].VolumeMounts[1].Name).To(Equal(cc.ScratchVolName))
 				Expect(pod.Spec.Containers[0].VolumeMounts[1].MountPath).To(Equal(common.ScratchDataDir))
 			}

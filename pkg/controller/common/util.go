@@ -1230,6 +1230,7 @@ func SetRestrictedSecurityContext(podSpec *corev1.PodSpec) {
 			container.SecurityContext.AllowPrivilegeEscalation = ptr.To[bool](false)
 			container.SecurityContext.RunAsNonRoot = ptr.To[bool](true)
 			container.SecurityContext.RunAsUser = ptr.To[int64](common.QemuSubGid)
+			container.SecurityContext.ReadOnlyRootFilesystem = ptr.To(true)
 			if len(container.VolumeMounts) > 0 {
 				hasVolumeMounts = true
 			}
@@ -1245,6 +1246,35 @@ func SetRestrictedSecurityContext(podSpec *corev1.PodSpec) {
 	}
 	if hasVolumeMounts {
 		podSpec.SecurityContext.FSGroup = ptr.To[int64](common.QemuSubGid)
+	}
+
+	addTmpVolume(podSpec)
+}
+
+const tmpVolumeName = "tmp-dir"
+
+// addTmpVolume adds an emptyDir volume at /tmp to support readOnlyRootFilesystem
+func addTmpVolume(podSpec *corev1.PodSpec) {
+	for _, v := range podSpec.Volumes {
+		if v.Name == tmpVolumeName {
+			return
+		}
+	}
+	podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
+		Name: tmpVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	})
+	tmpMount := corev1.VolumeMount{
+		Name:      tmpVolumeName,
+		MountPath: "/tmp",
+	}
+	for i := range podSpec.InitContainers {
+		podSpec.InitContainers[i].VolumeMounts = append(podSpec.InitContainers[i].VolumeMounts, tmpMount)
+	}
+	for i := range podSpec.Containers {
+		podSpec.Containers[i].VolumeMounts = append(podSpec.Containers[i].VolumeMounts, tmpMount)
 	}
 }
 
