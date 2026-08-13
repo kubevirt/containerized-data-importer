@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "auth.go",
+        "scheme.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/aws-sdk-go-v2/internal/auth",
+    importpath = "github.com/aws/aws-sdk-go-v2/internal/auth",
+    visibility = ["//vendor/github.com/aws/aws-sdk-go-v2:__subpackages__"],
+    deps = [
+        "//vendor/github.com/aws/smithy-go:go_default_library",
+        "//vendor/github.com/aws/smithy-go/auth:go_default_library",
+        "//vendor/github.com/aws/smithy-go/middleware:go_default_library",
+        "//vendor/github.com/aws/smithy-go/transport/http:go_default_library",
+    ],
+)

@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "context.go",
+        "doc.go",
+        "go_module_metadata.go",
+        "middleware.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/aws-sdk-go-v2/service/internal/presigned-url",
+    importpath = "github.com/aws/aws-sdk-go-v2/service/internal/presigned-url",
+    visibility = ["//vendor/github.com/aws/aws-sdk-go-v2/service:__subpackages__"],
+    deps = [
+        "//vendor/github.com/aws/aws-sdk-go-v2/aws/middleware:go_default_library",
+        "//vendor/github.com/aws/aws-sdk-go-v2/aws/signer/v4:go_default_library",
+        "//vendor/github.com/aws/smithy-go/middleware:go_default_library",
+    ],
+)

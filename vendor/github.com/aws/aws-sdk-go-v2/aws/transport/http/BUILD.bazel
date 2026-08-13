@@ -1,0 +1,23 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "client.go",
+        "content_type.go",
+        "response_error.go",
+        "response_error_middleware.go",
+        "timeout_read_closer.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/aws-sdk-go-v2/aws/transport/http",
+    importpath = "github.com/aws/aws-sdk-go-v2/aws/transport/http",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/aws/aws-sdk-go-v2/aws:go_default_library",
+        "//vendor/github.com/aws/aws-sdk-go-v2/aws/middleware:go_default_library",
+        "//vendor/github.com/aws/smithy-go:go_default_library",
+        "//vendor/github.com/aws/smithy-go/middleware:go_default_library",
+        "//vendor/github.com/aws/smithy-go/tracing:go_default_library",
+        "//vendor/github.com/aws/smithy-go/transport/http:go_default_library",
+    ],
+)

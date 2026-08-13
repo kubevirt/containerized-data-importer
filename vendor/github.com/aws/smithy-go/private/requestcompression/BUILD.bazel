@@ -1,0 +1,17 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "gzip.go",
+        "middleware_capture_request_compression.go",
+        "request_compression.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/smithy-go/private/requestcompression",
+    importpath = "github.com/aws/smithy-go/private/requestcompression",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/aws/smithy-go/middleware:go_default_library",
+        "//vendor/github.com/aws/smithy-go/transport/http:go_default_library",
+    ],
+)
