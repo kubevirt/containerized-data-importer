@@ -2242,9 +2242,9 @@ func sortEvents(events *corev1.EventList, usingPopulator bool, pvcPrimeName stri
 	})
 }
 
-// UpdatePVCBoundContionFromEvents updates the bound condition annotations on the PVC based on recent events
+// UpdatePVCBoundConditionFromEvents updates the bound condition annotations on the PVC based on recent events
 // This function can be used by both controller and populator packages to update PVC bound condition information
-func UpdatePVCBoundContionFromEvents(pvc *corev1.PersistentVolumeClaim, c client.Client, log logr.Logger) error {
+func UpdatePVCBoundConditionFromEvents(pvc *corev1.PersistentVolumeClaim, c client.Client, log logr.Logger) error {
 	currentPvcCopy := pvc.DeepCopy()
 
 	anno := pvc.GetAnnotations()
