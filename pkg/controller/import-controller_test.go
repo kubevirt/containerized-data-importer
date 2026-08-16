@@ -1272,11 +1272,15 @@ var _ = Describe("Create Importer Pod", func() {
 		pod := &corev1.Pod{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: "default"}, pod)
 		Expect(err).ToNot(HaveOccurred())
+
 		Expect(pod.Spec.Containers).To(HaveLen(1))
 		Expect(pod.Spec.InitContainers).To(HaveLen(2))
 		Expect(pod.Spec.Containers[0].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
 		Expect(pod.Spec.InitContainers[0].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
 		Expect(pod.Spec.InitContainers[1].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
+
+		Expect(pod.Spec.InitContainers[0].ImagePullPolicy).To(BeEquivalentTo(testPullPolicy))
+		Expect(pod.Spec.InitContainers[1].ImagePullPolicy).To(BeEquivalentTo(testPullPolicy))
 	})
 })
 
@@ -1521,6 +1525,7 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 		log:            importLog,
 		recorder:       rec,
 		featureGates:   featuregates.NewFeatureGates(cl),
+		pullPolicy:     testPullPolicy,
 		installerLabels: map[string]string{
 			common.AppKubernetesPartOfLabel:  "testing",
 			common.AppKubernetesVersionLabel: "v0.0.0-tests",

@@ -2,6 +2,7 @@ package importer
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -9,6 +10,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/containers/image/v5/types"
+
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
 
 var (
@@ -36,17 +39,17 @@ var _ = Describe("Registry data source", func() {
 	})
 
 	It("should return transfer after info is called", func() {
-		ds = NewRegistryDataSource("", "", "", "", "", true)
+		ds = NewRegistryDataSource("", "", "", "", "", true, "", "", "")
 		result, err := ds.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 	})
 
-	DescribeTable("Transfer should ", func(ep, accKey, secKey, certDir, scratchPath string, insecureRegistry bool, wantErr bool) {
+	DescribeTable("pod pull Transfer should ", func(ep, accKey, secKey, certDir, scratchPath string, insecureRegistry bool, wantErr bool) {
 		if scratchPath == "" {
 			scratchPath = tmpDir
 		}
-		ds = NewRegistryDataSource(ep, accKey, secKey, "", certDir, insecureRegistry)
+		ds = NewRegistryDataSource(ep, accKey, secKey, "", certDir, insecureRegistry, "", "", "")
 
 		// Need to pass in a real path if we don't want scratch space needed error.
 		result, err := ds.Transfer(scratchPath, false)
@@ -65,20 +68,45 @@ var _ = Describe("Registry data source", func() {
 		Entry("return Error on valid scratch space, but CopyImage failed", "invalid", "", "", "", "", true, true),
 	)
 
+	It("node pull Transfer should successfully return Convert on valid environment variables", func() {
+		diskDir := filepath.Join(tmpDir, containerDiskImageDir)
+		Expect(os.Mkdir(diskDir, 0755)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(diskDir, "disk.img"), []byte("image"), 0600)).To(Succeed())
+
+		ds = NewRegistryDataSource("", "", "", "", "", true, string(cdiv1.RegistryPullNode), tmpDir, "")
+
+		result, err := ds.Transfer(tmpDir, false)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(ProcessingPhaseConvert).To(Equal(result))
+		Expect(filepath.Join(tmpDir, containerDiskImageDir)).To(Equal(ds.imageDir))
+	})
+
 	It("TransferFile should not be called", func() {
-		ds = NewRegistryDataSource("", "", "", "", "", true)
+		ds = NewRegistryDataSource("", "", "", "", "", true, "", "", "")
 		result, err := ds.TransferFile("file", false)
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
 	})
 
-	It("GetTerminationMessage should contain labels collected from the image", func() {
-		ds = NewRegistryDataSource("", "", "", "", "", true)
-		ds.info = &types.ImageInspectInfo{
-			Env: []string{
-				"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE=u1.small",
-				"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE=fedora",
-			},
+	DescribeTable("GetTerminationMessage should contain labels collected from the image", func(pullMethod string) {
+		ds = NewRegistryDataSource("", "", "", "", "", true, "", "", "")
+		envVariables := []string{
+			"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE=u1.small",
+			"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE=fedora",
+		}
+		if pullMethod == string(cdiv1.RegistryPullNode) {
+			envFile := path.Join(tmpDir, "env-file")
+			envString := strings.Join(envVariables, "\n")
+			err := os.WriteFile(envFile, []byte(envString), 0600)
+			Expect(err).NotTo(HaveOccurred())
+
+			ds.pullMethod = pullMethod
+			ds.imageRootDir = tmpDir
+			ds.envFile = envFile
+		} else {
+			ds.info = &types.ImageInspectInfo{
+				Env: envVariables,
+			}
 		}
 
 		termMesg := ds.GetTerminationMessage()
@@ -86,14 +114,50 @@ var _ = Describe("Registry data source", func() {
 		Expect(termMesg.Labels).To(HaveLen(2))
 		Expect(termMesg.Labels).To(HaveKeyWithValue("instancetype.kubevirt.io/default-instancetype", "u1.small"))
 		Expect(termMesg.Labels).To(HaveKeyWithValue("instancetype.kubevirt.io/default-preference", "fedora"))
-	})
+	},
+		Entry("when pull method = pod", "pod"),
+		Entry("when pull method = node", string(cdiv1.RegistryPullNode)),
+	)
 
-	It("Transfer should return error for bootc image", func() {
-		ds = NewRegistryDataSource("oci-archive:"+filepath.Join(imageDir, "bootc-registry-image.tar"), "", "", "", "", true)
+	It("Transfer should return error for bootc image when pull = pod", func() {
+		ds = NewRegistryDataSource("oci-archive:"+filepath.Join(imageDir, "bootc-registry-image.tar"), "", "", "", "", true, "", "", "")
 		result, err := ds.Transfer(tmpDir, false)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("bootc image detected"))
 		Expect(ProcessingPhaseError).To(Equal(result))
+	})
+
+	It("Transfer should return error for bootc image when pull = node and ostree folder exists in imageRootDir", func() {
+		err := os.Mkdir(filepath.Join(tmpDir, "ostree"), 0755)
+		Expect(err).NotTo(HaveOccurred())
+		ds = NewRegistryDataSource("oci-archive:"+filepath.Join(imageDir, "bootc-registry-image.tar"), "", "", "", "", true, string(cdiv1.RegistryPullNode), tmpDir, "")
+		result, err := ds.Transfer(tmpDir, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("bootc image detected"))
+		Expect(ProcessingPhaseError).To(Equal(result))
+	})
+
+	It("Transfer should return error for bootc image when pull = node and sysroot folder exists in imageRootDir", func() {
+		err := os.Mkdir(filepath.Join(tmpDir, "sysroot"), 0755)
+		Expect(err).NotTo(HaveOccurred())
+		ds = NewRegistryDataSource("oci-archive:"+filepath.Join(imageDir, "bootc-registry-image.tar"), "", "", "", "", true, string(cdiv1.RegistryPullNode), tmpDir, "")
+		result, err := ds.Transfer(tmpDir, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("bootc image detected"))
+		Expect(ProcessingPhaseError).To(Equal(result))
+	})
+
+	It("Transfer should return error when imageRootDir is not set", func() {
+		ds = NewRegistryDataSource("", "", "", "", "", true, string(cdiv1.RegistryPullNode), "", "")
+		result, err := ds.Transfer(tmpDir, false)
+		Expect(err).To(HaveOccurred())
+		Expect(ProcessingPhaseError).To(Equal(result))
+	})
+
+	It("GetTerminationMessage should return nil when ImporterEnvFile is not set", func() {
+		ds = NewRegistryDataSource("", "", "", "", "", true, string(cdiv1.RegistryPullNode), "", "")
+		termMesg := ds.GetTerminationMessage()
+		Expect(termMesg).To(BeNil())
 	})
 
 	It("getImageFileName should return an error with non-existing image directory", func() {
