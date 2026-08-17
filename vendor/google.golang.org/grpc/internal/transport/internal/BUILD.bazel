@@ -5,5 +5,5 @@ go_library(
     srcs = ["internal.go"],
     importmap = "kubevirt.io/containerized-data-importer/vendor/google.golang.org/grpc/internal/transport/internal",
     importpath = "google.golang.org/grpc/internal/transport/internal",
-    visibility = ["//vendor/google.golang.org/grpc:__subpackages__"],
+    visibility = ["//vendor/google.golang.org/grpc/internal/transport:__subpackages__"],
 )
