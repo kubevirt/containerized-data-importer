@@ -271,6 +271,130 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
+		It("Should create CronJob with trustedCA volume when TrustedCA is configured", func() {
+			trustedCA := "my-trusted-ca-bundle"
+			cdiConfig := cc.MakeEmptyCDIConfigSpec(common.ConfigName)
+			cdiConfig.Status.TrustedCA = &trustedCA
+
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconcilerWithoutConfig(cron, cdiConfig)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronjob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+			containers := cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers
+			Expect(containers).To(HaveLen(1))
+
+			volMounts := containers[0].VolumeMounts
+			Expect(volMounts).To(HaveLen(1))
+			Expect(volMounts[0]).To(Equal(corev1.VolumeMount{
+				Name:      TrustedCACertVolName,
+				MountPath: common.ImportTrustedCACertDir,
+			}))
+
+			volumes := cronjob.Spec.JobTemplate.Spec.Template.Spec.Volumes
+			Expect(volumes).To(HaveLen(1))
+			Expect(volumes[0]).To(Equal(corev1.Volume{
+				Name: TrustedCACertVolName,
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: trustedCA,
+						},
+					},
+				},
+			}))
+		})
+
+		It("Should create CronJob without trustedCA volume when TrustedCA is not configured", func() {
+			cdiConfig := cc.MakeEmptyCDIConfigSpec(common.ConfigName)
+			// don't set cdiConfig.Status.TrustedCA, it stays nil
+
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconcilerWithoutConfig(cron, cdiConfig)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronjob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+
+			// assert no trustedCA vol mount exists
+			containers := cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers
+			Expect(containers).To(HaveLen(1))
+			for _, volMnt := range containers[0].VolumeMounts {
+				Expect(volMnt.Name).ToNot(Equal(TrustedCACertVolName))
+			}
+
+			// also assert no trustedCA vol exists
+			for _, vol := range cronjob.Spec.JobTemplate.Spec.Template.Spec.Volumes {
+				Expect(vol.Name).ToNot(Equal(TrustedCACertVolName))
+			}
+		})
+
+		It("should create CronJob without trustedCA when TrustedCA is empty", func() {
+			emptyCA := ""
+			cdiConfig := cc.MakeEmptyCDIConfigSpec(common.ConfigName)
+			cdiConfig.Status.TrustedCA = &emptyCA
+
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconcilerWithoutConfig(cron, cdiConfig)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronjob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+
+			// assert no trustedCA vol mount exists
+			containers := cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers
+			Expect(containers).To(HaveLen(1))
+			for _, volMnt := range containers[0].VolumeMounts {
+				Expect(volMnt.Name).ToNot(Equal(TrustedCACertVolName))
+			}
+
+			// also assert no trustedCA vol exists
+			for _, vol := range cronjob.Spec.JobTemplate.Spec.Template.Spec.Volumes {
+				Expect(vol.Name).ToNot(Equal(TrustedCACertVolName))
+			}
+		})
+
+		It("should update CronJob trustedCA volume when TrustedCA changes", func() {
+			oldCA := "old-ca-bundle"
+			cdiConfig := cc.MakeEmptyCDIConfigSpec(common.ConfigName)
+			cdiConfig.Status.TrustedCA = &oldCA
+
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconcilerWithoutConfig(cron, cdiConfig)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			// now change it
+			newCA := "new-ca-bundle"
+			cdiConfig.Status.TrustedCA = &newCA
+			err = reconciler.client.Update(context.TODO(), cdiConfig)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, err = reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronjob := batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), &cronjob)
+			Expect(err).ToNot(HaveOccurred())
+			// assert vol references "new-ca-bundle" not "old-ca-bundle"
+			volumes := cronjob.Spec.JobTemplate.Spec.Template.Spec.Volumes
+			found := false
+			for _, v := range volumes {
+				if v.Name == TrustedCACertVolName {
+					Expect(v.ConfigMap.Name).To(Equal("new-ca-bundle"))
+					found = true
+				}
+			}
+			Expect(found).To(BeTrue())
+		})
+
 		It("Should delete DataImportCron-orphan CronJob", func() {
 			reconciler = createDataImportCronReconciler()
 

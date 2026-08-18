@@ -493,8 +493,8 @@ func (reader *extentReader) GetRange(start, end int64) (io.ReadCloser, error) {
 	return response.Body, nil
 }
 
-func createImageioReader(ctx context.Context, ep string, accessKey string, secKey string, certDir string, diskID string, currentCheckpoint string, previousCheckpoint string, insecureSkipVerify bool) (io.ReadCloser, uint64, *ovirtsdk4.ImageTransfer, ConnectionInterface, error) {
-	conn, err := newOvirtClientFunc(ep, accessKey, secKey, certDir, insecureSkipVerify)
+func createImageioReader(ctx context.Context, ep string, accessKey string, secKey string, importerCertDir string, diskID string, currentCheckpoint string, previousCheckpoint string, insecureSkipVerify bool) (io.ReadCloser, uint64, *ovirtsdk4.ImageTransfer, ConnectionInterface, error) {
+	conn, err := newOvirtClientFunc(ep, accessKey, secKey, importerCertDir, insecureSkipVerify)
 	if err != nil {
 		return nil, uint64(0), nil, conn, errors.Wrap(err, "Error creating connection")
 	}
@@ -542,7 +542,7 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 	}
 
 	// Use the create client from http source.
-	client, err := createHTTPClient(certDir, insecureSkipVerify)
+	client, err := createHTTPClient(importerCertDir, "", "", insecureSkipVerify)
 	if err != nil {
 		return nil, uint64(0), it, conn, err
 	}
@@ -1454,14 +1454,14 @@ func (e *extraSettings) ExtraHeaders() map[string]string {
 	return e.extraHeaders
 }
 
-func getOvirtClient(ep string, accessKey string, secKey string, certDir string, insecureSkipVerify bool) (ConnectionInterface, error) {
+func getOvirtClient(ep string, accessKey string, secKey string, importerCertDir string, insecureSkipVerify bool) (ConnectionInterface, error) {
 	var conn *ovirtsdk4.Connection
 
 	tls := ovirtclient.TLS()
 	if insecureSkipVerify {
 		tls.Insecure()
 	} else {
-		certPool, err := createCertPool(certDir)
+		certPool, err := createCertPool(importerCertDir, "", "")
 		if err != nil {
 			return nil, err
 		}

@@ -1068,6 +1068,8 @@ type CDIConfigSpec struct {
 	// ImportProxy contains importer pod proxy configuration.
 	// +optional
 	ImportProxy *ImportProxy `json:"importProxy,omitempty"`
+	// TrustedCA is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle.
+	TrustedCA *string `json:"trustedCA,omitempty"`
 	// Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space
 	ScratchSpaceStorageClass *string `json:"scratchSpaceStorageClass,omitempty"`
 	// ResourceRequirements describes the compute resource requirements.
@@ -1107,6 +1109,8 @@ type CDIConfigStatus struct {
 	// ImportProxy contains importer pod proxy configuration.
 	// +optional
 	ImportProxy *ImportProxy `json:"importProxy,omitempty"`
+	// TrustedCA is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle.
+	TrustedCA *string `json:"trustedCA,omitempty"`
 	// The calculated storage class to be used for scratch space
 	ScratchSpaceStorageClass string `json:"scratchSpaceStorageClass,omitempty"`
 	// ResourceRequirements describes the compute resource requirements.

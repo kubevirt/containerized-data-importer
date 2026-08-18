@@ -279,7 +279,9 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 	diskID, _ := util.ParseEnvVar(common.ImporterDiskID, false)
 	uuid, _ := util.ParseEnvVar(common.ImporterUUID, false)
 	backingFile, _ := util.ParseEnvVar(common.ImporterBackingFile, false)
-	certDir, _ := util.ParseEnvVar(common.ImporterCertDirVar, false)
+	importerCertDir, _ := util.ParseEnvVar(common.ImporterCertDirVar, false)
+	trustedCACertDir, _ := util.ParseEnvVar(common.ImporterTrustedCADirVar, false)
+	importerProxyCertDir, _ := util.ParseEnvVar(common.ImporterProxyCertDirVar, false)
 	insecureTLS, _ := strconv.ParseBool(os.Getenv(common.InsecureTLSVar))
 	thumbprint, _ := util.ParseEnvVar(common.ImporterThumbprint, false)
 	registryImageArchitecture, _ := util.ParseEnvVar(common.ImporterRegistryImageArchitecture, false)
@@ -291,22 +293,22 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 
 	switch source {
 	case cc.SourceHTTP:
-		ds, err := importer.NewHTTPDataSource(getHTTPEp(ep), acc, sec, certDir, cdiv1.DataVolumeContentType(contentType), checksum, insecureTLS)
+		ds, err := importer.NewHTTPDataSource(getHTTPEp(ep), acc, sec, importerCertDir, trustedCACertDir, importerProxyCertDir, cdiv1.DataVolumeContentType(contentType), checksum, insecureTLS)
 		if err != nil {
 			errorCannotConnectDataSource(err, "http")
 		}
 		return ds
 	case cc.SourceImageio:
-		ds, err := importer.NewImageioDataSource(ep, acc, sec, certDir, diskID, currentCheckpoint, previousCheckpoint, insecureTLS)
+		ds, err := importer.NewImageioDataSource(ep, acc, sec, importerCertDir, diskID, currentCheckpoint, previousCheckpoint, insecureTLS)
 		if err != nil {
 			errorCannotConnectDataSource(err, "imageio")
 		}
 		return ds
 	case cc.SourceRegistry:
-		ds := importer.NewRegistryDataSource(ep, acc, sec, registryImageArchitecture, certDir, insecureTLS)
+		ds := importer.NewRegistryDataSource(ep, acc, sec, registryImageArchitecture, importerCertDir, insecureTLS)
 		return ds
 	case cc.SourceS3:
-		ds, err := importer.NewS3DataSource(ep, acc, sec, certDir)
+		ds, err := importer.NewS3DataSource(ep, acc, sec, importerCertDir)
 		if err != nil {
 			errorCannotConnectDataSource(err, "s3")
 		}
@@ -321,7 +323,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 		ds, err := importer.NewVDDKDataSource(importer.VDDKDataSourceConfig{
 			Endpoint: ep, AccessKey: acc, SecKey: sec, Thumbprint: thumbprint, UUID: uuid,
 			BackingFile: backingFile, CurrentCheckpoint: currentCheckpoint, PreviousCheckpoint: previousCheckpoint,
-			FinalCheckpoint: finalCheckpoint, VolumeMode: volumeMode, CertDir: certDir, InsecureTLS: insecureTLS,
+			FinalCheckpoint: finalCheckpoint, VolumeMode: volumeMode, CertDir: importerCertDir, InsecureTLS: insecureTLS,
 		})
 		if err != nil {
 			errorCannotConnectDataSource(err, "vddk")

@@ -305,7 +305,7 @@ func createVMwareClient(cfg VMwareClientConfig) (*VMwareClient, error) {
 
 	soapClient := soap.NewClient(vmwURL, actualInsecureTLS)
 	if cfg.CertDir != "" && !cfg.InsecureTLS {
-		certPool, err := createCertPool(cfg.CertDir)
+		certPool, err := createCertPool(cfg.CertDir, "", "")
 		if err != nil {
 			klog.Errorf("Unable to create certificate pool from %s: %v", cfg.CertDir, err)
 			cancel()
