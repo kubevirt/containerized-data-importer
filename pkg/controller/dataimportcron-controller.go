@@ -1628,6 +1628,15 @@ func InitPollerPod(c client.Client, cron *cdiv1.DataImportCron, pod *corev1.PodT
 		volumes = append(volumes, createConfigMapVolume(CertVolName, *regSource.CertConfigMap))
 	}
 
+	if volName, _ := GetTrustedCA(cdiConfig); volName != "" {
+		vm := corev1.VolumeMount{
+			Name:      TrustedCACertVolName,
+			MountPath: common.ImportTrustedCACertDir,
+		}
+		container.VolumeMounts = append(container.VolumeMounts, vm)
+		volumes = append(volumes, createConfigMapVolume(TrustedCACertVolName, volName))
+	}
+
 	if volName, _ := GetImportProxyConfig(cdiConfig, common.ImportProxyConfigMapName); volName != "" {
 		vm := corev1.VolumeMount{
 			Name:      ProxyCertVolName,

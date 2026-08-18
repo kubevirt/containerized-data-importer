@@ -271,6 +271,43 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
+		It("Should create CronJob with trustedCA volume when TrustedCA is configured", func() {
+			trustedCA := "my-trusted-ca-bundle"
+			cdiConfig := cc.MakeEmptyCDIConfigSpec(common.ConfigName)
+			cdiConfig.Status.TrustedCA = &trustedCA
+
+			cron = newDataImportCron(cronName)
+			reconciler = createDataImportCronReconcilerWithoutConfig(cron, cdiConfig)
+			_, err := reconciler.Reconcile(context.TODO(), cronReq)
+			Expect(err).ToNot(HaveOccurred())
+
+			cronjob := &batchv1.CronJob{}
+			err = reconciler.client.Get(context.TODO(), cronJobKey(cron), cronjob)
+			Expect(err).ToNot(HaveOccurred())
+			containers := cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers
+			Expect(containers).To(HaveLen(1))
+
+			volMounts := containers[0].VolumeMounts
+			Expect(volMounts).To(HaveLen(1))
+			Expect(volMounts[0]).To(Equal(corev1.VolumeMount{
+				Name:      TrustedCACertVolName,
+				MountPath: common.ImportTrustedCACertDir,
+			}))
+
+			volumes := cronjob.Spec.JobTemplate.Spec.Template.Spec.Volumes
+			Expect(volumes).To(HaveLen(1))
+			Expect(volumes[0]).To(Equal(corev1.Volume{
+				Name: TrustedCACertVolName,
+				VolumeSource: corev1.VolumeSource{
+					ConfigMap: &corev1.ConfigMapVolumeSource{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: trustedCA,
+						},
+					},
+				},
+			}))
+		})
+
 		It("Should delete DataImportCron-orphan CronJob", func() {
 			reconciler = createDataImportCronReconciler()
 

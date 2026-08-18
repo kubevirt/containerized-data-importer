@@ -118,6 +118,10 @@ func (r *CDIConfigReconciler) Reconcile(_ context.Context, req reconcile.Request
 		return reconcile.Result{}, err
 	}
 
+	if err := r.reconcileTrustedCA(config); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	if !reflect.DeepEqual(currentConfigCopy, config) {
 		// Updates have happened, update CDIConfig.
 		log.Info("Updating CDIConfig", "CDIConfig.Name", config.Name, "config", config)
@@ -635,6 +639,11 @@ func (r *CDIConfigReconciler) createProxyConfigMap(cmName, cert string) *v1.Conf
 	}
 }
 
+func (r *CDIConfigReconciler) reconcileTrustedCA(config *cdiv1.CDIConfig) error {
+	config.Status.TrustedCA = config.Spec.TrustedCA
+	return nil
+}
+
 // Init initializes a CDIConfig object.
 func (r *CDIConfigReconciler) Init() error {
 	_, err := r.createCDIConfig()
@@ -895,4 +904,14 @@ func GetImportProxyConfig(config *cdiv1.CDIConfig, field string) (string, error)
 
 	// If everything fails, return blank
 	return "", nil
+}
+
+func GetTrustedCA(config *cdiv1.CDIConfig) (string, error) {
+	if config == nil {
+		return "", errors.New("failed to get field, the CDIConfig is nil")
+	}
+	if config.Status.TrustedCA == nil {
+		return "", nil // no trustedCA configured, not an error
+	}
+	return *config.Status.TrustedCA, nil
 }
