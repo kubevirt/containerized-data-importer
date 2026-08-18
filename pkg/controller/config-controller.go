@@ -14,6 +14,7 @@ import (
 	"github.com/go-logr/logr"
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	"github.com/pkg/errors"
 
 	corev1 "k8s.io/api/core/v1"
@@ -49,8 +50,13 @@ import (
 const (
 	AnnConfigAuthority = "cdi.kubevirt.io/configAuthority"
 
-	errResourceDoesntExist     = "ErrResourceDoesntExist"
-	messageResourceDoesntExist = "Resource managed by %q doesn't exist"
+	errResourceDoesntExist         = "ErrResourceDoesntExist"
+	messageResourceDoesntExist     = "Resource managed by %q doesn't exist"
+	errTrustedCAConfigMapEmpty     = "ErrTrustedCAConfigMapEmpty"
+	messageTrustedCAConfigMapEmpty = "ConfigMap %q has no certificate data"
+
+	trustedCAReady     conditions.ConditionType = "TrustedCAReady"
+	importProxyCAReady conditions.ConditionType = "ImportProxyCAReady"
 
 	defaultCPULimit   = "750m"
 	defaultMemLimit   = "600M"
@@ -115,6 +121,19 @@ func (r *CDIConfigReconciler) Reconcile(_ context.Context, req reconcile.Request
 	}
 
 	if err := r.reconcileImportProxy(config); err != nil {
+		// Preserve the previous effective configuration on failure, but publish the
+		// condition so users can see why the proxy CA could not be reconciled.
+		previousConfig := currentConfigCopy.(*cdiv1.CDIConfig)
+		if !reflect.DeepEqual(previousConfig.Status.Conditions, config.Status.Conditions) {
+			previousConfig.Status.Conditions = config.Status.Conditions
+			if updateErr := r.client.Update(context.TODO(), previousConfig); updateErr != nil {
+				return reconcile.Result{}, updateErr
+			}
+		}
+		return reconcile.Result{}, err
+	}
+
+	if err := r.reconcileTrustedCA(config); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -551,6 +570,12 @@ func (r *CDIConfigReconciler) createCDIConfig() (*cdiv1.CDIConfig, error) {
 
 func (r *CDIConfigReconciler) reconcileImportProxy(config *cdiv1.CDIConfig) error {
 	config.Status.ImportProxy = config.Spec.ImportProxy
+	if config.Spec.ImportProxy != nil {
+		// Explicit proxy configuration does not use the cluster-wide CA copy.
+		if conditions.FindStatusCondition(config.Status.Conditions, importProxyCAReady) != nil {
+			conditions.RemoveStatusCondition(&config.Status.Conditions, importProxyCAReady)
+		}
+	}
 
 	// Avoid nil pointers and segfaults for the initial case, where ImportProxy is nil for both the spec and the status.
 	if config.Status.ImportProxy == nil {
@@ -578,10 +603,32 @@ func (r *CDIConfigReconciler) reconcileImportProxy(config *cdiv1.CDIConfig) erro
 }
 
 // Create/Update a configmap with the CA certificates in the controllor context with the cluster-wide proxy CA certificates to be used by the importer pod
-func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIConfig, clusterWideProxy *ocpconfigv1.Proxy) error {
+func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIConfig, clusterWideProxy *ocpconfigv1.Proxy) (err error) {
 	cmOldName := config.Status.ImportProxy.TrustedCAProxy
 	cmName := clusterWideProxy.Spec.TrustedCA.Name
 	client := r.uncachedClient
+	failureReason := "ErrImportProxyCAConfigMapSync"
+	failureMessage := ""
+	defer func() {
+		if err != nil {
+			if failureMessage == "" {
+				failureMessage = err.Error()
+			}
+			conditions.SetStatusConditionNoHeartbeat(&config.Status.Conditions, conditions.Condition{
+				Type: importProxyCAReady, Status: v1.ConditionFalse,
+				Reason: failureReason, Message: failureMessage,
+			})
+		} else if cmName == "" {
+			if conditions.FindStatusCondition(config.Status.Conditions, importProxyCAReady) != nil {
+				conditions.RemoveStatusCondition(&config.Status.Conditions, importProxyCAReady)
+			}
+		} else {
+			conditions.SetStatusConditionNoHeartbeat(&config.Status.Conditions, conditions.Condition{
+				Type: importProxyCAReady, Status: v1.ConditionTrue,
+				Reason: "ImportProxyCAConfigMapReady",
+			})
+		}
+	}()
 
 	// Delete old ConfigMap if name changed
 	if cmOldName != nil && *cmOldName != "" && *cmOldName != cmName {
@@ -597,13 +644,17 @@ func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIC
 	if err := client.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: ClusterWideProxyConfigMapNameSpace}, clusterWideProxyConfigMap); err != nil {
 		if k8serrors.IsNotFound(err) {
 			msg := fmt.Sprintf(messageResourceDoesntExist, cmName)
+			failureReason, failureMessage = errResourceDoesntExist, msg
 			r.recorder.Event(clusterWideProxy, v1.EventTypeWarning, errResourceDoesntExist, msg)
 		}
 		return err
 	}
 	// Copy the cluster-wide proxy CA certificates to the importer pod proxy CA certificates configMap
 	certBytes, ok := clusterWideProxyConfigMap.Data[ClusterWideProxyConfigMapKey]
-	if !ok {
+	if !ok || certBytes == "" {
+		failureReason = errTrustedCAConfigMapEmpty
+		failureMessage = fmt.Sprintf(messageTrustedCAConfigMapEmpty, cmName)
+		r.recorder.Event(clusterWideProxy, v1.EventTypeWarning, failureReason, failureMessage)
 		return fmt.Errorf("no cluster-wide proxy CA certificate")
 	}
 	configMap := &v1.ConfigMap{}
@@ -617,6 +668,9 @@ func (r *CDIConfigReconciler) reconcileImportProxyCAConfigMap(config *cdiv1.CDIC
 			return err
 		}
 		return nil
+	}
+	if configMap.Data == nil {
+		configMap.Data = map[string]string{}
 	}
 	configMap.Data[common.ImportProxyConfigMapKey] = certBytes
 	util.SetRecommendedLabels(configMap, r.installerLabels, "cdi-controller")
@@ -633,6 +687,56 @@ func (r *CDIConfigReconciler) createProxyConfigMap(cmName, cert string) *v1.Conf
 			Namespace: r.cdiNamespace},
 		Data: map[string]string{common.ImportProxyConfigMapKey: cert},
 	}
+}
+
+func (r *CDIConfigReconciler) reconcileTrustedCA(config *cdiv1.CDIConfig) error {
+	if config.Spec.TrustedCA == nil {
+		config.Status.TrustedCA = nil
+		if conditions.FindStatusCondition(config.Status.Conditions, trustedCAReady) != nil {
+			conditions.RemoveStatusCondition(&config.Status.Conditions, trustedCAReady)
+		}
+		return nil
+	}
+
+	cm := &corev1.ConfigMap{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: r.cdiNamespace, Name: *config.Spec.TrustedCA}, cm)
+	if k8serrors.IsNotFound(err) {
+		msg := fmt.Sprintf(messageResourceDoesntExist, *config.Spec.TrustedCA)
+		config.Status.TrustedCA = nil
+		r.recorder.Event(config, v1.EventTypeWarning, errResourceDoesntExist, msg)
+		conditions.SetStatusConditionNoHeartbeat(&config.Status.Conditions, conditions.Condition{
+			Type:    trustedCAReady,
+			Status:  v1.ConditionFalse,
+			Reason:  errResourceDoesntExist,
+			Message: msg,
+		})
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	for _, v := range cm.Data {
+		if v != "" {
+			config.Status.TrustedCA = config.Spec.TrustedCA
+			conditions.SetStatusConditionNoHeartbeat(&config.Status.Conditions, conditions.Condition{
+				Type:   trustedCAReady,
+				Status: v1.ConditionTrue,
+				Reason: "TrustedCAConfigMapReady",
+			})
+			return nil
+		}
+	}
+	config.Status.TrustedCA = nil
+	conditions.SetStatusConditionNoHeartbeat(&config.Status.Conditions, conditions.Condition{
+		Type:    trustedCAReady,
+		Status:  v1.ConditionFalse,
+		Reason:  errTrustedCAConfigMapEmpty,
+		Message: fmt.Sprintf(messageTrustedCAConfigMapEmpty, *config.Spec.TrustedCA),
+	})
+	r.recorder.Event(config, v1.EventTypeWarning, errTrustedCAConfigMapEmpty,
+		fmt.Sprintf(messageTrustedCAConfigMapEmpty, *config.Spec.TrustedCA))
+	return nil
 }
 
 // Init initializes a CDIConfig object.
@@ -698,6 +802,9 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 		return err
 	}
 	if err := watchUploadProxyCA(mgr, configController, configName); err != nil {
+		return err
+	}
+	if err := watchTrustedCA(mgr, configController, cdiNamespace, configName); err != nil {
 		return err
 	}
 
@@ -821,6 +928,21 @@ func watchUploadProxyCA(mgr manager.Manager, configcontroller controller.Control
 	return nil
 }
 
+func watchTrustedCA(mgr manager.Manager, configController controller.Controller, cdiNamespace, configName string) error {
+	handler := handler.TypedEnqueueRequestsFromMapFunc[*v1.ConfigMap](func(context.Context, *v1.ConfigMap) []reconcile.Request {
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: configName}}}
+	})
+
+	predicate := predicate.NewTypedPredicateFuncs[*v1.ConfigMap](func(o *v1.ConfigMap) bool {
+		return o.Namespace == cdiNamespace
+	})
+
+	if err := configController.Watch(source.Kind(mgr.GetCache(), &v1.ConfigMap{}, handler, predicate)); err != nil {
+		return fmt.Errorf("could not watch TrustedCA ConfigMap: %w", err)
+	}
+	return nil
+}
+
 func getURLFromIngress(ing *networkingv1.Ingress, uploadProxyServiceName string) string {
 	if ing.Spec.DefaultBackend != nil && ing.Spec.DefaultBackend.Service != nil {
 		if ing.Spec.DefaultBackend.Service.Name != uploadProxyServiceName {
@@ -895,4 +1017,14 @@ func GetImportProxyConfig(config *cdiv1.CDIConfig, field string) (string, error)
 
 	// If everything fails, return blank
 	return "", nil
+}
+
+func GetTrustedCA(config *cdiv1.CDIConfig) (string, error) {
+	if config == nil {
+		return "", errors.New("failed to get field, the CDIConfig is nil")
+	}
+	if config.Status.TrustedCA == nil {
+		return "", nil // no trustedCA configured, not an error
+	}
+	return *config.Status.TrustedCA, nil
 }

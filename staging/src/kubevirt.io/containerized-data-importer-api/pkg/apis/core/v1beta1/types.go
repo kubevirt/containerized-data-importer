@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
@@ -1068,6 +1069,8 @@ type CDIConfigSpec struct {
 	// ImportProxy contains importer pod proxy configuration.
 	// +optional
 	ImportProxy *ImportProxy `json:"importProxy,omitempty"`
+	// TrustedCA is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle.
+	TrustedCA *string `json:"trustedCA,omitempty"`
 	// Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space
 	ScratchSpaceStorageClass *string `json:"scratchSpaceStorageClass,omitempty"`
 	// ResourceRequirements describes the compute resource requirements.
@@ -1107,6 +1110,9 @@ type CDIConfigStatus struct {
 	// ImportProxy contains importer pod proxy configuration.
 	// +optional
 	ImportProxy *ImportProxy `json:"importProxy,omitempty"`
+	// TrustedCA is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle.
+	// +optional
+	TrustedCA *string `json:"trustedCA,omitempty"`
 	// The calculated storage class to be used for scratch space
 	ScratchSpaceStorageClass string `json:"scratchSpaceStorageClass,omitempty"`
 	// ResourceRequirements describes the compute resource requirements.
@@ -1117,6 +1123,9 @@ type CDIConfigStatus struct {
 	Preallocation bool `json:"preallocation,omitempty"`
 	// The imagePullSecrets used to pull the container images
 	ImagePullSecrets []corev1.LocalObjectReference `json:"imagePullSecrets,omitempty"`
+	// Conditions contains the current conditions observed for CDIConfig.
+	// +optional
+	Conditions []conditions.Condition `json:"conditions,omitempty"`
 }
 
 // CDIConfigList provides the needed parameters to do request a list of CDIConfigs from the system
