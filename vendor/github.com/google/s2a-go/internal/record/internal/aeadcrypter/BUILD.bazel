@@ -10,6 +10,6 @@ go_library(
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/google/s2a-go/internal/record/internal/aeadcrypter",
     importpath = "github.com/google/s2a-go/internal/record/internal/aeadcrypter",
-    visibility = ["//vendor/github.com/google/s2a-go:__subpackages__"],
+    visibility = ["//vendor/github.com/google/s2a-go/internal/record:__subpackages__"],
     deps = ["//vendor/golang.org/x/crypto/chacha20poly1305:go_default_library"],
 )

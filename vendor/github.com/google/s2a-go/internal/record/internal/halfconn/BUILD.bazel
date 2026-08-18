@@ -10,7 +10,7 @@ go_library(
     ],
     importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/google/s2a-go/internal/record/internal/halfconn",
     importpath = "github.com/google/s2a-go/internal/record/internal/halfconn",
-    visibility = ["//vendor/github.com/google/s2a-go:__subpackages__"],
+    visibility = ["//vendor/github.com/google/s2a-go/internal/record:__subpackages__"],
     deps = [
         "//vendor/github.com/google/s2a-go/internal/proto/common_go_proto:go_default_library",
         "//vendor/github.com/google/s2a-go/internal/record/internal/aeadcrypter:go_default_library",
