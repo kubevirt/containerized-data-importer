@@ -160,6 +160,11 @@ func (in *CDIConfigSpec) DeepCopyInto(out *CDIConfigSpec) {
 		*out = new(ImportProxy)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.TrustedCA != nil {
+		in, out := &in.TrustedCA, &out.TrustedCA
+		*out = new(string)
+		**out = **in
+	}
 	if in.ScratchSpaceStorageClass != nil {
 		in, out := &in.ScratchSpaceStorageClass, &out.ScratchSpaceStorageClass
 		*out = new(string)
@@ -240,6 +245,11 @@ func (in *CDIConfigStatus) DeepCopyInto(out *CDIConfigStatus) {
 		in, out := &in.ImportProxy, &out.ImportProxy
 		*out = new(ImportProxy)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.TrustedCA != nil {
+		in, out := &in.TrustedCA, &out.TrustedCA
+		*out = new(string)
+		**out = **in
 	}
 	if in.DefaultPodResourceRequirements != nil {
 		in, out := &in.DefaultPodResourceRequirements, &out.DefaultPodResourceRequirements
