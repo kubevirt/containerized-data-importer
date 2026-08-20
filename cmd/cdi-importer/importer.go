@@ -38,29 +38,54 @@ import (
 
 const (
 	completeMessage = "Import Complete"
+
+	// readyFileTimeout bounds the wait for the containerimage-server sidecar
+	// to signal readiness. For RegistryPullNode imports that signal cannot
+	// appear until kubelet has pulled the sidecar image, which is the disk
+	// image being imported, so the bound has to tolerate a pull of arbitrary
+	// size. It is a backstop against a sidecar that never becomes ready, not
+	// a limit on how long a healthy pull may take.
+	readyFileTimeout = 30 * time.Minute
+
+	// readyFilePollInterval is how often the ready file is polled.
+	readyFilePollInterval = time.Second
 )
 
 func init() {
 	klog.InitFlags(nil)
 }
 
+// awaitReadyFile polls for readyFile until it appears or the timeout elapses,
+// reporting whether it appeared. The file is polled once more when the timeout
+// elapses, so a file that appears during the final interval is still seen.
+func awaitReadyFile(readyFile string, timeout, interval time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		if _, err := os.Stat(readyFile); err == nil {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
+		}
+		time.Sleep(interval)
+	}
+}
+
 func waitForReadyFile() {
-	const readyFileTimeoutSeconds = 60
 	readyFile, _ := util.ParseEnvVar(common.ImporterReadyFile, false)
 	if readyFile == "" {
 		return
 	}
-	for i := 0; i < readyFileTimeoutSeconds; i++ {
-		if _, err := os.Stat(readyFile); err == nil {
-			return
+	klog.Infof("Waiting up to %v for file %s", readyFileTimeout, readyFile)
+	start := time.Now()
+	if !awaitReadyFile(readyFile, readyFileTimeout, readyFilePollInterval) {
+		err := util.WriteTerminationMessage(fmt.Sprintf("Timeout waiting for file %s", readyFile))
+		if err != nil {
+			klog.Errorf("%+v", err)
 		}
-		time.Sleep(time.Second)
+		os.Exit(1)
 	}
-	err := util.WriteTerminationMessage(fmt.Sprintf("Timeout waiting for file %s", readyFile))
-	if err != nil {
-		klog.Errorf("%+v", err)
-	}
-	os.Exit(1)
+	klog.Infof("File %s appeared after %v", readyFile, time.Since(start).Truncate(time.Second))
 }
 
 func getHTTPEp(ep string) string {
