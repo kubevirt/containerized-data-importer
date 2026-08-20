@@ -239,14 +239,14 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(getEnvVar(env, common.ImportProxyNoProxy)).To(Equal(noProxy))
 
 			volMounts := containers[0].VolumeMounts
-			Expect(volMounts).To(HaveLen(1))
+			Expect(volMounts).To(HaveLen(2))
 			Expect(volMounts[0]).To(Equal(corev1.VolumeMount{
 				Name:      ProxyCertVolName,
 				MountPath: common.ImporterProxyCertDir,
 			}))
 
 			volumes := cronjob.Spec.JobTemplate.Spec.Template.Spec.Volumes
-			Expect(volumes).To(HaveLen(1))
+			Expect(volumes).To(HaveLen(2))
 			Expect(volumes[0]).To(Equal(corev1.Volume{
 				Name: ProxyCertVolName,
 				VolumeSource: corev1.VolumeSource{
@@ -350,8 +350,11 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Expect(getEnvVar(env, common.ImportProxyHTTPS)).To(BeEmpty())
 			Expect(getEnvVar(env, common.ImportProxyNoProxy)).To(BeEmpty())
 
-			Expect(containers[0].VolumeMounts).To(BeEmpty())
-			Expect(jobPodTemplateSpec.Volumes).To(BeEmpty())
+			Expect(containers[0].VolumeMounts).To(HaveLen(1))
+			Expect(containers[0].VolumeMounts[0].Name).To(Equal("tmp-dir"))
+			Expect(containers[0].VolumeMounts[0].MountPath).To(Equal("/tmp"))
+			Expect(jobPodTemplateSpec.Volumes).To(HaveLen(1))
+			Expect(jobPodTemplateSpec.Volumes[0].Name).To(Equal("tmp-dir"))
 		})
 
 		It("Should verify CronJob container terminationMessagePolicy is correctly set", func() {
