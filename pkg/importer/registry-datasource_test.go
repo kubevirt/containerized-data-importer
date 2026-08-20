@@ -2,6 +2,7 @@ package importer
 
 import (
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -9,6 +10,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/containers/image/v5/types"
+
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 var (
@@ -42,7 +45,7 @@ var _ = Describe("Registry data source", func() {
 		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 	})
 
-	DescribeTable("Transfer should ", func(ep, accKey, secKey, certDir, scratchPath string, insecureRegistry bool, wantErr bool) {
+	DescribeTable("pod pull Transfer should ", func(ep, accKey, secKey, certDir, scratchPath string, insecureRegistry bool, wantErr bool) {
 		if scratchPath == "" {
 			scratchPath = tmpDir
 		}
@@ -72,13 +75,24 @@ var _ = Describe("Registry data source", func() {
 		Expect(ProcessingPhaseError).To(Equal(result))
 	})
 
-	It("GetTerminationMessage should contain labels collected from the image", func() {
+	DescribeTable("GetTerminationMessage should contain labels collected from the image", func(pullMethod string) {
 		ds = NewRegistryDataSource("", "", "", "", "", true)
-		ds.info = &types.ImageInspectInfo{
-			Env: []string{
-				"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE=u1.small",
-				"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE=fedora",
-			},
+		envVariables := []string{
+			"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE=u1.small",
+			"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_PREFERENCE=fedora",
+		}
+		if pullMethod == "node" {
+			envFile := path.Join(tmpDir, "env-file")
+			GinkgoT().Setenv(common.ImporterPullMethod, pullMethod)
+			GinkgoT().Setenv(common.ImporterImageRootDir, tmpDir)
+			GinkgoT().Setenv(common.ImporterEnvFile, envFile)
+			envString := strings.Join(envVariables, "\n")
+			err := os.WriteFile(envFile, []byte(envString), 0600)
+			Expect(err).NotTo(HaveOccurred())
+		} else {
+			ds.info = &types.ImageInspectInfo{
+				Env: envVariables,
+			}
 		}
 
 		termMesg := ds.GetTerminationMessage()
@@ -86,14 +100,73 @@ var _ = Describe("Registry data source", func() {
 		Expect(termMesg.Labels).To(HaveLen(2))
 		Expect(termMesg.Labels).To(HaveKeyWithValue("instancetype.kubevirt.io/default-instancetype", "u1.small"))
 		Expect(termMesg.Labels).To(HaveKeyWithValue("instancetype.kubevirt.io/default-preference", "fedora"))
-	})
+	},
+		Entry("when pull method = pod", "pod"),
+		Entry("when pull method = node", "node"),
+	)
 
-	It("Transfer should return error for bootc image", func() {
+	It("Transfer should return error for bootc image when pull = pod", func() {
 		ds = NewRegistryDataSource("oci-archive:"+filepath.Join(imageDir, "bootc-registry-image.tar"), "", "", "", "", true)
 		result, err := ds.Transfer(tmpDir, false)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("bootc image detected"))
 		Expect(ProcessingPhaseError).To(Equal(result))
+	})
+
+	It("Transfer should return error for bootc image when pull = node and ostree folder exists in imageRootDir", func() {
+		GinkgoT().Setenv(common.ImporterPullMethod, "node")
+		GinkgoT().Setenv(common.ImporterImageRootDir, tmpDir)
+		err := os.Mkdir(filepath.Join(tmpDir, "ostree"), 0755)
+		Expect(err).NotTo(HaveOccurred())
+		ds = NewRegistryDataSource("oci-archive:"+filepath.Join(imageDir, "bootc-registry-image.tar"), "", "", "", "", true)
+		result, err := ds.Transfer(tmpDir, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("bootc image detected"))
+		Expect(ProcessingPhaseError).To(Equal(result))
+	})
+
+	It("Transfer should return error for bootc image when pull = node and sysroot folder exists in imageRootDir", func() {
+		GinkgoT().Setenv(common.ImporterPullMethod, "node")
+		GinkgoT().Setenv(common.ImporterImageRootDir, tmpDir)
+		err := os.Mkdir(filepath.Join(tmpDir, "sysroot"), 0755)
+		Expect(err).NotTo(HaveOccurred())
+		ds = NewRegistryDataSource("oci-archive:"+filepath.Join(imageDir, "bootc-registry-image.tar"), "", "", "", "", true)
+		result, err := ds.Transfer(tmpDir, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("bootc image detected"))
+		Expect(ProcessingPhaseError).To(Equal(result))
+	})
+
+	It("Transfer should return error when imageRootDir is empty", func() {
+		GinkgoT().Setenv(common.ImporterPullMethod, "node")
+		GinkgoT().Setenv(common.ImporterImageRootDir, "")
+		ds = NewRegistryDataSource("", "", "", "", "", true)
+		result, err := ds.Transfer(tmpDir, false)
+		Expect(err).To(HaveOccurred())
+		Expect(ProcessingPhaseError).To(Equal(result))
+	})
+
+	It("GetTerminationMessage should return nil when ImporterEnvFile is empty", func() {
+		GinkgoT().Setenv(common.ImporterPullMethod, "node")
+		GinkgoT().Setenv(common.ImporterEnvFile, "")
+		ds = NewRegistryDataSource("", "", "", "", "", true)
+		termMesg := ds.GetTerminationMessage()
+		Expect(termMesg).To(BeNil())
+	})
+
+	It("Transfer should return error when imageRootDir is not set", func() {
+		GinkgoT().Setenv(common.ImporterPullMethod, "node")
+		ds = NewRegistryDataSource("", "", "", "", "", true)
+		result, err := ds.Transfer(tmpDir, false)
+		Expect(err).To(HaveOccurred())
+		Expect(ProcessingPhaseError).To(Equal(result))
+	})
+
+	It("GetTerminationMessage should return nil when ImporterEnvFile is not set", func() {
+		GinkgoT().Setenv(common.ImporterPullMethod, "node")
+		ds = NewRegistryDataSource("", "", "", "", "", true)
+		termMesg := ds.GetTerminationMessage()
+		Expect(termMesg).To(BeNil())
 	})
 
 	It("getImageFileName should return an error with non-existing image directory", func() {

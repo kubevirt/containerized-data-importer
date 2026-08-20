@@ -86,8 +86,8 @@ type importPodEnvVar struct {
 	diskID                    string
 	uuid                      string
 	pullMethod                string
-	readyFile                 string
-	doneFile                  string
+	envFile                   string
+	imageRootDir              string
 	backingFile               string
 	thumbprint                string
 	filesystemOverhead        string
@@ -1103,23 +1103,15 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 		containers[0].VolumeMounts = cc.AddImportVolumeMounts()
 	}
 	if isRegistryNodeImport(args) {
-		containers = append(containers, corev1.Container{
-			Name:            "server",
-			Image:           args.importImage,
-			ImagePullPolicy: corev1.PullPolicy(args.pullPolicy),
-			Command:         []string{"/shared/server", "-p", "8100", "-image-dir", "/disk", "-ready-file", "/shared/ready", "-done-file", "/shared/done"},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					MountPath: "/shared",
-					Name:      "shared-volume",
-				},
+		containers[0].VolumeMounts = append(
+			containers[0].VolumeMounts, corev1.VolumeMount{
+				MountPath: "/shared",
+				Name:      "shared-volume",
+			}, corev1.VolumeMount{
+				MountPath: "/image",
+				Name:      "image-volume",
 			},
-			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
-		})
-		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
-			MountPath: "/shared",
-			Name:      "shared-volume",
-		})
+		)
 	}
 	if args.scratchPvcName != nil {
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
@@ -1184,12 +1176,23 @@ func makeImporterVolumeSpec(args *importerPodArgs) []corev1.Volume {
 		},
 	}
 	if isRegistryNodeImport(args) {
-		volumes = append(volumes, corev1.Volume{
-			Name: "shared-volume",
-			VolumeSource: corev1.VolumeSource{
-				EmptyDir: &corev1.EmptyDirVolumeSource{},
+		volumes = append(
+			volumes, corev1.Volume{
+				Name: "shared-volume",
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
+				},
 			},
-		})
+			corev1.Volume{
+				Name: "image-volume",
+				VolumeSource: corev1.VolumeSource{
+					Image: &corev1.ImageVolumeSource{
+						Reference:  args.importImage,
+						PullPolicy: corev1.PullPolicy(args.pullPolicy),
+					},
+				},
+			},
+		)
 	}
 	if args.scratchPvcName != nil {
 		volumes = append(volumes, corev1.Volume{
@@ -1247,20 +1250,35 @@ func makeImporterVolumeSpec(args *importerPodArgs) []corev1.Volume {
 func makeImporterInitContainersSpec(args *importerPodArgs) []corev1.Container {
 	var initContainers []corev1.Container
 	if isRegistryNodeImport(args) {
-		initContainers = append(initContainers, corev1.Container{
-			Name:            "init",
-			Image:           args.image,
-			ImagePullPolicy: corev1.PullPolicy(args.pullPolicy),
-			Command:         []string{"sh", "-c", "cp /usr/bin/cdi-containerimage-server /shared/server"},
-			VolumeMounts: []corev1.VolumeMount{
-				{
-					MountPath: "/shared",
-					Name:      "shared-volume",
+		initContainers = append(initContainers,
+			corev1.Container{
+				Name:            "init",
+				Image:           args.image,
+				ImagePullPolicy: corev1.PullIfNotPresent,
+				Command:         []string{"sh", "-c", "cp /usr/bin/cdi-env-extractor /shared/env-extractor"},
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						MountPath: "/shared",
+						Name:      "shared-volume",
+					},
 				},
+				TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 			},
-			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
-		})
+			corev1.Container{
+				Name:            "env-extractor",
+				Image:           args.importImage,
+				ImagePullPolicy: corev1.PullPolicy(args.pullPolicy),
+				Command:         []string{"/shared/env-extractor", "-env-file", "/shared/env"},
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						MountPath: "/shared",
+						Name:      "shared-volume",
+					},
+				},
+				TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
+			})
 	}
+
 	if args.vddkImageName != nil {
 		initContainers = append(initContainers, corev1.Container{
 			Name:  "vddk-side-car",
@@ -1295,11 +1313,9 @@ func getOwnerUID(args *importerPodArgs) types.UID {
 }
 
 func setRegistryNodeImportEnvVars(args *importerPodArgs) {
-	args.podEnvVar.source = cc.SourceHTTP
-	args.podEnvVar.ep = "http://localhost:8100/disk.img"
 	args.podEnvVar.pullMethod = string(cdiv1.RegistryPullNode)
-	args.podEnvVar.readyFile = "/shared/ready"
-	args.podEnvVar.doneFile = "/shared/done"
+	args.podEnvVar.envFile = "/shared/env"
+	args.podEnvVar.imageRootDir = "/image"
 }
 
 func setRegistryNodeImportNodeSelector(args *importerPodArgs) {
@@ -1377,12 +1393,12 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 			Value: podEnvVar.pullMethod,
 		},
 		{
-			Name:  common.ImporterReadyFile,
-			Value: podEnvVar.readyFile,
+			Name:  common.ImporterEnvFile,
+			Value: podEnvVar.envFile,
 		},
 		{
-			Name:  common.ImporterDoneFile,
-			Value: podEnvVar.doneFile,
+			Name:  common.ImporterImageRootDir,
+			Value: podEnvVar.imageRootDir,
 		},
 		{
 			Name:  common.ImporterBackingFile,

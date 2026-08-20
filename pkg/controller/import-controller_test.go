@@ -1222,9 +1222,11 @@ var _ = Describe("Create Importer Pod", func() {
 		pod := &corev1.Pod{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: "default"}, pod)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(pod.Spec.Containers).To(HaveLen(2))
-		Expect(pod.Spec.Containers[1].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
+		Expect(pod.Spec.Containers).To(HaveLen(1))
+		Expect(pod.Spec.InitContainers).To(HaveLen(2))
+		Expect(pod.Spec.Containers[0].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
 		Expect(pod.Spec.InitContainers[0].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
+		Expect(pod.Spec.InitContainers[1].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
 	})
 })
 
@@ -1244,8 +1246,8 @@ var _ = Describe("Import test env", func() {
 			certConfigMap:             "",
 			diskID:                    "",
 			uuid:                      "",
-			readyFile:                 "",
-			doneFile:                  "",
+			envFile:                   "",
+			imageRootDir:              "",
 			backingFile:               "",
 			thumbprint:                "",
 			filesystemOverhead:        "0.06",
@@ -1520,12 +1522,12 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 			Value: podEnvVar.pullMethod,
 		},
 		{
-			Name:  common.ImporterReadyFile,
-			Value: podEnvVar.readyFile,
+			Name:  common.ImporterEnvFile,
+			Value: podEnvVar.envFile,
 		},
 		{
-			Name:  common.ImporterDoneFile,
-			Value: podEnvVar.doneFile,
+			Name:  common.ImporterImageRootDir,
+			Value: podEnvVar.imageRootDir,
 		},
 		{
 			Name:  common.ImporterBackingFile,
