@@ -42,7 +42,6 @@ const (
 
 func init() {
 	klog.InitFlags(nil)
-	flag.Parse()
 }
 
 func waitForReadyFile() {
@@ -97,6 +96,7 @@ func touchDoneFile() {
 }
 
 func main() {
+	flag.Parse()
 	defer klog.Flush()
 
 	certsDirectory, err := os.MkdirTemp("", "certsdir")
