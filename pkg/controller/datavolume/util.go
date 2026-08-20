@@ -53,12 +53,26 @@ const (
 
 	// MessageErrStorageClassNotFound provides a const to indicate the PVC spec is missing accessMode and no storageClass to choose profile
 	MessageErrStorageClassNotFound = "PVC spec is missing accessMode and no storageClass to choose profile"
+
+	// MinimumPVCSizeApplied is the event reason emitted when a PVC is grown to the storage profile's minimum supported size
+	MinimumPVCSizeApplied = "MinimumPVCSizeApplied"
+	// MessageMinimumPVCSizeApplied is the event message emitted when a PVC is grown to the storage profile's minimum supported size
+	MessageMinimumPVCSizeApplied = "The requested storage size %s is smaller than the minimum supported PVC size for storage class %q; PVC will be created with %s"
 )
 
 var (
 	// ErrStorageClassNotFound indicates the PVC spec is missing accessMode and no storageClass to choose profile
 	ErrStorageClassNotFound = errors.New(MessageErrStorageClassNotFound)
 )
+
+// renderResult carries side-signals produced while rendering a PVC spec, so
+// callers can react (e.g. emit events) without the render logic depending on
+// the event recorder.
+type renderResult struct {
+	// minSizeApplied is true when the requested size was raised to the storage
+	// profile's minimum supported PVC size.
+	minSizeApplied bool
+}
 
 // RenderPvc renders the PVC according to StorageProfiles
 func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolumeClaim) error {
@@ -83,7 +97,8 @@ func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolu
 		return nil
 	}
 
-	return renderPvcSpecVolumeSize(client, &pvc.Spec, false, nil)
+	_, err := renderPvcSpecVolumeSize(client, &pvc.Spec, false, nil)
+	return err
 }
 
 // hasVolumeSnapshotDataSource returns true if the PVC's DataSource or DataSourceRef
@@ -138,8 +153,15 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 
 	if shouldRender {
 		isClone := dv.Spec.Source.PVC != nil || dv.Spec.Source.Snapshot != nil
-		if err := renderPvcSpecVolumeSize(client, pvcSpec, isClone, &log); err != nil {
+		requested := pvcSpec.Resources.Requests[v1.ResourceStorage]
+		result, err := renderPvcSpecVolumeSize(client, pvcSpec, isClone, &log)
+		if err != nil {
 			return nil, err
+		}
+		if result.minSizeApplied && recorder != nil && !requested.IsZero() && pvcSpec.StorageClassName != nil {
+			effective := pvcSpec.Resources.Requests[v1.ResourceStorage]
+			recorder.Eventf(dv, v1.EventTypeNormal, MinimumPVCSizeApplied,
+				MessageMinimumPVCSizeApplied, requested.String(), *pvcSpec.StorageClassName, effective.String())
 		}
 	}
 
@@ -305,37 +327,40 @@ func hasCloneSourceRef(pvc *v1.PersistentVolumeClaim) bool {
 	return dsRef != nil && dsRef.APIGroup != nil && *dsRef.APIGroup == cc.AnnAPIGroup && dsRef.Kind == cdiv1.VolumeCloneSourceRef && dsRef.Name != ""
 }
 
-func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeClaimSpec, isClone bool, log *logr.Logger) error {
+func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeClaimSpec, isClone bool, log *logr.Logger) (renderResult, error) {
+	var result renderResult
 	requestedSize, found := pvcSpec.Resources.Requests[v1.ResourceStorage]
 
 	// Storage size can be empty when cloning
 	if !found {
 		if !isClone {
-			return errors.Errorf("PVC Spec is not valid - missing storage size")
+			return result, errors.Errorf("PVC Spec is not valid - missing storage size")
 		}
 		setRequestedVolumeSize(pvcSpec, resource.Quantity{})
-		return nil
+		return result, nil
 	}
 
 	// Kubevirt doesn't allow disks smaller than 1MiB. Rejecting for consistency.
 	if requestedSize.Value() < units.MiB {
-		return errors.Errorf("PVC Spec is not valid - storage size should be at least 1MiB")
+		return result, errors.Errorf("PVC Spec is not valid - storage size should be at least 1MiB")
 	}
 
 	requestedSize, err := cc.InflateSizeWithOverhead(context.TODO(), client, requestedSize.Value(), pvcSpec)
 	if err != nil {
-		return err
+		return result, err
 	}
 
 	if scName := pvcSpec.StorageClassName; scName != nil {
+		sizeBeforeBump := requestedSize
 		if requestedSize, err = cc.GetEffectiveVolumeSize(context.TODO(), client, requestedSize, *scName, log); err != nil {
-			return err
+			return result, err
 		}
+		result.minSizeApplied = requestedSize.Cmp(sizeBeforeBump) > 0
 	}
 
 	setRequestedVolumeSize(pvcSpec, requestedSize)
 
-	return nil
+	return result, nil
 }
 
 func setRequestedVolumeSize(pvcSpec *v1.PersistentVolumeClaimSpec, volumeSize resource.Quantity) {
