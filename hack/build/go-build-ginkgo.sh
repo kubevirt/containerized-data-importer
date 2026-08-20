@@ -16,6 +16,9 @@ aarch64* | arm64*)
 s390x)
   ARCH="s390x"
   ;;
+ppc64le)
+  ARCH="ppc64le"
+  ;;
 *)
   echo "invalid Arch, only support x86_64, aarch64 and s390x"
   exit 1
