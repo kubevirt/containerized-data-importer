@@ -1005,7 +1005,7 @@ func createBadTestExtents() []imageioExtent {
 
 func createDefaultTestExtentData() []byte {
 	extents := createTestExtents()
-	size := int64(0)
+	size := uint64(0)
 	for _, extent := range extents {
 		size += extent.Length
 	}
@@ -1015,7 +1015,7 @@ func createDefaultTestExtentData() []byte {
 		if extent.Zero {
 			value = 0
 		}
-		block := bytes.Repeat([]byte{value}, int(extent.Length))
+		block := bytes.Repeat([]byte{value}, int(extent.Length)) //nolint:gosec // G115: test data, extent.Length is small
 		copy(data[extent.Start:], block)
 	}
 	return data
