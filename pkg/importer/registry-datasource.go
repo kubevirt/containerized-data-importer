@@ -195,6 +195,13 @@ func CreateCertificateDir(registryCertDir string) (string, error) {
 		}
 	}
 
+	if _, err := os.Stat(common.ImportTrustedCACertDir); err == nil {
+		klog.Info("Copying trusted CA certs")
+		if err := collectCerts(common.ImportTrustedCACertDir, allCerts, "trusted-ca-"); err != nil {
+			return allCerts, err
+		}
+	}
+
 	if registryCertDir == "" {
 		klog.Info("Registry certs directory not configured")
 		return allCerts, nil

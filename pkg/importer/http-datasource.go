@@ -271,6 +271,21 @@ func (hs *HTTPDataSource) Close() error {
 	return err
 }
 
+// helper to append certs to cert pool
+func appendCertsToPool(certPool *x509.CertPool, dir string) {
+	if files, err := os.ReadDir(dir); err == nil {
+		for _, file := range files {
+			if file.IsDir() || file.Name()[0] == '.' {
+				continue
+			}
+			fp := path.Join(dir, file.Name())
+			if certs, err := os.ReadFile(fp); err == nil {
+				certPool.AppendCertsFromPEM(certs)
+			}
+		}
+	}
+}
+
 func createCertPool(certDir string) (*x509.CertPool, error) {
 	// let's get system certs as well
 	certPool, err := x509.SystemCertPool()
@@ -278,18 +293,10 @@ func createCertPool(certDir string) (*x509.CertPool, error) {
 		return nil, errors.Wrap(err, "Error getting system certs")
 	}
 
-	// append the user-provided trusted CA certificates bundle when making egress connections using proxy
-	if files, err := os.ReadDir(common.ImporterProxyCertDir); err == nil {
-		for _, file := range files {
-			if file.IsDir() || file.Name()[0] == '.' {
-				continue
-			}
-			fp := path.Join(common.ImporterProxyCertDir, file.Name())
-			if certs, err := os.ReadFile(fp); err == nil {
-				certPool.AppendCertsFromPEM(certs)
-			}
-		}
-	}
+	// append the user-provided trusted proxy and non-proxy
+	// CA certificates bundle when making egress connections using proxy
+	appendCertsToPool(certPool, common.ImporterProxyCertDir)
+	appendCertsToPool(certPool, common.ImportTrustedCACertDir)
 
 	// append server CA certificates if the directory exists
 	if certDir != "" {
@@ -327,12 +334,17 @@ func createHTTPClient(certDir string, insecureSkipVerify bool) (*http.Client, er
 
 	// if any cluster wide certs are configured, they will exist in the proxy cert dir
 	proxyCertDir, err := os.ReadDir(common.ImporterProxyCertDir)
-
 	if err != nil && !os.IsNotExist(err) {
 		klog.Warningf("Unable to read proxy cert directory %v", err)
 	}
 
-	if certDir == "" && len(proxyCertDir) == 0 && !insecureSkipVerify {
+	trustedCACertDir, err := os.Stat(common.ImportTrustedCACertDir)
+	if err != nil && !os.IsNotExist(err) {
+		klog.Warningf("Unable to read trusted CA cert directory %v", err)
+	}
+
+	hasTrustedCACerts := err == nil && trustedCACertDir.IsDir()
+	if certDir == "" && len(proxyCertDir) == 0 && !hasTrustedCACerts && !insecureSkipVerify {
 		return client, nil
 	}
 	// the default transport contains Proxy configurations to use environment variables and default timeouts

@@ -146,6 +146,15 @@ var _ = Describe("Import Proxy tests", func() {
 		}, time.Second*60, time.Second).Should(Succeed())
 	}
 
+	verifyTrustedCAConfigMap := func(pvc *corev1.PersistentVolumeClaim) {
+		By("Verify trustedCA ConfigMap copied to the import namespace")
+		trustedCA := cont.GetTrustedCAConfigMapName(getPVCNameForConfigMap(pvc))
+		Eventually(func() error {
+			_, err := f.K8sClient.CoreV1().ConfigMaps(f.Namespace.Name).Get(context.TODO(), trustedCA, metav1.GetOptions{})
+			return err
+		}, time.Second*60, time.Second).Should(Succeed())
+	}
+
 	verifyImportProxyConfigMapIsDeletedOnPodDeletion := func(pvc *corev1.PersistentVolumeClaim) {
 		By("Verify import proxy ConfigMap is deleted from import namespace on importer pod deletion")
 		pvcName := getPVCNameForConfigMap(pvc)
@@ -365,6 +374,47 @@ var _ = Describe("Import Proxy tests", func() {
 			By("Waiting for DataVolume to succeed")
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
 			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Describe("Global TrustedCA tests", func() {
+			It("should import from https endpoint using global trustedCA without proxy", func() {
+				By("copying contents of file host cert config map to CDI NS")
+				caConfigMapName, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, utils.FileHostCertConfigMap,
+					f.CdiInstallNs, "test-global-trusted-ca", "")
+				Expect(err).ToNot(HaveOccurred())
+
+				By("setting CDIConfig Spec.TrustedCA")
+				err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+					config.TrustedCA = &caConfigMapName
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("waiting for CDI to reconcile Status.TrustedCA")
+				Eventually(func() string {
+					config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(
+						context.TODO(), common.ConfigName, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					ca, _ := cont.GetTrustedCA(config)
+					return ca
+				}, time.Second*120, time.Second).Should(Equal(caConfigMapName))
+
+				imgURL := fmt.Sprintf("https://%s.%s:%d/%s",
+					fileHostName, f.CdiInstallNs, utils.HTTPSNoAuthPort, tinyCoreIso)
+				dvName = "test-global-trusted-ca"
+				dv := utils.NewDataVolumeWithHTTPImport(dvName, "400Mi", imgURL)
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verifying pvc was created")
+				pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dvName)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindIfWaitForFirstConsumer(pvc)
+
+				verifyTrustedCAConfigMap(pvc)
+
+				err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+				Expect(err).ToNot(HaveOccurred())
+			})
 		})
 
 		DescribeTable("should proxy registry imports", func(isHTTPS, hasAuth bool) {
