@@ -19,10 +19,10 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -36,6 +36,30 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/system"
 	"kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
+
+// FakeODirectRefusingOS mocks out certain OS calls to avoid perturbing the filesystem
+// If a member of the form `*Fn` is set, that function will be called in place
+// of the real call.
+type FakeODirectRefusingOS struct{}
+
+// Stat is a fake that returns an error
+func (FakeODirectRefusingOS) Stat(path string) (os.FileInfo, error) {
+	return nil, os.ErrNotExist
+}
+
+// Remove is a fake call that returns nil.
+func (FakeODirectRefusingOS) Remove(path string) error {
+	return nil
+}
+
+// OpenFile is a fake call that return nil.
+func (FakeODirectRefusingOS) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) {
+	if flag&syscall.O_DIRECT != 0 {
+		return nil, &os.PathError{Op: "open", Path: name, Err: syscall.EINVAL}
+	}
+
+	return nil, nil
+}
 
 const goodValidateJSON = `
 {
@@ -190,17 +214,20 @@ var _ = Describe("Convert to Raw", func() {
 
 	Context("cache mode adjusted according to O_DIRECT support", func() {
 		var tmpFsDir string
+		var originalODirectChecker DirectIOChecker
 
 		BeforeEach(func() {
 			var err error
 
-			tmpFsDir, err = os.MkdirTemp("/mnt/cditmpfs", "qemutestdestontmpfs")
-			Expect(err).NotTo(HaveOccurred())
+			tmpFsDir, err = os.MkdirTemp("/var/tmp", "qemutestdestontmpfs")
+			Expect(err).ToNot(HaveOccurred())
 			By("tmpFsDir: " + tmpFsDir)
+			originalODirectChecker = odirectChecker
 		})
 
 		AfterEach(func() {
 			os.RemoveAll(tmpFsDir)
+			odirectChecker = originalODirectChecker
 		})
 
 		It("should use cache=none when destination supports O_DIRECT", func() {
@@ -213,13 +240,10 @@ var _ = Describe("Convert to Raw", func() {
 		})
 
 		It("should use cache=writeback when destination does not support O_DIRECT", func() {
-			// ensure tmpfs destination
-			out, err := exec.Command("/usr/bin/findmnt", "-T", tmpFsDir, "-o", "FSTYPE").CombinedOutput()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(out)).To(ContainSubstring("tmpfs"))
+			odirectChecker = NewDirectIOChecker(FakeODirectRefusingOS{})
 
 			tmpFsDestPath := filepath.Join(tmpFsDir, "dest")
-			_, err = os.Create(tmpFsDestPath)
+			_, err := os.Create(tmpFsDestPath)
 			Expect(err).NotTo(HaveOccurred())
 
 			replaceExecFunction(mockExecFunctionStrict("", "", nil, "convert", "-t", "writeback", "-p", "-O", "raw", "/somefile/somewhere", tmpFsDestPath), func() {
@@ -399,6 +423,7 @@ var _ = Describe("Create blank image", func() {
 
 var _ = Describe("Create preallocated blank block", func() {
 	var tmpDir, tmpFsDir, destPath string
+	var originalODirectChecker DirectIOChecker
 
 	BeforeEach(func() {
 		var err error
@@ -410,14 +435,16 @@ var _ = Describe("Create preallocated blank block", func() {
 		_, err = os.Create(destPath)
 		Expect(err).NotTo(HaveOccurred())
 
-		tmpFsDir, err = os.MkdirTemp("/mnt/cditmpfs", "qemutestdestontmpfs")
+		tmpFsDir, err = os.MkdirTemp("/var/tmp", "qemutestdestontmpfs")
 		Expect(err).NotTo(HaveOccurred())
 		By("tmpFsDir: " + tmpFsDir)
+		originalODirectChecker = odirectChecker
 	})
 
 	AfterEach(func() {
 		os.RemoveAll(tmpDir)
 		os.RemoveAll(tmpFsDir)
+		odirectChecker = originalODirectChecker
 	})
 
 	It("Should complete successfully if preallocation succeeds", func() {
@@ -430,6 +457,7 @@ var _ = Describe("Create preallocated blank block", func() {
 	})
 
 	It("Should complete successfully with tmpfs dest without O_DIRECT if preallocation succeeds", func() {
+		odirectChecker = NewDirectIOChecker(FakeODirectRefusingOS{})
 		tmpFsDestPath := filepath.Join(tmpFsDir, "dest")
 		_, err := os.Create(tmpFsDestPath)
 		Expect(err).NotTo(HaveOccurred())
