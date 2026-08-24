@@ -274,17 +274,6 @@ var _ = Describe("Aggregated role definition tests", func() {
 				"watch",
 			},
 		},
-		{
-			APIGroups: []string{
-				"cdi.kubevirt.io",
-			},
-			Resources: []string{
-				"datavolumes/source",
-			},
-			Verbs: []string{
-				"create",
-			},
-		},
 	}
 
 	f := framework.NewFramework("aggregated-role-definition-tests")
