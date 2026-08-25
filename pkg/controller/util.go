@@ -331,13 +331,15 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *corev1.Pod, te
 
 	anno[cc.AnnRunningCondition] = "false"
 
-	for _, status := range pod.Status.ContainerStatuses {
-		if status.Started != nil && !(*status.Started) && status.State.Waiting != nil {
-			switch status.State.Waiting.Reason {
-			case "ImagePullBackOff", "ErrImagePull", "InvalidImageName":
-				anno[prefix+".message"] = fmt.Sprintf("%s: %s", common.ImagePullFailureText, status.Image)
-				anno[prefix+".reason"] = ImagePullFailedReason
-				return
+	for _, statuses := range [][]corev1.ContainerStatus{pod.Status.ContainerStatuses, pod.Status.InitContainerStatuses} {
+		for _, status := range statuses {
+			if status.Started != nil && !(*status.Started) && status.State.Waiting != nil {
+				switch status.State.Waiting.Reason {
+				case "ImagePullBackOff", "ErrImagePull", "InvalidImageName":
+					anno[prefix+".message"] = fmt.Sprintf("%s: %s", common.ImagePullFailureText, status.Image)
+					anno[prefix+".reason"] = ImagePullFailedReason
+					return
+				}
 			}
 		}
 	}
