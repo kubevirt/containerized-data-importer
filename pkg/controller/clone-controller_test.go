@@ -265,6 +265,27 @@ var _ = Describe("Clone controller reconcile loop", func() {
 			Expect(sourcePod.Spec.Containers[0].VolumeMounts[0].ReadOnly).To(BeTrue())
 			Expect(sourcePod.Spec.Volumes[0].PersistentVolumeClaim.ReadOnly).To(BeFalse())
 		}
+		By("Verifying prometheus cert volume and mount are present")
+		var promVolFound bool
+		for _, v := range sourcePod.Spec.Volumes {
+			if v.Name == common.PrometheusCertVolName {
+				promVolFound = true
+				Expect(v.VolumeSource.Secret).NotTo(BeNil())
+				Expect(v.VolumeSource.Secret.SecretName).To(Equal(cc.PrometheusCertSecretName(sourcePod.Name)))
+				break
+			}
+		}
+		Expect(promVolFound).To(BeTrue(), "prometheus cert volume should be present")
+		var promMountFound bool
+		for _, m := range sourcePod.Spec.Containers[0].VolumeMounts {
+			if m.Name == common.PrometheusCertVolName {
+				promMountFound = true
+				Expect(m.MountPath).To(Equal(common.PrometheusCertDir))
+				Expect(m.ReadOnly).To(BeTrue())
+				break
+			}
+		}
+		Expect(promMountFound).To(BeTrue(), "prometheus cert volume mount should be present")
 		Expect(sourcePod.Spec.Containers[0].TerminationMessagePolicy).To(Equal(corev1.TerminationMessageFallbackToLogsOnError))
 		Expect(sourcePod.GetLabels()[cc.CloneUniqueID]).To(Equal("default-testPvc1-source-pod"))
 		Expect(sourcePod.GetLabels()[common.AppKubernetesPartOfLabel]).To(Equal("testing"))

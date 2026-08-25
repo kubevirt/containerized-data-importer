@@ -18,6 +18,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
@@ -555,54 +556,6 @@ var _ = Describe("SetRestrictedSecurityContext", func() {
 		Expect(*podSpec.Containers[0].SecurityContext.ReadOnlyRootFilesystem).To(BeTrue())
 	})
 
-	Context("tmp volume", func() {
-		It("should add an emptyDir volume named tmp-dir", func() {
-			SetRestrictedSecurityContext(podSpec)
-			var found bool
-			for _, vol := range podSpec.Volumes {
-				if vol.Name == tmpVolumeName {
-					Expect(vol.VolumeSource.EmptyDir).NotTo(BeNil())
-					found = true
-					break
-				}
-			}
-			Expect(found).To(BeTrue(), "expected tmp-dir volume to be present")
-		})
-
-		It("should mount /tmp on all containers and init containers", func() {
-			SetRestrictedSecurityContext(podSpec)
-			for _, c := range append(podSpec.Containers, podSpec.InitContainers...) {
-				var hasTmpMount bool
-				for _, m := range c.VolumeMounts {
-					if m.Name == tmpVolumeName && m.MountPath == "/tmp" {
-						hasTmpMount = true
-						break
-					}
-				}
-				Expect(hasTmpMount).To(BeTrue(), "container %s should have /tmp mount", c.Name)
-			}
-		})
-
-		It("should not duplicate tmp-dir volume if already present", func() {
-			podSpec.Volumes = []v1.Volume{
-				{
-					Name: tmpVolumeName,
-					VolumeSource: v1.VolumeSource{
-						EmptyDir: &v1.EmptyDirVolumeSource{},
-					},
-				},
-			}
-			SetRestrictedSecurityContext(podSpec)
-			count := 0
-			for _, vol := range podSpec.Volumes {
-				if vol.Name == tmpVolumeName {
-					count++
-				}
-			}
-			Expect(count).To(Equal(1))
-		})
-	})
-
 	Context("FSGroup", func() {
 		It("should set FSGroup when containers have VolumeMounts", func() {
 			podSpec.Containers[0].VolumeMounts = []v1.VolumeMount{
@@ -619,5 +572,152 @@ var _ = Describe("SetRestrictedSecurityContext", func() {
 				Expect(*podSpec.SecurityContext.FSGroup).NotTo(Equal(common.QemuSubGid))
 			}
 		})
+	})
+})
+
+var _ = Describe("AppendPrometheusCertVolume", func() {
+	It("should add prometheus cert volume and mount to pod spec", func() {
+		podSpec := &v1.PodSpec{
+			Containers: []v1.Container{
+				{Name: "test-container"},
+			},
+		}
+		AppendPrometheusCertVolume(podSpec, "my-pod")
+
+		Expect(podSpec.Volumes).To(HaveLen(1))
+		Expect(podSpec.Volumes[0].Name).To(Equal(common.PrometheusCertVolName))
+		Expect(podSpec.Volumes[0].VolumeSource.Secret).NotTo(BeNil())
+		Expect(podSpec.Volumes[0].VolumeSource.Secret.SecretName).To(Equal(PrometheusCertSecretName("my-pod")))
+
+		Expect(podSpec.Containers[0].VolumeMounts).To(HaveLen(1))
+		Expect(podSpec.Containers[0].VolumeMounts[0].Name).To(Equal(common.PrometheusCertVolName))
+		Expect(podSpec.Containers[0].VolumeMounts[0].MountPath).To(Equal(common.PrometheusCertDir))
+		Expect(podSpec.Containers[0].VolumeMounts[0].ReadOnly).To(BeTrue())
+	})
+})
+
+var _ = Describe("AppendTmpVolume", func() {
+	It("should add emptyDir tmp volume and mount to pod spec", func() {
+		podSpec := &v1.PodSpec{
+			Containers: []v1.Container{
+				{Name: "test-container"},
+			},
+		}
+		AppendTmpVolume(podSpec)
+
+		Expect(podSpec.Volumes).To(HaveLen(1))
+		Expect(podSpec.Volumes[0].Name).To(Equal(common.TmpVolumeName))
+		Expect(podSpec.Volumes[0].VolumeSource.EmptyDir).NotTo(BeNil())
+
+		Expect(podSpec.Containers[0].VolumeMounts).To(HaveLen(1))
+		Expect(podSpec.Containers[0].VolumeMounts[0].Name).To(Equal(common.TmpVolumeName))
+		Expect(podSpec.Containers[0].VolumeMounts[0].MountPath).To(Equal(common.TmpMountPath))
+	})
+})
+
+var _ = Describe("PrometheusCertSecretName", func() {
+	It("should return correct secret name", func() {
+		Expect(PrometheusCertSecretName("importer-pod")).To(Equal("importer-pod" + PrometheusCertSecretSuffix))
+	})
+})
+
+var _ = Describe("GeneratePrometheusCertBytes", func() {
+	It("should generate valid cert and key bytes", func() {
+		certBytes, keyBytes, err := cert.GenerateSelfSignedCertKey("test-pod", nil, nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(certBytes).NotTo(BeEmpty())
+		Expect(keyBytes).NotTo(BeEmpty())
+	})
+})
+
+var _ = Describe("CreatePrometheusCertSecret and SetPrometheusCertSecretOwnerRef", func() {
+	var pod *v1.Pod
+
+	BeforeEach(func() {
+		pod = &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-pod",
+				Namespace: "default",
+				UID:       types.UID("test-uid"),
+			},
+		}
+	})
+
+	It("should create a secret with correct name and data (no OwnerRef)", func() {
+		s := scheme.Scheme
+		Expect(v1.AddToScheme(s)).To(Succeed())
+		cl := fake.NewClientBuilder().WithScheme(s).Build()
+
+		err := CreatePrometheusCertSecret(context.TODO(), cl, pod.Name, pod.Namespace, nil)
+		Expect(err).NotTo(HaveOccurred())
+
+		secret := &v1.Secret{}
+		err = cl.Get(context.TODO(), types.NamespacedName{
+			Name:      PrometheusCertSecretName(pod.Name),
+			Namespace: pod.Namespace,
+		}, secret)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(secret.Data).To(HaveKey("tls.crt"))
+		Expect(secret.Data).To(HaveKey("tls.key"))
+		Expect(secret.OwnerReferences).To(BeEmpty())
+	})
+
+	It("should set OwnerReference after pod exists", func() {
+		s := scheme.Scheme
+		Expect(v1.AddToScheme(s)).To(Succeed())
+		cl := fake.NewClientBuilder().WithScheme(s).Build()
+
+		err := CreatePrometheusCertSecret(context.TODO(), cl, pod.Name, pod.Namespace, nil)
+		Expect(err).NotTo(HaveOccurred())
+
+		err = SetPrometheusCertSecretOwnerRef(context.TODO(), cl, pod)
+		Expect(err).NotTo(HaveOccurred())
+
+		secret := &v1.Secret{}
+		err = cl.Get(context.TODO(), types.NamespacedName{
+			Name:      PrometheusCertSecretName(pod.Name),
+			Namespace: pod.Namespace,
+		}, secret)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(secret.OwnerReferences).To(HaveLen(1))
+		Expect(secret.OwnerReferences[0].Name).To(Equal(pod.Name))
+		Expect(secret.OwnerReferences[0].UID).To(Equal(pod.UID))
+	})
+
+	It("should not error if secret already exists", func() {
+		s := scheme.Scheme
+		Expect(v1.AddToScheme(s)).To(Succeed())
+
+		existingSecret := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      PrometheusCertSecretName(pod.Name),
+				Namespace: pod.Namespace,
+			},
+		}
+		cl := fake.NewClientBuilder().WithScheme(s).WithObjects(existingSecret).Build()
+
+		err := CreatePrometheusCertSecret(context.TODO(), cl, pod.Name, pod.Namespace, nil)
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	It("should apply installer labels when provided", func() {
+		s := scheme.Scheme
+		Expect(v1.AddToScheme(s)).To(Succeed())
+		cl := fake.NewClientBuilder().WithScheme(s).Build()
+
+		labels := map[string]string{
+			"app.kubernetes.io/part-of": "testing",
+			"app.kubernetes.io/version": "v1.0.0",
+		}
+		err := CreatePrometheusCertSecret(context.TODO(), cl, pod.Name, pod.Namespace, labels)
+		Expect(err).NotTo(HaveOccurred())
+
+		secret := &v1.Secret{}
+		err = cl.Get(context.TODO(), types.NamespacedName{
+			Name:      PrometheusCertSecretName(pod.Name),
+			Namespace: pod.Namespace,
+		}, secret)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(secret.Labels).To(HaveKeyWithValue("app.kubernetes.io/part-of", "testing"))
 	})
 })

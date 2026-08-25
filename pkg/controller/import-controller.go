@@ -989,7 +989,15 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 	// add any labels from pvc to the importer pod
 	util.MergeLabels(srcLabels, pod.Labels)
 
+	if err = cc.CreatePrometheusCertSecret(context.TODO(), client, pod.Name, pod.Namespace, installerLabels); err != nil {
+		return nil, err
+	}
+
 	if err = client.Create(context.TODO(), pod); err != nil {
+		return nil, err
+	}
+
+	if err = cc.SetPrometheusCertSecretOwnerRef(context.TODO(), client, pod); err != nil {
 		return nil, err
 	}
 
@@ -1072,6 +1080,8 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 
 	cc.CopyAllowedAnnotations(args.pvc, pod)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
+	cc.AppendTmpVolume(&pod.Spec)
+	cc.AppendPrometheusCertVolume(&pod.Spec, pod.Name)
 	// We explicitly define a NodeName for dynamically provisioned PVCs
 	// when the PVC is being handled by a populator (PVC')
 	cc.SetNodeNameIfPopulator(args.pvc, &pod.Spec)

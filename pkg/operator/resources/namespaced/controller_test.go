@@ -7,6 +7,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 func TestController(t *testing.T) {
@@ -34,20 +36,20 @@ var _ = Describe("cdi-controller Deployment", func() {
 	It("should have an emptyDir volume for /tmp", func() {
 		var found bool
 		for _, vol := range deployment.Spec.Template.Spec.Volumes {
-			if vol.Name == tmpVolumeName {
+			if vol.Name == common.TmpVolumeName {
 				Expect(vol.VolumeSource.EmptyDir).NotTo(BeNil())
 				found = true
 				break
 			}
 		}
-		Expect(found).To(BeTrue(), "expected volume %s to be present", tmpVolumeName)
+		Expect(found).To(BeTrue(), "expected volume %s to be present", common.TmpVolumeName)
 	})
 
 	It("should mount /tmp on all containers", func() {
 		for _, c := range deployment.Spec.Template.Spec.Containers {
 			var hasTmpMount bool
 			for _, m := range c.VolumeMounts {
-				if m.Name == tmpVolumeName && m.MountPath == "/tmp" {
+				if m.Name == common.TmpVolumeName && m.MountPath == common.TmpMountPath {
 					hasTmpMount = true
 					break
 				}
