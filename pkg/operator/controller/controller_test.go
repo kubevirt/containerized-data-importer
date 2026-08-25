@@ -80,9 +80,6 @@ const (
 	normalCreateEnsured              = "Normal CreateResourceSuccess Successfully ensured"
 	normalDeleteResourceSuccess      = "Normal DeleteResourceSuccess Deleted deployment cdi-deployment successfully"
 	normalDeleteResourceSuccesWorker = "Normal DeleteResourceSuccess Deleted worker resources successfully"
-
-	tmpVolumeName = "tmp-dir"
-	tmpMountPath  = "/tmp"
 )
 
 type args struct {
@@ -271,30 +268,30 @@ var _ = Describe("Controller", func() {
 					if d.Name == common.CDIControllerResourceName {
 						hasTmpVolume := false
 						for _, vol := range d.Spec.Template.Spec.Volumes {
-							if vol.Name == tmpVolumeName {
+							if vol.Name == common.TmpVolumeName {
 								Expect(vol.VolumeSource.EmptyDir).ToNot(BeNil())
 								hasTmpVolume = true
 								break
 							}
 						}
 						Expect(hasTmpVolume).To(BeTrue(),
-							"deployment %s should have %s emptyDir volume for readiness probe %s/ready", d.Name, tmpVolumeName, tmpMountPath)
+							"deployment %s should have %s emptyDir volume for readiness probe %s/ready", d.Name, common.TmpVolumeName, common.TmpMountPath)
 
 						for _, c := range d.Spec.Template.Spec.Containers {
 							hasTmpMount := false
 							for _, m := range c.VolumeMounts {
-								if m.Name == tmpVolumeName && m.MountPath == tmpMountPath {
+								if m.Name == common.TmpVolumeName && m.MountPath == common.TmpMountPath {
 									hasTmpMount = true
 									break
 								}
 							}
 							Expect(hasTmpMount).To(BeTrue(),
-								"container %s in deployment %s should mount %s", c.Name, d.Name, tmpMountPath)
+								"container %s in deployment %s should mount %s", c.Name, d.Name, common.TmpMountPath)
 						}
 					} else {
 						for _, vol := range d.Spec.Template.Spec.Volumes {
-							Expect(vol.Name).ToNot(Equal(tmpVolumeName),
-								"deployment %s should not have %s volume (minimalist approach)", d.Name, tmpVolumeName)
+							Expect(vol.Name).ToNot(Equal(common.TmpVolumeName),
+								"deployment %s should not have %s volume (minimalist approach)", d.Name, common.TmpVolumeName)
 						}
 					}
 				}

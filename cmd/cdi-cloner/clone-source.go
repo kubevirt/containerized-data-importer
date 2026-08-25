@@ -91,12 +91,9 @@ func createHTTPClient(clientKey, clientCert, serverCert []byte) *http.Client {
 }
 
 func startPrometheus() {
-	certsDirectory, err := os.MkdirTemp("", "certsdir")
-	if err != nil {
-		klog.Fatalf("Error %s creating temp dir", err)
+	if err := prometheusutil.StartPrometheusEndpointNoCertGeneration(common.PrometheusCertDir); err != nil {
+		klog.Warningf("Failed to start prometheus endpoint: %v", err)
 	}
-
-	prometheusutil.StartPrometheusEndpoint(certsDirectory)
 }
 
 func createProgressReader(readCloser io.ReadCloser, ownerUID string, totalBytes uint64) (io.ReadCloser, error) {

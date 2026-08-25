@@ -1704,6 +1704,7 @@ func InitPollerPod(c client.Client, cron *cdiv1.DataImportCron, pod *corev1.PodT
 	podSpec.Affinity = workloadNodePlacement.Affinity
 
 	cc.SetRestrictedSecurityContext(podSpec)
+	cc.AppendTmpVolume(podSpec)
 	// No need for specifid uid/fsgroup here since this doesn't write or use qemu
 	if podSpec.SecurityContext != nil {
 		podSpec.SecurityContext.FSGroup = nil

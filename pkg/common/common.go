@@ -50,6 +50,14 @@ const (
 	PrometheusLabelValue = "true"
 	// PrometheusServiceName is the name of the prometheus service created by the operator.
 	PrometheusServiceName = "cdi-prometheus-metrics"
+	// PrometheusCertDir is the directory where prometheus TLS certs are mounted in worker pods.
+	PrometheusCertDir = "/etc/prometheus-certs"
+	// PrometheusCertVolName is the name of the volume containing the prometheus TLS certs
+	PrometheusCertVolName = "prometheus-certs"
+	// TmpVolumeName is the name of the emptyDir volume providing a writable /tmp.
+	TmpVolumeName = "tmp-dir"
+	// TmpMountPath is the mount path for the writable /tmp volume.
+	TmpMountPath = "/tmp"
 	// MetricsReaderServiceAccountName is the name of the ServiceAccount with access to the various CDI metric endpoints
 	MetricsReaderServiceAccountName = "cdi-metrics-reader"
 	// MetricsReaderTokenName is the name of the secret containing the cdi-metrics-reader ServiceAccount token
