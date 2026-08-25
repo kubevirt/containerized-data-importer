@@ -1693,6 +1693,17 @@ func InitPollerPod(c client.Client, cron *cdiv1.DataImportCron, pod *corev1.PodT
 
 	podSpec := &pod.Spec
 
+	container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
+		Name:      common.TmpVolumeName,
+		MountPath: common.TmpMountPath,
+	})
+	volumes = append(volumes, corev1.Volume{
+		Name: common.TmpVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	})
+
 	podSpec.RestartPolicy = corev1.RestartPolicyNever
 	podSpec.TerminationGracePeriodSeconds = ptr.To[int64](0)
 	podSpec.Containers = []corev1.Container{container}
@@ -1704,6 +1715,7 @@ func InitPollerPod(c client.Client, cron *cdiv1.DataImportCron, pod *corev1.PodT
 	podSpec.Affinity = workloadNodePlacement.Affinity
 
 	cc.SetRestrictedSecurityContext(podSpec)
+
 	// No need for specifid uid/fsgroup here since this doesn't write or use qemu
 	if podSpec.SecurityContext != nil {
 		podSpec.SecurityContext.FSGroup = nil

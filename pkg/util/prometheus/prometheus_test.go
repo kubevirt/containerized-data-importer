@@ -2,11 +2,18 @@ package prometheus
 
 import (
 	"bytes"
+	"crypto/tls"
 	"io"
+	"net/http"
+	"os"
+	"path"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"k8s.io/client-go/util/cert"
 
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/cdi-cloner"
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -161,5 +168,85 @@ var _ = Describe("Update Progress", func() {
 		Expect(promReader.CountingReader.Reader).To(Equal(thirdReader.Reader))
 		Expect(promReader.CountingReader.Current).To(Equal(uint64(16)))
 		Expect(false).To(Equal(result))
+	})
+})
+
+var _ = Describe("StartPrometheusEndpointNoCertGeneration", func() {
+	var certsDir string
+
+	BeforeEach(func() {
+		var err error
+		certsDir, err = os.MkdirTemp("", "prometheus-test-*")
+		Expect(err).NotTo(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		os.RemoveAll(certsDir)
+	})
+
+	It("should return nil when both cert and key files exist", func() {
+		certBytes, keyBytes, err := cert.GenerateSelfSignedCertKey("localhost", nil, nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(os.WriteFile(path.Join(certsDir, CertFileName), certBytes, 0600)).To(Succeed())
+		Expect(os.WriteFile(path.Join(certsDir, KeyFileName), keyBytes, 0600)).To(Succeed())
+
+		err = StartPrometheusEndpointNoCertGeneration(certsDir)
+		Expect(err).NotTo(HaveOccurred())
+
+		httpClient := &http.Client{
+			Timeout: 2 * time.Second,
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+			},
+		}
+		Eventually(func() error {
+			_, err := httpClient.Get("https://localhost:8443/metrics")
+			return err
+		}, 5*time.Second, 200*time.Millisecond).Should(Succeed())
+	})
+
+	It("should return an error if the cert file does not exist", func() {
+		err := StartPrometheusEndpointNoCertGeneration(certsDir)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("cert file"))
+		Expect(err.Error()).To(ContainSubstring("does not exist"))
+	})
+
+	It("should return an error if only the cert file exists (key missing)", func() {
+		certBytes, _, err := cert.GenerateSelfSignedCertKey("localhost", nil, nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(os.WriteFile(path.Join(certsDir, CertFileName), certBytes, 0600)).To(Succeed())
+
+		err = StartPrometheusEndpointNoCertGeneration(certsDir)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("key file"))
+		Expect(err.Error()).To(ContainSubstring("does not exist"))
+	})
+
+	It("should return an error if only the key file exists (cert missing)", func() {
+		_, keyBytes, err := cert.GenerateSelfSignedCertKey("localhost", nil, nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(os.WriteFile(path.Join(certsDir, KeyFileName), keyBytes, 0600)).To(Succeed())
+
+		err = StartPrometheusEndpointNoCertGeneration(certsDir)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("cert file"))
+		Expect(err.Error()).To(ContainSubstring("does not exist"))
+	})
+})
+
+var _ = Describe("StartPrometheusEndpoint", func() {
+	It("should generate cert and key files in the specified directory", func() {
+		certsDir, err := os.MkdirTemp("", "prometheus-test-*")
+		Expect(err).NotTo(HaveOccurred())
+		defer os.RemoveAll(certsDir)
+
+		StartPrometheusEndpoint(certsDir)
+
+		Eventually(func() bool {
+			_, certErr := os.Stat(path.Join(certsDir, "tls.crt"))
+			_, keyErr := os.Stat(path.Join(certsDir, "tls.key"))
+			return certErr == nil && keyErr == nil
+		}, 5*time.Second, 100*time.Millisecond).Should(BeTrue())
 	})
 })

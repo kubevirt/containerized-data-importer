@@ -65,6 +65,7 @@ import (
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
@@ -74,6 +75,9 @@ const (
 
 	// ScratchVolName provides a const to use for creating scratch pvc volumes in pod specs
 	ScratchVolName = "cdi-scratch-vol"
+
+	// PrometheusCertSecretSuffix is appended to the pod name to form the prometheus cert Secret name
+	PrometheusCertSecretSuffix = "-prometheus-certs"
 
 	// AnnAPIGroup is the APIGroup for CDI
 	AnnAPIGroup = "cdi.kubevirt.io"
@@ -1247,35 +1251,84 @@ func SetRestrictedSecurityContext(podSpec *corev1.PodSpec) {
 	if hasVolumeMounts {
 		podSpec.SecurityContext.FSGroup = ptr.To[int64](common.QemuSubGid)
 	}
-
-	addTmpVolume(podSpec)
 }
 
-const tmpVolumeName = "tmp-dir"
+// PrometheusCertSecretName returns the Secret name for a pod's prometheus certs.
+func PrometheusCertSecretName(podName string) string {
+	return podName + PrometheusCertSecretSuffix
+}
 
-// addTmpVolume adds an emptyDir volume at /tmp to support readOnlyRootFilesystem
-func addTmpVolume(podSpec *corev1.PodSpec) {
-	for _, v := range podSpec.Volumes {
-		if v.Name == tmpVolumeName {
-			return
-		}
-	}
+// AppendPrometheusCertVolume adds the prometheus cert Secret volume and mount to a pod spec.
+func AppendPrometheusCertVolume(podSpec *corev1.PodSpec, podName string) {
 	podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
-		Name: tmpVolumeName,
+		Name: common.PrometheusCertVolName,
 		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: PrometheusCertSecretName(podName),
+			},
 		},
 	})
-	tmpMount := corev1.VolumeMount{
-		Name:      tmpVolumeName,
-		MountPath: "/tmp",
-	}
-	for i := range podSpec.InitContainers {
-		podSpec.InitContainers[i].VolumeMounts = append(podSpec.InitContainers[i].VolumeMounts, tmpMount)
+	mount := corev1.VolumeMount{
+		Name:      common.PrometheusCertVolName,
+		MountPath: common.PrometheusCertDir,
+		ReadOnly:  true,
 	}
 	for i := range podSpec.Containers {
-		podSpec.Containers[i].VolumeMounts = append(podSpec.Containers[i].VolumeMounts, tmpMount)
+		podSpec.Containers[i].VolumeMounts = append(podSpec.Containers[i].VolumeMounts, mount)
 	}
+}
+
+// EnsurePrometheusCertSecret ensures that the worker Pod has a Prometheus
+// TLS Secret owned by the Pod. The Pod must already exist so its UID can be
+// used in the Secret OwnerReference.
+func EnsurePrometheusCertSecret(
+	ctx context.Context,
+	c client.Client,
+	pod *corev1.Pod,
+	installerLabels map[string]string,
+) error {
+	certBytes, keyBytes, err := cert.GenerateSelfSignedCertKey(pod.Name, nil, nil)
+	if err != nil {
+		return fmt.Errorf("generating prometheus cert for pod %s/%s: %w", pod.Namespace, pod.Name, err)
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      PrometheusCertSecretName(pod.Name),
+			Namespace: pod.Namespace,
+			Labels: map[string]string{
+				common.CDILabelKey:        common.CDILabelValue,
+				common.PrometheusLabelKey: common.PrometheusLabelValue,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "v1",
+					Kind:               "Pod",
+					Name:               pod.Name,
+					UID:                pod.UID,
+					BlockOwnerDeletion: ptr.To(true),
+					Controller:         ptr.To(true),
+				},
+			},
+		},
+		Data: map[string][]byte{
+			corev1.TLSCertKey:       certBytes,
+			corev1.TLSPrivateKeyKey: keyBytes,
+		},
+	}
+
+	if installerLabels != nil {
+		util.SetRecommendedLabels(secret, installerLabels, common.CDIControllerName)
+	}
+
+	if err := c.Create(ctx, secret); err != nil {
+		if k8serrors.IsAlreadyExists(err) {
+			return nil
+		}
+
+		return fmt.Errorf("creating prometheus cert secret for pod %s/%s: %w", pod.Namespace, pod.Name, err)
+	}
+	return nil
 }
 
 // SetNodeNameIfPopulator sets NodeName in a pod spec when the PVC is being handled by a CDI volume populator

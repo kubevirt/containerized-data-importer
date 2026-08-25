@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	"kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	openstackMetric "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/openstack-populator"
@@ -542,6 +543,11 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 		}
 	}
 
+	con.VolumeMounts = append(con.VolumeMounts, corev1.VolumeMount{
+		Name:      common.TmpVolumeName,
+		MountPath: common.TmpMountPath,
+	})
+
 	if err := r.client.Create(context.TODO(), &pod); err != nil {
 		return err
 	}
@@ -587,6 +593,7 @@ func makePopulatePodSpec(pvcPrimeName, secretName string) corev1.PodSpec {
 					AllowPrivilegeEscalation: ptr.To(false),
 					RunAsNonRoot:             ptr.To(true),
 					RunAsUser:                ptr.To[int64](107),
+					ReadOnlyRootFilesystem:   ptr.To(true),
 					Capabilities: &corev1.Capabilities{
 						Drop: []corev1.Capability{"ALL"},
 					},
@@ -620,6 +627,12 @@ func makePopulatePodSpec(pvcPrimeName, secretName string) corev1.PodSpec {
 					PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 						ClaimName: pvcPrimeName,
 					},
+				},
+			},
+			{
+				Name: common.TmpVolumeName,
+				VolumeSource: corev1.VolumeSource{
+					EmptyDir: &corev1.EmptyDirVolumeSource{},
 				},
 			},
 		},
