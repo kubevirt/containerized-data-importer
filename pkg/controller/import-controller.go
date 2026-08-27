@@ -964,8 +964,12 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 		}
 		setRegistryNodeImportEnvVars(args)
 		if args.podEnvVar.registryImageArchitecture != "" {
-			setRegistryNodeImportNodeSelector(args)
+			setImportNodeSelectorArch(args, args.podEnvVar.registryImageArchitecture)
 		}
+	}
+	// VDDK requires amd64: the VMware VDDK library only ships x86_64 binaries.
+	if args.vddkImageName != nil {
+		setImportNodeSelectorArch(args, "amd64")
 	}
 
 	pod := makeImporterPodSpec(args)
@@ -1302,11 +1306,11 @@ func setRegistryNodeImportEnvVars(args *importerPodArgs) {
 	args.podEnvVar.doneFile = "/shared/done"
 }
 
-func setRegistryNodeImportNodeSelector(args *importerPodArgs) {
+func setImportNodeSelectorArch(args *importerPodArgs, arch string) {
 	if args.workloadNodePlacement.NodeSelector == nil {
 		args.workloadNodePlacement.NodeSelector = make(map[string]string, 0)
 	}
-	args.workloadNodePlacement.NodeSelector[v1.LabelArchStable] = args.podEnvVar.registryImageArchitecture
+	args.workloadNodePlacement.NodeSelector[v1.LabelArchStable] = arch
 }
 
 func createConfigMapVolume(certVolName, objRef string) corev1.Volume {

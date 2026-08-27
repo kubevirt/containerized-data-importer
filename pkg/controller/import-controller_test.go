@@ -374,6 +374,25 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(err.Error()).To(ContainSubstring("failed to parse"))
 	})
 
+	It("Should set amd64 node selector for VDDK import", func() {
+		annotations := map[string]string{
+			cc.AnnEndpoint:         testEndPoint,
+			cc.AnnImportPod:        "importer-testPvc1",
+			cc.AnnSource:           cc.SourceVDDK,
+			cc.AnnVddkInitImageURL: "test://vddk-image",
+		}
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, annotations, nil, corev1.ClaimBound)
+		reconciler = createImportReconciler(pvc)
+
+		err := reconciler.createImporterPod(pvc)
+		Expect(err).ToNot(HaveOccurred())
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(pod.Spec.NodeSelector).To(HaveKeyWithValue("kubernetes.io/arch", "amd64"))
+	})
+
 	It("Should create a POD if a PVC with all needed annotations is passed", func() {
 		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "importer-testPvc1", cc.AnnPodNetwork: "net1", "unrelatedAnnotation": "test"}, nil)
 		pvc.Status.Phase = v1.ClaimBound
