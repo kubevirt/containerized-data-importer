@@ -325,6 +325,21 @@ var _ = Describe("Planner test", func() {
 				expectEvent(planner, CloneWithoutSource)
 			})
 
+			It("should return nil if source capacity not yet available", func() {
+				source := createClaim(sourceName)
+				source.Spec.VolumeName = volumeName
+				source.Status.Phase = corev1.ClaimBound
+				args := &ChooseStrategyArgs{
+					TargetClaim: createTargetClaim(),
+					DataSource:  createPVCDataSource(),
+					Log:         log,
+				}
+				planner = createPlanner(createStorageClass(), source, createVolumeSnapshotClass(), createSourceVolume())
+				csr, err := planner.ChooseStrategy(context.Background(), args)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(csr).To(BeNil())
+			})
+
 			It("should fail target smaller", func() {
 				source := createSourceClaim()
 				target := createTargetClaim()
