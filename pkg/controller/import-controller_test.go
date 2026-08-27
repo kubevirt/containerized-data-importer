@@ -849,6 +849,37 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(common.AwaitingVDDK).ToNot(Equal(resPvc.GetAnnotations()[cc.AnnBoundConditionReason]))
 	})
 
+	It("Should run the VDDK init image as a sidecar with its own entrypoint", func() {
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "testpod", cc.AnnSource: cc.SourceVDDK, cc.AnnVddkInitImageURL: "test://vddk-image"}, nil, corev1.ClaimBound)
+		reconciler = createImportReconciler(pvc)
+		reconciler.image = testImage
+		Expect(reconciler.createImporterPod(pvc)).To(Succeed())
+
+		pod := &corev1.Pod{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testpod", Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pod.Spec.InitContainers).ToNot(BeEmpty())
+		sidecar := pod.Spec.InitContainers[0]
+		Expect(sidecar.Name).To(Equal("vddk-side-car"))
+		Expect(sidecar.Image).To(Equal("test://vddk-image"))
+		Expect(sidecar.Command).To(BeEmpty())
+	})
+
+	It("Should skip the VDDK sidecar when the init image is the importer image", func() {
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "testpod", cc.AnnSource: cc.SourceVDDK, cc.AnnVddkInitImageURL: testImage}, nil, corev1.ClaimBound)
+		reconciler = createImportReconciler(pvc)
+		reconciler.image = testImage
+		Expect(reconciler.createImporterPod(pvc)).To(Succeed())
+
+		pod := &corev1.Pod{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testpod", Namespace: "default"}, pod)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pod.Spec.InitContainers).To(BeEmpty())
+		for _, mount := range pod.Spec.Containers[0].VolumeMounts {
+			Expect(mount.Name).ToNot(Equal("vddk-vol-mount"))
+		}
+	})
+
 	It("Should copy VDDK connection information to annotations on PVC", func() {
 		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodRunning), cc.AnnSource: cc.SourceVDDK}, nil, corev1.ClaimBound)
 		scratchPvc := &corev1.PersistentVolumeClaim{}
