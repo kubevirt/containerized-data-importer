@@ -19,6 +19,7 @@ import (
 
 const (
 	nbdVddkLibraryPath    = "/opt/vmware-vix-disklib-distrib"
+	nbdNfcPluginPath      = "/usr/lib64/nbdkit/plugins/nbdkit-nfc-plugin.so"
 	startupTimeoutSeconds = 15
 	defaultUserAgent      = "cdi-nbdkit-importer"
 	passwordFdEntry       = 3
@@ -42,6 +43,7 @@ const (
 	NbdkitFilePlugin     NbdkitPlugin = "file"
 	NbdkitVddkPlugin     NbdkitPlugin = "vddk"
 	NbdkitVddkMockPlugin NbdkitPlugin = "/opt/testing/libvddk-test-plugin.so"
+	NbdkitNfcPlugin      NbdkitPlugin = "nfc"
 )
 
 // Nbdkit filters
@@ -142,10 +144,15 @@ type NbdKitVddkPluginArgs struct {
 	Snapshot   string
 }
 
-// NewNbdkitVddk creates a new Nbdkit instance with the vddk plugin
+// NewNbdkitVddk creates a new Nbdkit instance with the vddk or nfc plugin,
+// depending on whether the VDDK init sidecar provided VixDiskLib.
 func NewNbdkitVddk(nbdkitPidFile, socket string, args NbdKitVddkPluginArgs) (NbdkitOperation, error) {
-	pluginArgs := []string{
-		"libdir=" + nbdVddkLibraryPath,
+	p := getVddkPluginPath()
+	var pluginArgs []string
+	if p != NbdkitNfcPlugin {
+		pluginArgs = []string{
+			"libdir=" + nbdVddkLibraryPath,
+		}
 	}
 	if args.Server != "" {
 		pluginArgs = append(pluginArgs, "server="+args.Server)
@@ -170,20 +177,23 @@ func NewNbdkitVddk(nbdkitPidFile, socket string, args NbdKitVddkPluginArgs) (Nbd
 	}
 	if args.Snapshot != "" {
 		pluginArgs = append(pluginArgs, "snapshot="+args.Snapshot)
-		pluginArgs = append(pluginArgs, "transports=file:nbdssl:nbd")
+		if p != NbdkitNfcPlugin {
+			pluginArgs = append(pluginArgs, "transports=file:nbdssl:nbd")
+		}
 	}
-	pluginArgs = append(pluginArgs, "--verbose")
-	pluginArgs = append(pluginArgs, "-D", "nbdkit.backend.datapath=0")
-	pluginArgs = append(pluginArgs, "-D", "vddk.datapath=0")
-	pluginArgs = append(pluginArgs, "-D", "vddk.stats=1")
-	config, err := getVddkConfig()
-	if err != nil {
-		return nil, err
+	if p != NbdkitNfcPlugin {
+		pluginArgs = append(pluginArgs, "--verbose")
+		pluginArgs = append(pluginArgs, "-D", "nbdkit.backend.datapath=0")
+		pluginArgs = append(pluginArgs, "-D", "vddk.datapath=0")
+		pluginArgs = append(pluginArgs, "-D", "vddk.stats=1")
+		config, err := getVddkConfig()
+		if err != nil {
+			return nil, err
+		}
+		if config != "" {
+			pluginArgs = append(pluginArgs, "config="+config)
+		}
 	}
-	if config != "" {
-		pluginArgs = append(pluginArgs, "config="+config)
-	}
-	p := getVddkPluginPath()
 	n := &Nbdkit{
 		NbdPidFile: nbdkitPidFile,
 		plugin:     p,
@@ -242,6 +252,14 @@ func getVddkPluginPath() NbdkitPlugin {
 	if !os.IsNotExist(err) {
 		return NbdkitVddkMockPlugin
 	}
+	_, err = os.Stat(nbdVddkLibraryPath)
+	if !os.IsNotExist(err) {
+		return NbdkitVddkPlugin
+	}
+	_, err = os.Stat(nbdNfcPluginPath)
+	if !os.IsNotExist(err) {
+		return NbdkitNfcPlugin
+	}
 	return NbdkitVddkPlugin
 }
 
@@ -266,7 +284,7 @@ func (n *Nbdkit) getSourceArg(s string) string {
 	switch n.plugin {
 	case NbdkitCurlPlugin:
 		source = fmt.Sprintf("url=%s", s)
-	case NbdkitVddkPlugin, NbdkitVddkMockPlugin:
+	case NbdkitVddkPlugin, NbdkitVddkMockPlugin, NbdkitNfcPlugin:
 		source = fmt.Sprintf("file=%s", s)
 	default:
 		source = s
@@ -457,7 +475,9 @@ func (n *Nbdkit) validatePlugin() error {
 	args := []string{
 		"--dump-plugin",
 		string(n.plugin),
-		"libdir=" + nbdVddkLibraryPath,
+	}
+	if n.plugin != NbdkitNfcPlugin {
+		args = append(args, "libdir="+nbdVddkLibraryPath)
 	}
 	nbdkit := exec.Command("nbdkit", args...)
 	nbdkit.Env = n.Env
