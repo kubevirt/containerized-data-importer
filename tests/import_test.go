@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/ptr"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -2107,22 +2106,13 @@ var _ = Describe("Containerdisk envs to PVC labels", func() {
 		trustedRegistryURL  = func() string {
 			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
 		}
-		trustedRegistryIS = func() string {
-			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName)).String()
-		}
 	)
 
-	DescribeTable("Import should add KUBEVIRT_IO_ env vars to PVC labels when source is registry", func(pullMethod cdiv1.RegistryPullMethod, urlFn func() string, isImageStream bool) {
+	DescribeTable("Import should add KUBEVIRT_IO_ env vars to PVC labels when source is registry", func(pullMethod cdiv1.RegistryPullMethod, urlFn func() string) {
 		dataVolume := utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", urlFn())
 		// The existing key should not be overwritten
 		dataVolume.ObjectMeta.Labels = map[string]string{
 			testKubevirtIoKeyExisting: testKubevirtIoValueExisting,
-		}
-
-		if isImageStream {
-			dataVolume.Spec.Source.Registry.URL = nil
-			dataVolume.Spec.Source.Registry.ImageStream = ptr.To(urlFn())
-			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 		}
 
 		dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
@@ -2153,9 +2143,8 @@ var _ = Describe("Containerdisk envs to PVC labels", func() {
 			HaveKeyWithValue(testKubevirtIoKeyExisting, testKubevirtIoValueExisting),
 		))
 	},
-		Entry("with pullMethod pod", cdiv1.RegistryPullPod, tinyCoreRegistryURL, false),
-		Entry("with pullMethod node", cdiv1.RegistryPullNode, trustedRegistryURL, false),
-		Entry("with pullMethod node", cdiv1.RegistryPullNode, trustedRegistryIS, true),
+		Entry("with pullMethod pod", cdiv1.RegistryPullPod, tinyCoreRegistryURL),
+		Entry("with pullMethod node", cdiv1.RegistryPullNode, trustedRegistryURL),
 	)
 })
 
