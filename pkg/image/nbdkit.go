@@ -19,7 +19,8 @@ import (
 
 const (
 	nbdVddkLibraryPath    = "/opt/vmware-vix-disklib-distrib"
-	nbdNfcPluginPath      = "/usr/lib64/nbdkit/plugins/nbdkit-nfc-plugin.so"
+	nbdNfcPluginSidecar   = "/opt/nbdkit-nfc-plugin.so"
+	nbdNfcPluginBuiltin   = "/usr/lib64/nbdkit/plugins/nbdkit-nfc-plugin.so"
 	startupTimeoutSeconds = 15
 	defaultUserAgent      = "cdi-nbdkit-importer"
 	passwordFdEntry       = 3
@@ -256,7 +257,10 @@ func getVddkPluginPath() NbdkitPlugin {
 	if !os.IsNotExist(err) {
 		return NbdkitVddkPlugin
 	}
-	_, err = os.Stat(nbdNfcPluginPath)
+	_, err = os.Stat(nbdNfcPluginSidecar)
+	if os.IsNotExist(err) {
+		_, err = os.Stat(nbdNfcPluginBuiltin)
+	}
 	if !os.IsNotExist(err) {
 		return NbdkitNfcPlugin
 	}
@@ -309,8 +313,15 @@ func (n *Nbdkit) StartNbdkit(source string) error {
 	// set additional arguments
 	argsNbdkit = append(argsNbdkit, n.nbdkitArgs...)
 
+	plugin := string(n.plugin)
+	if n.plugin == NbdkitNfcPlugin {
+		plugin = nbdNfcPluginBuiltin
+		if _, err := os.Stat(nbdNfcPluginSidecar); !os.IsNotExist(err) {
+			plugin = nbdNfcPluginSidecar
+		}
+	}
 	// append nbdkit plugin arguments
-	argsNbdkit = append(argsNbdkit, string(n.plugin))
+	argsNbdkit = append(argsNbdkit, plugin)
 	argsNbdkit = append(argsNbdkit, n.pluginArgs...)
 	argsNbdkit = append(argsNbdkit, n.redactArgs...)
 	argsNbdkit = append(argsNbdkit, n.getSourceArg(source))
@@ -472,9 +483,16 @@ func (n *Nbdkit) validatePlugin() error {
 			klog.Warningf("Unable to get VDDK library directory tree: %v", err)
 		}
 	}
+	plugin := string(n.plugin)
+	if n.plugin == NbdkitNfcPlugin {
+		plugin = nbdNfcPluginBuiltin
+		if _, err := os.Stat(nbdNfcPluginSidecar); !os.IsNotExist(err) {
+			plugin = nbdNfcPluginSidecar
+		}
+	}
 	args := []string{
 		"--dump-plugin",
-		string(n.plugin),
+		plugin,
 	}
 	if n.plugin != NbdkitNfcPlugin {
 		args = append(args, "libdir="+nbdVddkLibraryPath)
@@ -483,7 +501,7 @@ func (n *Nbdkit) validatePlugin() error {
 	nbdkit.Env = n.Env
 	out, err := nbdkit.CombinedOutput()
 	if out != nil {
-		klog.Infof("Output from nbdkit --dump-plugin %s: %s", string(n.plugin), out)
+		klog.Infof("Output from nbdkit --dump-plugin %s: %s", plugin, out)
 	}
 	if err != nil {
 		return err
