@@ -17,11 +17,9 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-const testMinPvcSize = "4Gi"
-
 var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:4219] CSI Volume cloning tests", Serial, func() {
 	var originalProfileSpec *cdiv1.StorageProfileSpec
-	var originalMinPvcSize, cloneStorageClassName string
+	var originalMinPvcSize, cloneStorageClassName, testMinPvcSize string
 
 	f := framework.NewFramework("dv-func-test")
 
@@ -37,6 +35,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		Expect(err).ToNot(HaveOccurred())
 		originalMinPvcSize, err = utils.GetMinimumSupportedPVCSize(f.CrClient, cloneStorageClassName)
 		Expect(err).ToNot(HaveOccurred())
+		testMinPvcSize = getTestMinPvcSize(originalMinPvcSize)
 	})
 
 	AfterEach(func() {
@@ -64,7 +63,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 
-		verifyPVCRequestedSize(dataVolume, f, testMinPvcSize)
+		verifyPVCRequestedSizeExceeds(dataVolume, f, testMinPvcSize)
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, md5)
 		verifyCSIClone(dataVolume, f)
 	})

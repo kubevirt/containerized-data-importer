@@ -274,6 +274,51 @@ var _ = Describe("renderPvcSpec", func() {
 		Entry("fallback to k8s default when accessMode has no matching volumeMode", nil, &rwx, nil, &rwx, nil),
 		Entry("use the passed volumeMode and accessMode even if not in storageProfile", &filesystem, &rwx, &filesystem, &rwx, nil),
 	)
+
+	DescribeTable("Clone to filesystem with storageProfile minimum PVC size applies overhead when requested size", func(requestedSize, minimumSize, expectedSize string) {
+		scName := "test"
+		sc := CreateStorageClassWithProvisioner(scName, nil, nil, "csi.example.com")
+		sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, corev1.PersistentVolumeFilesystem)
+		sp.Annotations = map[string]string{
+			AnnMinimumSupportedPVCSize: minimumSize,
+		}
+		cdiConfig := &cdiv1.CDIConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "config"},
+			Status: cdiv1.CDIConfigStatus{
+				FilesystemOverhead: &cdiv1.FilesystemOverhead{
+					Global: cdiv1.Percent("0.25"),
+				},
+			},
+		}
+		cl := createClient(sc, sp, cdiConfig)
+
+		dv := createDataVolumeWithStorageAPI("clone-dv", metav1.NamespaceDefault,
+			&cdiv1.DataVolumeSource{
+				PVC: &cdiv1.DataVolumeSourcePVC{
+					Name: "source-pvc",
+				},
+			},
+			&cdiv1.StorageSpec{
+				StorageClassName: &scName,
+				VolumeMode:       ptr.To(corev1.PersistentVolumeFilesystem),
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse(requestedSize),
+					},
+				},
+			},
+		)
+
+		pvcSpec, err := renderPvcSpec(cl, nil, logr.Logger{}, dv, nil)
+		Expect(err).ToNot(HaveOccurred())
+		pvcRequestedSize, found := pvcSpec.Resources.Requests[corev1.ResourceStorage]
+		Expect(found).To(BeTrue())
+		expSize := resource.MustParse(expectedSize)
+		Expect(pvcRequestedSize.Value()).To(Equal(expSize.Value()))
+	},
+		Entry("is below minimum", "1Gi", "4Gi", "5Gi"),
+		Entry("exceeds minimum", "8Gi", "4Gi", "10Gi"),
+	)
 })
 
 var _ = Describe("updateDataVolumeDefaultInstancetypeLabels", func() {
