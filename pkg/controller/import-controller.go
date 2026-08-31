@@ -1127,7 +1127,7 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 			MountPath: common.ScratchDataDir,
 		})
 	}
-	if args.vddkImageName != nil {
+	if args.vddkImageName != nil && *args.vddkImageName != args.image {
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
 			Name:      "vddk-vol-mount",
 			MountPath: "/opt",
@@ -1202,7 +1202,7 @@ func makeImporterVolumeSpec(args *importerPodArgs) []corev1.Volume {
 			},
 		})
 	}
-	if args.vddkImageName != nil {
+	if args.vddkImageName != nil && *args.vddkImageName != args.image {
 		volumes = append(volumes, corev1.Volume{
 			Name: "vddk-vol-mount",
 			VolumeSource: corev1.VolumeSource{
@@ -1261,7 +1261,7 @@ func makeImporterInitContainersSpec(args *importerPodArgs) []corev1.Container {
 			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		})
 	}
-	if args.vddkImageName != nil {
+	if args.vddkImageName != nil && *args.vddkImageName != args.image {
 		initContainers = append(initContainers, corev1.Container{
 			Name:  "vddk-side-car",
 			Image: *args.vddkImageName,
