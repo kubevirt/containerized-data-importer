@@ -5,4 +5,6 @@ metadata:
 data:
         # Replace registry:5000 with the registry containing your privately-built VDDK image,
         # and replace vddk-init:latest with your image's name and tag.
+        # A traditional VDDK image uses nbdkit-vddk. Set this to the importer image
+        # (the one that contains nbdkit-nfc) to use nbdkit-nfc instead.
         vddk-init-image: registry:5000/vddk-init:latest
