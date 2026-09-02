@@ -19,6 +19,7 @@ package importer
 import (
 	"archive/tar"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -32,7 +33,6 @@ import (
 	"github.com/containers/image/v5/oci/archive"
 	"github.com/containers/image/v5/pkg/blobinfocache"
 	"github.com/containers/image/v5/types"
-	"github.com/pkg/errors"
 
 	"k8s.io/klog/v2"
 
@@ -111,12 +111,12 @@ func (rd *RegistryDataSource) Transfer(path string, preallocation bool) (Process
 	klog.V(1).Infof("Copying registry image to scratch space.")
 	rd.info, err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.imageArchitecture, rd.certDir, rd.insecureTLS, preallocation)
 	if err != nil {
-		return ProcessingPhaseError, errors.Wrapf(err, "Failed to read registry image")
+		return ProcessingPhaseError, fmt.Errorf("Failed to read registry image: %w", err)
 	}
 
 	imageFile, err := getImageFileName(rd.imageDir)
 	if err != nil {
-		return ProcessingPhaseError, errors.Wrapf(err, "Cannot locate image file")
+		return ProcessingPhaseError, fmt.Errorf("Cannot locate image file: %w", err)
 	}
 
 	// imageFile and rd.imageDir are both valid, thus the Join will be valid, and the parse will work, no need to check for parse errors
@@ -154,13 +154,13 @@ func (rd *RegistryDataSource) Close() error {
 func getImageFileName(dir string) (string, error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		klog.Errorf("image directory does not exist")
-		return "", errors.Errorf("image directory does not exist")
+		return "", errors.New("image directory does not exist")
 	}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		klog.Errorf("Error reading directory")
-		return "", errors.Wrapf(err, "image file does not exist in image directory")
+		return "", fmt.Errorf("image file does not exist in image directory: %w", err)
 	}
 
 	if len(entries) == 0 {
@@ -293,7 +293,7 @@ func readImageSource(ctx context.Context, sys *types.SystemContext, img string) 
 	ref, err := parseImageName(img)
 	if err != nil {
 		klog.Errorf("Could not parse image: %v", err)
-		return nil, errors.Wrap(err, "Could not parse image")
+		return nil, fmt.Errorf("Could not parse image: %w", err)
 	}
 
 	src, err := ref.NewImageSource(ctx, sys)
@@ -307,7 +307,7 @@ func readImageSource(ctx context.Context, sys *types.SystemContext, img string) 
 func parseImageName(img string) (types.ImageReference, error) {
 	parts := strings.SplitN(img, ":", 2)
 	if len(parts) != 2 {
-		return nil, errors.Errorf(`Invalid image name "%s", expected colon-separated transport:reference`, img)
+		return nil, fmt.Errorf(`Invalid image name "%s", expected colon-separated transport:reference`, img)
 	}
 	switch parts[0] {
 	case cdiv1.RegistrySchemeDocker:
@@ -315,7 +315,7 @@ func parseImageName(img string) (types.ImageReference, error) {
 	case cdiv1.RegistrySchemeOci:
 		return archive.ParseReference(parts[1])
 	}
-	return nil, errors.Errorf(`Invalid image name "%s", unknown transport`, img)
+	return nil, fmt.Errorf(`Invalid image name "%s", unknown transport`, img)
 }
 
 func closeImage(c io.Closer) {
@@ -373,17 +373,17 @@ func processLayer(ctx context.Context,
 			destFile, err := safeJoinPaths(destDir, hdr.Name)
 			if err != nil {
 				klog.Errorf("Error sanitizing archive path: %v", err)
-				return false, errors.Wrap(err, "Error sanitizing archive path")
+				return false, fmt.Errorf("Error sanitizing archive path: %w", err)
 			}
 
 			if err = os.MkdirAll(filepath.Dir(destFile), os.ModePerm); err != nil {
 				klog.Errorf("Error creating output file's directory: %v", err)
-				return false, errors.Wrap(err, "Error creating output file's directory")
+				return false, fmt.Errorf("Error creating output file's directory: %w", err)
 			}
 
 			if _, _, err := StreamDataToFile(tarReader, destFile, preallocation); err != nil {
 				klog.Errorf("Error copying file: %v", err)
-				return false, errors.Wrap(err, "Error copying file")
+				return false, fmt.Errorf("Error copying file: %w", err)
 			}
 
 			return true, nil
@@ -420,14 +420,14 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchite
 	if err != nil {
 		closeImage(src)
 		klog.Errorf("Error retrieving image: %v", err)
-		return nil, errors.Wrap(err, "Error retrieving image")
+		return nil, fmt.Errorf("Error retrieving image: %w", err)
 	}
 	defer closeImage(imgCloser)
 
 	// The config the checks below read is also what the caller gets back, so inspect once.
 	info, err := imgCloser.Inspect(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error inspecting image")
+		return nil, fmt.Errorf("Error inspecting image: %w", err)
 	}
 	if err := validateImagePlatformMatch(srcCtx, info); err != nil {
 		return nil, err
