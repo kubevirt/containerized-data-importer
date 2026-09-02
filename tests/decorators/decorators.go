@@ -19,4 +19,7 @@ var (
 
 	// RequiresCSICloneClass requires a storage class with support for csi clone
 	RequiresCSICloneClass = Label("RequiresCSICloneClass")
+
+	// OpenShift decorator is used for tests that can only run on OpenShift clusters
+	OpenShift = Label("OpenShift")
 )

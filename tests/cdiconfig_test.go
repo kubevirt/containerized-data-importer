@@ -22,6 +22,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -419,7 +420,7 @@ var _ = Describe("CDI ingress config tests", Serial, func() {
 	})
 })
 
-var _ = Describe("CDI route config tests", Serial, func() {
+var _ = Describe("CDI route config tests", decorators.OpenShift, Serial, func() {
 	var (
 		f                       = framework.NewFramework("cdiconfig-test")
 		routeStart              = func() string { return fmt.Sprintf("%s-%s.", routeName, f.CdiInstallNs) }
@@ -442,9 +443,6 @@ var _ = Describe("CDI route config tests", Serial, func() {
 			Expect(err).ToNot(HaveOccurred())
 		}
 		_, err = openshiftClient.RouteV1().Routes(f.CdiInstallNs).Get(context.TODO(), "cdi-uploadproxy", metav1.GetOptions{})
-		if err != nil {
-			Skip("Unable to list routes, skipping")
-		}
 		By("Making sure no url is set to default route")
 		Eventually(func() bool {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -465,9 +463,6 @@ var _ = Describe("CDI route config tests", Serial, func() {
 	})
 
 	It("[test_id:4951]Should override uploadProxyURL if override is set", func() {
-		if openshiftClient == nil {
-			Skip("Routes not available")
-		}
 		override := "www.override.tt.org"
 		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 			config.UploadProxyURLOverride = &override

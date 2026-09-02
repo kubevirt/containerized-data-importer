@@ -1233,10 +1233,7 @@ var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 		Expect(token).ToNot(BeEmpty())
 	})
 
-	It("[test_id:9063]Should fail upload when TLS profile requires minimal TLS version higher than our client's", func() {
-		if utils.IsOpenshift(f.K8sClient) {
-			Skip("OpenShift reencrypt routes are used, client tls config will be dropped")
-		}
+	It("[test_id:9063]Should fail upload when TLS profile requires minimal TLS version higher than our client's", decorators.OpenShift, func() {
 		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 			config.TLSSecurityProfile = &cdiv1.TLSSecurityProfile{
 				// Modern profile requires TLS 1.3
