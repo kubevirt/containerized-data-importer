@@ -424,15 +424,15 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchite
 	}
 	defer closeImage(imgCloser)
 
-	// in the event that target is not a manifest list / image index
-	if srcCtx.ArchitectureChoice != "" {
-		if err := validateImagePlatformMatch(srcCtx, imgCloser); err != nil {
-			klog.Errorf("Error validating architecture: %v", err)
-			return nil, fmt.Errorf("Error validating architecture: %w", err)
-		}
+	// The config the checks below read is also what the caller gets back, so inspect once.
+	info, err := imgCloser.Inspect(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error inspecting image")
 	}
-
-	if err := checkBootcImage(ctx, imgCloser); err != nil {
+	if err := validateImagePlatformMatch(srcCtx, info); err != nil {
+		return nil, err
+	}
+	if err := checkBootcImage(info); err != nil {
 		return nil, err
 	}
 
@@ -462,11 +462,6 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchite
 		return nil, errors.New("Failed to find VM disk image file in the container image")
 	}
 
-	info, err := imgCloser.Inspect(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	return info, nil
 }
 
@@ -476,11 +471,7 @@ const (
 	bootcLabelEnabled = "1"
 )
 
-func checkBootcImage(ctx context.Context, img types.Image) error {
-	info, err := img.Inspect(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to inspect image for bootc detection: %w", err)
-	}
+func checkBootcImage(info *types.ImageInspectInfo) error {
 	if info.Labels[bootcImageLabel] == bootcLabelEnabled ||
 		info.Labels[ostreeBootLabel] == bootcLabelEnabled {
 		klog.Infof("Detected bootc/ostree-bootable container image")
@@ -489,15 +480,12 @@ func checkBootcImage(ctx context.Context, img types.Image) error {
 	return nil
 }
 
-func validateImagePlatformMatch(sys *types.SystemContext, img types.Image) error {
-	config, err := img.OCIConfig(context.Background())
-	if err != nil {
-		return err
+func validateImagePlatformMatch(sys *types.SystemContext, info *types.ImageInspectInfo) error {
+	if sys.ArchitectureChoice == "" || info.Architecture == sys.ArchitectureChoice {
+		return nil
 	}
-	if config.Architecture != sys.ArchitectureChoice {
-		return fmt.Errorf(`manifest image architecture: "%s" doesn't match requested architecture: "%s"`, config.Architecture, sys.ArchitectureChoice)
-	}
-	return nil
+	return fmt.Errorf(`Error validating architecture: manifest image architecture: "%s" doesn't match requested architecture: "%s"`,
+		info.Architecture, sys.ArchitectureChoice)
 }
 
 // GetImageDigest returns the digest of the container image at url.
