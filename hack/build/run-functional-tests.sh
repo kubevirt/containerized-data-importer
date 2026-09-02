@@ -31,20 +31,12 @@ KUBEVIRTCI_CONFIG_PATH="$(
 
 kubectl() { ./cluster-up/kubectl.sh "$@"; }
 
-# add_to_label_filter appends the given label and separator to
-# $label_filter which is passed to Ginkgo --filter-label flag.
-# How to use:
-# - Run tests with label
-#     add_to_label_filter '(mylabel)' ','
-# - Dont run tests with label:
-#     add_to_label_filter '(!mylabel)' '&&'
 add_to_label_filter() {
   local label=$1
-  local separator=$2
-  if [[ -z $label_filter ]]; then
+  if [[ -z "${label_filter}" ]]; then
     label_filter="${1}"
   else
-    label_filter="${label_filter}${separator}${1}"
+    label_filter="${label_filter}&&${label}"
   fi
 }
 
@@ -116,19 +108,76 @@ label_filter="${CDI_LABEL_FILTER}"
 
 # filter tests based on cluster capabilities
 if ! kubectl get clusterversion version &>/dev/null; then
-    add_to_label_filter '(!OpenShift)' '&&'
+    add_to_label_filter '(!OpenShift)'
 fi
 
 if ! kubectl get sc ${BLOCK_SC} &>/dev/null; then
-    add_to_label_filter '(!RequiresBlockStorage)' '&&'
+    add_to_label_filter '(!RequiresBlockStorage)'
 fi
 
 if ! kubectl get sc ${SNAPSHOT_SC} &>/dev/null; then
-    add_to_label_filter '(!RequiresSnapshotStorageClass)' '&&'
+    add_to_label_filter '(!RequiresSnapshotStorageClass)'
 fi
 
 if ! kubectl get sc ${CSICLONE_SC} &>/dev/null; then
-    add_to_label_filter '(!RequiresCSICloneClass)' '&&'
+    add_to_label_filter '(!RequiresCSICloneClass)'
+fi
+
+if [[ "${KUBEVIRT_DEPLOY_ISTIO}" != "true" ]]; then
+    add_to_label_filter '(!Istio)'
+fi
+
+if [[ "$MULTI_UPGRADE" != "true" ]]; then
+    add_to_label_filter '(!Upgrade)'
+fi
+
+# RequiresCsiDriver: default storage class must have a CSI driver
+default_provisioner=$(kubectl get sc -o json 2>/dev/null | jq -r '.items[] | select(.metadata.annotations["storageclass.kubernetes.io/is-default-class"] == "true") | .provisioner' 2>/dev/null | head -1)
+default_sc=$(kubectl get sc -o json 2>/dev/null | jq -r '.items[] | select(.metadata.annotations["storageclass.kubernetes.io/is-default-class"] == "true")' 2>/dev/null | head -1 )
+default_sc_volume_binding=$(kubectl get sc -o json 2>/dev/null | jq -r '.items[] | select(.metadata.annotations["storageclass.kubernetes.io/is-default-class"] == "true") | .volumeBindingMode' 2>/dev/null | head -1)
+
+if [[ -z "${default_provisioner}" ]] || ! kubectl get csidriver "${default_provisioner}" &>/dev/null 2>&1; then
+    add_to_label_filter '(!RequiresCsiDriver)'
+else
+    add_to_label_filter '(!RequiresNoCsiDriver)'
+fi
+
+# RequiresHPP: default storage class must be HostPath Provisioner
+if [[ "${default_provisioner}" != "kubevirt.io.hostpath-provisioner" ]]; then
+    add_to_label_filter '(!RequiresHPP)'
+fi
+
+# RequiresDefaultStorageClass: a default storage class must exist
+if [[ -z "${default_sc}" ]]; then
+    add_to_label_filter '(!RequiresDefaultStorageClass)'
+fi
+
+# RequiresDefaultStorageClassNFS
+if [[ "${default_sc}" != "nfs" ]]; then
+    add_to_label_filter '(!RequiresDefaultStorageClassNFS)'
+fi
+
+# RequiresDefaultSCProvisioner: default storage class must have a dynamic provisioner
+if [[ -z "${default_provisioner}" || "${default_provisioner}" == "kubernetes.io/no-provisioner" ]]; then
+    add_to_label_filter '(!RequiresDefaultSCProvisioner)'
+fi
+
+if [[ "${default_sc_volume_binding}" != "WaitForFirstConsumer" ]]; then
+    add_to_label_filter '(!RequiresDefaultStorageClassWFFC)'
+fi
+
+# RequiresPrometheus: Prometheus monitoring infrastructure must be available
+if [[ $KUBEVIRT_DEPLOY_PROMETHEUS != "true" ]]; then
+    add_to_label_filter '(!RequiresPrometheus)'
+fi
+
+if [[ $KUBEVIRT_NUM_NODES -lt 2 ]]; then
+    add_to_label_filter '(!RequiresTwoSchedulableNodes)'
+fi
+
+num_sc=$(kubectl get sc | sed '1d' | wc -l)
+if [[ $num_sc -lt 2 ]]; then
+    add_to_label_filter '(!RequiresTwoStorageClasses)'
 fi
 
 (

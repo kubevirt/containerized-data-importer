@@ -43,7 +43,7 @@ const (
 	metricConsistentPollingTimeout = 2 * time.Minute
 )
 
-var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
+var _ = Describe("[Destructive] Monitoring Tests", decorators.RequiresPrometheus, Serial, func() {
 	f := framework.NewFramework("monitoring-test")
 
 	var (
@@ -153,10 +153,6 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 	}
 
 	BeforeEach(func() {
-		if !f.IsPrometheusAvailable() {
-			Skip("This test depends on prometheus infra being available")
-		}
-
 		cr = getCDI(f)
 		cdiPods = getCDIPods(f)
 		defaultStorageClass = utils.GetDefaultStorageClass(f.K8sClient)
@@ -305,8 +301,6 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 		It("[test_id:10720]CDIDefaultStorageClassDegraded fired when there is a default storage class, but it has no smart clone or ReadWriteMany", decorators.RequiresSnapshotStorageClass, func() {
 			rwx := corev1.ReadWriteMany
 			rwo := corev1.ReadWriteOnce
-			isStubSnapshotClass := false
-
 			profile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), defaultStorageClass.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -316,12 +310,6 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 				By("Default storage class does not support snapshot or CSI clone - adding stub VolumeSnapshot crds and VolumeSnapshotClass")
 				createStubSnapshotClass(*profile.Status.Provisioner)
 				waitForCloneStrategy(cdiv1.CloneStrategySnapshot)
-
-				isStubSnapshotClass = true
-			}
-
-			if !isStubSnapshotClass && !f.IsCSIVolumeCloneStorageClassAvailable() {
-				Skip("Smart Clone is not applicable")
 			}
 
 			hasRWX := hasRWX(profile)

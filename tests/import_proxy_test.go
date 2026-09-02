@@ -609,7 +609,7 @@ func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpCli
 func updateClusterWideProxyObj(ocpClient *configclient.Clientset, HTTPProxy, HTTPSProxy, NoProxy, trustedCa string) {
 	proxy, err := ocpClient.ConfigV1().Proxies().Get(context.TODO(), cont.ClusterWideProxyName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
-		Skip("This OpenShift cluster version does not have a Cluster Wide Proxy object")
+		Fail("This OpenShift cluster version does not have a Cluster Wide Proxy object")
 	}
 	Expect(err).ToNot(HaveOccurred())
 	proxy.Spec.HTTPProxy = HTTPProxy

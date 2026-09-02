@@ -102,11 +102,7 @@ var _ = Describe("all clone tests", func() {
 
 		})
 
-		It("[test_id:6693]Should clone imported data and retain transfer pods after completion", func() {
-			if utils.DefaultStorageClassCsiDriver != nil {
-				Skip("Cannot test host-assisted cloning")
-			}
-
+		It("[test_id:6693]Should clone imported data and retain transfer pods after completion", decorators.RequiresNoCsiDriver, func() {
 			dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 			By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -250,16 +246,10 @@ var _ = Describe("all clone tests", func() {
 				cloneOfAnnoExistenceTest(f, f.Namespace.Name)
 			})
 
-			It("[posneg:negative][test_id:3617]Should clone across nodes when multiple local filesystem volumes exist,", func() {
-				if utils.DefaultStorageClassCsiDriver != nil {
-					Skip("this test is only relevant for non CSI local storage")
-				}
+			It("[posneg:negative][test_id:3617]Should clone across nodes when multiple local filesystem volumes exist,", decorators.RequiresNoCsiDriver, decorators.RequiresTwoSchedulableNodes, func() {
 				// Get nodes, need at least 2
 				nodeList, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 				Expect(err).ToNot(HaveOccurred())
-				if len(nodeList.Items) < 2 {
-					Skip("Need at least 2 nodes to copy across nodes")
-				}
 				nodeMap := make(map[string]bool)
 				for _, node := range nodeList.Items {
 					if ok := nodeMap[node.Name]; !ok {
@@ -287,9 +277,6 @@ var _ = Describe("all clone tests", func() {
 							pvNodeNames[pvNode] = val + 1
 						}
 					}
-				}
-				if len(pvNodeNames) < 2 {
-					Skip("Need filesystem PVs on at least 2 nodes to test")
 				}
 
 				// Find the source and target PVs so we can label them.
@@ -1699,11 +1686,7 @@ var _ = Describe("all clone tests", func() {
 			}
 		})
 
-		It("should successfully clone", func() {
-			if !utils.IsNfs() {
-				Skip("NFS specific test; fine with both static NFS and CSI because no CSI clone")
-			}
-
+		It("should successfully clone", decorators.RequiresDefaultStorageClassNFS, func() {
 			By("Creating a source from a real image")
 			sourceDv := utils.NewDataVolumeWithHTTPImport("source-dv", "200Mi", fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
 			sourceDv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
@@ -2524,11 +2507,6 @@ var _ = Describe("all clone tests", func() {
 			var i int
 			var err error
 
-			defaultSc := utils.DefaultStorageClass.GetName()
-			if crossNamespace && f.IsBindingModeWaitForFirstConsumer(&defaultSc) {
-				Skip("only host assisted is applicable with WFFC cross namespace")
-			}
-
 			targetNs := f.Namespace
 			if crossNamespace {
 				targetNamespace, err = f.CreateNamespace("cdi-cross-ns-snapshot-clone-test", nil)
@@ -2576,7 +2554,7 @@ var _ = Describe("all clone tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(same).To(BeTrue())
 		},
-			Entry("[test_id:9703] with filesystem single clone", v1.PersistentVolumeFilesystem, 1, true),
+			Entry("[test_id:9703] with filesystem single clone", v1.PersistentVolumeFilesystem, 1, true, decorators.RequiresDefaultStorageClassWFFC),
 			Entry("[test_id:9708] with filesystem multiple clones", v1.PersistentVolumeFilesystem, 5, false),
 			Entry("[test_id:9709] with block single clone", decorators.RequiresBlockStorage, v1.PersistentVolumeBlock, 1, false),
 			Entry("[test_id:9710] with block multiple clones", decorators.RequiresBlockStorage, v1.PersistentVolumeBlock, 5, false),

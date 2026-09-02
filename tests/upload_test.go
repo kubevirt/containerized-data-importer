@@ -392,7 +392,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		)
 	})
 
-	Context("Upload population", func() {
+	Context("Upload population", decorators.RequiresCsiDriver, func() {
 		var (
 			pvc      *v1.PersistentVolumeClaim
 			pvcPrime *v1.PersistentVolumeClaim
@@ -410,9 +410,6 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		}
 
 		BeforeEach(func() {
-			if utils.DefaultStorageClassCsiDriver == nil {
-				Skip("No CSI driver found")
-			}
 			verifyCleanup(pvc)
 		})
 

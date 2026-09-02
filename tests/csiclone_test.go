@@ -82,14 +82,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		verifyCSIClone(dataVolume, f)
 	})
 
-	It("StorageProfile setting ignored with non-csi clone", func() {
-		if f.IsCSIVolumeCloneStorageClassAvailable() {
-			Skip("Test should only run on non-csi storage")
-		}
-		if utils.DefaultStorageClassCsiDriver != nil {
-			Skip("default storage class has CSI Driver, cannot run test")
-		}
-
+	It("StorageProfile setting ignored with non-csi clone", decorators.RequiresNoCsiDriver, func() {
 		By(fmt.Sprintf("configure storage profile %s", cloneStorageClassName))
 		Expect(
 			utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, cloneStorageClassName, originalProfileSpec, cdiv1.CloneStrategyCsiClone),

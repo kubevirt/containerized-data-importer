@@ -663,13 +663,11 @@ var _ = Describe("DataImportCron", Serial, func() {
 		}
 	},
 		Entry("[test_id:7406] with PVC & DV sources", cdiv1.DataImportCronSourceFormatPvc),
-		Entry("[test_id:10033] with snapshot sources", decorators.RequiresSnapshotStorageClass),
+		Entry("[test_id:10033] with snapshot sources", cdiv1.DataImportCronSourceFormatSnapshot, decorators.RequiresSnapshotStorageClass),
 	)
 
-	It("[test_id:8033] should delete jobs on deletion", func() {
-		if reg.PullMethod != nil && *reg.PullMethod == cdiv1.RegistryPullNode {
-			Skip("No cronjobs on pullMethod: node")
-		}
+	// test requires openshift cluster for pull method pod
+	It("[test_id:8033] should delete jobs on deletion", decorators.OpenShift, func() {
 		noSuchCM := "nosuch"
 		reg.CertConfigMap = &noSuchCM
 		cron = utils.NewDataImportCron("cron-test", "5Gi", scheduleEveryMinute, dataSourceName, importsToKeep, *reg)
