@@ -343,7 +343,6 @@ func processLayer(ctx context.Context,
 	destDir string,
 	pathPrefix string,
 	cache types.BlobInfoCache,
-	stopAtFirst,
 	preallocation bool) (bool, error) {
 	var reader io.ReadCloser
 	reader, _, err := src.GetBlob(ctx, layer, cache)
@@ -359,11 +358,10 @@ func processLayer(ctx context.Context,
 	defer fr.Close()
 
 	tarReader := tar.NewReader(fr.TopReader())
-	found := false
 	for {
 		hdr, err := tarReader.Next()
 		if errors.Is(err, io.EOF) {
-			break // End of archive
+			return false, nil // End of archive
 		}
 		if err != nil {
 			klog.Errorf("%v: %v", errReadingLayer, err)
@@ -388,14 +386,9 @@ func processLayer(ctx context.Context,
 				return false, errors.Wrap(err, "Error copying file")
 			}
 
-			found = true
-			if stopAtFirst {
-				return found, nil
-			}
+			return true, nil
 		}
 	}
-
-	return found, nil
 }
 
 // Sanitize archive file pathing from "G305: Zip Slip vulnerability"
@@ -411,7 +404,7 @@ func safeJoinPaths(dir, path string) (v string, err error) {
 	return "", fmt.Errorf("%s: %s", "content filepath is tainted", path)
 }
 
-func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir string, insecureRegistry, stopAtFirst, preallocation bool) (*types.ImageInspectInfo, error) {
+func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir string, insecureRegistry, preallocation bool) (*types.ImageInspectInfo, error) {
 	klog.Infof("Downloading image from '%v', copying file from '%v' to '%v'", url, pathPrefix, destDir)
 
 	ctx, cancel := commandTimeoutContext()
@@ -450,7 +443,7 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchite
 	for _, layer := range layers {
 		klog.Infof("Processing layer %+v", layer)
 
-		found, err = processLayer(ctx, src, layer, destDir, pathPrefix, cache, stopAtFirst, preallocation)
+		found, err = processLayer(ctx, src, layer, destDir, pathPrefix, cache, preallocation)
 		if found {
 			break
 		}
@@ -549,5 +542,5 @@ func GetImageDigest(url, accessKey, secKey, certDir string, insecureRegistry boo
 // certDir: directory public CA keys are stored for registry identity verification
 // insecureRegistry: boolean if true will allow insecure registries.
 func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir string, insecureRegistry, preallocation bool) (*types.ImageInspectInfo, error) {
-	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir, insecureRegistry, true, preallocation)
+	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir, insecureRegistry, preallocation)
 }
