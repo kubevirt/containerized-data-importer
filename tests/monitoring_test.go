@@ -32,6 +32,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/storagecapabilities"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -301,7 +302,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 			Entry("[test_id:XXXXX]without AccessModes, so PVC is not created until default storage class exists", false),
 		)
 
-		It("[test_id:10720]CDIDefaultStorageClassDegraded fired when there is a default storage class, but it has no smart clone or ReadWriteMany", func() {
+		It("[test_id:10720]CDIDefaultStorageClassDegraded fired when there is a default storage class, but it has no smart clone or ReadWriteMany", decorators.RequiresSnapshotStorageClass, func() {
 			rwx := corev1.ReadWriteMany
 			rwo := corev1.ReadWriteOnce
 			isStubSnapshotClass := false
@@ -319,7 +320,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 				isStubSnapshotClass = true
 			}
 
-			if !isStubSnapshotClass && !f.IsSnapshotStorageClassAvailable() && !f.IsCSIVolumeCloneStorageClassAvailable() {
+			if !isStubSnapshotClass && !f.IsCSIVolumeCloneStorageClassAvailable() {
 				Skip("Smart Clone is not applicable")
 			}
 

@@ -1051,11 +1051,8 @@ var _ = Describe("all clone tests", func() {
 			ClonerBehavior(cloneStorageClassName, "copy")
 		})
 
-		Context("SmartClone", func() {
+		Context("SmartClone", decorators.RequiresSnapshotStorageClass, func() {
 			BeforeEach(func() {
-				if !f.IsSnapshotStorageClassAvailable() {
-					Skip("SmartClone does not work without SnapshotStorageClass")
-				}
 				cloneStorageClassName = f.SnapshotSCName
 				By(fmt.Sprintf("Get original storage profile: %s", cloneStorageClassName))
 
@@ -1854,15 +1851,14 @@ var _ = Describe("all clone tests", func() {
 			}
 		})
 
-		It("[test_id:4956]Should create clone in namespace with quota", func() {
+		It("[test_id:4956]Should create clone in namespace with quota", decorators.RequiresSnapshotStorageClass, func() {
 			err := f.CreateQuotaInNs(int64(1), int64(1024*1024*1024), int64(2), int64(2*1024*1024*1024))
 			Expect(err).NotTo(HaveOccurred())
-			smartApplicable := f.IsSnapshotStorageClassAvailable()
 			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
 			if err == nil {
 				value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
-				if smartApplicable && ok && strings.Compare(value, "true") == 0 {
-					Skip("Cannot test host assisted cloning for within namespace when all pvcs are smart clone capable.")
+				if ok && strings.Compare(value, "true") == 0 {
+					Fail("Cannot test host assisted cloning for within namespace when all pvcs are smart clone capable.")
 				}
 			}
 
@@ -2484,7 +2480,7 @@ var _ = Describe("all clone tests", func() {
 		})
 	})
 
-	var _ = Describe("[rfe_id:9453] Clone from volumesnapshot source", func() {
+	var _ = Describe("[rfe_id:9453] Clone from volumesnapshot source", decorators.RequiresSnapshotStorageClass, func() {
 		f := framework.NewFramework(namespacePrefix)
 
 		var snapshot *snapshotv1.VolumeSnapshot
@@ -2514,12 +2510,6 @@ var _ = Describe("all clone tests", func() {
 			utils.CleanupDvPvc(f.K8sClient, f.CdiClient, f.Namespace.Name, pvc.Name)
 		}
 
-		BeforeEach(func() {
-			if !f.IsSnapshotStorageClassAvailable() {
-				Skip("Clone from volumesnapshot does not work without snapshot capable storage")
-			}
-		})
-
 		AfterEach(func() {
 			if snapshot != nil {
 				By(fmt.Sprintf("[AfterEach] Removing snapshot %s/%s", snapshot.Namespace, snapshot.Name))
@@ -2537,16 +2527,13 @@ var _ = Describe("all clone tests", func() {
 			}
 		})
 
-		DescribeTable("Should successfully clone without falling back to host assisted", func(volumeMode v1.PersistentVolumeMode, repeat int, crossNamespace bool) {
+		DescribeTable("Should successfully clone without falling back to host assisted", decorators.RequiresSnapshotStorageClass, func(volumeMode v1.PersistentVolumeMode, repeat int, crossNamespace bool) {
 			var i int
 			var err error
 
 			defaultSc := utils.DefaultStorageClass.GetName()
 			if crossNamespace && f.IsBindingModeWaitForFirstConsumer(&defaultSc) {
 				Skip("only host assisted is applicable with WFFC cross namespace")
-			}
-			if !f.IsSnapshotStorageClassAvailable() {
-				Skip("Clone from volumesnapshot does not work without snapshot capable storage")
 			}
 
 			targetNs := f.Namespace
@@ -2725,11 +2712,8 @@ var _ = Describe("all clone tests", func() {
 			})
 		})
 
-		Context("Clone without a source snapshot", func() {
+		Context("Clone without a source snapshot", decorators.RequiresSnapshotStorageClass, func() {
 			It("[test_id:9718] Should finish the clone after creating the source snapshot", func() {
-				if !f.IsSnapshotStorageClassAvailable() {
-					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
-				}
 				size := "1Gi"
 				volumeMode := v1.PersistentVolumeFilesystem
 				By("Create the clone before the source snapshot")
@@ -2762,11 +2746,8 @@ var _ = Describe("all clone tests", func() {
 			})
 		})
 
-		Context("sourceRef support", func() {
+		Context("sourceRef support", decorators.RequiresSnapshotStorageClass, func() {
 			DescribeTable("[test_id:9758] Should clone data from SourceRef snapshot DataSource", func(sizeless bool) {
-				if !f.IsSnapshotStorageClassAvailable() {
-					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
-				}
 
 				size := "1Gi"
 				volumeMode := v1.PersistentVolumeFilesystem

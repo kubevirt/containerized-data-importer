@@ -3443,10 +3443,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Expect(err).ToNot(HaveOccurred())
 				return dv
 			}),
-			Entry("Snapshot", func() *cdiv1.DataVolume {
-				if !f.IsSnapshotStorageClassAvailable() {
-					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
-				}
+			Entry("Snapshot", decorators.RequiresSnapshotStorageClass, func() *cdiv1.DataVolume {
 				By("creating a labelled VolumeSnapshot")
 				snapClass := f.GetSnapshotClass()
 				snapshot := utils.NewVolumeSnapshot(sourceDataVolume.Name, sourceDataVolume.Namespace, sourceDataVolume.Name, &snapClass.Name)

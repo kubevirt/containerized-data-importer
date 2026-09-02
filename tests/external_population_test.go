@@ -21,6 +21,7 @@ import (
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -277,10 +278,7 @@ var _ = Describe("Population tests", func() {
 			}, timeout, pollingInterval).Should(BeTrue())
 		})
 
-		It("Should perform a Volume Snapshot clone through the DataSource field", func() {
-			if !f.IsSnapshotStorageClassAvailable() {
-				Skip("Snapshot not possible")
-			}
+		It("Should perform a Volume Snapshot clone through the DataSource field", decorators.RequiresSnapshotStorageClass, func() {
 
 			By("Creating source PVC")
 			pvcDef := utils.NewPVCDefinition(sourcePVCName, "80Mi", nil, nil)

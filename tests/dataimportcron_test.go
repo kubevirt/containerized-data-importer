@@ -23,6 +23,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -264,10 +265,6 @@ var _ = Describe("DataImportCron", Serial, func() {
 	}
 
 	DescribeTable("should", func(retention, createErrorDv bool, repeat int, format cdiv1.DataImportCronSourceFormat) {
-		if format == cdiv1.DataImportCronSourceFormatSnapshot && !f.IsSnapshotStorageClassAvailable() {
-			Skip("Volumesnapshot support needed to test DataImportCron with Volumesnapshot sources")
-		}
-
 		configureStorageProfileResultingFormat(format)
 
 		By(fmt.Sprintf("Create new DataImportCron %s, url %s", cronName, *reg.URL))
@@ -413,8 +410,8 @@ var _ = Describe("DataImportCron", Serial, func() {
 	},
 		Entry("[test_id:7403] succeed importing initial PVC from registry URL", true, false, 1, cdiv1.DataImportCronSourceFormatPvc),
 		Entry("[test_id:7414] succeed importing PVC from registry URL on source digest update", true, false, 2, cdiv1.DataImportCronSourceFormatPvc),
-		Entry("[test_id:10031] succeed importing initially into a snapshot from registry URL", true, false, 1, cdiv1.DataImportCronSourceFormatSnapshot),
-		Entry("[test_id:10032] succeed importing to a snapshot from registry URL on source digest update", true, false, 2, cdiv1.DataImportCronSourceFormatSnapshot),
+		Entry("[test_id:10031] succeed importing initially into a snapshot from registry URL", true, false, 1, cdiv1.DataImportCronSourceFormatSnapshot, decorators.RequiresSnapshotStorageClass),
+		Entry("[test_id:10032] succeed importing to a snapshot from registry URL on source digest update", true, false, 2, cdiv1.DataImportCronSourceFormatSnapshot, decorators.RequiresSnapshotStorageClass),
 		Entry("[test_id:8266] succeed deleting error DVs when importing new ones", false, true, 2, cdiv1.DataImportCronSourceFormatPvc),
 	)
 
@@ -525,9 +522,6 @@ var _ = Describe("DataImportCron", Serial, func() {
 	})
 
 	DescribeTable("Succeed garbage collecting sources when importing new ones", func(format cdiv1.DataImportCronSourceFormat) {
-		if format == cdiv1.DataImportCronSourceFormatSnapshot && !f.IsSnapshotStorageClassAvailable() {
-			Skip("Volumesnapshot support needed to test DataImportCron with Volumesnapshot sources")
-		}
 		const oldDvName = "old-version-dv"
 
 		configureStorageProfileResultingFormat(format)
@@ -669,7 +663,7 @@ var _ = Describe("DataImportCron", Serial, func() {
 		}
 	},
 		Entry("[test_id:7406] with PVC & DV sources", cdiv1.DataImportCronSourceFormatPvc),
-		Entry("[test_id:10033] with snapshot sources", cdiv1.DataImportCronSourceFormatSnapshot),
+		Entry("[test_id:10033] with snapshot sources", decorators.RequiresSnapshotStorageClass),
 	)
 
 	It("[test_id:8033] should delete jobs on deletion", func() {
@@ -755,10 +749,7 @@ var _ = Describe("DataImportCron", Serial, func() {
 	})
 
 	Context("Change source format of existing DataImportCron", func() {
-		It("[test_id:10034] Should allow switching back and forth from PVC to snapshot sources", func() {
-			if !f.IsSnapshotStorageClassAvailable() {
-				Skip("Volumesnapshot support needed to test DataImportCron with Volumesnapshot sources")
-			}
+		It("[test_id:10034] Should allow switching back and forth from PVC to snapshot sources", decorators.RequiresSnapshotStorageClass, func() {
 			size := "1Gi"
 
 			configureStorageProfileResultingFormat(cdiv1.DataImportCronSourceFormatPvc)
