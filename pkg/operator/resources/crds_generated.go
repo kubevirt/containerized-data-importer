@@ -6051,6 +6051,19 @@ spec:
                                 description: ImageStream is the name of image stream
                                   for import
                                 type: string
+                              layer:
+                                description: |-
+                                  Layer selects a single OCI artifact layer to import as the disk image, not supported with the node pull method.
+                                  Only KubeVirt artifacts are currently supported, of artifact type application/vnd.kubevirt.virtualmachine.v1
+                                  or application/vnd.kubevirt.virtualmachinetemplate.v1
+                                properties:
+                                  matchAnnotations:
+                                    additionalProperties:
+                                      type: string
+                                    description: MatchAnnotations the layer has to
+                                      carry
+                                    type: object
+                                type: object
                               platform:
                                 description: Platform describes the minimum runtime
                                   requirements of the image
@@ -7074,6 +7087,18 @@ spec:
                       imageStream:
                         description: ImageStream is the name of image stream for import
                         type: string
+                      layer:
+                        description: |-
+                          Layer selects a single OCI artifact layer to import as the disk image, not supported with the node pull method.
+                          Only KubeVirt artifacts are currently supported, of artifact type application/vnd.kubevirt.virtualmachine.v1
+                          or application/vnd.kubevirt.virtualmachinetemplate.v1
+                        properties:
+                          matchAnnotations:
+                            additionalProperties:
+                              type: string
+                            description: MatchAnnotations the layer has to carry
+                            type: object
+                        type: object
                       platform:
                         description: Platform describes the minimum runtime requirements
                           of the image
@@ -8159,6 +8184,18 @@ spec:
                       imageStream:
                         description: ImageStream is the name of image stream for import
                         type: string
+                      layer:
+                        description: |-
+                          Layer selects a single OCI artifact layer to import as the disk image, not supported with the node pull method.
+                          Only KubeVirt artifacts are currently supported, of artifact type application/vnd.kubevirt.virtualmachine.v1
+                          or application/vnd.kubevirt.virtualmachinetemplate.v1
+                        properties:
+                          matchAnnotations:
+                            additionalProperties:
+                              type: string
+                            description: MatchAnnotations the layer has to carry
+                            type: object
+                        type: object
                       platform:
                         description: Platform describes the minimum runtime requirements
                           of the image
