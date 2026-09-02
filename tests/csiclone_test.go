@@ -13,6 +13,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -69,14 +70,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		verifyCSIClone(dataVolume, f)
 	})
 
-	It("Verify DataVolume CSI Cloning - volumeMode block - Positive flow", func() {
+	It("Verify DataVolume CSI Cloning - volumeMode block - Positive flow", decorators.RequiresBlockStorage, func() {
 		if !f.IsCSIVolumeCloneStorageClassAvailable() {
 			Skip("CSI Volume Clone is not applicable")
 		}
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
-
 		By(fmt.Sprintf("configure storage profile %s", f.CsiCloneSCName))
 		Expect(
 			utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone),

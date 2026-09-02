@@ -35,6 +35,7 @@ import (
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/tests"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -450,7 +451,7 @@ func startPrometheusPortForward(f *framework.Framework) (string, *exec.Cmd, erro
 	return url, cmd, nil
 }
 
-var _ = Describe("Importer Test Suite-Block_device", func() {
+var _ = Describe("Importer Test Suite-Block_device", decorators.RequiresBlockStorage, func() {
 	f := framework.NewFramework(namespacePrefix)
 	var (
 		pvc            *v1.PersistentVolumeClaim
@@ -465,9 +466,6 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 	})
 
 	It("[test_id:4971]Should create import pod for block pv", func() {
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
 		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
 		pvcAnn := map[string]string{
 			controller.AnnEndpoint: httpEp + "/tinyCore.iso",
@@ -498,9 +496,6 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 	})
 
 	DescribeTable("Should create blank raw image for block PV", func(consumer bool) {
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
 		dv := utils.NewDataVolumeForBlankRawImageBlock("create-blank-image-to-block-pvc", "500Mi", f.BlockSCName)
 		if !consumer {
 			controller.AddAnnotation(dv, controller.AnnImmediateBinding, "true")
@@ -527,9 +522,6 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 	)
 
 	It("Should perform fsync syscall after qemu-img convert to raw", func() {
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
 		dataVolume := utils.NewDataVolumeWithHTTPImportToBlockPV("qemu-img-convert-fsync-test", "4Gi", tinyCoreIsoURL(), f.BlockSCName)
 		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
 		dataVolume.SetAnnotations(map[string]string{})
@@ -1198,25 +1190,13 @@ var _ = Describe("Preallocation", func() {
 		Entry("HTTP import (archive content)", false, "", "", func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithArchiveContent("import-dv", "100Mi", tinyCoreTarURL())
 		}),
-		Entry("HTTP Import (TAR image, block DataVolume)", true, utils.TinyCoreTarMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
-
+		Entry("HTTP Import (TAR image, block DataVolume)", decorators.RequiresBlockStorage, true, utils.TinyCoreTarMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreTarURL(), f.BlockSCName)
 		}),
-		Entry("HTTP Import (ISO image, block DataVolume)", true, utils.TinyCoreMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
-
+		Entry("HTTP Import (ISO image, block DataVolume)", decorators.RequiresBlockStorage, true, utils.TinyCoreMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreIsoURL(), f.BlockSCName)
 		}),
-		Entry("HTTP Import (QCOW2 image, block DataVolume)", true, utils.TinyCoreMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
-
+		Entry("HTTP Import (QCOW2 image, block DataVolume)", decorators.RequiresBlockStorage, true, utils.TinyCoreMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreQcow2URL(), f.BlockSCName)
 		}),
 		Entry("ImageIO import", Label("ImageIO"), Serial, true, utils.ImageioMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
@@ -1292,11 +1272,7 @@ var _ = Describe("Preallocation", func() {
 		Entry("Blank image", true, utils.BlankMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeForBlankRawImage("import-dv", "100Mi")
 		}),
-		Entry("Blank block DataVolume", true, utils.BlankMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
-
+		Entry("Blank block DataVolume", decorators.RequiresBlockStorage, true, utils.BlankMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeForBlankRawImageBlock("import-dv", "1Gi", f.BlockSCName)
 		}),
 	)
@@ -1652,11 +1628,7 @@ var _ = Describe("Import populator", func() {
 		}, 2*time.Minute, 2*time.Second).Should(Succeed())
 	})
 
-	DescribeTable("should import Block PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error) {
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
-
+	DescribeTable("should import Block PVC", decorators.RequiresBlockStorage, func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error) {
 		pvc = importPopulationPVCDefinition()
 		volumeMode := v1.PersistentVolumeBlock
 		pvc.Spec.VolumeMode = &volumeMode

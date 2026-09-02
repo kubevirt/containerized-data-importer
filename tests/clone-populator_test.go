@@ -23,6 +23,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -280,10 +281,7 @@ var _ = Describe("Clone Populator tests", func() {
 			Expect(targetHash).To(Equal(sourceHash))
 		})
 
-		DescribeTable("should do block to filesystem clone", func(webhookRendering bool) {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
+		DescribeTable("should do block to filesystem clone", decorators.RequiresBlockStorage, func(webhookRendering bool) {
 			source := createSource(defaultSize, corev1.PersistentVolumeBlock)
 			createDataSource()
 			if webhookRendering {
@@ -301,10 +299,7 @@ var _ = Describe("Clone Populator tests", func() {
 			Entry("[rfe_id:10985][crit:high][test_id:10976]with incomplete target PVC webhook rendering", true),
 		)
 
-		DescribeTable("should do filesystem to block clone", func(webhookRendering bool) {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
+		DescribeTable("should do filesystem to block clone", decorators.RequiresBlockStorage, func(webhookRendering bool) {
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
 			if webhookRendering {

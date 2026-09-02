@@ -34,6 +34,7 @@ import (
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -376,10 +377,7 @@ var _ = Describe("all clone tests", func() {
 				completeClone(f, f.Namespace, targetPvc, filepath.Join(testBaseDir, testFile), fillDataFSMD5sum, "")
 			})
 
-			DescribeTable("Should clone data from filesystem to block", func(preallocate bool) {
-				if !f.IsBlockVolumeStorageClassAvailable() {
-					Skip("Storage Class for block volume is not available")
-				}
+			DescribeTable("Should clone data from filesystem to block", decorators.RequiresBlockStorage, func(preallocate bool) {
 				if cloneType == "csi-clone" || cloneType == "snapshot" {
 					Skip("csi-clone only works for the same volumeMode")
 				}
@@ -428,10 +426,7 @@ var _ = Describe("all clone tests", func() {
 				Entry("[test_id:XXXX]preallocated target", true),
 			)
 
-			DescribeTable("[test_id:5570]Should clone data from block to filesystem", func(desiredPreallocation bool) {
-				if !f.IsBlockVolumeStorageClassAvailable() {
-					Skip("Storage Class for block volume is not available")
-				}
+			DescribeTable("[test_id:5570]Should clone data from block to filesystem", decorators.RequiresBlockStorage, func(desiredPreallocation bool) {
 				if cloneType == "csi-clone" {
 					Skip("csi-clone only works for the same volumeMode")
 				}
@@ -489,11 +484,8 @@ var _ = Describe("all clone tests", func() {
 				Entry("without preallocation", false),
 			)
 
-			It("bz:2079781 Should clone data from filesystem to block, when using storage API ", func() {
+			It("bz:2079781 Should clone data from filesystem to block, when using storage API ", decorators.RequiresBlockStorage, func() {
 				SetFilesystemOverhead(f, "0.50", "0.50")
-				if !f.IsBlockVolumeStorageClassAvailable() {
-					Skip("Storage Class for block volume is not available")
-				}
 				if cloneType == "csi-clone" || cloneType == "snapshot" {
 					Skip("csi-clone only works for the same volumeMode")
 				}
@@ -655,7 +647,7 @@ var _ = Describe("all clone tests", func() {
 				Expect(md5Match).To(BeTrue())
 			})
 
-			DescribeTable("Should clone with empty volume size without using size-detection pod",
+			DescribeTable("Should clone with empty volume size without using size-detection pod", decorators.RequiresBlockStorage,
 				func(sourceVolumeMode, targetVolumeMode v1.PersistentVolumeMode, sourceRef bool) {
 					// When cloning without defining the target's storage size, the source's size can be attainable
 					// by different means depending on the clone type and the volume mode used.
@@ -672,17 +664,11 @@ var _ = Describe("all clone tests", func() {
 					}
 
 					if sourceVolumeMode == v1.PersistentVolumeBlock {
-						if !f.IsBlockVolumeStorageClassAvailable() {
-							Skip("Storage Class for block volume is not available")
-						}
 						sourceSCName = f.BlockSCName
 						sourceDiskImagePath = testBaseDir
 					}
 
 					if targetVolumeMode == v1.PersistentVolumeBlock {
-						if !f.IsBlockVolumeStorageClassAvailable() {
-							Skip("Storage Class for block volume is not available")
-						}
 						targetSCName = f.BlockSCName
 						targetDiskImagePath = testBaseDir
 					}
@@ -997,12 +983,9 @@ var _ = Describe("all clone tests", func() {
 					}
 				})
 
-				It("[rfe_id:1277][test_id:1899][crit:High][vendor:cnv-qe@redhat.com][level:component] Should allow multiple cloning operations in parallel for block devices", func() {
+				It("[rfe_id:1277][test_id:1899][crit:High][vendor:cnv-qe@redhat.com][level:component] Should allow multiple cloning operations in parallel for block devices", decorators.RequiresBlockStorage, func() {
 					const NumOfClones int = 3
 
-					if !f.IsBlockVolumeStorageClassAvailable() {
-						Skip("Storage Class for block volume is not available")
-					}
 					By("Creating a source from a real image")
 					sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "200Mi", tinyCoreIsoURL(), f.BlockSCName)
 					sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
@@ -1544,10 +1527,7 @@ var _ = Describe("all clone tests", func() {
 				compareCloneWithSource(sourcePvc, clonePvc, diskImagePath, diskImagePath)
 			})
 
-			It("Should reject the clone after creating the source PVC if the validation fails ", func() {
-				if !f.IsBlockVolumeStorageClassAvailable() {
-					Skip("Storage Class for block volume is not available")
-				}
+			It("Should reject the clone after creating the source PVC if the validation fails ", decorators.RequiresBlockStorage, func() {
 
 				By("Create the clone before the source PVC")
 				cloneDV := utils.NewDataVolumeForImageCloningAndStorageSpec("clone-dv", "1Mi", f.Namespace.Name, dataVolumeName, &f.BlockSCName, &blockVM)
@@ -1660,10 +1640,7 @@ var _ = Describe("all clone tests", func() {
 			}
 		})
 
-		It("[rfe_id:1277][test_id:1891][crit:High][vendor:cnv-qe@redhat.com][level:component]Should allow multiple clones from a single source datavolume in block volume mode", func() {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
+		It("[rfe_id:1277][test_id:1891][crit:High][vendor:cnv-qe@redhat.com][level:component]Should allow multiple clones from a single source datavolume in block volume mode", decorators.RequiresBlockStorage, func() {
 			By("Creating a source from a real image")
 			sourceDv = utils.NewDataVolumeWithHTTPImportToBlockPV("source-dv", "200Mi", tinyCoreIsoURL(), f.BlockSCName)
 			sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
@@ -1784,13 +1761,10 @@ var _ = Describe("all clone tests", func() {
 		})
 	})
 
-	var _ = Describe("Block PV Cloner Test", func() {
+	var _ = Describe("Block PV Cloner Test", decorators.RequiresBlockStorage, func() {
 		f := framework.NewFramework(namespacePrefix)
 
 		DescribeTable("[test_id:4955]Should clone data across namespaces", func(targetSize string) {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
 			sourceSize := "500M"
 			ss := resource.MustParse(sourceSize)
 			pvcDef := utils.NewBlockPVCDefinition(sourcePVCName, sourceSize, nil, nil, f.BlockSCName)
@@ -2216,10 +2190,7 @@ var _ = Describe("all clone tests", func() {
 
 		})
 
-		DescribeTable("Block volumeMode clone with target smaller than the source, using storgeProfile with minPvcSize annotation", Serial, func(minSize string, shouldSucceed bool) {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
+		DescribeTable("Block volumeMode clone with target smaller than the source, using storgeProfile with minPvcSize annotation", Serial, decorators.RequiresBlockStorage, func(minSize string, shouldSucceed bool) {
 
 			By(fmt.Sprintf("Create source PVC %s", sourcePVCName))
 			sc := createStorageWithMinimumSupportedPVCSize(f, minSize)
@@ -2577,9 +2548,6 @@ var _ = Describe("all clone tests", func() {
 			if !f.IsSnapshotStorageClassAvailable() {
 				Skip("Clone from volumesnapshot does not work without snapshot capable storage")
 			}
-			if volumeMode == v1.PersistentVolumeBlock && !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
 
 			targetNs := f.Namespace
 			if crossNamespace {
@@ -2630,8 +2598,8 @@ var _ = Describe("all clone tests", func() {
 		},
 			Entry("[test_id:9703] with filesystem single clone", v1.PersistentVolumeFilesystem, 1, true),
 			Entry("[test_id:9708] with filesystem multiple clones", v1.PersistentVolumeFilesystem, 5, false),
-			Entry("[test_id:9709] with block single clone", v1.PersistentVolumeBlock, 1, false),
-			Entry("[test_id:9710] with block multiple clones", v1.PersistentVolumeBlock, 5, false),
+			Entry("[test_id:9709] with block single clone", decorators.RequiresBlockStorage, v1.PersistentVolumeBlock, 1, false),
+			Entry("[test_id:9710] with block multiple clones", decorators.RequiresBlockStorage, v1.PersistentVolumeBlock, 5, false),
 		)
 
 		Context("Fallback to host assisted", func() {
@@ -2652,9 +2620,6 @@ var _ = Describe("all clone tests", func() {
 				var i int
 				var err error
 
-				if volumeMode == v1.PersistentVolumeBlock && !f.IsBlockVolumeStorageClassAvailable() {
-					Skip("Storage Class for block volume is not available")
-				}
 				targetNs := f.Namespace
 				if crossNamespace {
 					targetNamespace, err = f.CreateNamespace("cdi-cross-ns-snapshot-clone-test", nil)
@@ -2711,8 +2676,8 @@ var _ = Describe("all clone tests", func() {
 			},
 				Entry("[test_id:9714] with filesystem single clone", v1.PersistentVolumeFilesystem, 1, true),
 				Entry("[test_id:9715] with filesystem multiple clones", v1.PersistentVolumeFilesystem, 5, false),
-				Entry("[test_id:9716] with block single clone", v1.PersistentVolumeBlock, 1, false),
-				Entry("[test_id:9717] with block multiple clones", v1.PersistentVolumeBlock, 5, false),
+				Entry("[test_id:9716] with block single clone", decorators.RequiresBlockStorage, v1.PersistentVolumeBlock, 1, false),
+				Entry("[test_id:9717] with block multiple clones", decorators.RequiresBlockStorage, v1.PersistentVolumeBlock, 5, false),
 			)
 		})
 
