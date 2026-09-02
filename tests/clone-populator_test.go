@@ -28,7 +28,7 @@ import (
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-var _ = Describe("Clone Populator tests", func() {
+var _ = Describe("Clone Populator tests", decorators.RequiresCsiDriver, func() {
 	const (
 		sourceName     = "test-source"
 		targetName     = "test-target"
@@ -45,12 +45,6 @@ var _ = Describe("Clone Populator tests", func() {
 	)
 
 	f := framework.NewFramework("clone-populator-test")
-
-	BeforeEach(func() {
-		if utils.DefaultStorageClassCsiDriver == nil {
-			Skip("No CSI driver found")
-		}
-	})
 
 	createSource := func(sz resource.Quantity, vm corev1.PersistentVolumeMode) *corev1.PersistentVolumeClaim {
 		dataVolume := utils.NewDataVolumeWithHTTPImport(sourceName, sz.String(), fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))

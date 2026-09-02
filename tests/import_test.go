@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"os/exec"
 	"reflect"
 	"regexp"
@@ -193,7 +192,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	})
 })
 
-var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {
+var _ = Describe("[Istio] Namespace sidecar injection", decorators.Istio, Serial, func() {
 	var (
 		f = framework.NewFramework(namespacePrefix)
 
@@ -202,11 +201,6 @@ var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {
 	)
 
 	BeforeEach(func() {
-		value := os.Getenv("KUBEVIRT_DEPLOY_ISTIO")
-		if value != "true" {
-			Skip("No Istio enabled, skipping.")
-		}
-
 		By("Enable istio sidecar injection in namespace")
 		labelPatch := `[{"op":"add","path":"/metadata/labels/istio-injection","value":"enabled" }]`
 		_, err := f.K8sClient.CoreV1().Namespaces().Patch(context.TODO(), f.Namespace.Name, types.JSONPatchType, []byte(labelPatch), metav1.PatchOptions{})
@@ -288,11 +282,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Se
 
 	BeforeEach(func() {
 		var err error
-		cr, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
-		if k8serrors.IsNotFound(err) {
-			Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
-		}
-		Expect(err).ToNot(HaveOccurred())
+		cr = getCDI(f)
 
 		oldSpec = cr.Spec.DeepCopy()
 		nodes, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
@@ -304,7 +294,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Se
 		if cr == nil {
 			return
 		}
-		cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+		cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		cr.Spec = *oldSpec.DeepCopy()
@@ -1316,7 +1306,7 @@ var _ = Describe("Preallocation", func() {
 	})
 })
 
-var _ = Describe("Import populator", func() {
+var _ = Describe("Import populator", decorators.RequiresCsiDriver, func() {
 	f := framework.NewFramework(namespacePrefix)
 
 	var (
@@ -1484,9 +1474,6 @@ var _ = Describe("Import populator", func() {
 	}
 
 	BeforeEach(func() {
-		if utils.DefaultStorageClassCsiDriver == nil {
-			Skip("No CSI driver found")
-		}
 		verifyCleanup(pvc)
 	})
 

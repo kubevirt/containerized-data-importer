@@ -36,7 +36,7 @@ var (
 	defaultURL = ""
 )
 
-var _ = Describe("CDI storage class config tests", Serial, func() {
+var _ = Describe("CDI storage class config tests", Serial, decorators.RequiresDefaultStorageClass, func() {
 	var (
 		f                   = framework.NewFramework("cdiconfig-test")
 		defaultSc, secondSc *storagev1.StorageClass
@@ -107,9 +107,6 @@ var _ = Describe("CDI storage class config tests", Serial, func() {
 	})
 
 	It("[test_id:3962]should have scratchSpaceStorageClass set to blank", func() {
-		if defaultSc == nil {
-			Skip("No default storage class found, skipping test")
-		}
 		By("Expecting default storage class to be: " + defaultSc.Name)
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
@@ -117,9 +114,6 @@ var _ = Describe("CDI storage class config tests", Serial, func() {
 	})
 
 	It("[test_id:3965]should have scratchSpaceStorageClass set to blank if you specify an invalid override", func() {
-		if defaultSc == nil {
-			Skip("No default storage class found, skipping test")
-		}
 		By("Expecting default storage class to be " + defaultSc.Name)
 		invalid := "invalidsc"
 		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
@@ -139,12 +133,9 @@ var _ = Describe("CDI storage class config tests", Serial, func() {
 		Expect(config.Status.ScratchSpaceStorageClass).To(BeEmpty())
 	})
 
-	It("[test_id:3967]Should use the override even if a different default is set", func() {
+	It("[test_id:3967]Should use the override even if a different default is set", decorators.RequiresTwoStorageClasses, func() {
 		storageClasses, err := f.K8sClient.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		if len(storageClasses.Items) < 2 {
-			Skip("Not enough storage classes to test overrider")
-		}
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(config.Status.ScratchSpaceStorageClass).To(BeEmpty())

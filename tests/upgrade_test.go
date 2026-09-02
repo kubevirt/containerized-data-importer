@@ -2,7 +2,6 @@ package tests_test
 
 import (
 	"context"
-	"fmt"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -22,13 +21,6 @@ const oldVersionArtifactsNamespace = "cdi-testing-old-version-artifacts"
 
 var _ = Describe("[Upgrade]", Serial, func() {
 	f := framework.NewFramework("upgrade-test")
-
-	BeforeEach(func() {
-		_, err := f.K8sClient.CoreV1().Namespaces().Get(context.TODO(), oldVersionArtifactsNamespace, metav1.GetOptions{})
-		if apierrs.IsNotFound(err) {
-			Skip(fmt.Sprintf("Not setup to perform upgrade testing; missing namespace %s", oldVersionArtifactsNamespace))
-		}
-	})
 
 	DescribeTable("[rfe_id:5493]DV status.name is populated after upgrade", func(dvName string) {
 		dv, err := f.CdiClient.CdiV1beta1().DataVolumes(oldVersionArtifactsNamespace).Get(context.TODO(), dvName, metav1.GetOptions{})

@@ -2712,17 +2712,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			utils.WaitForConditions(f, dv.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
 		}
 
-		DescribeTable("import DV using StorageSpec without AccessModes, PVC is created only when", func(webhookRenderingLabel string, isScEmpty bool, dvFunc func(*cdiv1.DataVolume), scFunc func(string)) {
+		DescribeTable("import DV using StorageSpec without AccessModes, PVC is created only when", decorators.RequiresDefaultSCProvisioner, func(webhookRenderingLabel string, isScEmpty bool, dvFunc func(*cdiv1.DataVolume), scFunc func(string)) {
 
 			scName := ""
 			if !isScEmpty {
 				scName = testScName
 			}
-
-			if utils.IsDefaultSCNoProvisioner() {
-				Skip("Default storage class has no provisioner. The new storage class won't work")
-			}
-
 			var err error
 			if scName != "" {
 				By(fmt.Sprintf("verifying no storage class %s", scName))
@@ -2779,14 +2774,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return dv
 		}
 
-		DescribeTable("import DV with AccessModes, PVC is pending until", func(isScEmpty bool, scFunc func(string), dvFunc func(string) *cdiv1.DataVolume) {
+		DescribeTable("import DV with AccessModes, PVC is pending until", decorators.RequiresDefaultSCProvisioner, func(isScEmpty bool, scFunc func(string), dvFunc func(string) *cdiv1.DataVolume) {
 			scName := ""
 			if !isScEmpty {
 				scName = testScName
-			}
-
-			if utils.IsDefaultSCNoProvisioner() {
-				Skip("Default storage class has no provisioner. The new storage class won't work")
 			}
 
 			if scName != "" {
@@ -2914,14 +2905,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		})
 
-		DescribeTable("Feature Gate - disabled", func(
+		DescribeTable("Feature Gate - disabled", decorators.RequiresHPP, func(
 			dvName string,
 			url func() string,
 			dvFunc func(string, string, string) *cdiv1.DataVolume,
 			phase cdiv1.DataVolumePhase) {
-			if !utils.IsHostpathProvisioner() {
-				Skip("Not HPP")
-			}
 			size := "1Gi"
 			By("Verify no WaitForFirstConsumer FeatureGate")
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -3020,14 +3008,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
 		}
 
-		DescribeTable("WFFC Feature Gate enabled - ImmediateBinding requested", func(
+		DescribeTable("WFFC Feature Gate enabled - ImmediateBinding requested", decorators.RequiresHPP, func(
 			dvName string,
 			url func() string,
 			dvFunc func(string, string, string) *cdiv1.DataVolume,
 			phase cdiv1.DataVolumePhase) {
-			if !utils.IsHostpathProvisioner() {
-				Skip("Not HPP")
-			}
 			size := "1Gi"
 
 			dataVolume := dvFunc(dvName, size, url())
@@ -3576,12 +3561,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		By("verifying pvc was created")
 		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
-
-		usePopulator, err := dvc.CheckPVCUsingPopulators(pvc)
-		Expect(err).ToNot(HaveOccurred())
-		if !usePopulator {
-			Skip("Skipping test for non-populator PVCs")
-		}
 
 		// We only want to check events from the object type that is relevant to the test
 		// this is because when the DV is intended to be bound, we can't guarantee PVC prime events
