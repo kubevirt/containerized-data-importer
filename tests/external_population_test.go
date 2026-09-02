@@ -167,10 +167,7 @@ var _ = Describe("Population tests", func() {
 			}, timeout, pollingInterval).Should(BeTrue())
 		})
 
-		It("Should not populate PVC when AnyVolumeDataSource is disabled", func() {
-			if !f.IsCSIVolumeCloneStorageClassAvailable() {
-				Skip("No CSI drivers available - Population not supported")
-			}
+		It("Should not populate PVC when AnyVolumeDataSource is disabled", decorators.RequiresCSICloneClass, func() {
 			if isAnyVolumeDataSourceEnabled() {
 				Skip("AnyVolumeDataSource is enabled - Population will succeed")
 			}
@@ -228,11 +225,7 @@ var _ = Describe("Population tests", func() {
 	})
 
 	Context("Legacy population", func() {
-		It("Should perform a CSI PVC clone by manually populating the DataSource field", func() {
-			if !f.IsCSIVolumeCloneStorageClassAvailable() {
-				Skip("No CSI drivers available - Population not supported")
-			}
-
+		It("Should perform a CSI PVC clone by manually populating the DataSource field", decorators.RequiresCSICloneClass, func() {
 			By("Creating source PVC")
 			pvcDef := utils.NewPVCDefinition(sourcePVCName, "80Mi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
