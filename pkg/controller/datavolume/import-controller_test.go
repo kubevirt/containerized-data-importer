@@ -219,6 +219,35 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(val).To(Equal(string(dv.UID)))
 		})
 
+		It("Should record a MinimumPVCSizeApplied event and grow the PVC when the requested size is below the storage profile minimum", func() {
+			scName := "testSC"
+			sc := CreateStorageClass(scName, nil)
+			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, corev1.PersistentVolumeBlock)
+			sp.Annotations = map[string]string{AnnMinimumSupportedPVCSize: "4Gi"}
+
+			storageSpec := &cdiv1.StorageSpec{
+				StorageClassName: &scName,
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("1Gi"),
+					},
+				},
+			}
+			dv := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault,
+				&cdiv1.DataVolumeSource{HTTP: &cdiv1.DataVolumeSourceHTTP{}}, storageSpec)
+
+			reconciler = createImportReconciler(dv, sc, sp)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Spec.Resources.Requests.Storage().Cmp(resource.MustParse("4Gi"))).To(Equal(0))
+
+			Eventually(reconciler.recorder.(*record.FakeRecorder).Events).Should(Receive(ContainSubstring(MinimumPVCSizeApplied)))
+		})
+
 		It("Should create a PVC on a valid import DV without delayed annotation then add on success", func() {
 			dv := NewImportDataVolume("test-dv")
 			AddAnnotation(dv, "foo", "bar")
