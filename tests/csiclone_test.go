@@ -50,11 +50,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		}
 	})
 
-	It("Verify DataVolume CSI Volume Cloning - volumeMode filesystem - Positive flow", func() {
-		if !f.IsCSIVolumeCloneStorageClassAvailable() {
-			Skip("CSI Volume Clone is not applicable")
-		}
-
+	It("Verify DataVolume CSI Volume Cloning - volumeMode filesystem - Positive flow", decorators.RequiresCSICloneClass, func() {
 		By(fmt.Sprintf("configure storage profile %s", f.CsiCloneSCName))
 		Expect(
 			utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone),
@@ -70,10 +66,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		verifyCSIClone(dataVolume, f)
 	})
 
-	It("Verify DataVolume CSI Cloning - volumeMode block - Positive flow", decorators.RequiresBlockStorage, func() {
-		if !f.IsCSIVolumeCloneStorageClassAvailable() {
-			Skip("CSI Volume Clone is not applicable")
-		}
+	It("Verify DataVolume CSI Cloning - volumeMode block - Positive flow", decorators.RequiresBlockStorage, decorators.RequiresCSICloneClass, func() {
 		By(fmt.Sprintf("configure storage profile %s", f.CsiCloneSCName))
 		Expect(
 			utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone),
@@ -107,11 +100,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component][crit:high][rfe_id:
 		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
 	})
 
-	It("[test_id:7736] Should fail to create pvc in namespace with storage quota, then succeed once the quota is large enough", func() {
-		if !f.IsCSIVolumeCloneStorageClassAvailable() {
-			Skip("CSI Volume Clone is not applicable")
-		}
-
+	It("[test_id:7736] Should fail to create pvc in namespace with storage quota, then succeed once the quota is large enough", decorators.RequiresCSICloneClass, func() {
 		By(fmt.Sprintf("configure storage profile %s", f.CsiCloneSCName))
 		Expect(
 			utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, f.CsiCloneSCName, originalProfileSpec, cdiv1.CloneStrategyCsiClone),

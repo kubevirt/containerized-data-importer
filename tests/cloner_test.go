@@ -1074,11 +1074,8 @@ var _ = Describe("all clone tests", func() {
 			ClonerBehavior(cloneStorageClassName, "snapshot")
 		})
 
-		Context("[rfe_id:4219]CSI Clone", func() {
+		Context("[rfe_id:4219]CSI Clone", decorators.RequiresCSICloneClass, func() {
 			BeforeEach(func() {
-				if !f.IsCSIVolumeCloneStorageClassAvailable() {
-					Skip("CSI Clone does not work without a capable storage class")
-				}
 				cloneStorageClassName = f.CsiCloneSCName
 				By(fmt.Sprintf("Get original storage profile: %s", cloneStorageClassName))
 
@@ -1391,15 +1388,11 @@ var _ = Describe("all clone tests", func() {
 			})
 		})
 
-		Context("CloneStrategy on storageclass annotation", Serial, func() {
+		Context("CloneStrategy on storageclass annotation", decorators.RequiresCSICloneClass, Serial, func() {
 			cloneType := cdiv1.CloneStrategyCsiClone
 			var originalStrategy *cdiv1.CDICloneStrategy
 
 			BeforeEach(func() {
-				if !f.IsCSIVolumeCloneStorageClassAvailable() {
-					cloneStorageClassName = ""
-					Skip("CSI Volume Clone is not applicable")
-				}
 				cloneStorageClassName = f.CsiCloneSCName
 				By(fmt.Sprintf("Get original storage profile: %s", cloneStorageClassName))
 				storageProfile, err := f.CdiClient.CdiV1beta1().StorageProfiles().Get(context.TODO(), cloneStorageClassName, metav1.GetOptions{})
