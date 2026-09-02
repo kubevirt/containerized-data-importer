@@ -551,15 +551,3 @@ func GetImageDigest(url, accessKey, secKey, certDir string, insecureRegistry boo
 func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir string, insecureRegistry, preallocation bool) (*types.ImageInspectInfo, error) {
 	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir, insecureRegistry, true, preallocation)
 }
-
-// CopyRegistryImageAll download image from registry with docker image API. It will extract all files under the pathPrefix
-// url: source registry url.
-// destDir: the scratch space destination.
-// pathPrefix: path to extract files from.
-// accessKey: accessKey for the registry described in url.
-// secKey: secretKey for the registry described in url.
-// certDir: directory public CA keys are stored for registry identity verification
-// insecureRegistry: boolean if true will allow insecure registries.
-func CopyRegistryImageAll(url, destDir, pathPrefix, accessKey, secKey, certDir string, insecureRegistry, preallocation bool) (*types.ImageInspectInfo, error) {
-	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, "", certDir, insecureRegistry, false, preallocation)
-}

@@ -181,17 +181,6 @@ var _ = Describe("Registry Importer", func() {
 		Entry("when all image layers are valid", source),
 		Entry("when one of the image layers is malformed", malformedSource),
 	)
-	It("Should extract files prefixed by path", func() {
-		info, err := CopyRegistryImageAll(source, tmpDir, "etc/", "", "", "", false, false)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(info).ToNot(BeNil())
-
-		file := filepath.Join(tmpDir, "etc/hosts")
-		Expect(file).To(BeARegularFile())
-
-		file = filepath.Join(tmpDir, "etc/hostname")
-		Expect(file).To(BeARegularFile())
-	})
 	It("Should return an error if a single file is not found", func() {
 		info, err := CopyRegistryImage(source, tmpDir, "disk/invalid.img", "", "", "", "", false, false)
 		Expect(err).To(HaveOccurred())
@@ -200,11 +189,6 @@ var _ = Describe("Registry Importer", func() {
 		file := filepath.Join(tmpDir, "disk/cirros-0.3.4-x86_64-disk.img")
 		_, err = os.Stat(file)
 		Expect(err).To(HaveOccurred())
-	})
-	It("Should return an error if no files matches a prefix", func() {
-		info, err := CopyRegistryImageAll(source, tmpDir, "invalid/", "", "", "", false, false)
-		Expect(err).To(HaveOccurred())
-		Expect(info).To(BeNil())
 	})
 	DescribeTable("Should correctly assert image architecture", func(source string, architecture string, wantErr bool) {
 		info, err := CopyRegistryImage(source, tmpDir, "disk/", "", "", architecture, "", false, false)
