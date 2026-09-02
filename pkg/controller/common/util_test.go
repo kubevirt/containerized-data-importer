@@ -114,6 +114,21 @@ var _ = Describe("UpdateRegistryAnnotations", func() {
 			URL:         ptr.To(url),
 			ImageStream: ptr.To("fedora:latest"),
 		}, map[string]string{AnnSource: SourceRegistry, AnnEndpoint: url}),
+		Entry("with the layer's annotations, keyed in sorted order", &cdiv1.DataVolumeSourceRegistry{
+			URL: ptr.To(url),
+			Layer: &cdiv1.LayerSelector{MatchAnnotations: map[string]string{
+				"org.example.disk.size": "10Gi",
+				"org.example.disk.name": "rootdisk",
+			}},
+		}, map[string]string{
+			AnnSource:                             SourceRegistry,
+			AnnEndpoint:                           url,
+			AnnRegistryImageLayerMatchAnnotations: `{"org.example.disk.name":"rootdisk","org.example.disk.size":"10Gi"}`,
+		}),
+		Entry("without a layer that selects nothing", &cdiv1.DataVolumeSourceRegistry{
+			URL:   ptr.To(url),
+			Layer: &cdiv1.LayerSelector{},
+		}, map[string]string{AnnSource: SourceRegistry, AnnEndpoint: url}),
 	)
 })
 
