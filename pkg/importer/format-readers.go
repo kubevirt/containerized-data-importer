@@ -96,7 +96,11 @@ func NewFormatReaders(stream io.ReadCloser, total uint64, checksumValidator *Che
 	} else {
 		err = readers.constructReaders(stream)
 	}
-	return readers, err
+	if err != nil {
+		readers.Close()
+		return nil, err
+	}
+	return readers, nil
 }
 
 func (fr *FormatReaders) constructReaders(r io.ReadCloser) error {
