@@ -94,13 +94,27 @@ var _ = Describe("Format Readers", func() {
 	)
 
 	It("should not crash on no progress reader", func() {
-		stringReader := io.NopCloser(strings.NewReader("This is a test string"))
+		stringReader := io.NopCloser(strings.NewReader(strings.Repeat("This is a test string. ", 32)))
 		testReader, err := NewFormatReaders(stringReader, uint64(0), nil)
-		// Not passing a real string, so the header checking will fail.
-		Expect(err).To(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		Expect(testReader.progressReader).To(BeNil())
 		// This should not crash
 		testReader.StartProgressUpdate()
+		Expect(testReader.Close()).To(Succeed())
+	})
+
+	It("should release the stream and return no readers when construction fails", func() {
+		stream, w, err := os.Pipe()
+		Expect(err).ToNot(HaveOccurred())
+		_, err = w.WriteString("This is a test string")
+		Expect(err).ToNot(HaveOccurred())
+		Expect(w.Close()).To(Succeed())
+
+		testReader, err := NewFormatReaders(stream, uint64(0), nil)
+		Expect(err).To(HaveOccurred())
+		Expect(testReader).To(BeNil())
+		// Closing again only fails if NewFormatReaders already closed it.
+		Expect(stream.Close()).To(MatchError(os.ErrClosed))
 	})
 
 	It("successfully decompresses zst stream without corruption", func() {
