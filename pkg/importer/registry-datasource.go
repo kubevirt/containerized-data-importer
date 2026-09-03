@@ -17,7 +17,6 @@ limitations under the License.
 package importer
 
 import (
-	"archive/tar"
 	"context"
 	"errors"
 	"fmt"
@@ -248,17 +247,9 @@ func collectCerts(certDir, targetDir, targetPrefix string) error {
 	return nil
 }
 
-const (
-	whFilePrefix = ".wh."
-)
-
-var (
-	errReadingLayer = errors.New("Error reading layer")
-
-	// ErrBootcImageDetected is returned when a bootc/ostree-bootable container image is detected
-	// but conversion is not yet implemented.
-	ErrBootcImageDetected = errors.New("bootc image detected: this image contains an ostree-based bootable OS (containers.bootc=1 or ostree.bootable=1) and cannot be imported as a regular container disk; bootc-to-disk conversion is not yet implemented")
-)
+// ErrBootcImageDetected is returned when a bootc/ostree-bootable container image is detected
+// but conversion is not yet implemented.
+var ErrBootcImageDetected = errors.New("bootc image detected: this image contains an ostree-based bootable OS (containers.bootc=1 or ostree.bootable=1) and cannot be imported as a regular container disk; bootc-to-disk conversion is not yet implemented")
 
 func commandTimeoutContext() (context.Context, context.CancelFunc) {
 	return context.WithCancel(context.Background())
@@ -324,86 +315,6 @@ func closeImage(c io.Closer) {
 	}
 }
 
-func hasPrefix(path string, pathPrefix string) bool {
-	return strings.HasPrefix(path, pathPrefix) ||
-		strings.HasPrefix(path, "./"+pathPrefix)
-}
-
-func isWhiteout(path string) bool {
-	return strings.HasPrefix(filepath.Base(path), whFilePrefix)
-}
-
-func isDir(hdr *tar.Header) bool {
-	return hdr.Typeflag == tar.TypeDir
-}
-
-func processLayer(ctx context.Context,
-	src types.ImageSource,
-	layer types.BlobInfo,
-	destDir string,
-	pathPrefix string,
-	cache types.BlobInfoCache,
-	preallocation bool) (bool, error) {
-	var reader io.ReadCloser
-	reader, _, err := src.GetBlob(ctx, layer, cache)
-	if err != nil {
-		klog.Errorf("%v: %v", errReadingLayer, err)
-		return false, fmt.Errorf("%w: %v", errReadingLayer, err)
-	}
-	fr, err := NewFormatReaders(reader, 0, nil)
-	if err != nil {
-		klog.Errorf("%v: %v", errReadingLayer, err)
-		return false, fmt.Errorf("%w: %v", errReadingLayer, err)
-	}
-	defer fr.Close()
-
-	tarReader := tar.NewReader(fr.TopReader())
-	for {
-		hdr, err := tarReader.Next()
-		if errors.Is(err, io.EOF) {
-			return false, nil // End of archive
-		}
-		if err != nil {
-			klog.Errorf("%v: %v", errReadingLayer, err)
-			return false, fmt.Errorf("%w: %v", errReadingLayer, err)
-		}
-
-		if hasPrefix(hdr.Name, pathPrefix) && !isWhiteout(hdr.Name) && !isDir(hdr) {
-			klog.Infof("File '%v' found in the layer", hdr.Name)
-			destFile, err := safeJoinPaths(destDir, hdr.Name)
-			if err != nil {
-				klog.Errorf("Error sanitizing archive path: %v", err)
-				return false, fmt.Errorf("Error sanitizing archive path: %w", err)
-			}
-
-			if err = os.MkdirAll(filepath.Dir(destFile), os.ModePerm); err != nil {
-				klog.Errorf("Error creating output file's directory: %v", err)
-				return false, fmt.Errorf("Error creating output file's directory: %w", err)
-			}
-
-			if _, _, err := StreamDataToFile(tarReader, destFile, preallocation); err != nil {
-				klog.Errorf("Error copying file: %v", err)
-				return false, fmt.Errorf("Error copying file: %w", err)
-			}
-
-			return true, nil
-		}
-	}
-}
-
-// Sanitize archive file pathing from "G305: Zip Slip vulnerability"
-// https://security.snyk.io/research/zip-slip-vulnerability
-func safeJoinPaths(dir, path string) (v string, err error) {
-	v = filepath.Join(dir, path)
-	wantPrefix := filepath.Clean(dir) + string(os.PathSeparator)
-
-	if strings.HasPrefix(v, wantPrefix) {
-		return v, nil
-	}
-
-	return "", fmt.Errorf("%s: %s", "content filepath is tainted", path)
-}
-
 func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir string, insecureRegistry, preallocation bool) (*types.ImageInspectInfo, error) {
 	klog.Infof("Downloading image from '%v', copying file from '%v' to '%v'", url, pathPrefix, destDir)
 
@@ -437,29 +348,14 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchite
 	}
 
 	cache := blobinfocache.DefaultCache(srcCtx)
-	found := false
-	layers := imgCloser.LayerInfos()
-
-	for _, layer := range layers {
-		klog.Infof("Processing layer %+v", layer)
-
-		found, err = processLayer(ctx, src, layer, destDir, pathPrefix, cache, preallocation)
-		if found {
-			break
-		}
-		if err != nil {
-			if !errors.Is(err, errReadingLayer) {
-				return nil, err
-			}
-			// Skipping layer and trying the next one.
-			// Error already logged in processLayer
-			continue
-		}
+	openBlob := func(ctx context.Context, layer types.BlobInfo) (io.ReadCloser, error) {
+		blob, _, err := src.GetBlob(ctx, layer, cache)
+		return blob, err
 	}
 
-	if !found {
-		klog.Errorf("Failed to find VM disk image file in the container image")
-		return nil, errors.New("Failed to find VM disk image file in the container image")
+	extractor := fileExtractor{destDir: destDir, pathPrefix: pathPrefix, preallocation: preallocation}
+	if err := extractor.extract(ctx, imgCloser.LayerInfos(), openBlob); err != nil {
+		return nil, err
 	}
 
 	return info, nil
