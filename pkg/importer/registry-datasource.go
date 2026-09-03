@@ -318,8 +318,8 @@ func parseImageName(img string) (types.ImageReference, error) {
 	return nil, errors.Errorf(`Invalid image name "%s", unknown transport`, img)
 }
 
-func closeImage(src types.ImageSource) {
-	if err := src.Close(); err != nil {
+func closeImage(c io.Closer) {
+	if err := c.Close(); err != nil {
 		klog.Warningf("Could not close image source: %v ", err)
 	}
 }
@@ -415,14 +415,14 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchite
 	if err != nil {
 		return nil, err
 	}
-	defer closeImage(src)
 
 	imgCloser, err := image.FromSource(ctx, srcCtx, src)
 	if err != nil {
+		closeImage(src)
 		klog.Errorf("Error retrieving image: %v", err)
 		return nil, errors.Wrap(err, "Error retrieving image")
 	}
-	defer imgCloser.Close()
+	defer closeImage(imgCloser)
 
 	// in the event that target is not a manifest list / image index
 	if srcCtx.ArchitectureChoice != "" {
