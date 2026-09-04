@@ -29,6 +29,25 @@ KUBEVIRTCI_CONFIG_PATH="$(
     echo "$(pwd)/_ci-configs"
 )"
 
+kubectl() { ./cluster-up/kubectl.sh "$@"; }
+
+# add_to_label_filter appends the given label and separator to
+# $label_filter which is passed to Ginkgo --filter-label flag.
+# How to use:
+# - Run tests with label
+#     add_to_label_filter '(mylabel)' ','
+# - Dont run tests with label:
+#     add_to_label_filter '(!mylabel)' '&&'
+add_to_label_filter() {
+  local label=$1
+  local separator=$2
+  if [[ -z $label_filter ]]; then
+    label_filter="${1}"
+  else
+    label_filter="${label_filter}${separator}${1}"
+  fi
+}
+
 # functional testing
 BASE_PATH=${KUBEVIRTCI_CONFIG_PATH:-$PWD}
 KUBECONFIG=${KUBECONFIG:-$BASE_PATH/$KUBEVIRT_PROVIDER/.kubeconfig}
@@ -41,7 +60,7 @@ BLOCK_SC=${BLOCK_SC:-rook-ceph-block}
 # so on one SC we can test CSI clone and on the other the smartclone
 CSICLONE_SC=${CSICLONE_SC:-rook-ceph-block}
 
-OPERATOR_CONTAINER_IMAGE=$(./cluster-up/kubectl.sh get deployment -n $CDI_NAMESPACE cdi-operator -o'custom-columns=spec:spec.template.spec.containers[0].image' --no-headers)
+OPERATOR_CONTAINER_IMAGE=$(kubectl get deployment -n $CDI_NAMESPACE cdi-operator -o'custom-columns=spec:spec.template.spec.containers[0].image' --no-headers)
 DOCKER_PREFIX=${OPERATOR_CONTAINER_IMAGE%/*}
 DOCKER_TAG=${OPERATOR_CONTAINER_IMAGE##*:}
 
@@ -76,21 +95,97 @@ test_args="${test_args} ${arg_kubeurl} ${arg_namespace} ${arg_kubeconfig} ${arg_
 
 echo 'Wait until all CDI Pods are ready'
 retry_counter=0
-while [ $retry_counter -lt $MAX_CDI_WAIT_RETRY ] && [ -n "$(./cluster-up/kubectl.sh get pods -n $CDI_NAMESPACE -o'custom-columns=status:status.containerStatuses[*].ready' --no-headers | grep false)" ]; do
+while [ $retry_counter -lt $MAX_CDI_WAIT_RETRY ] && [ -n "$(kubectl get pods -n $CDI_NAMESPACE -o'custom-columns=status:status.containerStatuses[*].ready' --no-headers | grep false)" ]; do
     retry_counter=$((retry_counter + 1))
     sleep $CDI_WAIT_TIME
     echo "Checking CDI pods again, count $retry_counter"
     if [ $retry_counter -gt 1 ] && [ "$((retry_counter % 6))" -eq 0 ]; then
-        ./cluster-up/kubectl.sh get pods -n $CDI_NAMESPACE
+        kubectl get pods -n $CDI_NAMESPACE
     fi
 done
 
 if [ $retry_counter -eq $MAX_CDI_WAIT_RETRY ]; then
     echo "Not all CDI pods became ready"
-    ./cluster-up/kubectl.sh get pods -n $CDI_NAMESPACE
-    ./cluster-up/kubectl.sh get pods -n $CDI_NAMESPACE -o yaml
-    ./cluster-up/kubectl.sh describe pods -n $CDI_NAMESPACE
+    kubectl get pods -n $CDI_NAMESPACE
+    kubectl get pods -n $CDI_NAMESPACE -o yaml
+    kubectl describe pods -n $CDI_NAMESPACE
     exit 1
+fi
+
+label_filter="${CDI_LABEL_FILTER}"
+
+# filter tests based on cluster capabilities
+if ! kubectl get clusterversion version &>/dev/null; then
+    add_to_label_filter '(!OpenShift)' '&&'
+fi
+
+if ! kubectl get sc ${BLOCK_SC} &>/dev/null; then
+    add_to_label_filter '(!RequiresBlockStorage)' '&&'
+fi
+
+if ! kubectl get sc ${SNAPSHOT_SC} &>/dev/null; then
+    add_to_label_filter '(!RequiresSnapshotStorageClass)' '&&'
+fi
+
+if ! kubectl get sc ${CSICLONE_SC} &>/dev/null; then
+    add_to_label_filter '(!RequiresCSICloneClass)' '&&'
+fi
+
+if [[ "${KUBEVIRT_DEPLOY_ISTIO}" != "true" ]]; then
+    add_to_label_filter '(!Istio)' '&&'
+fi
+
+if [[ "$MULTI_UPGRADE" != "true" ]]; then
+    add_to_label_filter '(!Upgrade)' '&&'
+fi
+
+# RequiresCsiDriver: default storage class must have a CSI driver
+default_provisioner=$(kubectl get sc -o json 2>/dev/null | jq -r '.items[] | select(.metadata.annotations["storageclass.kubernetes.io/is-default-class"] == "true") | .provisioner' 2>/dev/null | head -1)
+default_sc=$(kubectl get sc -o json 2>/dev/null | jq -r '.items[] | select(.metadata.annotations["storageclass.kubernetes.io/is-default-class"] == "true")' 2>/dev/null | head -1 )
+default_sc_volume_binding=$(kubectl get sc -o json 2>/dev/null | jq -r '.items[] | select(.metadata.annotations["storageclass.kubernetes.io/is-default-class"] == "true") | .volumeBindingMode' 2>/dev/null | head -1)
+
+if [[ -z "${default_provisioner}" ]] || ! kubectl get csidriver "${default_provisioner}" &>/dev/null 2>&1; then
+    add_to_label_filter '(!RequiresCsiDriver)' '&&'
+else
+    add_to_label_filter '(!RequiresNoCsiDriver)' '&&'
+fi
+
+# RequiresHPP: default storage class must be HostPath Provisioner
+if [[ "${default_provisioner}" != "kubevirt.io.hostpath-provisioner" ]]; then
+    add_to_label_filter '(!RequiresHPP)' '&&'
+fi
+
+# RequiresDefaultStorageClass: a default storage class must exist
+if [[ -z "${default_sc}" ]]; then
+    add_to_label_filter '(!RequiresDefaultStorageClass)' '&&'
+fi
+
+# RequiresDefaultStorageClassNFS
+if [[ "${default_sc}" != "nfs" ]]; then
+    add_to_label_filter '(!RequiresDefaultStorageClassNFS)' '&&'
+fi
+
+# RequiresDefaultSCProvisioner: default storage class must have a dynamic provisioner
+if [[ -z "${default_provisioner}" || "${default_provisioner}" == "kubernetes.io/no-provisioner" ]]; then
+    add_to_label_filter '(!RequiresDefaultSCProvisioner)' '&&'
+fi
+
+if [[ "${default_sc_volume_binding}" != "WaitForFirstConsumer" ]]; then
+    add_to_label_filter '(!RequiresDefaultStorageClassWFFC)' '&&'
+fi
+
+# RequiresPrometheus: Prometheus monitoring infrastructure must be available
+if [[ $KUBEVIRT_DEPLOY_PROMETHEUS != "true" ]]; then
+    add_to_label_filter '(!RequiresPrometheus)' '&&'
+fi
+
+if [[ $KUBEVIRT_NUM_NODES -lt 2 ]]; then
+    add_to_label_filter '(!RequiresTwoSchedulableNodes)' '&&'
+fi
+
+num_sc=$(kubectl get sc | sed '1d' | wc -l)
+if [[ $num_sc -lt 2 ]]; then
+    add_to_label_filter '(!RequiresTwoStorageClasses)' '&&'
 fi
 
 (
@@ -98,9 +193,7 @@ fi
     declare -a ginkgo_args
     ginkgo_args+=(--trace --timeout=8h --v)
 
-    if [[ -n "$CDI_LABEL_FILTER" ]]; then
-        ginkgo_args+=(--label-filter="${CDI_LABEL_FILTER}")
-    fi
+    ginkgo_args+=(--label-filter="${label_filter}")
 
     if [[ -n "$CDI_E2E_SKIP" ]]; then
         ginkgo_args+=(--skip="${CDI_E2E_SKIP}")

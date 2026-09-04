@@ -33,6 +33,7 @@ import (
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -1714,11 +1715,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		})
 
-		DescribeTable("should", func(name, command string, url func() string, dataVolumeName, eventReason string, phase cdiv1.DataVolumePhase) {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
-
+		DescribeTable("should", decorators.RequiresBlockStorage, func(name, command string, url func() string, dataVolumeName, eventReason string, phase cdiv1.DataVolumePhase) {
 			switch name {
 			case "import-http":
 				dataVolume = utils.NewDataVolumeWithHTTPImportToBlockPV(dataVolumeName, "1G", url(), f.BlockSCName)
@@ -1775,10 +1772,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		)
 	})
 
-	DescribeTable("Succeed HTTPS import in various formats", func(url func() string, skipOnOpenshift bool) {
-		if skipOnOpenshift && utils.IsOpenshift(f.K8sClient) {
-			Skip("This test doesn't work when building using centos, see: https://bugzilla.redhat.com/show_bug.cgi?id=2013331")
-		}
+	DescribeTable("Succeed HTTPS import in various formats", func(url func() string) {
 		By(fmt.Sprintf("Importing from %s", url()))
 		dataVolume := utils.NewDataVolumeWithHTTPImport(dataVolumeName, "1Gi", url())
 		cm, err := utils.CopyFileHostCertConfigMap(f.K8sClient, f.Namespace.Name, f.CdiInstallNs)
@@ -1801,10 +1795,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		Expect(err).ToNot(HaveOccurred())
 		Expect(md5).To(Equal(utils.TinyCoreMD5))
 	},
-		Entry("when importing in the VMDK format", httpsTinyCoreVmdkURL, false),
-		Entry("When importing in the VDI format", httpsTinyCoreVdiURL, true),
-		Entry("when importing in the VHD format", httpsTinyCoreVhdURL, false),
-		Entry("when importing in the VHDX format", httpsTinyCoreVhdxURL, false),
+		Entry("when importing in the VMDK format", httpsTinyCoreVmdkURL),
+		Entry("When importing in the VDI format", httpsTinyCoreVdiURL, decorators.OpenShift),
+		Entry("when importing in the VHD format", httpsTinyCoreVhdURL),
+		Entry("when importing in the VHDX format", httpsTinyCoreVhdxURL),
 	)
 
 	Describe("[rfe_id:1115][crit:high][posneg:negative]Delete resources of DataVolume with an invalid URL (POD in retry loop)", Serial, func() {
@@ -2484,10 +2478,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
 		})
 
-		It("[test_id:6101]Clone pod should not have size corrected on block", func() {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
+		It("[test_id:6101]Clone pod should not have size corrected on block", decorators.RequiresBlockStorage, func() {
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
 			// volumeMode Block, so no overhead applied
@@ -2514,10 +2505,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			Expect(*pvc.Spec.StorageClassName).To(SatisfyAll(Not(BeNil()), Equal(defaultScName)))
 		})
 
-		It("[test_id:6487]Clone pod should not have size corrected on block, when no volumeMode on DV", func() {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
+		It("[test_id:6487]Clone pod should not have size corrected on block, when no volumeMode on DV", decorators.RequiresBlockStorage, func() {
 			SetFilesystemOverhead(f, "0.50", "0.50")
 			requestedSize := resource.MustParse("100Mi")
 			// volumeMode Block, so no overhead applied
@@ -2724,17 +2712,12 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			utils.WaitForConditions(f, dv.Name, f.Namespace.Name, timeout, pollingInterval, boundCondition, readyCondition)
 		}
 
-		DescribeTable("import DV using StorageSpec without AccessModes, PVC is created only when", func(webhookRenderingLabel string, isScEmpty bool, dvFunc func(*cdiv1.DataVolume), scFunc func(string)) {
+		DescribeTable("import DV using StorageSpec without AccessModes, PVC is created only when", decorators.RequiresDefaultSCProvisioner, func(webhookRenderingLabel string, isScEmpty bool, dvFunc func(*cdiv1.DataVolume), scFunc func(string)) {
 
 			scName := ""
 			if !isScEmpty {
 				scName = testScName
 			}
-
-			if utils.IsDefaultSCNoProvisioner() {
-				Skip("Default storage class has no provisioner. The new storage class won't work")
-			}
-
 			var err error
 			if scName != "" {
 				By(fmt.Sprintf("verifying no storage class %s", scName))
@@ -2791,14 +2774,10 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return dv
 		}
 
-		DescribeTable("import DV with AccessModes, PVC is pending until", func(isScEmpty bool, scFunc func(string), dvFunc func(string) *cdiv1.DataVolume) {
+		DescribeTable("import DV with AccessModes, PVC is pending until", decorators.RequiresDefaultSCProvisioner, func(isScEmpty bool, scFunc func(string), dvFunc func(string) *cdiv1.DataVolume) {
 			scName := ""
 			if !isScEmpty {
 				scName = testScName
-			}
-
-			if utils.IsDefaultSCNoProvisioner() {
-				Skip("Default storage class has no provisioner. The new storage class won't work")
 			}
 
 			if scName != "" {
@@ -2926,14 +2905,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		})
 
-		DescribeTable("Feature Gate - disabled", func(
+		DescribeTable("Feature Gate - disabled", decorators.RequiresHPP, func(
 			dvName string,
 			url func() string,
 			dvFunc func(string, string, string) *cdiv1.DataVolume,
 			phase cdiv1.DataVolumePhase) {
-			if !utils.IsHostpathProvisioner() {
-				Skip("Not HPP")
-			}
 			size := "1Gi"
 			By("Verify no WaitForFirstConsumer FeatureGate")
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -3032,14 +3008,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			return utils.NewCloningDataVolume(dataVolumeName, size, sourcePvc)
 		}
 
-		DescribeTable("WFFC Feature Gate enabled - ImmediateBinding requested", func(
+		DescribeTable("WFFC Feature Gate enabled - ImmediateBinding requested", decorators.RequiresHPP, func(
 			dvName string,
 			url func() string,
 			dvFunc func(string, string, string) *cdiv1.DataVolume,
 			phase cdiv1.DataVolumePhase) {
-			if !utils.IsHostpathProvisioner() {
-				Skip("Not HPP")
-			}
 			size := "1Gi"
 
 			dataVolume := dvFunc(dvName, size, url())
@@ -3351,60 +3324,71 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 		})
 
-		It("Cloner pod should have priority class specified on datavolume", func() {
-			smartApplicable := f.IsSnapshotStorageClassAvailable()
-			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
-			if err == nil {
-				value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
-				if smartApplicable && ok && strings.Compare(value, "true") == 0 {
-					Skip("Cannot test if annotations are present when all pvcs are smart clone capable.")
+		Describe("Host-assisted clone", func() {
+			var orgProfileSpec *cdiv1.StorageProfileSpec
+
+			BeforeEach(func() {
+				By("Forcing host-assisted clone strategy")
+				scName := utils.DefaultStorageClass.GetName()
+				var err error
+				orgProfileSpec, err = utils.GetStorageProfileSpec(f.CdiClient, scName)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, scName, orgProfileSpec, cdiv1.CloneStrategyHostAssisted)).To(Succeed())
+			})
+
+			AfterEach(func() {
+				By("Restoring original clone strategy")
+				if orgProfileSpec != nil {
+					Expect(utils.UpdateStorageProfile(f.CrClient, utils.DefaultStorageClass.GetName(), *orgProfileSpec)).To(Succeed())
 				}
-			}
+			})
 
-			sourceDv := utils.NewDataVolumeWithHTTPImport("source-dv", "1Gi", tinyCoreQcow2URL())
-			Expect(sourceDv).ToNot(BeNil())
-			By(fmt.Sprintf("creating new source dv %s with priority class", sourceDv.Name))
-			sourceDv, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
-			Expect(err).ToNot(HaveOccurred())
+			It("Cloner pod should have priority class specified on datavolume", func() {
+				sourceDv := utils.NewDataVolumeWithHTTPImport("source-dv", "1Gi", tinyCoreQcow2URL())
+				Expect(sourceDv).ToNot(BeNil())
+				By(fmt.Sprintf("creating new source dv %s with priority class", sourceDv.Name))
+				sourceDv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, sourceDv)
+				Expect(err).ToNot(HaveOccurred())
 
-			By("verifying pvc was created")
-			pvc, err := utils.WaitForPVC(f.K8sClient, sourceDv.Namespace, sourceDv.Name)
-			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
+				By("verifying pvc was created")
+				pvc, err := utils.WaitForPVC(f.K8sClient, sourceDv.Namespace, sourceDv.Name)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindIfWaitForFirstConsumer(pvc)
 
-			dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", pvc)
-			Expect(dataVolume).ToNot(BeNil())
+				dataVolume := utils.NewCloningDataVolume(dataVolumeName, "1Gi", pvc)
+				Expect(dataVolume).ToNot(BeNil())
 
-			By(fmt.Sprintf("creating new datavolume %s with priority class", dataVolume.Name))
-			dataVolume.Spec.PriorityClassName = "system-cluster-critical"
-			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
-			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-			Expect(err).ToNot(HaveOccurred())
+				By(fmt.Sprintf("creating new datavolume %s with priority class", dataVolume.Name))
+				dataVolume.Spec.PriorityClassName = "system-cluster-critical"
+				dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
+				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+				Expect(err).ToNot(HaveOccurred())
 
-			By("verifying pvc was created")
-			pvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
+				By("verifying pvc was created")
+				pvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindIfWaitForFirstConsumer(pvc)
 
-			By("verifying the Datavolume is not complete yet")
-			foundDv, err := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			if foundDv.Status.Phase != cdiv1.Succeeded {
-				By("find source and target pod")
-				var sourcePod *v1.Pod
-				var uploadPod *v1.Pod
-				Eventually(func() bool {
-					if sourcePod == nil {
-						sourcePod, _ = utils.FindPodBySuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
-					}
-					if uploadPod == nil {
-						uploadPod, _ = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.UploadPodName, common.CDILabelSelector)
-					}
-					return sourcePod != nil && uploadPod != nil
-				}, timeout, pollingInterval).Should(BeTrue())
-				verifyPodAnnotations(sourcePod)
-				verifyPodAnnotations(uploadPod)
-			}
+				By("verifying the Datavolume is not complete yet")
+				foundDv, err := f.CdiClient.CdiV1beta1().DataVolumes(dataVolume.Namespace).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				if foundDv.Status.Phase != cdiv1.Succeeded {
+					By("find source and target pod")
+					var sourcePod *v1.Pod
+					var uploadPod *v1.Pod
+					Eventually(func() bool {
+						if sourcePod == nil {
+							sourcePod, _ = utils.FindPodBySuffix(f.K8sClient, dataVolume.Namespace, "source-pod", common.CDILabelSelector)
+						}
+						if uploadPod == nil {
+							uploadPod, _ = utils.FindPodByPrefix(f.K8sClient, dataVolume.Namespace, common.UploadPodName, common.CDILabelSelector)
+						}
+						return sourcePod != nil && uploadPod != nil
+					}, timeout, pollingInterval).Should(BeTrue())
+					verifyPodAnnotations(sourcePod)
+					verifyPodAnnotations(uploadPod)
+				}
+			})
 		})
 	})
 
@@ -3452,10 +3436,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Expect(err).ToNot(HaveOccurred())
 				return dv
 			}),
-			Entry("Snapshot", func() *cdiv1.DataVolume {
-				if !f.IsSnapshotStorageClassAvailable() {
-					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
-				}
+			Entry("Snapshot", decorators.RequiresSnapshotStorageClass, func() *cdiv1.DataVolume {
 				By("creating a labelled VolumeSnapshot")
 				snapClass := f.GetSnapshotClass()
 				snapshot := utils.NewVolumeSnapshot(sourceDataVolume.Name, sourceDataVolume.Namespace, sourceDataVolume.Name, &snapClass.Name)
@@ -3591,12 +3572,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		By("verifying pvc was created")
 		pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
 		Expect(err).ToNot(HaveOccurred())
-
-		usePopulator, err := dvc.CheckPVCUsingPopulators(pvc)
-		Expect(err).ToNot(HaveOccurred())
-		if !usePopulator {
-			Skip("Skipping test for non-populator PVCs")
-		}
 
 		// We only want to check events from the object type that is relevant to the test
 		// this is because when the DV is intended to be bound, we can't guarantee PVC prime events

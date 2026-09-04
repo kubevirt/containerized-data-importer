@@ -22,6 +22,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -35,7 +36,7 @@ var (
 	defaultURL = ""
 )
 
-var _ = Describe("CDI storage class config tests", Serial, func() {
+var _ = Describe("CDI storage class config tests", Serial, decorators.RequiresDefaultStorageClass, func() {
 	var (
 		f                   = framework.NewFramework("cdiconfig-test")
 		defaultSc, secondSc *storagev1.StorageClass
@@ -106,9 +107,6 @@ var _ = Describe("CDI storage class config tests", Serial, func() {
 	})
 
 	It("[test_id:3962]should have scratchSpaceStorageClass set to blank", func() {
-		if defaultSc == nil {
-			Skip("No default storage class found, skipping test")
-		}
 		By("Expecting default storage class to be: " + defaultSc.Name)
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
@@ -116,9 +114,6 @@ var _ = Describe("CDI storage class config tests", Serial, func() {
 	})
 
 	It("[test_id:3965]should have scratchSpaceStorageClass set to blank if you specify an invalid override", func() {
-		if defaultSc == nil {
-			Skip("No default storage class found, skipping test")
-		}
 		By("Expecting default storage class to be " + defaultSc.Name)
 		invalid := "invalidsc"
 		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
@@ -138,12 +133,9 @@ var _ = Describe("CDI storage class config tests", Serial, func() {
 		Expect(config.Status.ScratchSpaceStorageClass).To(BeEmpty())
 	})
 
-	It("[test_id:3967]Should use the override even if a different default is set", func() {
+	It("[test_id:3967]Should use the override even if a different default is set", decorators.RequiresTwoStorageClasses, func() {
 		storageClasses, err := f.K8sClient.StorageV1().StorageClasses().List(context.TODO(), metav1.ListOptions{})
 		Expect(err).ToNot(HaveOccurred())
-		if len(storageClasses.Items) < 2 {
-			Skip("Not enough storage classes to test overrider")
-		}
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(config.Status.ScratchSpaceStorageClass).To(BeEmpty())
@@ -419,7 +411,7 @@ var _ = Describe("CDI ingress config tests", Serial, func() {
 	})
 })
 
-var _ = Describe("CDI route config tests", Serial, func() {
+var _ = Describe("CDI route config tests", decorators.OpenShift, Serial, func() {
 	var (
 		f                       = framework.NewFramework("cdiconfig-test")
 		routeStart              = func() string { return fmt.Sprintf("%s-%s.", routeName, f.CdiInstallNs) }
@@ -442,9 +434,6 @@ var _ = Describe("CDI route config tests", Serial, func() {
 			Expect(err).ToNot(HaveOccurred())
 		}
 		_, err = openshiftClient.RouteV1().Routes(f.CdiInstallNs).Get(context.TODO(), "cdi-uploadproxy", metav1.GetOptions{})
-		if err != nil {
-			Skip("Unable to list routes, skipping")
-		}
 		By("Making sure no url is set to default route")
 		Eventually(func() bool {
 			config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
@@ -465,9 +454,6 @@ var _ = Describe("CDI route config tests", Serial, func() {
 	})
 
 	It("[test_id:4951]Should override uploadProxyURL if override is set", func() {
-		if openshiftClient == nil {
-			Skip("Routes not available")
-		}
 		override := "www.override.tt.org"
 		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 			config.UploadProxyURLOverride = &override

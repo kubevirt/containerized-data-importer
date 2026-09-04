@@ -16,11 +16,12 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests that modify CDI CR", Serial, func() {
+var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests that modify CDI CR", decorators.RequiresSnapshotStorageClass, Serial, func() {
 	var cdiCr cdiv1.CDI
 	var cdiCrSpec *cdiv1.CDISpec
 
@@ -49,9 +50,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests th
 	})
 
 	It("[test_id:5278]Verify DataVolume Smart Cloning gets disabled by tunable", func() {
-		if !f.IsSnapshotStorageClassAvailable() {
-			Skip("Smart Clone is not applicable")
-		}
 		cloneStrategy := cdiv1.CloneStrategyHostAssisted
 		cdiCr.Spec.CloneStrategyOverride = &cloneStrategy
 		_, err := f.CdiClient.CdiV1beta1().CDIs().Update(context.TODO(), &cdiCr, metav1.UpdateOptions{})
@@ -76,7 +74,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests th
 	})
 })
 
-var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", Serial, func() {
+var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", decorators.RequiresSnapshotStorageClass, Serial, func() {
 	var originalProfileSpec *cdiv1.StorageProfileSpec
 	var originalMinPvcSize, cloneStorageClassName string
 
@@ -110,10 +108,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 	})
 
 	It("[rfe_id:1106][test_id:3494][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - volumeMode filesystem - Positive flow", func() {
-		if !f.IsSnapshotStorageClassAvailable() {
-			Skip("Smart Clone is not applicable")
-		}
-
 		Expect(utils.SetMinimumSupportedPVCSize(f.CrClient, f.SnapshotSCName, testMinPvcSize)).To(Succeed())
 		dataVolume, expectedMd5 := createDataVolume("dv-smart-clone-test-1", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
@@ -128,14 +122,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, expectedMd5)
 	})
 
-	It("[rfe_id:1106][test_id:3495][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - volumeMode block - Positive flow", func() {
-		if !f.IsSnapshotStorageClassAvailable() {
-			Skip("Smart Clone is not applicable")
-		}
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
-
+	It("[rfe_id:1106][test_id:3495][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - volumeMode block - Positive flow", decorators.RequiresBlockStorage, func() {
 		Expect(utils.SetMinimumSupportedPVCSize(f.CrClient, f.SnapshotSCName, testMinPvcSize)).To(Succeed())
 		dataVolume, expectedMd5 := createDataVolume("dv-smart-clone-test-1", utils.DefaultPvcMountPath, v1.PersistentVolumeBlock, f.SnapshotSCName, f)
 		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.SnapshotForSmartCloneInProgress))
@@ -151,9 +138,6 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 	})
 
 	It("[test_id:4987]Verify DataVolume Smart Cloning - volumeMode filesystem - Waits for source to be available", func() {
-		if !f.IsSnapshotStorageClassAvailable() {
-			Skip("Smart Clone is not applicable")
-		}
 		sourcePvc := createAndPopulateSourcePVC("dv-smart-clone-test-1", v1.PersistentVolumeFilesystem, f.SnapshotSCName, f)
 		pod, err := f.CreateExecutorPodWithPVC("temp-pod", f.Namespace.Name, sourcePvc, false)
 		Expect(err).ToNot(HaveOccurred())
@@ -191,26 +175,38 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]SmartClone tests", 
 		verifyPVC(dataVolume, f, utils.DefaultImagePath, utils.UploadFileMD5)
 	})
 
-	It("[rfe_id:1106][test_id:3496][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - Check regular clone works", func() {
-		smartApplicable := f.IsSnapshotStorageClassAvailable()
-		sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), f.SnapshotSCName, metav1.GetOptions{})
-		if err == nil {
-			value, ok := sc.Annotations["storageclass.kubernetes.io/is-default-class"]
-			if smartApplicable && ok && strings.Compare(value, "true") == 0 {
-				Skip("Cannot test regular cloning if Smart Clone is applicable in default Storage Class")
+	Describe("with Host-assisted clone", func() {
+
+		var orgProfileSpec *cdiv1.StorageProfileSpec
+
+		BeforeEach(func() {
+			By("Forcing host-assisted clone strategy")
+			scName := utils.DefaultStorageClass.GetName()
+			var err error
+			orgProfileSpec, err = utils.GetStorageProfileSpec(f.CdiClient, scName)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(utils.ConfigureCloneStrategy(f.CrClient, f.CdiClient, scName, orgProfileSpec, cdiv1.CloneStrategyHostAssisted)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			By("Restoring original clone strategy")
+			if orgProfileSpec != nil {
+				Expect(utils.UpdateStorageProfile(f.CrClient, utils.DefaultStorageClass.GetName(), *orgProfileSpec)).To(Succeed())
 			}
-		}
+		})
 
-		dataVolume, expectedMd5 := createDataVolume("dv-smart-clone-test-negative", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, "", f)
+		It("[rfe_id:1106][test_id:3496][crit:high][vendor:cnv-qe@redhat.com][level:component] Verify DataVolume Smart Cloning - Check regular clone works", func() {
+			dataVolume, expectedMd5 := createDataVolume("dv-smart-clone-test-negative", utils.DefaultImagePath, v1.PersistentVolumeFilesystem, "", f)
 
-		// Wait for operation Succeeded
-		waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
-		f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
+			// Wait for operation Succeeded
+			waitForDvPhase(cdiv1.Succeeded, dataVolume, f)
+			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(controller.CloneSucceeded))
 
-		events, _ := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace)
-		Expect(strings.Contains(events, controller.SnapshotForSmartCloneInProgress)).To(BeFalse())
-		// Verify PVC's content
-		verifyPVC(dataVolume, f, utils.DefaultImagePath, expectedMd5)
+			events, _ := f.RunKubectlCommand("get", "events", "-n", dataVolume.Namespace)
+			Expect(strings.Contains(events, controller.SnapshotForSmartCloneInProgress)).To(BeFalse())
+			// Verify PVC's content
+			verifyPVC(dataVolume, f, utils.DefaultImagePath, expectedMd5)
+		})
 	})
 })
 

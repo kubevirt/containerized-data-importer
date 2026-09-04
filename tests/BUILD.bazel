@@ -66,6 +66,7 @@ go_test(
         "//pkg/util/cert:go_default_library",
         "//pkg/util/naming:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
+        "//tests/decorators:go_default_library",
         "//tests/framework:go_default_library",
         "//tests/reporter:go_default_library",
         "//tests/utils:go_default_library",
