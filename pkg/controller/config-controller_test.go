@@ -953,6 +953,71 @@ var _ = Describe("GetImportProxyConfig", func() {
 	})
 })
 
+var _ = Describe("Config Controller TrustedCA Reconcile Loop", func() {
+	It("should reconcile TrustedCA from Spec to Status", func() {
+		cm := createConfigMap("my-ca-bundle", testNamespace)
+		cm.Data = map[string]string{"ca-bundle.crt": "some-cert-data"}
+		reconciler, cdiConfig := createConfigReconciler(cm)
+		trustedCA := "my-ca-bundle"
+		cdiConfig.Spec.TrustedCA = &trustedCA
+
+		err := reconciler.reconcileTrustedCA(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.TrustedCA).To(HaveValue(Equal("my-ca-bundle")))
+	})
+
+	It("should set Status.TrustedCA to nil when Spec.TrustedCA is nil", func() {
+		reconciler, cdiConfig := createConfigReconciler()
+		cdiConfig.Spec.TrustedCA = nil
+
+		err := reconciler.reconcileTrustedCA(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.TrustedCA).To(BeNil())
+	})
+
+	It("should set Status.TrustedCA to nil when Spec.TrustedCA is unset", func() {
+		reconciler, cdiConfig := createConfigReconciler()
+
+		err := reconciler.reconcileTrustedCA(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.TrustedCA).To(BeNil())
+	})
+
+	It("should set Status.TrustedCA to nil when TrustedCA ConfigMap does not exist", func() {
+		reconciler, cdiConfig := createConfigReconciler()
+		nonExistent := "does-not-exist"
+		cdiConfig.Spec.TrustedCA = &nonExistent
+
+		err := reconciler.reconcileTrustedCA(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(cdiConfig.Status.TrustedCA).To(BeNil())
+	})
+})
+
+var _ = Describe("GetTrustedCA", func() {
+	It("should return the trustedCA name when configured", func() {
+		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
+		trustedCA := "my-ca-bundle"
+		cdiConfig.Status.TrustedCA = &trustedCA
+		result, err := GetTrustedCA(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).To(Equal("my-ca-bundle"))
+	})
+
+	It("should return empty string when TrustedCA is nil", func() {
+		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
+		cdiConfig.Status.TrustedCA = nil
+		result, err := GetTrustedCA(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).To(BeEmpty())
+	})
+
+	It("should return error when CDIConfig is nil", func() {
+		_, err := GetTrustedCA(nil)
+		Expect(err).To(HaveOccurred())
+	})
+})
+
 func createConfigReconciler(objects ...runtime.Object) (*CDIConfigReconciler, *cdiv1.CDIConfig) {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)

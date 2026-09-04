@@ -118,6 +118,10 @@ func (r *CDIConfigReconciler) Reconcile(_ context.Context, req reconcile.Request
 		return reconcile.Result{}, err
 	}
 
+	if err := r.reconcileTrustedCA(config); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	if !reflect.DeepEqual(currentConfigCopy, config) {
 		// Updates have happened, update CDIConfig.
 		log.Info("Updating CDIConfig", "CDIConfig.Name", config.Name, "config", config)
@@ -635,6 +639,33 @@ func (r *CDIConfigReconciler) createProxyConfigMap(cmName, cert string) *v1.Conf
 	}
 }
 
+func (r *CDIConfigReconciler) reconcileTrustedCA(config *cdiv1.CDIConfig) error {
+	if config.Spec.TrustedCA == nil {
+		config.Status.TrustedCA = nil
+		return nil
+	}
+
+	cm := &corev1.ConfigMap{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: r.cdiNamespace, Name: *config.Spec.TrustedCA}, cm)
+	if k8serrors.IsNotFound(err) {
+		msg := fmt.Sprintf(messageResourceDoesntExist, *config.Spec.TrustedCA)
+		config.Status.TrustedCA = nil
+		r.recorder.Event(config, v1.EventTypeWarning, errResourceDoesntExist, msg)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if _, ok := cm.Data["ca-bundle.crt"]; !ok {
+		config.Status.TrustedCA = nil
+		r.recorder.Event(config, v1.EventTypeWarning, errResourceDoesntExist,
+			fmt.Sprintf("ConfigMap %q missing required key \"ca-bundle.crt\"", *config.Spec.TrustedCA))
+		return nil
+	}
+	config.Status.TrustedCA = config.Spec.TrustedCA
+	return nil
+}
+
 // Init initializes a CDIConfig object.
 func (r *CDIConfigReconciler) Init() error {
 	_, err := r.createCDIConfig()
@@ -895,4 +926,14 @@ func GetImportProxyConfig(config *cdiv1.CDIConfig, field string) (string, error)
 
 	// If everything fails, return blank
 	return "", nil
+}
+
+func GetTrustedCA(config *cdiv1.CDIConfig) (string, error) {
+	if config == nil {
+		return "", errors.New("failed to get field, the CDIConfig is nil")
+	}
+	if config.Status.TrustedCA == nil {
+		return "", nil // no trustedCA configured, not an error
+	}
+	return *config.Status.TrustedCA, nil
 }

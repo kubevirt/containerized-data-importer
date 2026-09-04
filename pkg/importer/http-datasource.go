@@ -90,7 +90,7 @@ type HTTPDataSource struct {
 var createNbdkitCurl = image.NewNbdkitCurl
 
 // NewHTTPDataSource creates a new instance of the http data provider.
-func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType, checksum string, insecureSkipVerify bool) (*HTTPDataSource, error) {
+func NewHTTPDataSource(endpoint, accessKey, secKey, importerCertDir string, trustedCACertDir string, proxyCertDir string, contentType cdiv1.DataVolumeContentType, checksum string, insecureSkipVerify bool) (*HTTPDataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to parse endpoint %q", endpoint)
@@ -103,7 +103,7 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		return nil, errors.Wrap(err, "Error getting extra headers for HTTP client")
 	}
 
-	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir, extraHeaders, secretExtraHeaders, contentType, insecureSkipVerify)
+	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, importerCertDir, trustedCACertDir, proxyCertDir, extraHeaders, secretExtraHeaders, contentType, insecureSkipVerify)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -125,12 +125,12 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		httpReader:        httpReader,
 		contentType:       contentType,
 		endpoint:          ep,
-		customCA:          certDir,
+		customCA:          importerCertDir,
 		brokenForQemuImg:  brokenForQemuImg,
 		contentLength:     contentLength,
 		checksumValidator: checksumValidator,
 	}
-	httpSource.n, err = createNbdkitCurl(nbdkitPid, accessKey, secKey, certDir, nbdkitSocket, extraHeaders, secretExtraHeaders)
+	httpSource.n, err = createNbdkitCurl(nbdkitPid, accessKey, secKey, importerCertDir, nbdkitSocket, extraHeaders, secretExtraHeaders)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -271,68 +271,53 @@ func (hs *HTTPDataSource) Close() error {
 	return err
 }
 
-func createCertPool(certDir string) (*x509.CertPool, error) {
+// helper to append certs to cert pool
+func appendCertsToPool(certPool *x509.CertPool, dir string) error {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if file.IsDir() || file.Name()[0] == '.' {
+			continue
+		}
+		fp := path.Join(dir, file.Name())
+		certs, err := os.ReadFile(fp)
+		if err != nil {
+			return err
+		}
+		certPool.AppendCertsFromPEM(certs)
+	}
+	return nil
+}
+
+func createCertPool(importerCertDir string, trustedCACertDir string, proxyCertDir string) (*x509.CertPool, error) {
 	// let's get system certs as well
 	certPool, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, errors.Wrap(err, "Error getting system certs")
 	}
 
-	// append the user-provided trusted CA certificates bundle when making egress connections using proxy
-	if files, err := os.ReadDir(common.ImporterProxyCertDir); err == nil {
-		for _, file := range files {
-			if file.IsDir() || file.Name()[0] == '.' {
-				continue
-			}
-			fp := path.Join(common.ImporterProxyCertDir, file.Name())
-			if certs, err := os.ReadFile(fp); err == nil {
-				certPool.AppendCertsFromPEM(certs)
-			}
-		}
-	}
-
-	// append server CA certificates if the directory exists
-	if certDir != "" {
-		files, err := os.ReadDir(certDir)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Error listing files in %s", certDir)
-		}
-
-		for _, file := range files {
-			if file.IsDir() || file.Name()[0] == '.' {
-				continue
-			}
-
-			fp := path.Join(certDir, file.Name())
-
-			klog.Infof("Attempting to get certs from %s", fp)
-
-			certs, err := os.ReadFile(fp)
-			if err != nil {
-				return nil, errors.Wrapf(err, "Error reading file %s", fp)
-			}
-
-			if ok := certPool.AppendCertsFromPEM(certs); !ok {
-				klog.Warningf("No certs in %s", fp)
+	// append the user-provided trusted proxy and non-proxy
+	// CA certificates bundle when making egress connections using proxy
+	// append certs from each configured directory
+	for _, dir := range []string{proxyCertDir, trustedCACertDir, importerCertDir} {
+		if dir != "" {
+			if err := appendCertsToPool(certPool, dir); err != nil {
+				return nil, errors.Wrapf(err, "Error appending certs from %s", dir)
 			}
 		}
 	}
 	return certPool, nil
 }
 
-func createHTTPClient(certDir string, insecureSkipVerify bool) (*http.Client, error) {
+func createHTTPClient(importerCertDir string, trustedCACertDir string, proxyCertDir string, insecureSkipVerify bool) (*http.Client, error) {
 	client := &http.Client{
 		// Don't set timeout here, since that will be an absolute timeout, we need a relative to last progress timeout.
 	}
 
-	// if any cluster wide certs are configured, they will exist in the proxy cert dir
-	proxyCertDir, err := os.ReadDir(common.ImporterProxyCertDir)
-
-	if err != nil && !os.IsNotExist(err) {
-		klog.Warningf("Unable to read proxy cert directory %v", err)
-	}
-
-	if certDir == "" && len(proxyCertDir) == 0 && !insecureSkipVerify {
+	if importerCertDir == "" && trustedCACertDir == "" && proxyCertDir == "" && !insecureSkipVerify {
 		return client, nil
 	}
 	// the default transport contains Proxy configurations to use environment variables and default timeouts
@@ -344,7 +329,7 @@ func createHTTPClient(certDir string, insecureSkipVerify bool) (*http.Client, er
 	}
 
 	if !insecureSkipVerify {
-		certPool, err := createCertPool(certDir)
+		certPool, err := createCertPool(importerCertDir, trustedCACertDir, proxyCertDir)
 		if err != nil {
 			return nil, err
 		}
@@ -372,9 +357,9 @@ func addExtraheaders(req *http.Request, extraHeaders []string) {
 	req.Header.Add("User-Agent", defaultUserAgent)
 }
 
-func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string, extraHeaders, secretExtraHeaders []string, contentType cdiv1.DataVolumeContentType, insecureSkipVerify bool) (io.ReadCloser, uint64, bool, error) {
+func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, importerCertDir string, trustedCACertDir string, proxyCertDir string, extraHeaders, secretExtraHeaders []string, contentType cdiv1.DataVolumeContentType, insecureSkipVerify bool) (io.ReadCloser, uint64, bool, error) {
 	var brokenForQemuImg bool
-	client, err := createHTTPClient(certDir, insecureSkipVerify)
+	client, err := createHTTPClient(importerCertDir, trustedCACertDir, proxyCertDir, insecureSkipVerify)
 	if err != nil {
 		return nil, uint64(0), false, errors.Wrap(err, "Error creating http client")
 	}

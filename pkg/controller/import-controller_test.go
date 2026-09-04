@@ -1131,6 +1131,235 @@ var _ = Describe("Create Importer Pod", func() {
 		Entry("should create pod with block volume mode and scratchspace", createBlockPvc("testBlockPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodPending), cc.AnnImportPod: "podName", cc.AnnPriorityClassName: "p0", cc.AnnPodServiceAccount: "my-sa"}, nil), &scratchPvcName),
 	)
 
+	It("should create pod with trustedCA cert volume when trustedCA is configured", func() {
+		certConfigMapTrustedCA := "my-ca-bundle"
+
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{
+			cc.AnnEndpoint:  testEndPoint,
+			cc.AnnPodPhase:  string(corev1.PodPending),
+			cc.AnnImportPod: "podName",
+		}, nil)
+		reconciler := createImportReconciler(pvc)
+
+		// Update CDIConfig with trustedCA and proxy settings
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		cdiConfig.Status.TrustedCA = &certConfigMapTrustedCA
+
+		err = reconciler.client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Get the pod created by the reconciler
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "podName", Namespace: pvc.Namespace}, pod)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying volume mounts count")
+		Expect(pod.Spec.Containers[0].VolumeMounts).ToNot(BeNil())
+		By("Verifying volumes count")
+		Expect(pod.Spec.Volumes).ToNot(BeNil())
+		By("Verifying trustedCA volume mount exists at correct path")
+		found := false
+		for _, vm := range pod.Spec.Containers[0].VolumeMounts {
+			if vm.Name == TrustedCACertVolName {
+				Expect(vm.MountPath).To(Equal(common.ImportTrustedCACertDir))
+				found = true
+				break
+			}
+		}
+		Expect(found).To(BeTrue(), "trustedCA volume mount not found")
+		By("Verifying trustedCA volume exists")
+		volFound := false
+		for _, v := range pod.Spec.Volumes {
+			if v.Name == TrustedCACertVolName {
+				Expect(v.VolumeSource.ConfigMap).ToNot(BeNil())
+				Expect(v.VolumeSource.ConfigMap.LocalObjectReference.Name).To(Equal(GetTrustedCAConfigMapName(pvc.Name)))
+				volFound = true
+				break
+			}
+		}
+		Expect(volFound).To(BeTrue(), "trustedCA volume not found")
+		By("Verifying trustedCA env var is set")
+		envFound := false
+		for _, env := range pod.Spec.Containers[0].Env {
+			if env.Name == common.ImporterTrustedCADirVar {
+				Expect(env.Value).To(Equal(common.ImportTrustedCACertDir))
+				envFound = true
+				break
+			}
+		}
+		Expect(envFound).To(BeTrue(), "trustedCA env var not found")
+	})
+
+	It("should create pod without trustedCA cert volume when trustedCA is not configured", func() {
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{
+			cc.AnnEndpoint:  testEndPoint,
+			cc.AnnPodPhase:  string(corev1.PodPending),
+			cc.AnnImportPod: "podName",
+		}, nil)
+		reconciler := createImportReconciler(pvc)
+
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}})
+		Expect(err).ToNot(HaveOccurred())
+
+		// Get the pod created by the reconciler
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "podName", Namespace: pvc.Namespace}, pod)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying no trustedCA volume mount exists")
+		for _, vm := range pod.Spec.Containers[0].VolumeMounts {
+			Expect(vm.Name).ToNot(Equal(TrustedCACertVolName))
+		}
+
+		By("Verifying no trustedCA volume exists")
+		for _, v := range pod.Spec.Volumes {
+			Expect(v.Name).ToNot(Equal(TrustedCACertVolName))
+		}
+
+		By("Verifying trustedCA env var is not set")
+		for _, env := range pod.Spec.Containers[0].Env {
+			Expect(env.Name).ToNot(Equal(common.ImporterTrustedCADirVar))
+		}
+	})
+
+	It("should create pod without trustedCA volume after trustedCA is removed", func() {
+		certConfigMapTrustedCA := "my-ca-bundle"
+
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{
+			cc.AnnEndpoint:  testEndPoint,
+			cc.AnnPodPhase:  string(corev1.PodPending),
+			cc.AnnImportPod: "podName",
+		}, nil)
+		reconciler := createImportReconciler(pvc)
+
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		cdiConfig.Status.TrustedCA = &certConfigMapTrustedCA
+		err = reconciler.client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Removing trustedCA and deleting old pod")
+		cdiConfig.Status.TrustedCA = nil
+		err = reconciler.client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "podName", Namespace: pvc.Namespace}, pod)
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Delete(context.TODO(), pod)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc.Annotations[cc.AnnImportPod] = "podName2"
+		err = reconciler.client.Update(context.TODO(), pvc)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}})
+		Expect(err).ToNot(HaveOccurred())
+
+		newPod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "podName2", Namespace: pvc.Namespace}, newPod)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying no trustedCA volume mount on new pod")
+		for _, vm := range newPod.Spec.Containers[0].VolumeMounts {
+			Expect(vm.Name).ToNot(Equal(TrustedCACertVolName))
+		}
+		By("Verifying no trustedCA volume on new pod")
+		for _, v := range newPod.Spec.Volumes {
+			Expect(v.Name).ToNot(Equal(TrustedCACertVolName))
+		}
+		By("Verifying no trustedCA env var on new pod")
+		for _, env := range newPod.Spec.Containers[0].Env {
+			Expect(env.Name).ToNot(Equal(common.ImporterTrustedCADirVar))
+		}
+	})
+
+	It("should create pod with updated trustedCA volume when trustedCA changes", func() {
+		oldCA := "old-ca-bundle"
+
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{
+			cc.AnnEndpoint:  testEndPoint,
+			cc.AnnPodPhase:  string(corev1.PodPending),
+			cc.AnnImportPod: "podName",
+		}, nil)
+		reconciler := createImportReconciler(pvc)
+
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		cdiConfig.Status.TrustedCA = &oldCA
+		err = reconciler.client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}})
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Changing trustedCA and deleting old pod")
+		newCA := "new-ca-bundle"
+		cdiConfig.Status.TrustedCA = &newCA
+		err = reconciler.client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		pod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "podName", Namespace: pvc.Namespace}, pod)
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Delete(context.TODO(), pod)
+		Expect(err).ToNot(HaveOccurred())
+
+		pvc.Annotations[cc.AnnImportPod] = "podName2"
+		err = reconciler.client.Update(context.TODO(), pvc)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}})
+		Expect(err).ToNot(HaveOccurred())
+
+		newPod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "podName2", Namespace: pvc.Namespace}, newPod)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying trustedCA volume references new ConfigMap")
+		volFound := false
+		for _, v := range newPod.Spec.Volumes {
+			if v.Name == TrustedCACertVolName {
+				Expect(v.VolumeSource.ConfigMap).ToNot(BeNil())
+				Expect(v.VolumeSource.ConfigMap.LocalObjectReference.Name).To(Equal(GetTrustedCAConfigMapName(pvc.Name)))
+				volFound = true
+				break
+			}
+		}
+		Expect(volFound).To(BeTrue(), "trustedCA volume not found after update")
+	})
+
+	It("should not error when trustedCA is configured but no endpoint annotation", func() {
+		certConfigMapTrustedCA := "my-ca-bundle"
+
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{
+			cc.AnnPodPhase:  string(corev1.PodPending),
+			cc.AnnImportPod: "podName",
+		}, nil)
+		reconciler := createImportReconciler(pvc)
+
+		cdiConfig := &cdiv1.CDIConfig{}
+		err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		cdiConfig.Status.TrustedCA = &certConfigMapTrustedCA
+		err = reconciler.client.Update(context.TODO(), cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+
+		_, err = reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: pvc.Name, Namespace: pvc.Namespace}})
+		Expect(err).ToNot(HaveOccurred())
+	})
+
 	DescribeTable("should copy labels from target PVC when creating pod", func(isPopulator bool) {
 		targetPvc := cc.CreatePvc("targetPvc", "default",
 			map[string]string{
