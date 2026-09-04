@@ -359,19 +359,18 @@ func (r *DataImportCronReconciler) update(ctx context.Context, dataImportCron *c
 		return res, err
 	}
 	if desiredStorageClass != nil {
-		if deleted, err := r.deleteOutdatedPendingPvc(ctx, pvc, desiredStorageClass.Name, dataImportCron.Name); deleted || err != nil {
+		desiredSc := desiredStorageClass.Name
+		outdated, err := r.isImportOutdated(ctx, dataImportCron, dv, pvc, desiredSc)
+		if err != nil {
 			return res, err
 		}
-		currentSc, hasCurrent := dataImportCron.Annotations[AnnStorageClass]
-		desiredSc := desiredStorageClass.Name
-		if hasCurrent && currentSc != desiredSc {
-			r.log.Info("Storage class changed, delete most recent source on the old sc as it's no longer the desired", "currentSc", currentSc, "desiredSc", desiredSc)
-			if err := r.handleStorageClassChange(ctx, dataImportCron, desiredSc); err != nil {
+		if outdated {
+			if err := r.recreateImport(ctx, dataImportCron, desiredSc); err != nil {
 				return res, err
 			}
 			return reconcile.Result{RequeueAfter: time.Second}, nil
 		}
-		cc.AddAnnotation(dataImportCron, AnnStorageClass, desiredStorageClass.Name)
+		cc.AddAnnotation(dataImportCron, AnnStorageClass, desiredSc)
 	}
 	format, err := r.getSourceFormat(ctx, desiredStorageClass)
 	if err != nil {
@@ -974,7 +973,7 @@ func (p *authProxy) GetDataSource(namespace, name string) (*cdiv1.DataSource, er
 	return das, nil
 }
 
-func (r *DataImportCronReconciler) handleStorageClassChange(ctx context.Context, dataImportCron *cdiv1.DataImportCron, desiredStorageClass string) error {
+func (r *DataImportCronReconciler) recreateImport(ctx context.Context, dataImportCron *cdiv1.DataImportCron, desiredStorageClass string) error {
 	digest, ok := dataImportCron.Annotations[AnnSourceDesiredDigest]
 	if !ok {
 		// nothing to delete
@@ -1109,6 +1108,37 @@ func (r *DataImportCronReconciler) handleSnapshotClassChange(ctx context.Context
 		return false, client.IgnoreNotFound(err)
 	}
 	return true, nil
+}
+
+func (r *DataImportCronReconciler) isImportOutdated(ctx context.Context, cron *cdiv1.DataImportCron, currentDV *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim, desiredSCName string) (bool, error) {
+	currentSc, hasCurrent := cron.Annotations[AnnStorageClass]
+	scChanged := currentSc != desiredSCName
+	reimportRequired := hasCurrent || len(cron.Status.CurrentImports) > 0
+	if scChanged && reimportRequired {
+		r.log.Info("Storage class changed, resetting import", "currentSc", currentSc, "desiredSc", desiredSCName)
+		return true, nil
+	}
+
+	if pvc != nil && pvc.Status.Phase == corev1.ClaimPending &&
+		pvc.Labels[common.DataImportCronLabel] == cron.Name &&
+		pvc.Spec.StorageClassName != nil && *pvc.Spec.StorageClassName != desiredSCName {
+		r.log.Info("Pending PVC has outdated storage class, resetting import", "pvc", pvc.Name, "pvcSc", *pvc.Spec.StorageClassName, "desiredSc", desiredSCName)
+		return true, nil
+	}
+
+	if currentDV != nil {
+		sp := &cdiv1.StorageProfile{}
+		if err := r.client.Get(ctx, types.NamespacedName{Name: desiredSCName}, sp); err != nil {
+			return false, err
+		}
+		desiredDV := r.newSourceDataVolume(cron, currentDV.Name, sp)
+		if !reflect.DeepEqual(currentDV.Spec, desiredDV.Spec) {
+			r.log.Info("Import DV spec changed, resetting import", "dv", currentDV.Name)
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // getSnapshotClassForDataImportCron returns the VolumeSnapshotClass name to use for DataImportCron snapshots.
@@ -1531,24 +1561,6 @@ func getReconcileRequestsForDicsWithoutExplicitStorageClass(ctx context.Context,
 	}
 
 	return reqs, nil
-}
-
-func (r *DataImportCronReconciler) deleteOutdatedPendingPvc(ctx context.Context, pvc *corev1.PersistentVolumeClaim, desiredStorageClass, cronName string) (bool, error) {
-	if pvc == nil || pvc.Status.Phase != corev1.ClaimPending || pvc.Labels[common.DataImportCronLabel] != cronName {
-		return false, nil
-	}
-
-	sc := pvc.Spec.StorageClassName
-	if sc == nil || *sc == desiredStorageClass {
-		return false, nil
-	}
-
-	r.log.Info("Delete pending pvc", "name", pvc.Name, "ns", pvc.Namespace, "sc", *sc)
-	if err := r.client.Delete(ctx, pvc); cc.IgnoreNotFound(err) != nil {
-		return false, err
-	}
-
-	return true, nil
 }
 
 func (r *DataImportCronReconciler) cronJobExistsAndUpdated(ctx context.Context, cron *cdiv1.DataImportCron) (bool, error) {
