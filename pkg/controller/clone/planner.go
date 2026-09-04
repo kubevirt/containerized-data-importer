@@ -359,6 +359,10 @@ func (p *Planner) computeStrategyForSourcePVC(ctx context.Context, args *ChooseS
 	res.Strategy = strategy
 	if strategy == cdiv1.CloneStrategySnapshot ||
 		strategy == cdiv1.CloneStrategyCsiClone {
+		if _, ok := sourceClaim.Status.Capacity[corev1.ResourceStorage]; !ok {
+			args.Log.V(3).Info("Source PVC capacity not yet available, requeueing")
+			return nil, nil
+		}
 		if err := p.validateAdvancedClonePVC(ctx, args, res, sourceClaim); err != nil {
 			return nil, err
 		}
@@ -502,12 +506,9 @@ func (p *Planner) validateAdvancedClonePVC(ctx context.Context, args *ChooseStra
 		return fmt.Errorf("target storage class not found")
 	}
 
-	srcCapacity, hasSrcCapacity := sourceClaim.Status.Capacity[corev1.ResourceStorage]
-	targetRequest, hasTargetRequest := args.TargetClaim.Spec.Resources.Requests[corev1.ResourceStorage]
+	srcCapacity := sourceClaim.Status.Capacity[corev1.ResourceStorage]
+	targetRequest := args.TargetClaim.Spec.Resources.Requests[corev1.ResourceStorage]
 	allowExpansion := sc.AllowVolumeExpansion != nil && *sc.AllowVolumeExpansion
-	if !hasSrcCapacity || !hasTargetRequest {
-		return fmt.Errorf("source/target size info missing")
-	}
 
 	if srcCapacity.Cmp(targetRequest) < 0 && !allowExpansion {
 		p.fallbackToHostAssisted(args.TargetClaim, res, NoVolumeExpansion, MessageNoVolumeExpansion)
