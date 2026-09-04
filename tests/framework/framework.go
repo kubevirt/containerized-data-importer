@@ -265,7 +265,7 @@ func DeleteNS(c *kubernetes.Clientset, ns string) error {
 
 // GetDynamicClient gets an instance of a dynamic client that performs generic operations on arbitrary k8s API objects.
 func (c *Clients) GetDynamicClient() (dynamic.Interface, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags(c.KubeURL, c.KubeConfig)
+	cfg, err := buildRestConfig(c.KubeURL, c.KubeConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +278,7 @@ func (c *Clients) GetDynamicClient() (dynamic.Interface, error) {
 
 // GetCdiClient gets an instance of a kubernetes client that includes all the CDI extensions.
 func (c *Clients) GetCdiClient() (*cdiClientset.Clientset, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags(c.KubeURL, c.KubeConfig)
+	cfg, err := buildRestConfig(c.KubeURL, c.KubeConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +291,7 @@ func (c *Clients) GetCdiClient() (*cdiClientset.Clientset, error) {
 
 // GetExtClient gets an instance of a kubernetes client that includes all the api extensions.
 func (c *Clients) GetExtClient() (*extclientset.Clientset, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags(c.KubeURL, c.KubeConfig)
+	cfg, err := buildRestConfig(c.KubeURL, c.KubeConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -381,7 +381,24 @@ func (c *Clients) GetKubeClient() (*kubernetes.Clientset, error) {
 
 // LoadConfig loads our specified kubeconfig
 func (c *Clients) LoadConfig() (*rest.Config, error) {
-	return clientcmd.BuildConfigFromFlags(c.KubeURL, c.KubeConfig)
+	return buildRestConfig(c.KubeURL, c.KubeConfig)
+}
+
+// buildRestConfig builds the REST config and lifts the client-side rate limits.
+// The e2e suite polls DataVolume/PVC status in tight Eventually loops across many
+// parallel specs; the client-go default (QPS=5, Burst=10) throttles those polls
+// until rate.Wait() blocks past the spec's context deadline — surfacing as
+// "client rate limiter Wait returned an error: context deadline exceeded" and a
+// timed-out import even though the import itself succeeded. 100/200 removes the
+// test client as the bottleneck (the apiserver has its own priority & fairness).
+func buildRestConfig(kubeURL, kubeConfig string) (*rest.Config, error) {
+	cfg, err := clientcmd.BuildConfigFromFlags(kubeURL, kubeConfig)
+	if err != nil {
+		return nil, err
+	}
+	cfg.QPS = 100
+	cfg.Burst = 200
+	return cfg, nil
 }
 
 // GetKubeClientFromRESTConfig provides a function to get a K8s client using hte REST config
