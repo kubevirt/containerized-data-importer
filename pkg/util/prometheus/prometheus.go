@@ -16,6 +16,9 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
+const CertFileName = "tls.crt"
+const KeyFileName = "tls.key"
+
 // ProgressReader is a counting reader that reports progress to prometheus.
 type ProgressReader struct {
 	util.CountingReader
@@ -102,13 +105,13 @@ func StartPrometheusEndpoint(certsDirectory string) {
 		return
 	}
 
-	certFile := path.Join(certsDirectory, "tls.crt")
+	certFile := path.Join(certsDirectory, CertFileName)
 	if err = os.WriteFile(certFile, certBytes, 0600); err != nil {
 		klog.Error("Error writing cert file")
 		return
 	}
 
-	keyFile := path.Join(certsDirectory, "tls.key")
+	keyFile := path.Join(certsDirectory, KeyFileName)
 	if err = os.WriteFile(keyFile, keyBytes, 0600); err != nil {
 		klog.Error("Error writing key file")
 		return
@@ -125,4 +128,33 @@ func StartPrometheusEndpoint(certsDirectory string) {
 			return
 		}
 	}()
+}
+
+// StartPrometheusEndpointNoCertGeneration starts the prometheus HTTP endpoint without generating self-signed TLS certificates
+// but using the certificates from the ones passed in the directory.
+func StartPrometheusEndpointNoCertGeneration(certsDirectory string) error {
+	certFile := path.Join(certsDirectory, CertFileName)
+	if _, err := os.Stat(certFile); os.IsNotExist(err) {
+		klog.Errorf("Cert file %s does not exist", certFile)
+		return fmt.Errorf("cert file %s does not exist", certFile)
+	}
+	keyFile := path.Join(certsDirectory, KeyFileName)
+	if _, err := os.Stat(keyFile); os.IsNotExist(err) {
+		klog.Errorf("Key file %s does not exist", keyFile)
+		return fmt.Errorf("key file %s does not exist", keyFile)
+	}
+
+	go func() {
+		server := &http.Server{
+			Addr:              ":8443",
+			ReadHeaderTimeout: 10 * time.Second,
+			Handler:           promhttp.Handler(),
+		}
+
+		if err := server.ListenAndServeTLS(certFile, keyFile); err != nil {
+			klog.Errorf("Prometheus endpoint failed: %v", err)
+		}
+	}()
+
+	return nil
 }

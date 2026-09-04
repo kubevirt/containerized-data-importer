@@ -65,6 +65,7 @@ import (
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
@@ -74,6 +75,9 @@ const (
 
 	// ScratchVolName provides a const to use for creating scratch pvc volumes in pod specs
 	ScratchVolName = "cdi-scratch-vol"
+
+	// PrometheusCertSecretSuffix is appended to the pod name to form the prometheus cert Secret name
+	PrometheusCertSecretSuffix = "-prometheus-certs"
 
 	// AnnAPIGroup is the APIGroup for CDI
 	AnnAPIGroup = "cdi.kubevirt.io"
@@ -1230,6 +1234,7 @@ func SetRestrictedSecurityContext(podSpec *corev1.PodSpec) {
 			container.SecurityContext.AllowPrivilegeEscalation = ptr.To[bool](false)
 			container.SecurityContext.RunAsNonRoot = ptr.To[bool](true)
 			container.SecurityContext.RunAsUser = ptr.To[int64](common.QemuSubGid)
+			container.SecurityContext.ReadOnlyRootFilesystem = ptr.To(true)
 			if len(container.VolumeMounts) > 0 {
 				hasVolumeMounts = true
 			}
@@ -1246,6 +1251,115 @@ func SetRestrictedSecurityContext(podSpec *corev1.PodSpec) {
 	if hasVolumeMounts {
 		podSpec.SecurityContext.FSGroup = ptr.To[int64](common.QemuSubGid)
 	}
+}
+
+// PrometheusCertSecretName returns the Secret name for a pod's prometheus certs.
+func PrometheusCertSecretName(podName string) string {
+	return podName + PrometheusCertSecretSuffix
+}
+
+// AppendPrometheusCertVolume adds the prometheus cert Secret volume and mount to a pod spec.
+func AppendPrometheusCertVolume(podSpec *corev1.PodSpec, podName string) {
+	podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
+		Name: common.PrometheusCertVolName,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: PrometheusCertSecretName(podName),
+			},
+		},
+	})
+	mount := corev1.VolumeMount{
+		Name:      common.PrometheusCertVolName,
+		MountPath: common.PrometheusCertDir,
+		ReadOnly:  true,
+	}
+	for i := range podSpec.Containers {
+		podSpec.Containers[i].VolumeMounts = append(podSpec.Containers[i].VolumeMounts, mount)
+	}
+}
+
+// AppendTmpVolume adds an emptyDir volume mounted at /tmp to a pod spec.
+func AppendTmpVolume(podSpec *corev1.PodSpec) {
+	podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
+		Name: common.TmpVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	})
+	mount := corev1.VolumeMount{
+		Name:      common.TmpVolumeName,
+		MountPath: common.TmpMountPath,
+	}
+	for i := range podSpec.Containers {
+		podSpec.Containers[i].VolumeMounts = append(podSpec.Containers[i].VolumeMounts, mount)
+	}
+}
+
+// CreatePrometheusCertSecret creates a Secret containing a self-signed TLS cert/key pair
+// for the prometheus metrics endpoint of a worker pod. It must be called BEFORE creating
+// the pod so the Secret is available when the kubelet mounts the volume.
+// The returned Secret does not have an OwnerReference yet; call SetPrometheusCertSecretOwnerRef
+// after the pod is created to set it.
+func CreatePrometheusCertSecret(ctx context.Context, c client.Client, podName, namespace string, installerLabels map[string]string) error {
+	certBytes, keyBytes, err := cert.GenerateSelfSignedCertKey(podName, nil, nil)
+	if err != nil {
+		return fmt.Errorf("generating prometheus cert for pod %s/%s: %w", namespace, podName, err)
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      PrometheusCertSecretName(podName),
+			Namespace: namespace,
+			Labels: map[string]string{
+				common.CDILabelKey:        common.CDILabelValue,
+				common.PrometheusLabelKey: common.PrometheusLabelValue,
+			},
+		},
+		Data: map[string][]byte{
+			corev1.TLSCertKey:       certBytes,
+			corev1.TLSPrivateKeyKey: keyBytes,
+		},
+	}
+
+	if installerLabels != nil {
+		util.SetRecommendedLabels(secret, installerLabels, common.CDIControllerName)
+	}
+
+	if err := c.Create(ctx, secret); err != nil {
+		if k8serrors.IsAlreadyExists(err) {
+			klog.Warningf("Prometheus cert secret for pod %s/%s already exists", namespace, podName)
+			return nil
+		}
+		return fmt.Errorf("creating prometheus cert secret for pod %s/%s: %w", namespace, podName, err)
+	}
+	return nil
+}
+
+// SetPrometheusCertSecretOwnerRef updates the prometheus cert Secret to add an OwnerReference
+// to the given pod, so the Secret is garbage-collected when the pod is deleted.
+// Must be called AFTER the pod is created (since it needs the pod's UID).
+func SetPrometheusCertSecretOwnerRef(ctx context.Context, c client.Client, pod *corev1.Pod) error {
+	secret := &corev1.Secret{}
+	secretName := PrometheusCertSecretName(pod.Name)
+	if err := c.Get(ctx, types.NamespacedName{Name: secretName, Namespace: pod.Namespace}, secret); err != nil {
+		return fmt.Errorf("getting prometheus cert secret %s/%s: %w", pod.Namespace, secretName, err)
+	}
+
+	secret.OwnerReferences = []metav1.OwnerReference{
+		{
+			APIVersion:         "v1",
+			Kind:               "Pod",
+			Name:               pod.Name,
+			UID:                pod.GetUID(),
+			BlockOwnerDeletion: ptr.To(true),
+			Controller:         ptr.To(true),
+		},
+	}
+
+	if err := c.Update(ctx, secret); err != nil {
+		return fmt.Errorf("setting owner reference on prometheus cert secret %s/%s: %w", pod.Namespace, secretName, err)
+	}
+	return nil
 }
 
 // SetNodeNameIfPopulator sets NodeName in a pod spec when the PVC is being handled by a CDI volume populator

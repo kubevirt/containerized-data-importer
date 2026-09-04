@@ -63,5 +63,6 @@ go_test(
         "//pkg/util/prometheus:go_default_library",
         "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",
+        "//vendor/k8s.io/client-go/util/cert:go_default_library",
     ],
 )

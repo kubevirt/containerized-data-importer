@@ -99,12 +99,9 @@ func touchDoneFile() {
 func main() {
 	defer klog.Flush()
 
-	certsDirectory, err := os.MkdirTemp("", "certsdir")
-	if err != nil {
-		panic(err)
+	if err := prometheusutil.StartPrometheusEndpointNoCertGeneration(common.PrometheusCertDir); err != nil {
+		klog.Warningf("Failed to start prometheus endpoint: %v", err)
 	}
-	defer os.RemoveAll(certsDirectory)
-	prometheusutil.StartPrometheusEndpoint(certsDirectory)
 	klog.V(1).Infoln("Starting importer")
 
 	source, _ := util.ParseEnvVar(common.ImporterSource, false)

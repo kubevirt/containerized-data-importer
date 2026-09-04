@@ -524,8 +524,16 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, ownerKey, imagePullSecrets, serverCABundle, pvc, sourcePvc, podResourceRequirements, workloadNodePlacement)
 	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
+	if err := cc.CreatePrometheusCertSecret(context.TODO(), r.client, pod.Name, pod.Namespace, r.installerLabels); err != nil {
+		return nil, err
+	}
+
 	if err := r.client.Create(context.TODO(), pod); err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
+	}
+
+	if err := cc.SetPrometheusCertSecretOwnerRef(context.TODO(), r.client, pod); err != nil {
+		return nil, err
 	}
 
 	log.V(1).Info("cloning source pod (image) created\n", "pod.Namespace", pod.Namespace, "pod.Name", pod.Name, "image", image)
@@ -740,6 +748,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, addVars...)
 	cc.CopyAllowedAnnotations(targetPvc, pod)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
+	cc.AppendPrometheusCertVolume(&pod.Spec, pod.Name)
 	return pod
 }
 
