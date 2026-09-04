@@ -302,7 +302,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Se
 		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(func() bool {
-			cr, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			cr, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			return reflect.DeepEqual(cr.Spec, *oldSpec)
 		}, 30*time.Second, time.Second).Should(BeTrue())
@@ -316,7 +316,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Se
 
 		By("Waiting for CDI CR update to take effect")
 		Eventually(func() bool {
-			realCR, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			realCR, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			return reflect.DeepEqual(cr.Spec, realCR.Spec)
 		}, 30*time.Second, time.Second).Should(BeTrue())

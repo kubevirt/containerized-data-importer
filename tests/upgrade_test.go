@@ -19,7 +19,7 @@ import (
 
 const oldVersionArtifactsNamespace = "cdi-testing-old-version-artifacts"
 
-var _ = Describe("[Upgrade]", Serial, func() {
+var _ = Describe("[Upgrade]", Label("Upgrade"), Serial, func() {
 	f := framework.NewFramework("upgrade-test")
 
 	DescribeTable("[rfe_id:5493]DV status.name is populated after upgrade", func(dvName string) {
