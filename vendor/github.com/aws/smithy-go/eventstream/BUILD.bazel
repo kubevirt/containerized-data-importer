@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "const.go",
+        "debug.go",
+        "decode.go",
+        "deserializer.go",
+        "encode.go",
+        "error.go",
+        "header.go",
+        "header_value.go",
+        "message.go",
+        "serializer.go",
+        "signer.go",
+        "types.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/smithy-go/eventstream",
+    importpath = "github.com/aws/smithy-go/eventstream",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/aws/smithy-go:go_default_library",
+        "//vendor/github.com/aws/smithy-go/document:go_default_library",
+        "//vendor/github.com/aws/smithy-go/logging:go_default_library",
+        "//vendor/github.com/aws/smithy-go/traits:go_default_library",
+    ],
+)

@@ -1,0 +1,19 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "debug.go",
+        "decode.go",
+        "encode.go",
+        "error.go",
+        "go_module_metadata.go",
+        "header.go",
+        "header_value.go",
+        "message.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream",
+    importpath = "github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream",
+    visibility = ["//visibility:public"],
+    deps = ["//vendor/github.com/aws/smithy-go/logging:go_default_library"],
+)
