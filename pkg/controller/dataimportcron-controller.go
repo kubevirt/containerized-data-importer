@@ -707,29 +707,22 @@ func (r *DataImportCronReconciler) updateContainerImageDesiredDigest(ctx context
 			Affinity:                      workloadNodePlacement.Affinity,
 			Volumes: []corev1.Volume{
 				{
-					Name: "shared-volume",
+					Name: "image-volume",
 					VolumeSource: corev1.VolumeSource{
-						EmptyDir: &corev1.EmptyDirVolumeSource{},
+						Image: &corev1.ImageVolumeSource{
+							Reference:  containerImage,
+							PullPolicy: corev1.PullIfNotPresent,
+						},
 					},
-				},
-			},
-			InitContainers: []corev1.Container{
-				{
-					Name:                     "init",
-					Image:                    r.image,
-					ImagePullPolicy:          corev1.PullPolicy(r.pullPolicy),
-					Command:                  []string{"sh", "-c", "cp /usr/bin/cdi-containerimage-server /shared/server"},
-					VolumeMounts:             []corev1.VolumeMount{{Name: "shared-volume", MountPath: "/shared"}},
-					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 				},
 			},
 			Containers: []corev1.Container{
 				{
 					Name:                     "image-container",
-					Image:                    containerImage,
-					ImagePullPolicy:          corev1.PullAlways,
-					Command:                  []string{"/shared/server", "-h"},
-					VolumeMounts:             []corev1.VolumeMount{{Name: "shared-volume", MountPath: "/shared"}},
+					Image:                    r.image,
+					ImagePullPolicy:          corev1.PullPolicy(r.pullPolicy),
+					Command:                  []string{"sleep", "0.1"},
+					VolumeMounts:             []corev1.VolumeMount{{Name: "image-volume", MountPath: "/image"}},
 					TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 				},
 			},
