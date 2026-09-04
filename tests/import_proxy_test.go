@@ -594,7 +594,7 @@ func updateCDIConfigByUpdatingTheClusterWideProxy(f *framework.Framework, ocpCli
 		return false
 	}, time.Second*60, time.Second).Should(BeTrue())
 
-	By("Waiting CDIConfig reconcile")
+	By("Waiting CDIConfig reconcile - test comment")
 	Eventually(func() bool {
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
