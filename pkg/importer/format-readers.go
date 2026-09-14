@@ -71,6 +71,7 @@ const (
 	rdrXz
 	rdrStream
 	rdrChecksum
+	rdrZstd
 )
 
 // map scheme and format to rdrType
@@ -78,6 +79,7 @@ var rdrTypM = map[string]int{
 	"gz":     rdrGz,
 	"xz":     rdrXz,
 	"stream": rdrStream,
+	"zst":    rdrZstd,
 }
 
 // NewFormatReaders creates a new instance of FormatReaders using the input stream and content type passed in.
@@ -263,7 +265,7 @@ func (fr *FormatReaders) matchHeader(knownHdrs *image.Headers) (*image.Header, e
 		return nil, err
 	}
 	// append multi-reader so that the header data can be re-read by subsequent readers
-	fr.appendReader(rdrMulti, bytes.NewReader(fr.buf))
+	fr.appendReader(rdrMulti, bytes.NewReader(bytes.Clone(fr.buf)))
 
 	// loop through known headers until a match
 	for format, kh := range *knownHdrs {

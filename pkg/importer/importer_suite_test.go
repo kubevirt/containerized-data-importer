@@ -16,12 +16,13 @@ import (
 //  2. in tinyCore.iso where the returned size is smaller than the original. Note: this is not
 //     the case for larger iso files such as windows.
 var sizeExceptions = map[string]struct{}{
-	".iso":    {},
-	".iso.gz": {},
-	".iso.xz": {},
+	".iso":     {},
+	".iso.gz":  {},
+	".iso.xz":  {},
+	".iso.zst": {},
 }
 
-var testfiles = []string{tinyCoreXzFilePath, tinyCoreGzFilePath, tinyCoreTarFilePath, archiveFilePath}
+var testfiles = []string{tinyCoreXzFilePath, tinyCoreGzFilePath, tinyCoreZstFilePath, tinyCoreTarFilePath, archiveFilePath}
 
 func TestImporter(t *testing.T) {
 	RegisterFailHandler(Fail)

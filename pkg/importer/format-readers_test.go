@@ -23,6 +23,7 @@ var (
 	tinyCoreFilePath          = filepath.Join(imageDir, tinyCoreFileName)
 	tinyCoreXzFilePath, _     = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtXz)
 	tinyCoreGzFilePath, _     = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtGz)
+	tinyCoreZstFilePath, _    = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtZst)
 	tinyCoreTarFilePath, _    = utils.FormatTestData(tinyCoreFilePath, os.TempDir(), image.ExtTar)
 	archiveFilePath, _        = utils.ArchiveFiles(archiveFileNameWithoutExt, os.TempDir(), tinyCoreFilePath, cirrosFilePath)
 	archiveFileNameWithoutExt = strings.TrimSuffix(archiveFileName, filepath.Ext(archiveFileName))
@@ -62,6 +63,7 @@ var _ = Describe("Format Readers", func() {
 	},
 		Entry("successfully construct a xz reader", tinyCoreXzFilePath, 4, false, true, false),              // [stream, multi-r, xz, multi-r] convert = false
 		Entry("successfully construct a gz reader", tinyCoreGzFilePath, 4, false, true, false),              // [stream, multi-r, gz, multi-r] convert = false
+		Entry("successfully construct a zst reader", tinyCoreZstFilePath, 4, false, true, false),            // [stream, multi-r, zst, multi-r] convert = false
 		Entry("successfully return the base reader when archived", archiveFilePath, 3, false, false, false), // [stream, multi-r, multi-r] convert = false
 		Entry("successfully construct qcow2 reader", cirrosFilePath, 2, false, false, true),                 // [stream, multi-r] convert = true
 		Entry("successfully construct .iso reader", tinyCoreFilePath, 2, false, false, false),               // [stream, multi-r] convert = false
@@ -99,6 +101,19 @@ var _ = Describe("Format Readers", func() {
 		Expect(testReader.progressReader).To(BeNil())
 		// This should not crash
 		testReader.StartProgressUpdate()
+	})
+
+	It("successfully decompresses zst stream without corruption", func() {
+		f, err := os.Open(tinyCoreZstFilePath)
+		Expect(err).ToNot(HaveOccurred())
+		defer f.Close()
+
+		fr, err = NewFormatReaders(f, uint64(0), nil)
+		Expect(err).ToNot(HaveOccurred())
+
+		n, err := io.Copy(io.Discard, fr.TopReader())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(n).To(BeNumerically(">", 0))
 	})
 
 	Describe("with checksum validator", func() {
