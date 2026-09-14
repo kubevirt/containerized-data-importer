@@ -231,6 +231,8 @@ const (
 
 	// AnnMinimumSupportedPVCSize annotation on a StorageProfile specifies its minimum supported PVC size
 	AnnMinimumSupportedPVCSize = AnnAPIGroup + "/minimumSupportedPvcSize"
+	// AnnOriginalRequestedSize records the user's initially requested size on a PVC after it was automatically increased to meet the storage profile's minimum requirement
+	AnnOriginalRequestedSize = AnnAPIGroup + "/originalRequestedSize"
 	// AnnUseReadWriteOnceForDataImportCron annotation on a StorageProfile signals that DataImportCron should use RWO for DataImportCron PVCs
 	AnnUseReadWriteOnceForDataImportCron = AnnAPIGroup + "/useReadWriteOnceForDataImportCron"
 	// AnnSnapshotClassForDataImportCron annotation on a StorageProfile specifies the VolumeSnapshotClass to use for DataImportCron snapshots

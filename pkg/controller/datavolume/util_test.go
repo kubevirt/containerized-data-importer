@@ -279,7 +279,7 @@ var _ = Describe("renderPvcSpec", func() {
 		}
 		dv := createDataVolumeWithStorageAPI("testDV", metav1.NamespaceDefault, &cdiv1.DataVolumeSource{}, storageSpec)
 
-		pvcSpec, err := renderPvcSpec(client, nil, logr.Logger{}, dv, nil)
+		pvcSpec, _, err := renderPvcSpec(client, nil, logr.Logger{}, dv, nil)
 		if expectedError != nil {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(*expectedError))

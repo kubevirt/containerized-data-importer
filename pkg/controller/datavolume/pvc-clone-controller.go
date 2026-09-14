@@ -336,7 +336,7 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 			pvcModifier = r.updatePVCForPopulation
 		}
 
-		newPvc, err := r.createPvcForDatavolume(datavolume, pvcSpec, pvcModifier)
+		newPvc, err := r.createPvcForDatavolume(datavolume, pvcSpec, pvcModifier, syncRes.renderResult)
 		if err != nil {
 			if cc.ErrQuotaExceeded(err) {
 				syncErr = r.syncDataVolumeStatusPhaseWithEvent(&syncRes, cdiv1.Pending, nil,
