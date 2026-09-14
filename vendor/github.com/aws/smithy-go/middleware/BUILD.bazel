@@ -1,0 +1,25 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "context.go",
+        "doc.go",
+        "eventstream_middleware.go",
+        "logging.go",
+        "metadata.go",
+        "middleware.go",
+        "ordered_group.go",
+        "stack.go",
+        "stack_values.go",
+        "step_build.go",
+        "step_deserialize.go",
+        "step_finalize.go",
+        "step_initialize.go",
+        "step_serialize.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/smithy-go/middleware",
+    importpath = "github.com/aws/smithy-go/middleware",
+    visibility = ["//visibility:public"],
+    deps = ["//vendor/github.com/aws/smithy-go/logging:go_default_library"],
+)

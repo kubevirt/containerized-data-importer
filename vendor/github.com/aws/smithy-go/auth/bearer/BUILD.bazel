@@ -1,0 +1,20 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "docs.go",
+        "middleware.go",
+        "token.go",
+        "token_cache.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/smithy-go/auth/bearer",
+    importpath = "github.com/aws/smithy-go/auth/bearer",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//vendor/github.com/aws/smithy-go/context:go_default_library",
+        "//vendor/github.com/aws/smithy-go/internal/sync/singleflight:go_default_library",
+        "//vendor/github.com/aws/smithy-go/middleware:go_default_library",
+        "//vendor/github.com/aws/smithy-go/transport/http:go_default_library",
+    ],
+)

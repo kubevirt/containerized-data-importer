@@ -1,0 +1,28 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "bearer_token_adapter.go",
+        "bearer_token_signer_adapter.go",
+        "credentials_adapter.go",
+        "smithy.go",
+        "v4signer_adapter.go",
+        "v4signer_adapter_eventstream.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/aws-sdk-go-v2/internal/auth/smithy",
+    importpath = "github.com/aws/aws-sdk-go-v2/internal/auth/smithy",
+    visibility = ["//vendor/github.com/aws/aws-sdk-go-v2:__subpackages__"],
+    deps = [
+        "//vendor/github.com/aws/aws-sdk-go-v2/aws:go_default_library",
+        "//vendor/github.com/aws/aws-sdk-go-v2/aws/signer/v4:go_default_library",
+        "//vendor/github.com/aws/aws-sdk-go-v2/internal/context:go_default_library",
+        "//vendor/github.com/aws/aws-sdk-go-v2/internal/sdk:go_default_library",
+        "//vendor/github.com/aws/smithy-go:go_default_library",
+        "//vendor/github.com/aws/smithy-go/auth:go_default_library",
+        "//vendor/github.com/aws/smithy-go/auth/bearer:go_default_library",
+        "//vendor/github.com/aws/smithy-go/eventstream:go_default_library",
+        "//vendor/github.com/aws/smithy-go/logging:go_default_library",
+        "//vendor/github.com/aws/smithy-go/transport/http:go_default_library",
+    ],
+)

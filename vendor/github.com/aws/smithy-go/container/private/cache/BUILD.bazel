@@ -1,0 +1,9 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["cache.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/smithy-go/container/private/cache",
+    importpath = "github.com/aws/smithy-go/container/private/cache",
+    visibility = ["//visibility:public"],
+)

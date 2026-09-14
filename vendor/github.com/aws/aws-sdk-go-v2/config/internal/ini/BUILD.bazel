@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "errors.go",
+        "ini.go",
+        "parse.go",
+        "sections.go",
+        "strings.go",
+        "token.go",
+        "tokenize.go",
+        "value.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/aws-sdk-go-v2/config/internal/ini",
+    importpath = "github.com/aws/aws-sdk-go-v2/config/internal/ini",
+    visibility = ["//vendor/github.com/aws/aws-sdk-go-v2/config:__subpackages__"],
+)

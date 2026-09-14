@@ -1,16 +1,17 @@
 package importer
 
 import (
+	"context"
 	"io"
+	"net"
 	"net/url"
 	"path/filepath"
 	"regexp"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/pkg/errors"
 
 	"k8s.io/klog/v2"
@@ -21,11 +22,14 @@ import (
 const (
 	s3FolderSep = "/"
 	httpScheme  = "http"
+	httpsScheme = "https"
+	// Signing region used when none can be derived from the endpoint.
+	defaultRegion = "us-east-1"
 )
 
 // S3Client is the interface to the used S3 client.
 type S3Client interface {
-	GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, error)
+	GetObject(ctx context.Context, input *s3.GetObjectInput, optFns ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 }
 
 // may be overridden in tests
@@ -158,7 +162,7 @@ func createS3Reader(ep *url.URL, accessKey, secKey string, certDir string) (io.R
 		Bucket: aws.String(bucket),
 		Key:    aws.String(object),
 	}
-	objOutput, err := svc.GetObject(objInput)
+	objOutput, err := svc.GetObject(context.Background(), objInput)
 	if err != nil {
 		return nil, errors.Wrapf(err, "could not get s3 object: \"%s/%s\"", bucket, object)
 	}
@@ -167,45 +171,61 @@ func createS3Reader(ep *url.URL, accessKey, secKey string, certDir string) (io.R
 }
 
 func getS3Client(endpoint, accessKey, secKey string, certDir string, urlScheme string) (S3Client, error) {
-	// Adding certs using CustomCABundle will overwrite the SystemCerts, so we opt by creating a custom HTTPClient
+	// CDI builds its own HTTP client so the S3 source shares the importer's cert
+	// handling: createCertPool appends certDir and the cluster-wide proxy certs to
+	// the system pool rather than replacing it.
 	httpClient, err := createHTTPClient(certDir, false)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "Error creating http client for s3")
 	}
 
-	creds := credentials.NewStaticCredentials(accessKey, secKey, "")
-	region := extractRegion(endpoint)
-	disableSSL := false
-	// Disable SSL for http endpoint. This should cause the s3 client to create http requests.
-	if urlScheme == httpScheme {
-		disableSSL = true
+	opts := s3.Options{
+		Region: extractRegion(endpoint),
+		// As with v1, empty keys are not an error here: the first request fails
+		// with "static credentials are empty".
+		Credentials: credentials.NewStaticCredentialsProvider(accessKey, secKey, ""),
+		HTTPClient:  httpClient,
+		// The endpoint is a bare host, so the bucket is addressed in the request path.
+		UsePathStyle: true,
+	}
+	if endpoint != "" {
+		// v1 took a bare host plus DisableSSL; v2 wants a full URL. v1 only disabled
+		// TLS for an http endpoint, so every other scheme keeps mapping to https.
+		scheme := httpsScheme
+		if urlScheme == httpScheme {
+			scheme = httpScheme
+		}
+		opts.BaseEndpoint = aws.String(scheme + "://" + endpoint)
 	}
 
-	sess, err := session.NewSession(&aws.Config{
-		Region:           aws.String(region),
-		Endpoint:         aws.String(endpoint),
-		Credentials:      creds,
-		S3ForcePathStyle: aws.Bool(true),
-		HTTPClient:       httpClient,
-		DisableSSL:       &disableSSL,
-	},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	svc := s3.New(sess)
-	return svc, nil
+	return s3.New(opts), nil
 }
 
+// v2 validates the signing region as a DNS name (dot-separated labels of letters,
+// digits and hyphens, not starting or ending with a hyphen), where v1 accepted
+// anything. The rule mirrors the SDK's IsValidHostLabel with sub-domains allowed.
+var validRegion = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$`)
+
 func extractRegion(s string) string {
+	// A port is never part of a DNS name, so drop it before deriving the region.
+	if host, _, err := net.SplitHostPort(s); err == nil {
+		s = host
+	}
+
 	var region string
 	r, _ := regexp.Compile(`s3\.(.+)\.amazonaws\.com`)
 	if matches := r.FindStringSubmatch(s); matches != nil {
 		region = matches[1]
 	} else {
 		region = strings.Split(s, ".")[0]
+	}
+
+	// An IPv6 address or a host with an underscore is no DNS name; the region is
+	// only the SigV4 signing scope, which such endpoints do not check.
+	if !validRegion.MatchString(region) {
+		klog.Warningf("Endpoint %q does not yield a valid region (%q), falling back to %s", s, region, defaultRegion)
+		region = defaultRegion
 	}
 
 	return region
