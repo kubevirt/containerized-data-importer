@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/pkg/errors"
@@ -180,11 +181,25 @@ func getS3Client(endpoint, accessKey, secKey string, certDir string, urlScheme s
 		return nil, errors.Wrap(err, "Error creating http client for s3")
 	}
 
+	var credsProvider aws.CredentialsProvider
+	switch {
+	case accessKey != "" && secKey != "":
+		credsProvider = credentials.NewStaticCredentialsProvider(accessKey, secKey, "")
+	case accessKey == "" && secKey == "":
+		// No secretRef on the DataVolume: resolve credentials through the SDK
+		// default chain (env vars, IRSA web identity, EKS Pod Identity, IMDS).
+		cfg, err := config.LoadDefaultConfig(context.Background(), config.WithHTTPClient(httpClient))
+		if err != nil {
+			return nil, errors.Wrap(err, "Error loading default AWS config for s3")
+		}
+		credsProvider = cfg.Credentials
+	default:
+		return nil, errors.New("s3 access key and secret key must be set together or not at all")
+	}
+
 	opts := s3.Options{
-		Region: extractRegion(endpoint),
-		// As with v1, empty keys are not an error here: the first request fails
-		// with "static credentials are empty".
-		Credentials: credentials.NewStaticCredentialsProvider(accessKey, secKey, ""),
+		Region:      extractRegion(endpoint),
+		Credentials: credsProvider,
 		HTTPClient:  httpClient,
 		// The endpoint is a bare host, so the bucket is addressed in the request path.
 		UsePathStyle: true,

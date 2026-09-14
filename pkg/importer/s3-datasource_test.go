@@ -250,18 +250,39 @@ var _ = Describe("S3 data source", func() {
 		Expect(gotPath).To(Equal("/bucket-1/object-1"))
 	})
 
-	DescribeTable("getS3Client should fail the request when static credentials are incomplete", func(accessKey, secKey string) {
-		// Same as v1: the client is built, the first request fails.
-		svc, err := getS3Client("minio:9000", accessKey, secKey, "", httpScheme)
+	It("getS3Client should fall back to the SDK default credential chain when no static credentials are given", func() {
+		// A DataVolume without a secretRef reaches getS3Client with empty keys.
+		// The pod's ambient identity (IRSA and EKS Pod Identity inject env vars
+		// or a token file) must then be picked up through the SDK default chain;
+		// env credentials stand in for that injection here.
+		GinkgoT().Setenv("AWS_ACCESS_KEY_ID", "chainAccessKey")
+		GinkgoT().Setenv("AWS_SECRET_ACCESS_KEY", "chainSecretKey")
+
+		var gotAuth string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotAuth = r.Header.Get("Authorization")
+			_, _ = w.Write([]byte("hello"))
+		}))
+		defer srv.Close()
+
+		host := "localhost:" + srv.URL[strings.LastIndex(srv.URL, ":")+1:]
+		svc, err := getS3Client(host, "", "", "", httpScheme)
 		Expect(err).NotTo(HaveOccurred())
 
-		_, err = svc.GetObject(context.Background(), &s3.GetObjectInput{
+		out, err := svc.GetObject(context.Background(), &s3.GetObjectInput{
 			Bucket: aws.String("bucket-1"),
 			Key:    aws.String("object-1"),
 		})
-		Expect(err).To(MatchError(ContainSubstring("static credentials are empty")))
+		Expect(err).NotTo(HaveOccurred())
+		defer out.Body.Close()
+
+		Expect(gotAuth).To(HavePrefix("AWS4-HMAC-SHA256 Credential=chainAccessKey/"))
+	})
+
+	DescribeTable("getS3Client should reject partial static credentials", func(accessKey, secKey string) {
+		_, err := getS3Client("minio:9000", accessKey, secKey, "", httpScheme)
+		Expect(err).To(MatchError(ContainSubstring("must be set together")))
 	},
-		Entry("no credentials", "", ""),
 		Entry("access key only", "accessKey", ""),
 		Entry("secret key only", "", "secKey"),
 	)
