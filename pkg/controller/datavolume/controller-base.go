@@ -1132,21 +1132,9 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 	return nil
 }
 
-// newPersistentVolumeClaim creates a new PVC for the DataVolume resource.
-// It also sets the appropriate OwnerReferences on the resource
-// which allows handleObject to discover the DataVolume resource
-// that 'owns' it.
-func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, targetPvcSpec *corev1.PersistentVolumeClaimSpec, namespace, name string, pvcModifier pvcModifierFunc, renderResult *renderResult) (*corev1.PersistentVolumeClaim, error) {
-	labels := map[string]string{
-		common.CDILabelKey: common.CDILabelValue,
-	}
-	if util.ResolveVolumeMode(targetPvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
-		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
-	}
-	for k, v := range dataVolume.Labels {
-		labels[k] = v
-	}
-
+// buildPVCAnnotations assembles the annotations for a PVC created for a DataVolume,
+// including the original requested size when the size was raised to the minimum.
+func (r *ReconcilerBase) buildPVCAnnotations(dataVolume *cdiv1.DataVolume, renderResult *renderResult) map[string]string {
 	annotations := make(map[string]string)
 	for k, v := range dataVolume.ObjectMeta.Annotations {
 		annotations[k] = v
@@ -1166,16 +1154,45 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		annotations[cc.AnnOriginalRequestedSize] = renderResult.originalRequestedSize.String()
 	}
 
-	if dataVolume.Spec.Storage != nil && labels[common.PvcApplyStorageProfileLabel] == "true" {
-		isWebhookPvcRenderingEnabled, err := cc.IsWebhookPvcRenderingEnabled(r.client)
-		if err != nil {
-			return nil, err
-		}
-		if isWebhookPvcRenderingEnabled {
-			if targetPvcSpec.VolumeMode == nil {
-				targetPvcSpec.VolumeMode = ptr.To[corev1.PersistentVolumeMode](cdiv1.PersistentVolumeFromStorageProfile)
-			}
-		}
+	return annotations
+}
+
+// applyStorageProfileVolumeMode defaults the target PVC's volume mode to be resolved
+// from the storage profile when webhook PVC rendering is enabled and no volume mode
+// was explicitly set.
+func (r *ReconcilerBase) applyStorageProfileVolumeMode(targetPvcSpec *corev1.PersistentVolumeClaimSpec, dataVolume *cdiv1.DataVolume, labels map[string]string) error {
+	if dataVolume.Spec.Storage == nil || labels[common.PvcApplyStorageProfileLabel] != "true" {
+		return nil
+	}
+	isWebhookPvcRenderingEnabled, err := cc.IsWebhookPvcRenderingEnabled(r.client)
+	if err != nil {
+		return err
+	}
+	if isWebhookPvcRenderingEnabled && targetPvcSpec.VolumeMode == nil {
+		targetPvcSpec.VolumeMode = ptr.To[corev1.PersistentVolumeMode](cdiv1.PersistentVolumeFromStorageProfile)
+	}
+	return nil
+}
+
+// newPersistentVolumeClaim creates a new PVC for the DataVolume resource.
+// It also sets the appropriate OwnerReferences on the resource
+// which allows handleObject to discover the DataVolume resource
+// that 'owns' it.
+func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, targetPvcSpec *corev1.PersistentVolumeClaimSpec, namespace, name string, pvcModifier pvcModifierFunc, renderResult *renderResult) (*corev1.PersistentVolumeClaim, error) {
+	labels := map[string]string{
+		common.CDILabelKey: common.CDILabelValue,
+	}
+	if util.ResolveVolumeMode(targetPvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
+		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
+	}
+	for k, v := range dataVolume.Labels {
+		labels[k] = v
+	}
+
+	annotations := r.buildPVCAnnotations(dataVolume, renderResult)
+
+	if err := r.applyStorageProfileVolumeMode(targetPvcSpec, dataVolume, labels); err != nil {
+		return nil, err
 	}
 
 	pvc := &corev1.PersistentVolumeClaim{
