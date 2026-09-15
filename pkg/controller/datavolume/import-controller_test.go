@@ -244,6 +244,9 @@ var _ = Describe("All DataVolume Tests", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(pvc.Spec.Resources.Requests.Storage().Cmp(resource.MustParse("4Gi"))).To(Equal(0))
+			Expect(pvc.Annotations).To(HaveKeyWithValue(AnnOriginalRequestedSize, "1Gi"))
+			Expect(pvc.Labels).To(HaveKeyWithValue(LabelOriginalRequestedSizeBytes, strconv.FormatInt(ptr.To(resource.MustParse("1Gi")).Value(), 10)))
+			Expect(pvc.Labels).To(HaveKeyWithValue(LabelMinSupportedSizeSource, "datavolume"))
 
 			Eventually(reconciler.recorder.(*record.FakeRecorder).Events).Should(Receive(ContainSubstring(MinimumPVCSizeApplied)))
 		})

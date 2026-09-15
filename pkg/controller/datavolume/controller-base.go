@@ -1189,6 +1189,11 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		labels[k] = v
 	}
 
+	if renderResult != nil && renderResult.minSizeApplied {
+		labels[cc.LabelOriginalRequestedSizeBytes] = strconv.FormatInt(renderResult.originalRequestedSize.Value(), 10)
+		labels[cc.LabelMinSupportedSizeSource] = "datavolume"
+	}
+
 	annotations := r.buildPVCAnnotations(dataVolume, renderResult)
 
 	if err := r.applyStorageProfileVolumeMode(targetPvcSpec, dataVolume, labels); err != nil {

@@ -105,6 +105,12 @@ func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolu
 	}
 	if result.minSizeApplied {
 		cc.AddAnnotation(pvc, cc.AnnOriginalRequestedSize, result.originalRequestedSize.String())
+		cc.AddLabel(pvc, cc.LabelOriginalRequestedSizeBytes, strconv.FormatInt(result.originalRequestedSize.Value(), 10))
+		source := "external"
+		if _, fromDV := pvc.Annotations[cc.AnnCreatedForDataVolume]; fromDV {
+			source = "datavolume"
+		}
+		cc.AddLabel(pvc, cc.LabelMinSupportedSizeSource, source)
 	}
 	return nil
 }
