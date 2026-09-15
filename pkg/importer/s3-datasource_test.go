@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -227,10 +228,13 @@ var _ = Describe("S3 data source", func() {
 			Skip("IPv6 loopback is not available: " + err.Error())
 		}
 		var gotPath string
-		srv := &httptest.Server{Listener: ln, Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			gotPath = r.URL.Path
-			_, _ = w.Write([]byte("hello"))
-		})}}
+		srv := &httptest.Server{Listener: ln, Config: &http.Server{
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotPath = r.URL.Path
+				_, _ = w.Write([]byte("hello"))
+			}),
+			ReadHeaderTimeout: 10 * time.Second,
+		}}
 		srv.Start()
 		defer srv.Close()
 
