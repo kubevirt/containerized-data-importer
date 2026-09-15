@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/pkg/errors"
 
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -217,11 +218,6 @@ func getS3Client(endpoint, accessKey, secKey string, certDir string, urlScheme s
 	return s3.New(opts), nil
 }
 
-// v2 validates the signing region as a DNS name (dot-separated labels of letters,
-// digits and hyphens, not starting or ending with a hyphen), where v1 accepted
-// anything. The rule mirrors the SDK's IsValidHostLabel with sub-domains allowed.
-var validRegion = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$`)
-
 func extractRegion(s string) string {
 	// A port is never part of a DNS name, so drop it before deriving the region.
 	if host, _, err := net.SplitHostPort(s); err == nil {
@@ -236,9 +232,10 @@ func extractRegion(s string) string {
 		region = strings.Split(s, ".")[0]
 	}
 
+	// v2 validates the signing region as a DNS name, where v1 accepted anything.
 	// An IPv6 address or a host with an underscore is no DNS name; the region is
 	// only the SigV4 signing scope, which such endpoints do not check.
-	if !validRegion.MatchString(region) {
+	if len(validation.IsDNS1123Subdomain(strings.ToLower(region))) != 0 {
 		klog.Warningf("Endpoint %q does not yield a valid region (%q), falling back to %s", s, region, defaultRegion)
 		region = defaultRegion
 	}
