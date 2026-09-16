@@ -417,16 +417,34 @@ var _ = Describe("Http client", func() {
 
 		err = os.WriteFile(path.Join(tempDir, "tls.crt"), certBytes, 0600)
 		Expect(err).ToNot(HaveOccurred())
+
+		// create and populate proxy cert dir
+		err = os.Mkdir(common.ImporterProxyCertDir, 0755)
+		Expect(err).ToNot(HaveOccurred())
+
+		keyPair, err = triple.NewCA("proxy.cdi.kubevirt.io")
+		Expect(err).ToNot(HaveOccurred())
+
+		certBytes = cert.EncodeCertPEM(keyPair.Cert)
+
+		err = os.WriteFile(path.Join(common.ImporterProxyCertDir, "tls.crt"), certBytes, 0600)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		if tempDir != "" {
 			os.RemoveAll(tempDir)
 		}
+
+		os.RemoveAll(common.ImporterProxyCertDir)
 	})
 
-	It("should load the cert", func() {
-		client, err := createHTTPClient(tempDir, false)
+	DescribeTable("should load", func(useCertDir bool) {
+		certDir := ""
+		if useCertDir {
+			certDir = tempDir
+		}
+		client, err := createHTTPClient(certDir, false)
 		Expect(err).ToNot(HaveOccurred())
 
 		transport := client.Transport.(*http.Transport)
@@ -438,9 +456,12 @@ var _ = Describe("Http client", func() {
 		systemCAs, err := x509.SystemCertPool()
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(activeCAs.Subjects()).Should(HaveLen(len(systemCAs.Subjects()) + 1)) //nolint:staticcheck // todo: Subjects() is deprecated - check this
-	})
-
+		// since we added certs these should be different
+		Expect(activeCAs.Equal(systemCAs)).To(BeFalse())
+	},
+		Entry("the certs when cert dir exists", true),
+		Entry("the proxy cert when cert dir doesn't exist", false),
+	)
 })
 
 var _ = Describe("Http reader", func() {
