@@ -288,6 +288,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 	previousCheckpoint, _ := util.ParseEnvVar(common.ImporterPreviousCheckpoint, false)
 	finalCheckpoint, _ := util.ParseEnvVar(common.ImporterFinalCheckpoint, false)
 	checksum, _ := util.ParseEnvVar(common.ImporterChecksum, false)
+	nbdConnection, _ := util.ParseEnvVar(common.ImporterVddkNbdConnection, false)
 
 	switch source {
 	case cc.SourceHTTP:
@@ -322,6 +323,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 			Endpoint: ep, AccessKey: acc, SecKey: sec, Thumbprint: thumbprint, UUID: uuid,
 			BackingFile: backingFile, CurrentCheckpoint: currentCheckpoint, PreviousCheckpoint: previousCheckpoint,
 			FinalCheckpoint: finalCheckpoint, VolumeMode: volumeMode, CertDir: certDir, InsecureTLS: insecureTLS,
+			NbdConnection: nbdConnection,
 		})
 		if err != nil {
 			errorCannotConnectDataSource(err, "vddk")

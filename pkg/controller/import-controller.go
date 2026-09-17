@@ -105,6 +105,7 @@ type importPodEnvVar struct {
 	cacheMode                 string
 	registryImageArchitecture string
 	checksum                  string
+	vddkNbdConnection         string
 }
 
 type importerPodArgs struct {
@@ -542,7 +543,7 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		scratchPvcName = &name
 	}
 
-	if cc.GetSource(pvc) == cc.SourceVDDK {
+	if cc.GetSource(pvc) == cc.SourceVDDK && pvc.Annotations[cc.AnnVddkNbdConnection] == "" {
 		r.log.V(1).Info("Pod requires VDDK sidecar for VMware transfer")
 		anno := pvc.GetAnnotations()
 		if imageName, ok := anno[cc.AnnVddkInitImageURL]; ok {
@@ -660,6 +661,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, cc.AnnFinalCheckpoint)
 		podEnvVar.registryImageArchitecture = getValueFromAnnotation(pvc, cc.AnnRegistryImageArchitecture)
 		podEnvVar.checksum = getValueFromAnnotation(pvc, cc.AnnChecksum)
+		podEnvVar.vddkNbdConnection = getValueFromAnnotation(pvc, cc.AnnVddkNbdConnection)
 
 		for annotation, value := range pvc.Annotations {
 			if strings.HasPrefix(annotation, cc.AnnExtraHeaders) {
@@ -1435,6 +1437,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.ImporterChecksum,
 			Value: podEnvVar.checksum,
+		},
+		{
+			Name:  common.ImporterVddkNbdConnection,
+			Value: podEnvVar.vddkNbdConnection,
 		},
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source != cc.SourceGCS {
