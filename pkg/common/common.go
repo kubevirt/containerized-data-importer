@@ -147,6 +147,8 @@ const (
 	ImporterPreviousCheckpoint = "IMPORTER_PREVIOUS_CHECKPOINT"
 	// ImporterFinalCheckpoint provides a constant to capture our env variable "IMPORTER_FINAL_CHECKPOINT"
 	ImporterFinalCheckpoint = "IMPORTER_FINAL_CHECKPOINT"
+	// ImporterVddkNbdConnection provides a constant to capture our env variable "IMPORTER_VDDK_NBD_CONNECTION"
+	ImporterVddkNbdConnection = "IMPORTER_VDDK_NBD_CONNECTION"
 	// ImporterChecksum provides a constant to capture our env variable "IMPORTER_CHECKSUM"
 	ImporterChecksum = "IMPORTER_CHECKSUM"
 	// CacheMode provides a constant to capture our env variable "CACHE_MODE"
