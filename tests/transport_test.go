@@ -48,12 +48,11 @@ var _ = Describe("Transport Tests", func() {
 			err error // prevent shadowing
 		)
 
-		var endpoint string
+		opts := []utils.RegistryOption{utils.WithBase(ep()), utils.WithImage(file)}
 		if registryImportMethod == string(cdiv1.RegistryPullNode) {
-			endpoint = ep() + "/" + file + ":" + f.DockerTag
-		} else {
-			endpoint = ep() + "/" + file
+			opts = append(opts, utils.WithTag(f.DockerTag))
 		}
+		endpoint := utils.NewRegistryImage(opts...).String()
 
 		pvcAnn := map[string]string{
 			controller.AnnEndpoint:             endpoint,
