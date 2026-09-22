@@ -42,6 +42,8 @@ const (
 	whFilePrefix = ".wh."
 )
 
+var errReadingLayer = errors.New("Error reading layer")
+
 func commandTimeoutContext() (context.Context, context.CancelFunc) {
 	return context.WithCancel(context.Background())
 }
@@ -127,12 +129,13 @@ func processLayer(ctx context.Context,
 	var reader io.ReadCloser
 	reader, _, err := src.GetBlob(ctx, layer, cache)
 	if err != nil {
-		klog.Errorf("Could not read layer: %v", err)
-		return false, errors.Wrap(err, "Could not read layer")
+		klog.Errorf("%v: %v", errReadingLayer, err)
+		return false, fmt.Errorf("%w: %v", errReadingLayer, err)
 	}
 	fr, err := NewFormatReaders(reader, 0)
 	if err != nil {
-		return false, errors.Wrap(err, "Could not read layer")
+		klog.Errorf("%v: %v", errReadingLayer, err)
+		return false, fmt.Errorf("%w: %v", errReadingLayer, err)
 	}
 	defer fr.Close()
 
@@ -144,8 +147,8 @@ func processLayer(ctx context.Context,
 			break // End of archive
 		}
 		if err != nil {
-			klog.Errorf("Error reading layer: %v", err)
-			return false, errors.Wrap(err, "Error reading layer")
+			klog.Errorf("%v: %v", errReadingLayer, err)
+			return false, fmt.Errorf("%w: %v", errReadingLayer, err)
 		}
 
 		if hasPrefix(hdr.Name, pathPrefix) && !isWhiteout(hdr.Name) && !isDir(hdr) {
@@ -221,6 +224,9 @@ func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, certDir stri
 			break
 		}
 		if err != nil {
+			if !errors.Is(err, errReadingLayer) {
+				return nil, err
+			}
 			// Skipping layer and trying the next one.
 			// Error already logged in processLayer
 			continue

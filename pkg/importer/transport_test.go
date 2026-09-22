@@ -25,6 +25,8 @@ import (
 
 var _ = Describe("Registry Importer", func() {
 	source := "oci-archive:" + imageFile
+	malformedSource := "oci-archive:" + filepath.Join(imageDir, "malformed-registry-image.tar")
+
 	var tmpDir string
 	var err error
 
@@ -38,14 +40,17 @@ var _ = Describe("Registry Importer", func() {
 		os.RemoveAll(tmpDir)
 	})
 
-	It("Should extract a single file", func() {
+	DescribeTable("Should extract a single file", func(source string) {
 		info, err := CopyRegistryImage(source, tmpDir, "disk/cirros-0.3.4-x86_64-disk.img", "", "", "", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(info).ToNot(BeNil())
 
 		file := filepath.Join(tmpDir, "disk/cirros-0.3.4-x86_64-disk.img")
 		Expect(file).To(BeARegularFile())
-	})
+	},
+		Entry("when all image layers are valid", source),
+		Entry("when one of the image layers is malformed", malformedSource),
+	)
 	It("Should extract files prefixed by path", func() {
 		info, err := CopyRegistryImageAll(source, tmpDir, "etc/", "", "", "", false)
 		Expect(err).ToNot(HaveOccurred())
