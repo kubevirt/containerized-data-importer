@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"os/exec"
 	"reflect"
 	"regexp"
@@ -34,6 +33,7 @@ import (
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/tests"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -191,7 +191,7 @@ var _ = Describe("[rfe_id:1115][crit:high][vendor:cnv-qe@redhat.com][level:compo
 	})
 })
 
-var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {
+var _ = Describe("[Istio] Namespace sidecar injection", decorators.Istio, Serial, func() {
 	var (
 		f = framework.NewFramework(namespacePrefix)
 
@@ -200,11 +200,6 @@ var _ = Describe("[Istio] Namespace sidecar injection", Serial, func() {
 	)
 
 	BeforeEach(func() {
-		value := os.Getenv("KUBEVIRT_DEPLOY_ISTIO")
-		if value != "true" {
-			Skip("No Istio enabled, skipping.")
-		}
-
 		By("Enable istio sidecar injection in namespace")
 		labelPatch := `[{"op":"add","path":"/metadata/labels/istio-injection","value":"enabled" }]`
 		_, err := f.K8sClient.CoreV1().Namespaces().Patch(context.TODO(), f.Namespace.Name, types.JSONPatchType, []byte(labelPatch), metav1.PatchOptions{})
@@ -286,11 +281,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Se
 
 	BeforeEach(func() {
 		var err error
-		cr, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
-		if k8serrors.IsNotFound(err) {
-			Skip("CDI CR 'cdi' does not exist.  Probably managed by another operator so skipping.")
-		}
-		Expect(err).ToNot(HaveOccurred())
+		cr = getCDI(f)
 
 		oldSpec = cr.Spec.DeepCopy()
 		nodes, err := f.K8sClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
@@ -302,7 +293,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Se
 		if cr == nil {
 			return
 		}
-		cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+		cr, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		cr.Spec = *oldSpec.DeepCopy()
@@ -310,7 +301,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Se
 		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(func() bool {
-			cr, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			cr, err = f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			return reflect.DeepEqual(cr.Spec, *oldSpec)
 		}, 30*time.Second, time.Second).Should(BeTrue())
@@ -324,7 +315,7 @@ var _ = Describe("[rfe_id:4784][crit:high] Importer respects node placement", Se
 
 		By("Waiting for CDI CR update to take effect")
 		Eventually(func() bool {
-			realCR, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), "cdi", metav1.GetOptions{})
+			realCR, err := f.CdiClient.CdiV1beta1().CDIs().Get(context.TODO(), cr.Name, metav1.GetOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			return reflect.DeepEqual(cr.Spec, realCR.Spec)
 		}, 30*time.Second, time.Second).Should(BeTrue())
@@ -449,7 +440,7 @@ func startPrometheusPortForward(f *framework.Framework) (string, *exec.Cmd, erro
 	return url, cmd, nil
 }
 
-var _ = Describe("Importer Test Suite-Block_device", func() {
+var _ = Describe("Importer Test Suite-Block_device", decorators.RequiresBlockStorage, func() {
 	f := framework.NewFramework(namespacePrefix)
 	var (
 		pvc            *v1.PersistentVolumeClaim
@@ -464,9 +455,6 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 	})
 
 	It("[test_id:4971]Should create import pod for block pv", func() {
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
 		httpEp := fmt.Sprintf("http://%s:%d", utils.FileHostName+"."+f.CdiInstallNs, utils.HTTPNoAuthPort)
 		pvcAnn := map[string]string{
 			controller.AnnEndpoint: httpEp + "/tinyCore.iso",
@@ -497,9 +485,6 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 	})
 
 	DescribeTable("Should create blank raw image for block PV", func(consumer bool) {
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
 		dv := utils.NewDataVolumeForBlankRawImageBlock("create-blank-image-to-block-pvc", "500Mi", f.BlockSCName)
 		if !consumer {
 			controller.AddAnnotation(dv, controller.AnnImmediateBinding, "true")
@@ -526,9 +511,6 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 	)
 
 	It("Should perform fsync syscall after qemu-img convert to raw", func() {
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
 		dataVolume := utils.NewDataVolumeWithHTTPImportToBlockPV("qemu-img-convert-fsync-test", "4Gi", tinyCoreIsoURL(), f.BlockSCName)
 		By(fmt.Sprintf("Create new datavolume %s", dataVolume.Name))
 		dataVolume.SetAnnotations(map[string]string{})
@@ -1197,25 +1179,13 @@ var _ = Describe("Preallocation", func() {
 		Entry("HTTP import (archive content)", false, "", "", func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithArchiveContent("import-dv", "100Mi", tinyCoreTarURL())
 		}),
-		Entry("HTTP Import (TAR image, block DataVolume)", true, utils.TinyCoreTarMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
-
+		Entry("HTTP Import (TAR image, block DataVolume)", decorators.RequiresBlockStorage, true, utils.TinyCoreTarMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreTarURL(), f.BlockSCName)
 		}),
-		Entry("HTTP Import (ISO image, block DataVolume)", true, utils.TinyCoreMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
-
+		Entry("HTTP Import (ISO image, block DataVolume)", decorators.RequiresBlockStorage, true, utils.TinyCoreMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreIsoURL(), f.BlockSCName)
 		}),
-		Entry("HTTP Import (QCOW2 image, block DataVolume)", true, utils.TinyCoreMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
-
+		Entry("HTTP Import (QCOW2 image, block DataVolume)", decorators.RequiresBlockStorage, true, utils.TinyCoreMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithHTTPImportToBlockPV("import-dv", "4Gi", tinyCoreQcow2URL(), f.BlockSCName)
 		}),
 		Entry("ImageIO import", Label("ImageIO"), Serial, true, utils.ImageioMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
@@ -1291,11 +1261,7 @@ var _ = Describe("Preallocation", func() {
 		Entry("Blank image", true, utils.BlankMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeForBlankRawImage("import-dv", "100Mi")
 		}),
-		Entry("Blank block DataVolume", true, utils.BlankMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
-
+		Entry("Blank block DataVolume", decorators.RequiresBlockStorage, true, utils.BlankMD5, utils.DefaultPvcMountPath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeForBlankRawImageBlock("import-dv", "1Gi", f.BlockSCName)
 		}),
 	)
@@ -1339,7 +1305,7 @@ var _ = Describe("Preallocation", func() {
 	})
 })
 
-var _ = Describe("Import populator", func() {
+var _ = Describe("Import populator", decorators.RequiresCsiDriver, func() {
 	f := framework.NewFramework(namespacePrefix)
 
 	var (
@@ -1507,9 +1473,6 @@ var _ = Describe("Import populator", func() {
 	}
 
 	BeforeEach(func() {
-		if utils.DefaultStorageClassCsiDriver == nil {
-			Skip("No CSI driver found")
-		}
 		verifyCleanup(pvc)
 	})
 
@@ -1651,11 +1614,7 @@ var _ = Describe("Import populator", func() {
 		}, 2*time.Minute, 2*time.Second).Should(Succeed())
 	})
 
-	DescribeTable("should import Block PVC", func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error) {
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
-
+	DescribeTable("should import Block PVC", decorators.RequiresBlockStorage, func(expectedMD5 string, volumeImportSourceFunc func(cdiv1.DataVolumeContentType, bool) error) {
 		pvc = importPopulationPVCDefinition()
 		volumeMode := v1.PersistentVolumeBlock
 		pvc.Spec.VolumeMode = &volumeMode
