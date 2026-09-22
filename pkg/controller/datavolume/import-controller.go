@@ -262,6 +262,14 @@ func (r *ImportReconciler) shouldUpdateStatusPhase(pvc *corev1.PersistentVolumeC
 }
 
 func (r *ImportReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+	if IsExpansionInProgress(pvc) {
+		dataVolumeCopy.Status.Phase = cdiv1.ExpansionInProgress
+		event.eventType = corev1.EventTypeNormal
+		event.reason = ExpansionInProgress
+		event.message = fmt.Sprintf(MessageExpansionInProgress, dataVolumeCopy.Namespace, dataVolumeCopy.Name)
+		return nil
+	}
+
 	phase, ok := pvc.Annotations[cc.AnnPodPhase]
 	if phase != string(corev1.PodSucceeded) {
 		update, err := r.shouldUpdateStatusPhase(pvc, dataVolumeCopy)

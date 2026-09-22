@@ -58,6 +58,11 @@ const (
 	MinimumPVCSizeApplied = "MinimumPVCSizeApplied"
 	// MessageMinimumPVCSizeApplied is the event message emitted when a PVC is grown to the storage profile's minimum supported size
 	MessageMinimumPVCSizeApplied = "The requested storage size %s is smaller than the minimum supported PVC size for storage class %q; PVC will be created with %s"
+
+	// ExpansionInProgress reports that a target PVC is being expanded to satisfy an increased DataVolume storage request.
+	ExpansionInProgress = "ExpansionInProgress"
+	// MessageExpansionInProgress is the human-readable message accompanying the ExpansionInProgress event / phase.
+	MessageExpansionInProgress = "Expanding PersistentVolumeClaim for DataVolume %s/%s"
 )
 
 var (
@@ -131,8 +136,6 @@ func renderPvcSpec(client client.Client, recorder record.EventRecorder, log logr
 }
 
 func pvcFromStorage(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaimSpec, error) {
-	var pvcSpec *v1.PersistentVolumeClaimSpec
-
 	isWebhookRenderingEnabled, err := cc.IsWebhookPvcRenderingEnabled(client)
 	if err != nil {
 		return nil, err
@@ -140,6 +143,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 
 	shouldRender := !isWebhookRenderingEnabled || dv.Labels[common.PvcApplyStorageProfileLabel] != "true"
 
+	var pvcSpec *v1.PersistentVolumeClaimSpec
 	if pvc == nil {
 		pvcSpec = copyStorageAsPvc(dv.Spec.Storage)
 		if shouldRender {
@@ -149,6 +153,9 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 		}
 	} else {
 		pvcSpec = pvc.Spec.DeepCopy()
+		if dvSize, ok := getStorageRequest(dv.Spec.Storage); ok {
+			setRequestedVolumeSize(pvcSpec, dvSize)
+		}
 	}
 
 	if shouldRender {
@@ -166,6 +173,14 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 	}
 
 	return pvcSpec, nil
+}
+
+func getStorageRequest(storage *cdiv1.StorageSpec) (resource.Quantity, bool) {
+	if storage == nil || storage.Resources.Requests == nil {
+		return resource.Quantity{}, false
+	}
+	size, ok := storage.Resources.Requests[v1.ResourceStorage]
+	return size, ok
 }
 
 // func is called from both DV controller (with recorder and log) and PVC mutating webhook (without recorder and log)
@@ -734,4 +749,24 @@ func CheckVolumeSatisfyClaim(volume *v1.PersistentVolume, claim *v1.PersistentVo
 
 func getReconcileRequest(obj client.Object) reconcile.Request {
 	return reconcile.Request{NamespacedName: client.ObjectKeyFromObject(obj)}
+}
+
+// IsExpansionInProgress reports whether a PVC is currently being expanded.
+// It inspects the resize-related PVC conditions first, then falls back to
+// comparing the current capacity with the requested storage size.
+func IsExpansionInProgress(pvc *v1.PersistentVolumeClaim) bool {
+	if pvc == nil {
+		return false
+	}
+
+	for _, condition := range pvc.Status.Conditions {
+		if (condition.Type == v1.PersistentVolumeClaimResizing || condition.Type == v1.PersistentVolumeClaimFileSystemResizePending) &&
+			condition.Status == v1.ConditionTrue {
+			return true
+		}
+	}
+
+	capacity, capacityOk := pvc.Status.Capacity[v1.ResourceStorage]
+	request, requestOk := pvc.Spec.Resources.Requests[v1.ResourceStorage]
+	return capacityOk && requestOk && capacity.Cmp(request) < 0
 }
