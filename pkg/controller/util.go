@@ -48,6 +48,9 @@ const (
 	// CertVolName is the name of the volume containing certs
 	CertVolName = "cdi-cert-vol"
 
+	// TrustedCACertVolName is the name of the volume containing trusted CA certs
+	TrustedCACertVolName = "cdi-trusted-ca-cert-vol"
+
 	// SecretVolName is the name of the volume containing gcs key
 	//nolint:gosec // This is not a real secret
 	SecretVolName = "cdi-secret-vol"

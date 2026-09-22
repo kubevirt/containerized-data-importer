@@ -100,6 +100,7 @@ type importPodEnvVar struct {
 	httpsProxy                string
 	noProxy                   string
 	certConfigMapProxy        string
+	certConfigMapTrustedCA    string
 	extraHeaders              []string
 	secretExtraHeaders        []string
 	cacheMode                 string
@@ -297,8 +298,10 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 				return reconcile.Result{}, err
 			}
 		} else {
-			// Copy import proxy ConfigMap (if exists) from cdi namespace to the import namespace
 			if err := r.copyImportProxyConfigMap(pvc, pod); err != nil {
+				return reconcile.Result{}, err
+			}
+			if err := r.copyTrustedCAConfigMap(pvc, pod); err != nil {
 				return reconcile.Result{}, err
 			}
 			// Pod exists, we need to update the PVC status.
@@ -326,13 +329,37 @@ func (r *ImportReconciler) copyImportProxyConfigMap(pvc *corev1.PersistentVolume
 	if err != nil || cmName == "" {
 		return nil
 	}
+	return r.copyCAConfigMap(pvc, pod, cmName, GetImportProxyConfigMapName(pvc.Name))
+}
+
+func (r *ImportReconciler) copyTrustedCAConfigMap(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod) error {
+	cdiConfig := &cdiv1.CDIConfig{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig); err != nil {
+		return err
+	}
+	cmName, err := GetTrustedCA(cdiConfig)
+	if err != nil {
+		return err
+	}
+	if cmName == "" {
+		return nil
+	}
+	return r.copyCAConfigMap(pvc, pod, cmName, GetTrustedCAConfigMapName(pvc.Name))
+}
+
+// helper to copy trusted CA or proxy CA config map to the import namespace
+func (r *ImportReconciler) copyCAConfigMap(pvc *corev1.PersistentVolumeClaim, pod *corev1.Pod, cmName string, importConfigMapName string) error {
+	if cmName == "" {
+		return nil
+	}
+
 	cdiConfigMap := &corev1.ConfigMap{}
 	if err := r.uncachedClient.Get(context.TODO(), types.NamespacedName{Name: cmName, Namespace: r.cdiNamespace}, cdiConfigMap); err != nil {
 		return err
 	}
 	importConfigMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      GetImportProxyConfigMapName(pvc.Name),
+			Name:      importConfigMapName,
 			Namespace: pvc.Namespace,
 			OwnerReferences: []metav1.OwnerReference{{
 				APIVersion:         pod.APIVersion,
@@ -354,6 +381,10 @@ func (r *ImportReconciler) copyImportProxyConfigMap(pvc *corev1.PersistentVolume
 // GetImportProxyConfigMapName returns the import proxy ConfigMap name
 func GetImportProxyConfigMapName(pvcName string) string {
 	return naming.GetResourceName("import-proxy-cm", pvcName)
+}
+
+func GetTrustedCAConfigMapName(pvcName string) string {
+	return naming.GetResourceName("trusted-ca-bundle-cm", pvcName)
 }
 
 func (r *ImportReconciler) initPvcPodName(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
@@ -687,6 +718,10 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 			r.log.V(3).Info("no proxy CA certiticate will be supplied:", "error", err.Error())
 		}
 		podEnvVar.certConfigMapProxy = field
+		if field, err = GetTrustedCA(cdiConfig); err != nil {
+			r.log.V(3).Info("no trusted CA certificate will be supplied:", "error", err.Error())
+		}
+		podEnvVar.certConfigMapTrustedCA = field
 	}
 
 	fsOverhead, err := GetFilesystemOverhead(context.TODO(), r.client, pvc)
@@ -1155,6 +1190,12 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 			MountPath: common.ImporterProxyCertDir,
 		})
 	}
+	if args.podEnvVar.certConfigMapTrustedCA != "" {
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      TrustedCACertVolName,
+			MountPath: common.ImportTrustedCACertDir,
+		})
+	}
 	if args.podEnvVar.source == cc.SourceGCS && args.podEnvVar.secretName != "" {
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
 			Name:      SecretVolName,
@@ -1231,6 +1272,9 @@ func makeImporterVolumeSpec(args *importerPodArgs) []corev1.Volume {
 	}
 	if args.podEnvVar.certConfigMapProxy != "" {
 		volumes = append(volumes, createConfigMapVolume(ProxyCertVolName, GetImportProxyConfigMapName(args.pvc.Name)))
+	}
+	if args.podEnvVar.certConfigMapTrustedCA != "" {
+		volumes = append(volumes, createConfigMapVolume(TrustedCACertVolName, GetTrustedCAConfigMapName(args.pvc.Name)))
 	}
 	if args.podEnvVar.source == cc.SourceGCS && args.podEnvVar.secretName != "" {
 		volumes = append(volumes, createSecretVolume(SecretVolName, args.podEnvVar.secretName))
@@ -1476,6 +1520,12 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		env = append(env, corev1.EnvVar{
 			Name:  common.ImporterProxyCertDirVar,
 			Value: common.ImporterProxyCertDir,
+		})
+	}
+	if podEnvVar.certConfigMapTrustedCA != "" {
+		env = append(env, corev1.EnvVar{
+			Name:  common.ImporterTrustedCADirVar,
+			Value: common.ImportTrustedCACertDir,
 		})
 	}
 	for index, header := range podEnvVar.extraHeaders {
