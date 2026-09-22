@@ -17,16 +17,25 @@ limitations under the License.
 package importer
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/containers/image/v5/docker"
+	"github.com/containers/image/v5/image"
+	"github.com/containers/image/v5/manifest"
+	"github.com/containers/image/v5/oci/archive"
+	"github.com/containers/image/v5/pkg/blobinfocache"
 	"github.com/containers/image/v5/types"
-	"github.com/pkg/errors"
 
 	"k8s.io/klog/v2"
 
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
@@ -101,12 +110,12 @@ func (rd *RegistryDataSource) Transfer(path string, preallocation bool) (Process
 	klog.V(1).Infof("Copying registry image to scratch space.")
 	rd.info, err = CopyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.imageArchitecture, rd.certDir, rd.insecureTLS, preallocation)
 	if err != nil {
-		return ProcessingPhaseError, errors.Wrapf(err, "Failed to read registry image")
+		return ProcessingPhaseError, fmt.Errorf("Failed to read registry image: %w", err)
 	}
 
 	imageFile, err := getImageFileName(rd.imageDir)
 	if err != nil {
-		return ProcessingPhaseError, errors.Wrapf(err, "Cannot locate image file")
+		return ProcessingPhaseError, fmt.Errorf("Cannot locate image file: %w", err)
 	}
 
 	// imageFile and rd.imageDir are both valid, thus the Join will be valid, and the parse will work, no need to check for parse errors
@@ -144,13 +153,13 @@ func (rd *RegistryDataSource) Close() error {
 func getImageFileName(dir string) (string, error) {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		klog.Errorf("image directory does not exist")
-		return "", errors.Errorf("image directory does not exist")
+		return "", errors.New("image directory does not exist")
 	}
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		klog.Errorf("Error reading directory")
-		return "", errors.Wrapf(err, "image file does not exist in image directory")
+		return "", fmt.Errorf("image file does not exist in image directory: %w", err)
 	}
 
 	if len(entries) == 0 {
@@ -236,4 +245,186 @@ func collectCerts(certDir, targetDir, targetPrefix string) error {
 		}
 	}
 	return nil
+}
+
+// ErrBootcImageDetected is returned when a bootc/ostree-bootable container image is detected
+// but conversion is not yet implemented.
+var ErrBootcImageDetected = errors.New("bootc image detected: this image contains an ostree-based bootable OS (containers.bootc=1 or ostree.bootable=1) and cannot be imported as a regular container disk; bootc-to-disk conversion is not yet implemented")
+
+func commandTimeoutContext() (context.Context, context.CancelFunc) {
+	return context.WithCancel(context.Background())
+}
+
+func buildSourceContext(accessKey, secKey, imageArchitecture, certDir string, insecureRegistry bool) *types.SystemContext {
+	ctx := &types.SystemContext{}
+	if accessKey != "" && secKey != "" {
+		ctx.DockerAuthConfig = &types.DockerAuthConfig{
+			Username: accessKey,
+			Password: secKey,
+		}
+	}
+	if certDir != "" {
+		ctx.DockerCertPath = certDir
+		ctx.DockerDaemonCertPath = certDir
+	}
+
+	if insecureRegistry {
+		ctx.DockerDaemonInsecureSkipTLSVerify = true
+		ctx.DockerInsecureSkipTLSVerify = types.NewOptionalBool(true)
+	}
+
+	if imageArchitecture != "" {
+		ctx.ArchitectureChoice = imageArchitecture
+	}
+
+	return ctx
+}
+
+func readImageSource(ctx context.Context, sys *types.SystemContext, img string) (types.ImageSource, error) {
+	ref, err := parseImageName(img)
+	if err != nil {
+		klog.Errorf("Could not parse image: %v", err)
+		return nil, fmt.Errorf("Could not parse image: %w", err)
+	}
+
+	src, err := ref.NewImageSource(ctx, sys)
+	if err != nil {
+		klog.Errorf("Could not create image reference: %v", err)
+		return nil, NewImagePullFailedError(err)
+	}
+	return src, nil
+}
+
+func parseImageName(img string) (types.ImageReference, error) {
+	parts := strings.SplitN(img, ":", 2)
+	if len(parts) != 2 {
+		return nil, fmt.Errorf(`Invalid image name "%s", expected colon-separated transport:reference`, img)
+	}
+	switch parts[0] {
+	case cdiv1.RegistrySchemeDocker:
+		return docker.ParseReference(parts[1])
+	case cdiv1.RegistrySchemeOci:
+		return archive.ParseReference(parts[1])
+	}
+	return nil, fmt.Errorf(`Invalid image name "%s", unknown transport`, img)
+}
+
+func closeImage(c io.Closer) {
+	if err := c.Close(); err != nil {
+		klog.Warningf("Could not close image source: %v ", err)
+	}
+}
+
+func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir string, insecureRegistry, preallocation bool) (*types.ImageInspectInfo, error) {
+	klog.Infof("Downloading image from '%v', copying file from '%v' to '%v'", url, pathPrefix, destDir)
+
+	ctx, cancel := commandTimeoutContext()
+	defer cancel()
+	srcCtx := buildSourceContext(accessKey, secKey, imageArchitecture, certDir, insecureRegistry)
+
+	src, err := readImageSource(ctx, srcCtx, url)
+	if err != nil {
+		return nil, err
+	}
+
+	imgCloser, err := image.FromSource(ctx, srcCtx, src)
+	if err != nil {
+		closeImage(src)
+		klog.Errorf("Error retrieving image: %v", err)
+		return nil, fmt.Errorf("Error retrieving image: %w", err)
+	}
+	defer closeImage(imgCloser)
+
+	// The config the checks below read is also what the caller gets back, so inspect once.
+	info, err := imgCloser.Inspect(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("Error inspecting image: %w", err)
+	}
+	if err := validateImagePlatformMatch(srcCtx, info); err != nil {
+		return nil, err
+	}
+	if err := checkBootcImage(info); err != nil {
+		return nil, err
+	}
+
+	cache := blobinfocache.DefaultCache(srcCtx)
+	openBlob := func(ctx context.Context, layer types.BlobInfo) (io.ReadCloser, error) {
+		blob, _, err := src.GetBlob(ctx, layer, cache)
+		return blob, err
+	}
+
+	extractor := fileExtractor{destDir: destDir, pathPrefix: pathPrefix, preallocation: preallocation}
+	if err := extractor.extract(ctx, imgCloser.LayerInfos(), openBlob); err != nil {
+		return nil, err
+	}
+
+	return info, nil
+}
+
+const (
+	bootcImageLabel   = "containers.bootc"
+	ostreeBootLabel   = "ostree.bootable"
+	bootcLabelEnabled = "1"
+)
+
+func checkBootcImage(info *types.ImageInspectInfo) error {
+	if info.Labels[bootcImageLabel] == bootcLabelEnabled ||
+		info.Labels[ostreeBootLabel] == bootcLabelEnabled {
+		klog.Infof("Detected bootc/ostree-bootable container image")
+		return ErrBootcImageDetected
+	}
+	return nil
+}
+
+func validateImagePlatformMatch(sys *types.SystemContext, info *types.ImageInspectInfo) error {
+	if sys.ArchitectureChoice == "" || info.Architecture == sys.ArchitectureChoice {
+		return nil
+	}
+	return fmt.Errorf(`Error validating architecture: manifest image architecture: "%s" doesn't match requested architecture: "%s"`,
+		info.Architecture, sys.ArchitectureChoice)
+}
+
+// GetImageDigest returns the digest of the container image at url.
+// url: source registry url.
+// accessKey: accessKey for the registry described in url.
+// secKey: secretKey for the registry described in url.
+// certDir: directory public CA keys are stored for registry identity verification
+// insecureRegistry: boolean if true will allow insecure registries.
+func GetImageDigest(url, accessKey, secKey, certDir string, insecureRegistry bool) (string, error) {
+	klog.Infof("Inspecting image from '%v'", url)
+
+	ctx, cancel := commandTimeoutContext()
+	defer cancel()
+	srcCtx := buildSourceContext(accessKey, secKey, "", certDir, insecureRegistry)
+
+	src, err := readImageSource(ctx, srcCtx, url)
+	if err != nil {
+		return "", err
+	}
+	defer closeImage(src)
+
+	imageManifest, _, err := src.GetManifest(context.Background(), nil)
+	if err != nil {
+		return "", err
+	}
+
+	digest, err := manifest.Digest(imageManifest)
+	if err != nil {
+		return "", err
+	}
+
+	return digest.String(), nil
+}
+
+// CopyRegistryImage download image from registry with docker image API. It will extract first file under the pathPrefix
+// url: source registry url.
+// destDir: the scratch space destination.
+// pathPrefix: path to extract files from.
+// accessKey: accessKey for the registry described in url.
+// secKey: secretKey for the registry described in url.
+// imageArchitecture: image index filter for CPU architecture.
+// certDir: directory public CA keys are stored for registry identity verification
+// insecureRegistry: boolean if true will allow insecure registries.
+func CopyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir string, insecureRegistry, preallocation bool) (*types.ImageInspectInfo, error) {
+	return copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir, insecureRegistry, preallocation)
 }
