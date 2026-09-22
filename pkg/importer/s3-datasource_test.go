@@ -1,15 +1,22 @@
 package importer
 
 import (
+	"context"
 	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/pkg/errors"
 )
 
@@ -188,6 +195,118 @@ var _ = Describe("S3 data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 	})
 
+	It("getS3Client should address the bucket in the path and honor the endpoint scheme", func() {
+		var gotPath, gotHost, gotAuth string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotPath, gotHost, gotAuth = r.URL.Path, r.Host, r.Header.Get("Authorization")
+			_, _ = w.Write([]byte("hello"))
+		}))
+		defer srv.Close()
+
+		// Address the server by hostname, not by IP: the SDK cannot use virtual-host
+		// addressing against a bare IP and silently falls back to path style, which
+		// would leave UsePathStyle unverified.
+		host := "localhost:" + srv.URL[strings.LastIndex(srv.URL, ":")+1:]
+		svc, err := getS3Client(host, "accessKey", "secKey", "", httpScheme)
+		Expect(err).NotTo(HaveOccurred())
+
+		out, err := svc.GetObject(context.Background(), &s3.GetObjectInput{
+			Bucket: aws.String("bucket-1"),
+			Key:    aws.String("object-1"),
+		})
+		Expect(err).NotTo(HaveOccurred())
+		defer out.Body.Close()
+
+		Expect(gotHost).To(Equal(host))
+		Expect(gotPath).To(Equal("/bucket-1/object-1"))
+		Expect(gotAuth).To(HavePrefix("AWS4-HMAC-SHA256 Credential=accessKey/"))
+	})
+
+	It("getS3Client should reach an IPv6 endpoint", func() {
+		ln, err := net.Listen("tcp", "[::1]:0")
+		if err != nil {
+			Skip("IPv6 loopback is not available: " + err.Error())
+		}
+		var gotPath string
+		srv := &httptest.Server{Listener: ln, Config: &http.Server{
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotPath = r.URL.Path
+				_, _ = w.Write([]byte("hello"))
+			}),
+			ReadHeaderTimeout: 10 * time.Second,
+		}}
+		srv.Start()
+		defer srv.Close()
+
+		// The SDK rejects a signing region that is not a DNS name; "::1" derived
+		// from the host must not be handed to it as is.
+		host := ln.Addr().String()
+		svc, err := getS3Client(host, "accessKey", "secKey", "", httpScheme)
+		Expect(err).NotTo(HaveOccurred())
+
+		out, err := svc.GetObject(context.Background(), &s3.GetObjectInput{
+			Bucket: aws.String("bucket-1"),
+			Key:    aws.String("object-1"),
+		})
+		Expect(err).NotTo(HaveOccurred())
+		defer out.Body.Close()
+
+		Expect(gotPath).To(Equal("/bucket-1/object-1"))
+	})
+
+	It("getS3Client should fall back to the SDK default credential chain when no static credentials are given", func() {
+		// A DataVolume without a secretRef reaches getS3Client with empty keys.
+		// The pod's ambient identity (IRSA and EKS Pod Identity inject env vars
+		// or a token file) must then be picked up through the SDK default chain;
+		// env credentials stand in for that injection here.
+		GinkgoT().Setenv("AWS_ACCESS_KEY_ID", "chainAccessKey")
+		GinkgoT().Setenv("AWS_SECRET_ACCESS_KEY", "chainSecretKey")
+
+		var gotAuth string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotAuth = r.Header.Get("Authorization")
+			_, _ = w.Write([]byte("hello"))
+		}))
+		defer srv.Close()
+
+		host := "localhost:" + srv.URL[strings.LastIndex(srv.URL, ":")+1:]
+		svc, err := getS3Client(host, "", "", "", httpScheme)
+		Expect(err).NotTo(HaveOccurred())
+
+		out, err := svc.GetObject(context.Background(), &s3.GetObjectInput{
+			Bucket: aws.String("bucket-1"),
+			Key:    aws.String("object-1"),
+		})
+		Expect(err).NotTo(HaveOccurred())
+		defer out.Body.Close()
+
+		Expect(gotAuth).To(HavePrefix("AWS4-HMAC-SHA256 Credential=chainAccessKey/"))
+	})
+
+	DescribeTable("getS3Client should reject partial static credentials", func(accessKey, secKey string) {
+		_, err := getS3Client("minio:9000", accessKey, secKey, "", httpScheme)
+		Expect(err).To(MatchError(ContainSubstring("must be set together")))
+	},
+		Entry("access key only", "accessKey", ""),
+		Entry("secret key only", "", "secKey"),
+	)
+
+	DescribeTable("extractRegion should derive a valid region", func(endpoint, want string) {
+		Expect(extractRegion(endpoint)).To(Equal(want))
+	},
+		Entry("dotless host with port", "minio:9000", "minio"),
+		Entry("dotted host with port", "minio-service.default:9000", "minio-service"),
+		Entry("AWS regional endpoint", "s3.us-east-1.amazonaws.com", "us-east-1"),
+		Entry("IP host with port", "127.0.0.1:9000", "127"),
+		Entry("localhost with port", "localhost:9000", "localhost"),
+		Entry("host without port", "minio", "minio"),
+		// Not valid DNS names, so the SDK would reject them as a region.
+		Entry("IPv6 host with port", "[::1]:9000", defaultRegion),
+		Entry("IPv6 host without port", "::1", defaultRegion),
+		Entry("host with underscore", "minio_svc:9000", defaultRegion),
+		Entry("empty endpoint", "", defaultRegion),
+	)
+
 	It("Should Extract Bucket and Object form the S3 URL", func() {
 		bucket, object := extractBucketAndObject("Bucket1/Object.tmp")
 		Expect(bucket).Should(Equal("Bucket1"))
@@ -227,7 +346,7 @@ func createErrMockS3Client(endpoint, accKey, secKey string, certDir string, urlS
 	}, nil
 }
 
-func (mc *MockS3Client) GetObject(input *s3.GetObjectInput) (*s3.GetObjectOutput, error) {
+func (mc *MockS3Client) GetObject(_ context.Context, input *s3.GetObjectInput, _ ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
 	if !mc.doErr {
 		return &s3.GetObjectOutput{}, nil
 	}

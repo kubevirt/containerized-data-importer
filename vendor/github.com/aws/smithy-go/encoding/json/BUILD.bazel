@@ -1,0 +1,18 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = [
+        "array.go",
+        "constants.go",
+        "decoder_util.go",
+        "encoder.go",
+        "escape.go",
+        "object.go",
+        "value.go",
+    ],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/smithy-go/encoding/json",
+    importpath = "github.com/aws/smithy-go/encoding/json",
+    visibility = ["//visibility:public"],
+    deps = ["//vendor/github.com/aws/smithy-go/encoding:go_default_library"],
+)

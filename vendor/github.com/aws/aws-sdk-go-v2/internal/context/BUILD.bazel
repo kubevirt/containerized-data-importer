@@ -1,0 +1,10 @@
+load("@io_bazel_rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "go_default_library",
+    srcs = ["context.go"],
+    importmap = "kubevirt.io/containerized-data-importer/vendor/github.com/aws/aws-sdk-go-v2/internal/context",
+    importpath = "github.com/aws/aws-sdk-go-v2/internal/context",
+    visibility = ["//vendor/github.com/aws/aws-sdk-go-v2:__subpackages__"],
+    deps = ["//vendor/github.com/aws/smithy-go/middleware:go_default_library"],
+)
