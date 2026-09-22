@@ -57,6 +57,7 @@ const (
 	snapshotClassName       = "testSnapClass"
 	provisionerName         = "testProvisioner"
 	cephProvisioner         = "rook-ceph.rbd.csi.ceph.com"
+	mayastorProvisioner     = "io.openebs.csi-mayastor"
 )
 
 var (
@@ -613,6 +614,25 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Entry("backend parameter set to pure_fa_file", map[string]string{"backend": "pure_fa_file"}, cdiv1.CloneStrategyCsiClone),
 	)
 
+	DescribeTable("should set claimPropertySets for io.openebs.csi-mayastor according to rwxBlock parameter", func(scParameters map[string]string, expectedClaimPropertySets []cdiv1.ClaimPropertySet) {
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, mayastorProvisioner)
+		storageClass.Parameters = scParameters
+		reconciler = createStorageProfileReconciler(storageClass)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+
+		sp := &cdiv1.StorageProfile{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(*sp.Status.Provisioner).To(Equal(mayastorProvisioner))
+		Expect(sp.Status.ClaimPropertySets).To(Equal(expectedClaimPropertySets))
+	},
+		Entry("no parameters", nil, mayastorRwoClaimPropertySets()),
+		Entry("rwxBlock parameter set to false", map[string]string{"rwxBlock": "false"}, mayastorRwoClaimPropertySets()),
+		Entry("rwxBlock parameter set to true", map[string]string{"rwxBlock": "true"}, mayastorRwxBlockClaimPropertySets()),
+	)
+
 	DescribeTable("Should set the StorageProfileStatus metric correctly", func(provisioner string, isComplete bool) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
 		reconciler = createStorageProfileReconciler(storageClass)
@@ -707,9 +727,32 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Entry("recognized provisioner with unrecognized parameters",
 			"infinibox-csi-driver", map[string]string{"storage_protocol": "unsupported"},
 			v1.ConditionFalse, string(storagecapabilities.UnrecognizedStorageClassParameters), unrecognizedStorageClassParametersMessage),
+		Entry("recognized provisioner without rwxBlock parameter",
+			mayastorProvisioner, nil,
+			v1.ConditionTrue, string(storagecapabilities.RecognizedProvisioner), recognizedProvisionerMessage),
+		Entry("recognized provisioner with rwxBlock parameter",
+			mayastorProvisioner, map[string]string{"rwxBlock": "true"},
+			v1.ConditionTrue, string(storagecapabilities.RecognizedProvisioner), recognizedProvisionerMessage),
 	)
 
 })
+
+// mayastorRwoClaimPropertySets are the property sets expected for a Mayastor
+// StorageClass that did not opt in to RWX block volumes
+func mayastorRwoClaimPropertySets() []cdiv1.ClaimPropertySet {
+	return []cdiv1.ClaimPropertySet{
+		{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: ptr.To(v1.PersistentVolumeBlock)},
+		{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: ptr.To(v1.PersistentVolumeFilesystem)},
+	}
+}
+
+// mayastorRwxBlockClaimPropertySets are the property sets expected for a Mayastor
+// StorageClass with rwxBlock enabled
+func mayastorRwxBlockClaimPropertySets() []cdiv1.ClaimPropertySet {
+	return append([]cdiv1.ClaimPropertySet{
+		{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteMany}, VolumeMode: ptr.To(v1.PersistentVolumeBlock)},
+	}, mayastorRwoClaimPropertySets()...)
+}
 
 func createStorageProfileReconciler(objects ...runtime.Object) *StorageProfileReconciler {
 	objs := []runtime.Object{}
