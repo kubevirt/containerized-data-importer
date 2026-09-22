@@ -237,7 +237,7 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 			}
 		}
 
-		targetPvc, err := r.createPvcForDatavolume(datavolume, pvcSpec, pvcModifier)
+		targetPvc, err := r.createPvcForDatavolume(datavolume, pvcSpec, pvcModifier, syncRes.renderResult)
 		if err != nil {
 			if cc.ErrQuotaExceeded(err) {
 				syncErr = r.syncDataVolumeStatusPhaseWithEvent(&syncRes, cdiv1.Pending, nil,

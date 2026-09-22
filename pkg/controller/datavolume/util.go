@@ -72,6 +72,8 @@ type renderResult struct {
 	// minSizeApplied is true when the requested size was raised to the storage
 	// profile's minimum supported PVC size.
 	minSizeApplied bool
+	// originalRequestedSize records the user's initially requested size on a PVC before it was automatically increased to meet the storage profile's minimum requirement
+	originalRequestedSize resource.Quantity
 }
 
 // RenderPvc renders the PVC according to StorageProfiles
@@ -97,8 +99,20 @@ func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolu
 		return nil
 	}
 
-	_, err := renderPvcSpecVolumeSize(client, &pvc.Spec, false, nil)
-	return err
+	result, err := renderPvcSpecVolumeSize(client, &pvc.Spec, false, nil)
+	if err != nil {
+		return err
+	}
+	if result.minSizeApplied {
+		cc.AddAnnotation(pvc, cc.AnnOriginalRequestedSize, result.originalRequestedSize.String())
+		cc.AddLabel(pvc, cc.LabelOriginalRequestedSizeBytes, strconv.FormatInt(result.originalRequestedSize.Value(), 10))
+		source := "external"
+		if _, fromDV := pvc.Annotations[cc.AnnCreatedForDataVolume]; fromDV {
+			source = "datavolume"
+		}
+		cc.AddLabel(pvc, cc.LabelMinSupportedSizeSource, source)
+	}
+	return nil
 }
 
 // hasVolumeSnapshotDataSource returns true if the PVC's DataSource or DataSourceRef
@@ -120,22 +134,23 @@ func hasVolumeSnapshotDataSource(pvc *v1.PersistentVolumeClaim) bool {
 }
 
 // renderPvcSpec creates a new PVC Spec based on either the dv.spec.pvc or dv.spec.storage section
-func renderPvcSpec(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaimSpec, error) {
+func renderPvcSpec(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaimSpec, *renderResult, error) {
 	if dv.Spec.PVC != nil {
-		return dv.Spec.PVC.DeepCopy(), nil
+		return dv.Spec.PVC.DeepCopy(), nil, nil
 	} else if dv.Spec.Storage != nil {
 		return pvcFromStorage(client, recorder, log, dv, pvc)
 	}
 
-	return nil, errors.Errorf("datavolume one of {pvc, storage} field is required")
+	return nil, nil, errors.Errorf("datavolume one of {pvc, storage} field is required")
 }
 
-func pvcFromStorage(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaimSpec, error) {
+func pvcFromStorage(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaimSpec, *renderResult, error) {
 	var pvcSpec *v1.PersistentVolumeClaimSpec
+	var result *renderResult
 
 	isWebhookRenderingEnabled, err := cc.IsWebhookPvcRenderingEnabled(client)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	shouldRender := !isWebhookRenderingEnabled || dv.Labels[common.PvcApplyStorageProfileLabel] != "true"
@@ -144,7 +159,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 		pvcSpec = copyStorageAsPvc(dv.Spec.Storage)
 		if shouldRender {
 			if err := renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client, recorder, &log, dv, pvcSpec, dv.Spec.ContentType); err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 		}
 	} else {
@@ -154,10 +169,11 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 	if shouldRender {
 		isClone := dv.Spec.Source.PVC != nil || dv.Spec.Source.Snapshot != nil
 		requested := pvcSpec.Resources.Requests[v1.ResourceStorage]
-		result, err := renderPvcSpecVolumeSize(client, pvcSpec, isClone, &log)
+		res, err := renderPvcSpecVolumeSize(client, pvcSpec, isClone, &log)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
+		result = &res
 		if result.minSizeApplied && recorder != nil && !requested.IsZero() && pvcSpec.StorageClassName != nil {
 			effective := pvcSpec.Resources.Requests[v1.ResourceStorage]
 			recorder.Eventf(dv, v1.EventTypeNormal, MinimumPVCSizeApplied,
@@ -165,7 +181,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 		}
 	}
 
-	return pvcSpec, nil
+	return pvcSpec, result, nil
 }
 
 // func is called from both DV controller (with recorder and log) and PVC mutating webhook (without recorder and log)
@@ -330,6 +346,7 @@ func hasCloneSourceRef(pvc *v1.PersistentVolumeClaim) bool {
 func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeClaimSpec, isClone bool, log *logr.Logger) (renderResult, error) {
 	var result renderResult
 	requestedSize, found := pvcSpec.Resources.Requests[v1.ResourceStorage]
+	originalRequestedSize := requestedSize.DeepCopy()
 
 	// Storage size can be empty when cloning
 	if !found {
@@ -355,7 +372,10 @@ func renderPvcSpecVolumeSize(client client.Client, pvcSpec *v1.PersistentVolumeC
 		if requestedSize, err = cc.GetEffectiveVolumeSize(context.TODO(), client, requestedSize, *scName, log); err != nil {
 			return result, err
 		}
-		result.minSizeApplied = requestedSize.Cmp(sizeBeforeBump) > 0
+		if requestedSize.Cmp(sizeBeforeBump) > 0 {
+			result.minSizeApplied = true
+			result.originalRequestedSize = originalRequestedSize
+		}
 	}
 
 	setRequestedVolumeSize(pvcSpec, requestedSize)

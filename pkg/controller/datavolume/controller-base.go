@@ -115,6 +115,7 @@ type dvSyncState struct {
 	snapshot  *snapshotv1.VolumeSnapshot
 	dvSyncResult
 	usePopulator bool
+	renderResult *renderResult
 }
 
 // ReconcilerBase members
@@ -515,7 +516,7 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 		}
 	}
 
-	syncState.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, syncState.dvMutated, syncState.pvc)
+	syncState.pvcSpec, syncState.renderResult, err = renderPvcSpec(r.client, r.recorder, log, syncState.dvMutated, syncState.pvc)
 	if err != nil {
 		if syncErr := r.syncDataVolumeStatusPhaseWithEvent(&syncState, cdiv1.PhaseUnset, nil,
 			Event{corev1.EventTypeWarning, cc.ErrClaimNotValid, err.Error()}); syncErr != nil {
@@ -768,8 +769,8 @@ func (r *ReconcilerBase) getDataVolume(key types.NamespacedName) (*cdiv1.DataVol
 type pvcModifierFunc func(datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error
 
 func (r *ReconcilerBase) createPvcForDatavolume(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec,
-	pvcModifier pvcModifierFunc) (*corev1.PersistentVolumeClaim, error) {
-	newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec, datavolume.Namespace, datavolume.Name, pvcModifier)
+	pvcModifier pvcModifierFunc, renderResult *renderResult) (*corev1.PersistentVolumeClaim, error) {
+	newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec, datavolume.Namespace, datavolume.Name, pvcModifier, renderResult)
 	if err != nil {
 		return nil, err
 	}
@@ -1131,21 +1132,9 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 	return nil
 }
 
-// newPersistentVolumeClaim creates a new PVC for the DataVolume resource.
-// It also sets the appropriate OwnerReferences on the resource
-// which allows handleObject to discover the DataVolume resource
-// that 'owns' it.
-func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, targetPvcSpec *corev1.PersistentVolumeClaimSpec, namespace, name string, pvcModifier pvcModifierFunc) (*corev1.PersistentVolumeClaim, error) {
-	labels := map[string]string{
-		common.CDILabelKey: common.CDILabelValue,
-	}
-	if util.ResolveVolumeMode(targetPvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
-		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
-	}
-	for k, v := range dataVolume.Labels {
-		labels[k] = v
-	}
-
+// buildPVCAnnotations assembles the annotations for a PVC created for a DataVolume,
+// including the original requested size when the size was raised to the minimum.
+func (r *ReconcilerBase) buildPVCAnnotations(dataVolume *cdiv1.DataVolume, renderResult *renderResult) map[string]string {
 	annotations := make(map[string]string)
 	for k, v := range dataVolume.ObjectMeta.Annotations {
 		annotations[k] = v
@@ -1161,16 +1150,54 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, dataVolume.Spec.Preallocation))
 	annotations[cc.AnnCreatedForDataVolume] = string(dataVolume.UID)
 
-	if dataVolume.Spec.Storage != nil && labels[common.PvcApplyStorageProfileLabel] == "true" {
-		isWebhookPvcRenderingEnabled, err := cc.IsWebhookPvcRenderingEnabled(r.client)
-		if err != nil {
-			return nil, err
-		}
-		if isWebhookPvcRenderingEnabled {
-			if targetPvcSpec.VolumeMode == nil {
-				targetPvcSpec.VolumeMode = ptr.To[corev1.PersistentVolumeMode](cdiv1.PersistentVolumeFromStorageProfile)
-			}
-		}
+	if renderResult != nil && renderResult.minSizeApplied {
+		annotations[cc.AnnOriginalRequestedSize] = renderResult.originalRequestedSize.String()
+	}
+
+	return annotations
+}
+
+// applyStorageProfileVolumeMode defaults the target PVC's volume mode to be resolved
+// from the storage profile when webhook PVC rendering is enabled and no volume mode
+// was explicitly set.
+func (r *ReconcilerBase) applyStorageProfileVolumeMode(targetPvcSpec *corev1.PersistentVolumeClaimSpec, dataVolume *cdiv1.DataVolume, labels map[string]string) error {
+	if dataVolume.Spec.Storage == nil || labels[common.PvcApplyStorageProfileLabel] != "true" {
+		return nil
+	}
+	isWebhookPvcRenderingEnabled, err := cc.IsWebhookPvcRenderingEnabled(r.client)
+	if err != nil {
+		return err
+	}
+	if isWebhookPvcRenderingEnabled && targetPvcSpec.VolumeMode == nil {
+		targetPvcSpec.VolumeMode = ptr.To[corev1.PersistentVolumeMode](cdiv1.PersistentVolumeFromStorageProfile)
+	}
+	return nil
+}
+
+// newPersistentVolumeClaim creates a new PVC for the DataVolume resource.
+// It also sets the appropriate OwnerReferences on the resource
+// which allows handleObject to discover the DataVolume resource
+// that 'owns' it.
+func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, targetPvcSpec *corev1.PersistentVolumeClaimSpec, namespace, name string, pvcModifier pvcModifierFunc, renderResult *renderResult) (*corev1.PersistentVolumeClaim, error) {
+	labels := map[string]string{
+		common.CDILabelKey: common.CDILabelValue,
+	}
+	if util.ResolveVolumeMode(targetPvcSpec.VolumeMode) == corev1.PersistentVolumeFilesystem {
+		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
+	}
+	for k, v := range dataVolume.Labels {
+		labels[k] = v
+	}
+
+	if renderResult != nil && renderResult.minSizeApplied {
+		labels[cc.LabelOriginalRequestedSizeBytes] = strconv.FormatInt(renderResult.originalRequestedSize.Value(), 10)
+		labels[cc.LabelMinSupportedSizeSource] = "datavolume"
+	}
+
+	annotations := r.buildPVCAnnotations(dataVolume, renderResult)
+
+	if err := r.applyStorageProfileVolumeMode(targetPvcSpec, dataVolume, labels); err != nil {
+		return nil, err
 	}
 
 	pvc := &corev1.PersistentVolumeClaim{
@@ -1293,7 +1320,7 @@ func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncState *dvSyncSta
 		return nil
 	}
 	// Creating the PVC
-	newPvc, err := r.createPvcForDatavolume(syncState.dvMutated, syncState.pvcSpec, pvcModifier)
+	newPvc, err := r.createPvcForDatavolume(syncState.dvMutated, syncState.pvcSpec, pvcModifier, syncState.renderResult)
 	if err != nil {
 		if cc.ErrQuotaExceeded(err) {
 			syncErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, cdiv1.Pending, nil, Event{corev1.EventTypeWarning, cc.ErrExceededQuota, err.Error()})
