@@ -222,6 +222,30 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(reflect.DeepEqual(orgPvc, resPvc)).To(BeTrue())
 	})
 
+	It("Should delete a leftover importer pod when a completed PVC is being terminated", func() {
+		now := metav1.Now()
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnPodPhase: string(corev1.PodSucceeded)}, nil)
+		pvc.DeletionTimestamp = &now
+		pvc.Finalizers = []string{"kubernetes.io/pvc-protection"}
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		reconciler = createImportReconciler(pvc, pod)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: "default"}, &corev1.Pod{})
+		Expect(errors.IsNotFound(err)).To(BeTrue())
+	})
+
+	It("Should not requeue an unrelated terminating PVC that CDI never imported into", func() {
+		now := metav1.Now()
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{}, nil)
+		pvc.DeletionTimestamp = &now
+		pvc.Finalizers = []string{"kubernetes.io/pvc-protection"}
+		reconciler = createImportReconciler(pvc)
+		result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).To(Equal(reconcile.Result{}))
+	})
+
 	It("Should init PVC with a POD name if a PVC with all needed annotations is passed", func() {
 		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint}, nil)
 		pvc.Status.Phase = v1.ClaimBound
