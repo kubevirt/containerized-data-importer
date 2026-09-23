@@ -145,6 +145,38 @@ func createNbdKitWrapper(vmware *VMwareClient, diskFileName, snapshot string) (*
 	return source, nil
 }
 
+func createExternalNbdConnection(uri string) (*NbdKitWrapper, error) {
+	handle, err := libnbd.Create()
+	if err != nil {
+		return nil, err
+	}
+	u, err := url.Parse(uri)
+	if err != nil {
+		handle.Close()
+		return nil, err
+	}
+	_ = handle.AddMetaContext("base:allocation")
+	if u.Scheme == "nbds" {
+		_ = handle.SetTlsPriority("NORMAL")
+		_ = handle.SetTls(libnbd.TLS_REQUIRE)
+		_ = handle.SetTlsCertificates(common.ImporterNbdCertDir)
+		// el9 libnbd lacks set_tls_hostname; verifying against the IP fails for CN nbd-server
+		_ = handle.SetTlsVerifyPeer(false)
+		port := u.Port()
+		if port == "" {
+			port = "10809"
+		}
+		if err := handle.ConnectTcp(u.Hostname(), port); err != nil {
+			handle.Close()
+			return nil, err
+		}
+	} else if err := handle.ConnectUri(uri); err != nil {
+		handle.Close()
+		return nil, err
+	}
+	return &NbdKitWrapper{Socket: u, Handle: handle}, nil
+}
+
 // createNbdKitLogWatcher creates a channel to use as a log watcher stop signal.
 func createNbdKitLogWatcher() *NbdKitLogWatcherVddk {
 	stopper := make(chan struct{})
@@ -1045,18 +1077,23 @@ func createVddkDataSource(cfg VDDKDataSourceConfig) (*VDDKDataSource, error) {
 		}
 	}
 
-	diskFileName := cfg.BackingFile // By default, just set the nbdkit file name to the given backingFile path
-	if currentSnapshot != nil {
-		// When copying from a snapshot, set the nbdkit file name to the name of the disk in the snapshot
-		// that matches the ID of the given backing file, like "[iSCSI] vm/vmdisk-000001.vmdk".
-		diskFileName, err = vmware.FindSnapshotDiskName(currentSnapshot, backingFileObject.DiskObjectId)
-		if err != nil {
-			klog.Errorf("Could not find matching disk in current snapshot: %v", err)
-			return nil, err
+	var nbdkit *NbdKitWrapper
+	if cfg.NbdConnection != "" {
+		nbdkit, err = createExternalNbdConnection(cfg.NbdConnection)
+	} else {
+		diskFileName := cfg.BackingFile // By default, just set the nbdkit file name to the given backingFile path
+		if currentSnapshot != nil {
+			// When copying from a snapshot, set the nbdkit file name to the name of the disk in the snapshot
+			// that matches the ID of the given backing file, like "[iSCSI] vm/vmdisk-000001.vmdk".
+			diskFileName, err = vmware.FindSnapshotDiskName(currentSnapshot, backingFileObject.DiskObjectId)
+			if err != nil {
+				klog.Errorf("Could not find matching disk in current snapshot: %v", err)
+				return nil, err
+			}
+			klog.Infof("Set disk file name from current snapshot: %s", diskFileName)
 		}
-		klog.Infof("Set disk file name from current snapshot: %s", diskFileName)
+		nbdkit, err = newNbdKitWrapper(vmware, diskFileName, cfg.CurrentCheckpoint)
 	}
-	nbdkit, err := newNbdKitWrapper(vmware, diskFileName, cfg.CurrentCheckpoint)
 	if err != nil {
 		klog.Errorf("Unable to start nbdkit: %v", err)
 		return nil, err
@@ -1105,7 +1142,10 @@ func (vs *VDDKDataSource) Info() (ProcessingPhase, error) {
 // Close closes any readers or other open resources.
 func (vs *VDDKDataSource) Close() error {
 	vs.NbdKit.Handle.Close()
-	return vs.NbdKit.n.KillNbdkit()
+	if vs.NbdKit.n != nil {
+		return vs.NbdKit.n.KillNbdkit()
+	}
+	return nil
 }
 
 // GetURL returns the url that the data processor can use when converting the data.

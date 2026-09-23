@@ -18,4 +18,5 @@ type VDDKDataSourceConfig struct {
 	VolumeMode         v1.PersistentVolumeMode
 	CertDir            string
 	InsecureTLS        bool
+	NbdConnection      string
 }
