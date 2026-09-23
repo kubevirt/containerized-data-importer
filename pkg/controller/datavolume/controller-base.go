@@ -718,6 +718,7 @@ func (r *ReconcilerBase) handlePrePopulation(dv *cdiv1.DataVolume, pvc *corev1.P
 	}
 }
 
+// handleResize checks if the DataVolume size has increased and updates the PVC accordingly
 func (r *ReconcilerBase) handleResize(log logr.Logger, syncState *dvSyncState) error {
 	if syncState.pvc == nil || syncState.pvcSpec == nil {
 		return nil
@@ -728,7 +729,7 @@ func (r *ReconcilerBase) handleResize(log logr.Logger, syncState *dvSyncState) e
 
 	if dvSize.Cmp(pvcSize) > 0 {
 		log.Info("Resizing PVC", "PVC", syncState.pvc.Name, "OldSize", pvcSize.String(), "NewSize", dvSize.String())
-		r.recorder.Eventf(syncState.dv, corev1.EventTypeNormal, "Resizing", "Resizing PVC %s from %s to %s", syncState.pvc.Name, pvcSize.String(), dvSize.String())
+		r.recorder.Eventf(syncState.dv, corev1.EventTypeNormal, ExpansionInProgress, "Resizing PVC %s from %s to %s", syncState.pvc.Name, pvcSize.String(), dvSize.String())
 		pvcCpy := syncState.pvc.DeepCopy()
 		if pvcCpy.Spec.Resources.Requests == nil {
 			pvcCpy.Spec.Resources.Requests = corev1.ResourceList{}

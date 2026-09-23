@@ -175,6 +175,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 	return pvcSpec, nil
 }
 
+// getStorageRequest returns the storage request quantity from the StorageSpec
 func getStorageRequest(storage *cdiv1.StorageSpec) (resource.Quantity, bool) {
 	if storage == nil || storage.Resources.Requests == nil {
 		return resource.Quantity{}, false
