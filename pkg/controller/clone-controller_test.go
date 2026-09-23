@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -576,6 +577,68 @@ var _ = Describe("Clone controller reconcile loop", func() {
 			"source volumeMode (Block) and target volumeMode (Filesystem) do not match",
 		),
 	)
+
+	It("Should ensure the prometheus cert Secret when the clone source pod already exists", func() {
+		targetPvc := cc.CreatePvc(
+			"testPvc1",
+			"default",
+			map[string]string{
+				cc.AnnCloneRequest:   "default/source",
+				cc.AnnPodReady:       "true",
+				cc.AnnCloneSourcePod: "default-testPvc1-source-pod",
+				AnnUploadClientName:  "uploadclient",
+			},
+			nil,
+		)
+
+		sourcePod := createSourcePod(targetPvc, "default-testPvc1")
+		sourcePod.Namespace = "default"
+		sourcePod.UID = types.UID("clone-source-pod-uid")
+		sourcePod.Status.Phase = corev1.PodPending
+
+		reconciler = createCloneReconciler(
+			targetPvc,
+			sourcePod,
+		)
+
+		secretName := cc.PrometheusCertSecretName(sourcePod.Name)
+		secretKey := types.NamespacedName{
+			Name:      secretName,
+			Namespace: sourcePod.Namespace,
+		}
+
+		By("Verifying the prometheus cert Secret does not exist")
+		secret := &corev1.Secret{}
+		err := reconciler.client.Get(context.TODO(), secretKey, secret)
+		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
+		By("Reconciling the existing clone source pod")
+		_, err = reconciler.Reconcile(
+			context.TODO(),
+			reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      targetPvc.Name,
+					Namespace: targetPvc.Namespace,
+				},
+			},
+		)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying the prometheus cert Secret was created")
+		secret = &corev1.Secret{}
+		err = reconciler.client.Get(context.TODO(), secretKey, secret)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(secret.Data).To(HaveKey(corev1.TLSCertKey))
+		Expect(secret.Data).To(HaveKey(corev1.TLSPrivateKeyKey))
+
+		Expect(secret.OwnerReferences).To(HaveLen(1))
+		Expect(secret.OwnerReferences[0].Kind).To(Equal("Pod"))
+		Expect(secret.OwnerReferences[0].Name).To(Equal(sourcePod.Name))
+		Expect(secret.OwnerReferences[0].UID).To(Equal(sourcePod.UID))
+		Expect(secret.OwnerReferences[0].Controller).NotTo(BeNil())
+		Expect(*secret.OwnerReferences[0].Controller).To(BeTrue())
+	})
 })
 
 var _ = Describe("ParseCloneRequestAnnotation", func() {

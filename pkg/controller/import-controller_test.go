@@ -518,6 +518,102 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		}
 		Expect(foundAnnInsecureSkipVerify).To(BeTrue())
 	})
+
+	It("Should ensure the prometheus cert Secret when the importer pod already exists", func() {
+		pvc := cc.CreatePvc(
+			"testPvc1",
+			"default",
+			map[string]string{
+				cc.AnnEndpoint:  testEndPoint,
+				cc.AnnImportPod: "importer-testPvc1",
+			},
+			nil,
+		)
+		pvc.Status.Phase = corev1.ClaimBound
+
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.UID = types.UID("importer-pod-uid")
+		pod.Status.Phase = corev1.PodPending
+
+		reconciler = createImportReconciler(pvc, pod)
+
+		secretName := cc.PrometheusCertSecretName(pod.Name)
+		secretKey := types.NamespacedName{
+			Name:      secretName,
+			Namespace: pod.Namespace,
+		}
+
+		By("Verifying the prometheus cert Secret does not exist")
+		secret := &corev1.Secret{}
+		err := reconciler.client.Get(context.TODO(), secretKey, secret)
+		Expect(errors.IsNotFound(err)).To(BeTrue())
+
+		By("Reconciling the existing importer pod")
+		_, err = reconciler.Reconcile(
+			context.TODO(),
+			reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      pvc.Name,
+					Namespace: pvc.Namespace,
+				},
+			},
+		)
+		Expect(err).ToNot(HaveOccurred())
+
+		By("Verifying the prometheus cert Secret was created")
+		secret = &corev1.Secret{}
+		err = reconciler.client.Get(context.TODO(), secretKey, secret)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(secret.Data).To(HaveKey(corev1.TLSCertKey))
+		Expect(secret.Data).To(HaveKey(corev1.TLSPrivateKeyKey))
+
+		Expect(secret.OwnerReferences).To(HaveLen(1))
+		Expect(secret.OwnerReferences[0].Kind).To(Equal("Pod"))
+		Expect(secret.OwnerReferences[0].Name).To(Equal(pod.Name))
+		Expect(secret.OwnerReferences[0].UID).To(Equal(pod.UID))
+		Expect(secret.OwnerReferences[0].Controller).NotTo(BeNil())
+		Expect(*secret.OwnerReferences[0].Controller).To(BeTrue())
+	})
+
+	It("Should not ensure the prometheus cert Secret when the importer pod is already running", func() {
+		pvc := cc.CreatePvc(
+			"testPvc1",
+			"default",
+			map[string]string{
+				cc.AnnEndpoint:  testEndPoint,
+				cc.AnnImportPod: "importer-testPvc1",
+			},
+			nil,
+		)
+		pvc.Status.Phase = corev1.ClaimBound
+
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.UID = types.UID("importer-pod-uid")
+		pod.Status.Phase = corev1.PodRunning
+
+		reconciler = createImportReconciler(pvc, pod)
+
+		secretKey := types.NamespacedName{
+			Name:      cc.PrometheusCertSecretName(pod.Name),
+			Namespace: pod.Namespace,
+		}
+
+		_, err := reconciler.Reconcile(
+			context.TODO(),
+			reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      pvc.Name,
+					Namespace: pvc.Namespace,
+				},
+			},
+		)
+		Expect(err).ToNot(HaveOccurred())
+
+		secret := &corev1.Secret{}
+		err = reconciler.client.Get(context.TODO(), secretKey, secret)
+		Expect(errors.IsNotFound(err)).To(BeTrue())
+	})
 })
 
 var _ = Describe("Update PVC from POD", func() {

@@ -297,6 +297,17 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 				return reconcile.Result{}, err
 			}
 		} else {
+			if pod.Status.Phase == corev1.PodPending || pod.Status.Phase == "" {
+				if err := cc.EnsurePrometheusCertSecret(
+					context.TODO(),
+					r.client,
+					pod,
+					r.installerLabels,
+				); err != nil {
+					return reconcile.Result{}, err
+				}
+			}
+
 			// Copy import proxy ConfigMap (if exists) from cdi namespace to the import namespace
 			if err := r.copyImportProxyConfigMap(pvc, pod); err != nil {
 				return reconcile.Result{}, err
@@ -993,15 +1004,11 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 	// add any labels from pvc to the importer pod
 	util.MergeLabels(srcLabels, pod.Labels)
 
-	if err = cc.CreatePrometheusCertSecret(context.TODO(), client, pod.Name, pod.Namespace, installerLabels); err != nil {
-		return nil, err
-	}
-
 	if err = client.Create(context.TODO(), pod); err != nil {
 		return nil, err
 	}
 
-	if err = cc.SetPrometheusCertSecretOwnerRef(context.TODO(), client, pod); err != nil {
+	if err = cc.EnsurePrometheusCertSecret(context.TODO(), client, pod, installerLabels); err != nil {
 		return nil, err
 	}
 

@@ -1295,24 +1295,37 @@ func AppendTmpVolume(podSpec *corev1.PodSpec) {
 	}
 }
 
-// CreatePrometheusCertSecret creates a Secret containing a self-signed TLS cert/key pair
-// for the prometheus metrics endpoint of a worker pod. It must be called BEFORE creating
-// the pod so the Secret is available when the kubelet mounts the volume.
-// The returned Secret does not have an OwnerReference yet; call SetPrometheusCertSecretOwnerRef
-// after the pod is created to set it.
-func CreatePrometheusCertSecret(ctx context.Context, c client.Client, podName, namespace string, installerLabels map[string]string) error {
-	certBytes, keyBytes, err := cert.GenerateSelfSignedCertKey(podName, nil, nil)
+// EnsurePrometheusCertSecret ensures that the worker Pod has a Prometheus
+// TLS Secret owned by the Pod. The Pod must already exist so its UID can be
+// used in the Secret OwnerReference.
+func EnsurePrometheusCertSecret(
+	ctx context.Context,
+	c client.Client,
+	pod *corev1.Pod,
+	installerLabels map[string]string,
+) error {
+	certBytes, keyBytes, err := cert.GenerateSelfSignedCertKey(pod.Name, nil, nil)
 	if err != nil {
-		return fmt.Errorf("generating prometheus cert for pod %s/%s: %w", namespace, podName, err)
+		return fmt.Errorf("generating prometheus cert for pod %s/%s: %w", pod.Namespace, pod.Name, err)
 	}
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      PrometheusCertSecretName(podName),
-			Namespace: namespace,
+			Name:      PrometheusCertSecretName(pod.Name),
+			Namespace: pod.Namespace,
 			Labels: map[string]string{
 				common.CDILabelKey:        common.CDILabelValue,
 				common.PrometheusLabelKey: common.PrometheusLabelValue,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion:         "v1",
+					Kind:               "Pod",
+					Name:               pod.Name,
+					UID:                pod.UID,
+					BlockOwnerDeletion: ptr.To(true),
+					Controller:         ptr.To(true),
+				},
 			},
 		},
 		Data: map[string][]byte{
@@ -1327,37 +1340,10 @@ func CreatePrometheusCertSecret(ctx context.Context, c client.Client, podName, n
 
 	if err := c.Create(ctx, secret); err != nil {
 		if k8serrors.IsAlreadyExists(err) {
-			klog.Warningf("Prometheus cert secret for pod %s/%s already exists", namespace, podName)
 			return nil
 		}
-		return fmt.Errorf("creating prometheus cert secret for pod %s/%s: %w", namespace, podName, err)
-	}
-	return nil
-}
 
-// SetPrometheusCertSecretOwnerRef updates the prometheus cert Secret to add an OwnerReference
-// to the given pod, so the Secret is garbage-collected when the pod is deleted.
-// Must be called AFTER the pod is created (since it needs the pod's UID).
-func SetPrometheusCertSecretOwnerRef(ctx context.Context, c client.Client, pod *corev1.Pod) error {
-	secret := &corev1.Secret{}
-	secretName := PrometheusCertSecretName(pod.Name)
-	if err := c.Get(ctx, types.NamespacedName{Name: secretName, Namespace: pod.Namespace}, secret); err != nil {
-		return fmt.Errorf("getting prometheus cert secret %s/%s: %w", pod.Namespace, secretName, err)
-	}
-
-	secret.OwnerReferences = []metav1.OwnerReference{
-		{
-			APIVersion:         "v1",
-			Kind:               "Pod",
-			Name:               pod.Name,
-			UID:                pod.GetUID(),
-			BlockOwnerDeletion: ptr.To(true),
-			Controller:         ptr.To(true),
-		},
-	}
-
-	if err := c.Update(ctx, secret); err != nil {
-		return fmt.Errorf("setting owner reference on prometheus cert secret %s/%s: %w", pod.Namespace, secretName, err)
+		return fmt.Errorf("creating prometheus cert secret for pod %s/%s: %w", pod.Namespace, pod.Name, err)
 	}
 	return nil
 }

@@ -219,6 +219,17 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 		return reconcile.Result{RequeueAfter: requeueAfter}, err
 	}
 
+	if sourcePod != nil && (sourcePod.Status.Phase == corev1.PodPending || sourcePod.Status.Phase == "") {
+		if err := cc.EnsurePrometheusCertSecret(
+			ctx,
+			r.client,
+			sourcePod,
+			r.installerLabels,
+		); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
 	if err := r.ensureCertSecret(sourcePod, pvc); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -524,15 +535,11 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 	pod := MakeCloneSourcePodSpec(sourceVolumeMode, image, pullPolicy, ownerKey, imagePullSecrets, serverCABundle, pvc, sourcePvc, podResourceRequirements, workloadNodePlacement)
 	util.SetRecommendedLabels(pod, r.installerLabels, "cdi-controller")
 
-	if err := cc.CreatePrometheusCertSecret(context.TODO(), r.client, pod.Name, pod.Namespace, r.installerLabels); err != nil {
-		return nil, err
-	}
-
 	if err := r.client.Create(context.TODO(), pod); err != nil {
 		return nil, errors.Wrap(err, "source pod API create errored")
 	}
 
-	if err := cc.SetPrometheusCertSecretOwnerRef(context.TODO(), r.client, pod); err != nil {
+	if err := cc.EnsurePrometheusCertSecret(context.TODO(), r.client, pod, r.installerLabels); err != nil {
 		return nil, err
 	}
 
