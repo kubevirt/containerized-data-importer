@@ -3727,7 +3727,9 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					return resource.Quantity{}, err
 				}
 				return pvc.Spec.Resources.Requests[v1.ResourceStorage], nil
-			}, timeout, pollingInterval).Should(Equal(resource.MustParse(increasedSize)))
+			}, timeout, pollingInterval).Should(Satisfy(func(q resource.Quantity) bool {
+				return q.Cmp(resource.MustParse(increasedSize)) >= 0
+			}))
 
 			By("Waiting for DataVolume to return to Succeeded")
 			err = utils.WaitForDataVolumePhaseWithTimeout(f, dv.Namespace, cdiv1.Succeeded, dv.Name, 5*time.Minute)

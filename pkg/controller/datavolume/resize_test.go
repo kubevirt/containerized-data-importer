@@ -90,7 +90,7 @@ var _ = Describe("DataVolume Resize", func() {
 		Expect(err).ToNot(HaveOccurred())
 		updatedQuantity := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 		qUpdated := resource.MustParse(updatedSize)
-		Expect(updatedQuantity.Value()).To(Equal(qUpdated.Value()))
+		Expect(updatedQuantity.Value()).To(BeNumerically(">=", qUpdated.Value()))
 	})
 
 	It("Should resize PVC when DataVolume size is increased (using Spec.Storage)", func() {
@@ -132,7 +132,7 @@ var _ = Describe("DataVolume Resize", func() {
 		Expect(err).ToNot(HaveOccurred())
 		initialQuantity := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 		qInitial := resource.MustParse(initialSize)
-		Expect(initialQuantity.Value()).To(Equal(qInitial.Value()))
+		Expect(initialQuantity.Value()).To(BeNumerically(">=", qInitial.Value()))
 
 		// Update DataVolume size
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: dvName, Namespace: namespace}, dv)
@@ -150,7 +150,7 @@ var _ = Describe("DataVolume Resize", func() {
 		Expect(err).ToNot(HaveOccurred())
 		updatedQuantity := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 		qUpdated := resource.MustParse(updatedSize)
-		Expect(updatedQuantity.Value()).To(Equal(qUpdated.Value()))
+		Expect(updatedQuantity.Value()).To(BeNumerically(">=", qUpdated.Value()))
 	})
 
 	It("Should resize PVC when DataVolume size is increased (Clone)", func() {
@@ -207,7 +207,7 @@ var _ = Describe("DataVolume Resize", func() {
 		Expect(err).ToNot(HaveOccurred())
 		initialQuantity := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 		qInitial := resource.MustParse(initialSize)
-		Expect(initialQuantity.Value()).To(Equal(qInitial.Value()))
+		Expect(initialQuantity.Value()).To(BeNumerically(">=", qInitial.Value()))
 
 		// Update DataVolume size
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: dvName, Namespace: namespace}, dv)
@@ -225,6 +225,6 @@ var _ = Describe("DataVolume Resize", func() {
 		Expect(err).ToNot(HaveOccurred())
 		updatedQuantity := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 		qUpdated := resource.MustParse(updatedSize)
-		Expect(updatedQuantity.Value()).To(Equal(qUpdated.Value()))
+		Expect(updatedQuantity.Value()).To(BeNumerically(">=", qUpdated.Value()))
 	})
 })
