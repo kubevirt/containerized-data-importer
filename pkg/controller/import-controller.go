@@ -1151,6 +1151,12 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 			MountPath: common.ImporterCertDir,
 		})
 	}
+	if strings.HasPrefix(args.podEnvVar.vddkNbdConnection, "nbds://") && args.podEnvVar.secretName != "" {
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      NbdCertVolName,
+			MountPath: common.ImporterNbdCertDir,
+		})
+	}
 	if args.podEnvVar.certConfigMapProxy != "" {
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
 			Name:      ProxyCertVolName,
@@ -1230,6 +1236,9 @@ func makeImporterVolumeSpec(args *importerPodArgs) []corev1.Volume {
 	}
 	if args.podEnvVar.certConfigMap != "" {
 		volumes = append(volumes, createConfigMapVolume(CertVolName, args.podEnvVar.certConfigMap))
+	}
+	if strings.HasPrefix(args.podEnvVar.vddkNbdConnection, "nbds://") && args.podEnvVar.secretName != "" {
+		volumes = append(volumes, createSecretVolume(NbdCertVolName, args.podEnvVar.secretName))
 	}
 	if args.podEnvVar.certConfigMapProxy != "" {
 		volumes = append(volumes, createConfigMapVolume(ProxyCertVolName, GetImportProxyConfigMapName(args.pvc.Name)))

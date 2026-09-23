@@ -150,13 +150,30 @@ func createExternalNbdConnection(uri string) (*NbdKitWrapper, error) {
 	if err != nil {
 		return nil, err
 	}
-	_ = handle.SetTls(libnbd.TLS_DISABLE)
-	_ = handle.AddMetaContext("base:allocation")
-	if err := handle.ConnectUri(uri); err != nil {
+	u, err := url.Parse(uri)
+	if err != nil {
 		handle.Close()
 		return nil, err
 	}
-	u, _ := url.Parse(uri)
+	_ = handle.AddMetaContext("base:allocation")
+	if u.Scheme == "nbds" {
+		_ = handle.SetTlsPriority("NORMAL")
+		_ = handle.SetTls(libnbd.TLS_REQUIRE)
+		_ = handle.SetTlsCertificates(common.ImporterNbdCertDir)
+		// el9 libnbd lacks set_tls_hostname; verifying against the IP fails for CN nbd-server
+		_ = handle.SetTlsVerifyPeer(false)
+		port := u.Port()
+		if port == "" {
+			port = "10809"
+		}
+		if err := handle.ConnectTcp(u.Hostname(), port); err != nil {
+			handle.Close()
+			return nil, err
+		}
+	} else if err := handle.ConnectUri(uri); err != nil {
+		handle.Close()
+		return nil, err
+	}
 	return &NbdKitWrapper{Socket: u, Handle: handle}, nil
 }
 
