@@ -217,7 +217,12 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	if !shouldReconcile {
+	// Even if the PVC itself is done importing, keep reconciling a CDI import PVC while it
+	// is being deleted, so a leftover importer pod (e.g. from a delete that previously
+	// failed) still gets cleaned up instead of blocking pvc-protection forever. Restricted
+	// to PVCs this controller actually manages, so unrelated terminating PVCs are unaffected.
+	isImportPVC := checkPVC(pvc, cc.AnnEndpoint, log) || checkPVC(pvc, cc.AnnSource, log)
+	if !shouldReconcile && !(pvc.DeletionTimestamp != nil && isImportPVC) {
 		multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnCurrentCheckpoint)
 		multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnMultiStageImportDone)
 
