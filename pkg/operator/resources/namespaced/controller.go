@@ -265,6 +265,10 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, ovi
 	}
 	container.VolumeMounts = []corev1.VolumeMount{
 		{
+			Name:      common.TmpVolumeName,
+			MountPath: common.TmpMountPath,
+		},
+		{
 			Name:      "cdi-api-signing-key",
 			MountPath: controller.TokenKeyDir,
 		},
@@ -294,6 +298,12 @@ func createControllerDeployment(controllerImage, importerImage, clonerImage, ovi
 
 	deployment.Spec.Template.Spec.Containers = []corev1.Container{container}
 	deployment.Spec.Template.Spec.Volumes = []corev1.Volume{
+		{
+			Name: common.TmpVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				EmptyDir: &corev1.EmptyDirVolumeSource{},
+			},
+		},
 		{
 			Name: "cdi-api-signing-key",
 			VolumeSource: corev1.VolumeSource{

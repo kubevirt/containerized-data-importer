@@ -219,6 +219,17 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 		return reconcile.Result{RequeueAfter: requeueAfter}, err
 	}
 
+	if sourcePod != nil && (sourcePod.Status.Phase == corev1.PodPending || sourcePod.Status.Phase == "") {
+		if err := cc.EnsurePrometheusCertSecret(
+			ctx,
+			r.client,
+			sourcePod,
+			r.installerLabels,
+		); err != nil {
+			return reconcile.Result{}, err
+		}
+	}
+
 	if err := r.ensureCertSecret(sourcePod, pvc); err != nil {
 		return reconcile.Result{}, err
 	}
@@ -528,6 +539,10 @@ func (r *CloneReconciler) CreateCloneSourcePod(image, pullPolicy string, pvc *co
 		return nil, errors.Wrap(err, "source pod API create errored")
 	}
 
+	if err := cc.EnsurePrometheusCertSecret(context.TODO(), r.client, pod, r.installerLabels); err != nil {
+		return nil, err
+	}
+
 	log.V(1).Info("cloning source pod (image) created\n", "pod.Namespace", pod.Namespace, "pod.Name", pod.Name, "image", image)
 
 	return pod, nil
@@ -740,6 +755,7 @@ func MakeCloneSourcePodSpec(sourceVolumeMode corev1.PersistentVolumeMode, image,
 	pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, addVars...)
 	cc.CopyAllowedAnnotations(targetPvc, pod)
 	cc.SetRestrictedSecurityContext(&pod.Spec)
+	cc.AppendPrometheusCertVolume(&pod.Spec, pod.Name)
 	return pod
 }
 

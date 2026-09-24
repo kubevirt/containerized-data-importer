@@ -255,6 +255,45 @@ var _ = Describe("Controller", func() {
 
 				for _, d := range deploymentList.Items {
 					Expect(d.Spec.Template.GetAnnotations()[secv1.RequiredSCCAnnotation]).To(Equal(common.RestrictedSCCName))
+
+					for _, c := range d.Spec.Template.Spec.Containers {
+						Expect(c.SecurityContext).ToNot(BeNil(),
+							"container %s in deployment %s has no SecurityContext", c.Name, d.Name)
+						Expect(c.SecurityContext.ReadOnlyRootFilesystem).ToNot(BeNil(),
+							"container %s in deployment %s has no ReadOnlyRootFilesystem", c.Name, d.Name)
+						Expect(*c.SecurityContext.ReadOnlyRootFilesystem).To(BeTrue(),
+							"container %s in deployment %s should have ReadOnlyRootFilesystem=true", c.Name, d.Name)
+					}
+
+					if d.Name == common.CDIControllerResourceName {
+						hasTmpVolume := false
+						for _, vol := range d.Spec.Template.Spec.Volumes {
+							if vol.Name == common.TmpVolumeName {
+								Expect(vol.VolumeSource.EmptyDir).ToNot(BeNil())
+								hasTmpVolume = true
+								break
+							}
+						}
+						Expect(hasTmpVolume).To(BeTrue(),
+							"deployment %s should have %s emptyDir volume for readiness probe %s/ready", d.Name, common.TmpVolumeName, common.TmpMountPath)
+
+						for _, c := range d.Spec.Template.Spec.Containers {
+							hasTmpMount := false
+							for _, m := range c.VolumeMounts {
+								if m.Name == common.TmpVolumeName && m.MountPath == common.TmpMountPath {
+									hasTmpMount = true
+									break
+								}
+							}
+							Expect(hasTmpMount).To(BeTrue(),
+								"container %s in deployment %s should mount %s", c.Name, d.Name, common.TmpMountPath)
+						}
+					} else {
+						for _, vol := range d.Spec.Template.Spec.Volumes {
+							Expect(vol.Name).ToNot(Equal(common.TmpVolumeName),
+								"deployment %s should not have %s volume (minimalist approach)", d.Name, common.TmpVolumeName)
+						}
+					}
 				}
 
 				scc := &secv1.SecurityContextConstraints{
