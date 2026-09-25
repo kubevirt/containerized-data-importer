@@ -1594,7 +1594,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Create PVC")
 			annotations := map[string]string{"cdi.kubevirt.io/storage.populatedFor": dataVolumeName}
-			pvc := utils.NewPVCDefinition(dataVolumeName, "100Mi", annotations, nil)
+			pvc := utils.NewPVCDefinition(dataVolumeName, "1Gi", annotations, nil)
 			pvc = f.CreateBoundPVCFromDefinition(pvc)
 
 			By("Verifying Succeed with PVC Bound")
@@ -1614,7 +1614,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("initializing target PVC %s", dataVolumeName))
 			targetPodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
 			annotations := map[string]string{controller.AnnPopulatedFor: dataVolumeName}
-			targetPvcDef := utils.NewPVCDefinition(dataVolumeName, "1G", annotations, nil)
+			targetPvcDef := utils.NewPVCDefinition(dataVolumeName, "1Gi", annotations, nil)
 			targetPvc = f.CreateAndPopulateSourcePVC(targetPvcDef, targetPodFillerName, fillCommand)
 
 			By(fmt.Sprintf("creating new populated datavolume %s", dataVolumeName))
@@ -1641,7 +1641,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("initializing target PVC %s", dataVolumeName))
 			targetPodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
 			annotations := map[string]string{controller.AnnPopulatedFor: dataVolumeName}
-			targetPvcDef := utils.NewPVCDefinition(dataVolumeName, "1G", annotations, nil)
+			targetPvcDef := utils.NewPVCDefinition(dataVolumeName, "1Gi", annotations, nil)
 			targetPvc = f.CreateAndPopulateSourcePVC(targetPvcDef, targetPodFillerName, fillCommand)
 
 			By(fmt.Sprintf("creating new populated datavolume %s", dataVolumeName))
