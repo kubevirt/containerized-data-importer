@@ -246,6 +246,12 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(result).To(Equal(reconcile.Result{}))
 	})
 
+	It("Should only let PVCs with import annotations through the PVC watch predicate", func() {
+		Expect(isImportPVC(cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint}, nil))).To(BeTrue())
+		Expect(isImportPVC(cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnSource: cc.SourceHTTP}, nil))).To(BeTrue())
+		Expect(isImportPVC(cc.CreatePvc("testPvc1", "default", map[string]string{}, nil))).To(BeFalse())
+	})
+
 	It("Should init PVC with a POD name if a PVC with all needed annotations is passed", func() {
 		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint}, nil)
 		pvc.Status.Phase = v1.ClaimBound
