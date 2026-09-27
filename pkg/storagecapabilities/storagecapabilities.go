@@ -153,6 +153,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"csi.san.synology.com/smb":   {{rwx, file}, {rwo, file}},
 	// DirectPV
 	"directpv-min-io": {{rwo, file}},
+	// OpenEBS Replicated PV Mayastor
+	"io.openebs.csi-mayastor":           {{rwo, block}, {rwo, file}},
+	"io.openebs.csi-mayastor/rwx-block": {{rwx, block}, {rwo, block}, {rwo, file}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
@@ -526,6 +529,14 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		default:
 			return "csi.huawei.com"
 		}
+	},
+	"io.openebs.csi-mayastor": func(sc *storagev1.StorageClass) string {
+		// RWX block volumes are opt-in per StorageClass; the driver rejects
+		// MULTI_NODE_MULTI_WRITER unless rwxBlock is enabled (OpenEBS v4.5.0+)
+		if sc.Parameters["rwxBlock"] == "true" {
+			return "io.openebs.csi-mayastor/rwx-block"
+		}
+		return "io.openebs.csi-mayastor"
 	},
 	"driver.longhorn.io": func(sc *storagev1.StorageClass) string {
 		if sc.Parameters["migratable"] == "true" {
