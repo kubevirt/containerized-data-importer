@@ -94,7 +94,7 @@ printf "\n"
 rsynch_fail_count=0
 
 _rsync() {
-    rsync -al "$@"
+    rsync -al --no-owner --no-group "$@"
 }
 
 echo "Rsyncing ${CDI_DIR} to container"
