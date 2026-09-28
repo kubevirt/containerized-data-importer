@@ -241,7 +241,7 @@ func (r *ForkliftPopulatorReconciler) reconcileCommon(pvc *corev1.PersistentVolu
 	if cc.IsUnbound(pvc) {
 		_, err := r.createPVCPrime(pvc, populationSource, nodeName != "", populator.updatePVCForPopulation)
 		if err != nil {
-			r.recorder.Eventf(pvc, corev1.EventTypeWarning, errCreatingPVCPrime, err.Error())
+			r.recorder.Event(pvc, corev1.EventTypeWarning, errCreatingPVCPrime, err.Error())
 			return nil, err
 		}
 	}
