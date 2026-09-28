@@ -44,7 +44,7 @@ func (er *execReader) Read(p []byte) (int, error) {
 
 	if err := er.cmd.Wait(); err != nil {
 		errBytes, _ := io.ReadAll(er.stderr)
-		klog.Fatalf("Subprocess did not execute successfully, result is: %q\n%s", er.cmd.ProcessState.ExitCode(), string(errBytes))
+		klog.Fatalf("Subprocess did not execute successfully, result is: %d\n%s", er.cmd.ProcessState.ExitCode(), string(errBytes))
 	}
 
 	return n, io.EOF
