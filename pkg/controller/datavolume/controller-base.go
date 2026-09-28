@@ -115,6 +115,7 @@ type dvSyncState struct {
 	snapshot  *snapshotv1.VolumeSnapshot
 	dvSyncResult
 	usePopulator bool
+	renderResult *renderResult
 }
 
 // ReconcilerBase members
@@ -515,7 +516,7 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 		}
 	}
 
-	syncState.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, syncState.dvMutated, syncState.pvc)
+	syncState.pvcSpec, syncState.renderResult, err = renderPvcSpec(r.client, r.recorder, log, syncState.dvMutated, syncState.pvc)
 	if err != nil {
 		if syncErr := r.syncDataVolumeStatusPhaseWithEvent(&syncState, cdiv1.PhaseUnset, nil,
 			Event{corev1.EventTypeWarning, cc.ErrClaimNotValid, err.Error()}); syncErr != nil {
@@ -768,8 +769,8 @@ func (r *ReconcilerBase) getDataVolume(key types.NamespacedName) (*cdiv1.DataVol
 type pvcModifierFunc func(datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error
 
 func (r *ReconcilerBase) createPvcForDatavolume(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec,
-	pvcModifier pvcModifierFunc) (*corev1.PersistentVolumeClaim, error) {
-	newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec, datavolume.Namespace, datavolume.Name, pvcModifier)
+	pvcModifier pvcModifierFunc, renderResult *renderResult) (*corev1.PersistentVolumeClaim, error) {
+	newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec, datavolume.Namespace, datavolume.Name, pvcModifier, renderResult)
 	if err != nil {
 		return nil, err
 	}
@@ -1199,6 +1200,8 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		Spec: *targetPvcSpec,
 	}
 
+	addPvcBumpedSizeLabels(pvc, renderResult)
+
 	if pvcModifier != nil {
 		if err := pvcModifier(dataVolume, pvc); err != nil {
 			return nil, err
@@ -1309,7 +1312,7 @@ func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncState *dvSyncSta
 		return nil
 	}
 	// Creating the PVC
-	newPvc, err := r.createPvcForDatavolume(syncState.dvMutated, syncState.pvcSpec, pvcModifier)
+	newPvc, err := r.createPvcForDatavolume(syncState.dvMutated, syncState.pvcSpec, pvcModifier, syncState.renderResult)
 	if err != nil {
 		if cc.ErrQuotaExceeded(err) {
 			syncErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, cdiv1.Pending, nil, Event{corev1.EventTypeWarning, cc.ErrExceededQuota, err.Error()})
