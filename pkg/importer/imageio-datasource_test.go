@@ -48,7 +48,7 @@ var _ = Describe("Imageio reader", func() {
 		newOvirtClientFunc = createMockOvirtClient
 		newTerminationChannel = createMockTerminationChannel
 		tempDir = createCert()
-		ts = createTestServer(imageDir, nil)
+		ts = createTestServer(imageDir)
 		disk.SetTotalSize(1024)
 		disk.SetId(diskID)
 		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
@@ -93,7 +93,7 @@ var _ = Describe("Imageio data source", func() {
 		newOvirtClientFunc = createMockOvirtClient
 		newTerminationChannel = createMockTerminationChannel
 		tempDir = createCert()
-		ts = createTestServer(imageDir, nil)
+		ts = createTestServer(imageDir)
 		disk.SetTotalSize(1024)
 		disk.SetId(diskID)
 		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
@@ -294,7 +294,7 @@ var _ = Describe("Imageio cancel", func() {
 		newOvirtClientFunc = createMockOvirtClient
 		newTerminationChannel = createMockTerminationChannel
 		tempDir = createCert()
-		ts = createTestServer(imageDir, nil)
+		ts = createTestServer(imageDir)
 		disk.SetTotalSize(1024)
 		disk.SetId(diskID)
 		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)
@@ -434,7 +434,7 @@ var _ = Describe("imageio snapshots", func() {
 		newOvirtClientFunc = createMockOvirtClient
 		newTerminationChannel = createMockTerminationChannel
 		tempDir = createCert()
-		ts = createTestServer(imageDir, nil)
+		ts = createTestServer(imageDir)
 		disk.SetTotalSize(diskSize)
 		disk.SetId(diskID)
 		it.SetPhase(ovirtsdk4.IMAGETRANSFERPHASE_TRANSFERRING)

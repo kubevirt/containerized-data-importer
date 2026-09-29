@@ -133,10 +133,10 @@ const (
 	ImporterUUID = "IMPORTER_UUID"
 	// ImporterPullMethod provides a constant to capture our env variable "IMPORTER_PULL_METHOD"
 	ImporterPullMethod = "IMPORTER_PULL_METHOD"
-	// ImporterReadyFile provides a constant to capture our env variable "IMPORTER_READY_FILE"
-	ImporterReadyFile = "IMPORTER_READY_FILE"
-	// ImporterDoneFile provides a constant to capture our env variable "IMPORTER_DONE_FILE"
-	ImporterDoneFile = "IMPORTER_DONE_FILE"
+	// ImporterEnvFile provides a constant to capture our env variable "IMPORTER_ENV_FILE"
+	ImporterEnvFile = "IMPORTER_ENV_FILE"
+	// ImporterImageRootDir provides a constant to capture our env variable "IMPORTER_IMAGE_ROOT_DIR"
+	ImporterImageRootDir = "IMPORTER_IMAGE_ROOT_DIR"
 	// ImporterBackingFile provides a constant to capture our env variable "IMPORTER_BACKING_FILE"
 	ImporterBackingFile = "IMPORTER_BACKING_FILE"
 	// ImporterThumbprint provides a constant to capture our env variable "IMPORTER_THUMBPRINT"
@@ -403,9 +403,4 @@ func (it *TerminationMessage) String() (string, error) {
 	}
 
 	return string(msg), nil
-}
-
-// ServerInfo contains data to be serialized and used as the body of responses to the info endpoint of the containerimage-server.
-type ServerInfo struct {
-	Env []string `json:"env,omitempty"`
 }

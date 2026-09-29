@@ -21,6 +21,7 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -43,6 +44,9 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 )
+
+// imagePullFailureReasons is a slice that contains all of the waiting reasons that indicate that the importer pod has failed to import an image
+var imagePullFailureReasons = []string{"ImagePullBackOff", "ErrImagePull", "InvalidImageName"}
 
 const (
 	// CertVolName is the name of the volume containing certs
@@ -331,15 +335,16 @@ func setAnnotationsFromPodWithPrefix(anno map[string]string, pod *corev1.Pod, te
 
 	anno[cc.AnnRunningCondition] = "false"
 
-	for _, status := range pod.Status.ContainerStatuses {
-		if status.Started != nil && !(*status.Started) && status.State.Waiting != nil {
-			switch status.State.Waiting.Reason {
-			case "ImagePullBackOff", "ErrImagePull", "InvalidImageName":
-				anno[prefix+".message"] = fmt.Sprintf("%s: %s", common.ImagePullFailureText, status.Image)
-				anno[prefix+".reason"] = ImagePullFailedReason
-				return
-			}
+	for _, status := range slices.Concat(pod.Status.ContainerStatuses, pod.Status.InitContainerStatuses) {
+		if status.Started == nil || *status.Started || status.State.Waiting == nil {
+			continue
 		}
+		if !slices.Contains(imagePullFailureReasons, status.State.Waiting.Reason) {
+			continue
+		}
+		anno[prefix+".message"] = fmt.Sprintf("%s: %s", common.ImagePullFailureText, status.Image)
+		anno[prefix+".reason"] = ImagePullFailedReason
+		return
 	}
 
 	containerState := pod.Status.ContainerStatuses[0].State

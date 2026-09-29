@@ -69,6 +69,7 @@ func setSCC(scc *secv1.SecurityContextConstraints) {
 		secv1.FSTypeSecret,
 		secv1.FSTypeCSI,
 		secv1.FSTypeEphemeral,
+		secv1.FSTypeImage,
 	}
 	allowPrivilegeEscalation := false
 	scc.AllowPrivilegeEscalation = &allowPrivilegeEscalation

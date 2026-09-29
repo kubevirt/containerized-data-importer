@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -59,7 +58,6 @@ const (
 // 1b. Info -> TransferArchive if the content type is archive.
 // 1c. Info -> ValidatePreScratch if image size validation using nbdkit prior to Transfer is possible.
 // 1d. Info -> Transfer in all other cases.
-// 1e. Info -> Convert when ImporterPullMethod is RegistryPullNode (node pull): data is fetched via nbdkit/qemu-img only; Transfer/TransferFile are never called, so HTTP checksum validation is not supported in this path.
 // 2.  ValidatePreScratch -> TransferScratch.
 // 3a. Transfer -> Convert if content type is kubevirt
 // 3b. Transfer -> Complete if content type is archive (Transfer is called with the target instead of the scratch space). Non block PVCs only.
@@ -152,15 +150,6 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	if hs.contentType == cdiv1.DataVolumeArchive {
 		return ProcessingPhaseTransferDataDir, nil
 	}
-	// RegistryPullNode (node pull) fast-path: data is streamed via nbdkit to qemu-img for conversion
-	// without going through Transfer/TransferFile. Checksum validation is not performed in this path;
-	// when checksum is specified, it is ignored for node-pull imports. See documentation for limitations.
-	if pullMethod, _ := util.ParseEnvVar(common.ImporterPullMethod, false); pullMethod == string(cdiv1.RegistryPullNode) {
-		if err := hs.startNbdKit(); err != nil {
-			return ProcessingPhaseError, err
-		}
-		return ProcessingPhaseConvert, nil
-	}
 	if err := hs.startNbdKit(); err == nil && !hs.brokenForQemuImg {
 		// Validate that target volume size is sufficient early.
 		return ProcessingPhaseValidatePreScratch, nil
@@ -241,19 +230,7 @@ func (hs *HTTPDataSource) GetURL() *url.URL {
 
 // GetTerminationMessage returns data to be serialized and used as the termination message of the importer.
 func (hs *HTTPDataSource) GetTerminationMessage() *common.TerminationMessage {
-	if pullMethod, _ := util.ParseEnvVar(common.ImporterPullMethod, false); pullMethod != string(cdiv1.RegistryPullNode) {
-		return nil
-	}
-
-	info, err := getServerInfo(hs.ctx, fmt.Sprintf("%s://%s/info", hs.endpoint.Scheme, hs.endpoint.Host))
-	if err != nil {
-		klog.Errorf("%+v", err)
-		return nil
-	}
-
-	return &common.TerminationMessage{
-		Labels: envsToLabels(info.Env),
-	}
+	return nil
 }
 
 // Close all readers.
@@ -572,36 +549,6 @@ func getExtraHeadersFromSecrets() ([]string, error) {
 	})
 
 	return secretExtraHeaders, err
-}
-
-func getServerInfo(ctx context.Context, infoURL string) (*common.ServerInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, infoURL, nil)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to construct request for containerimage-server info")
-	}
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed request containerimage-server info")
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed request containerimage-server info: expected status code 200, got %d", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to read body of containerimage-server info request")
-	}
-
-	info := &common.ServerInfo{}
-	if err := json.Unmarshal(body, info); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal body of containerimage-server info request")
-	}
-
-	return info, nil
 }
 
 func (hs *HTTPDataSource) startNbdKit() error {

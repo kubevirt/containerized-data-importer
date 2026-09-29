@@ -279,6 +279,7 @@ var _ = Describe("Controller", func() {
 					secv1.FSTypeSecret,
 					secv1.FSTypeCSI,
 					secv1.FSTypeEphemeral,
+					secv1.FSTypeImage,
 				))
 				Expect(scc.AllowPrivilegeEscalation).To(HaveValue(BeFalse()))
 				validateEvents(args.reconciler, createReadyEventValidationMap())

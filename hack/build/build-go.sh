@@ -55,7 +55,7 @@ elif [ "${go_opt}" == "build" ]; then
         rm -f ${outFile}
         rm -f ${outLink}
         static_flag=""
-        if [ "$tgt" == "tools/cdi-containerimage-server" ]; then
+        if [ "$tgt" == "tools/cdi-env-extractor" ]; then
             static_flag="static"
         fi
         (
