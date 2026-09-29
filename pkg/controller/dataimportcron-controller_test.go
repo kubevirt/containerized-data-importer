@@ -69,16 +69,19 @@ var (
 )
 
 const (
-	testRegistryURL = "docker://quay.io/kubevirt/junk"
-	testTag         = ":12.34_56-7890"
-	testDigest      = "sha256:68b44fc891f3fae6703d4b74bcc9b5f24df8d23f12e642805d1420cbe7a4be70"
-	testDockerRef   = "quay.io/kubevirt/blabla@" + testDigest
-	dataSourceName  = "test-datasource"
-	imageStreamName = "test-imagestream"
-	imageStreamTag  = "test-imagestream-tag"
-	tagWithNoItems  = "tag-with-no-items"
-	defaultSchedule = "* * * * *"
-	emptySchedule   = ""
+	testRegistryURL               = "docker://quay.io/kubevirt/junk"
+	testTag                       = ":12.34_56-7890"
+	testDigest                    = "sha256:68b44fc891f3fae6703d4b74bcc9b5f24df8d23f12e642805d1420cbe7a4be70"
+	testDockerRef                 = "quay.io/kubevirt/blabla@" + testDigest
+	dataSourceName                = "test-datasource"
+	imageStreamName               = "test-imagestream"
+	imageStreamNameWithTag        = imageStreamName + ":" + imageStreamTag
+	testDockerImageRepository     = "image-registry.openshift-image-registry.svc:5000/" + metav1.NamespaceDefault + "/" + imageStreamName
+	testLocalImageStreamDockerRef = testDockerImageRepository + "@" + testDigest
+	imageStreamTag                = "test-imagestream-tag"
+	tagWithNoItems                = "tag-with-no-items"
+	defaultSchedule               = "* * * * *"
+	emptySchedule                 = ""
 )
 
 type possiblyErroringFakeCtrlRuntimeClient struct {
@@ -100,13 +103,15 @@ func (p *possiblyErroringFakeCtrlRuntimeClient) Get(
 var _ = Describe("All DataImportCron Tests", func() {
 	var _ = Describe("DataImportCron controller reconcile loop", func() {
 		var (
-			reconciler   *DataImportCronReconciler
-			dsReconciler *DataSourceReconciler
-			cron         *cdiv1.DataImportCron
-			dataSource   *cdiv1.DataSource
-			cronKey      = types.NamespacedName{Name: cronName, Namespace: metav1.NamespaceDefault}
-			cronReq      = reconcile.Request{NamespacedName: cronKey}
-			cronJobKey   = func(cron *cdiv1.DataImportCron) types.NamespacedName {
+			reconciler     *DataImportCronReconciler
+			dsReconciler   *DataSourceReconciler
+			cron           *cdiv1.DataImportCron
+			imageStream    *imagev1.ImageStream
+			dataSource     *cdiv1.DataSource
+			imageStreamKey = types.NamespacedName{Name: imageStreamName, Namespace: metav1.NamespaceDefault}
+			cronKey        = types.NamespacedName{Name: cronName, Namespace: metav1.NamespaceDefault}
+			cronReq        = reconcile.Request{NamespacedName: cronKey}
+			cronJobKey     = func(cron *cdiv1.DataImportCron) types.NamespacedName {
 				return types.NamespacedName{Name: GetCronJobName(cron), Namespace: reconciler.cdiNamespace}
 			}
 			pollerPodKey = func(cron *cdiv1.DataImportCron) types.NamespacedName {
@@ -790,115 +795,161 @@ var _ = Describe("All DataImportCron Tests", func() {
 			Entry("is too short", "sha256:01234567890", "Digest is too short"),
 		)
 
-		DescribeTable("Should fail when ImageStream", func(taggedImageStreamName, errorString string) {
-			cron = newDataImportCronWithImageStream(cronName, taggedImageStreamName)
-			imageStream := newImageStream(imageStreamName)
-			reconciler = createDataImportCronReconciler(cron, imageStream)
-			_, err := reconciler.Reconcile(context.TODO(), cronReq)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring(errorString))
-		},
-			Entry("is not found", "no-such-image-stream", "not found"),
-			Entry("tag is not found", imageStreamName+":"+"no-such-tag", "has no tag"),
-			Entry("tag has no items", imageStreamName+":"+tagWithNoItems, "has no items"),
-			Entry("has a colon but an empty tag", imageStreamName+":", "Illegal ImageStream name"),
-			Entry("has an illegal format with two colons", imageStreamName+":"+imageStreamTag+":label", "Illegal ImageStream name"),
-		)
+		Context("ImageStream tests", func() {
+			DescribeTable("Should fail when ImageStream", func(taggedImageStreamName, errorString string) {
+				cron = newDataImportCronWithImageStream(cronName, taggedImageStreamName)
+				imageStream := newImageStream(imageStreamName, imagev1.SourceTagReferencePolicy)
+				reconciler = createDataImportCronReconciler(cron, imageStream)
+				_, err := reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(errorString))
+			},
+				Entry("is not found", "no-such-image-stream", "not found"),
+				Entry("tag is not found", imageStreamName+":"+"no-such-tag", "has no tag"),
+				Entry("tag has no items", imageStreamName+":"+tagWithNoItems, "has no items"),
+				Entry("has a colon but an empty tag", imageStreamName+":", "Illegal ImageStream name"),
+				Entry("has an illegal format with two colons", imageStreamName+":"+imageStreamTag+":label", "Illegal ImageStream name"),
+			)
 
-		DescribeTable("Should start an import and update DataImportCron when ImageStream", func(taggedImageStreamName string, imageStreamTagsFromIndex int) {
-			cron = newDataImportCronWithImageStream(cronName, taggedImageStreamName)
-			imageStream := newImageStream(imageStreamName)
-			imageStream.Status.Tags = imageStream.Status.Tags[imageStreamTagsFromIndex:]
-			reconciler = createDataImportCronReconciler(cron, imageStream)
-			res, err := reconciler.Reconcile(context.TODO(), cronReq)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(res.RequeueAfter.Seconds()).To(And(BeNumerically(">", 0), BeNumerically("<=", 60)))
+			reconcileAndPollCron := func() {
+				res, err := reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(res.RequeueAfter.Seconds()).To(And(BeNumerically(">", 0), BeNumerically("<=", 60)))
 
-			err = reconciler.client.Get(context.TODO(), cronKey, cron)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(cron.Annotations[AnnNextCronTime]).ToNot(BeEmpty())
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(cron.Annotations[AnnNextCronTime]).ToNot(BeEmpty())
 
-			timestamp := time.Now().Format(time.RFC3339)
-			cron.Annotations[AnnNextCronTime] = timestamp
-			err = reconciler.client.Update(context.TODO(), cron)
-			Expect(err).ToNot(HaveOccurred())
+				timestamp := time.Now().Format(time.RFC3339)
+				cron.Annotations[AnnNextCronTime] = timestamp
+				err = reconciler.client.Update(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
 
-			_, err = reconciler.Reconcile(context.TODO(), cronReq)
-			Expect(err).ToNot(HaveOccurred())
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
 
-			err = reconciler.client.Get(context.TODO(), cronKey, cron)
-			Expect(err).ToNot(HaveOccurred())
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
 
-			Expect(cron.Annotations[AnnNextCronTime]).ToNot(Equal(timestamp))
+				Expect(cron.Annotations[AnnNextCronTime]).ToNot(Equal(timestamp))
 
-			digest := cron.Annotations[AnnSourceDesiredDigest]
-			Expect(digest).To(Equal(testDigest))
-			dockerRef := cron.Annotations[AnnImageStreamDockerRef]
-			Expect(dockerRef).To(Equal(testDockerRef))
+				digest := cron.Annotations[AnnSourceDesiredDigest]
+				Expect(digest).To(Equal(testDigest))
+			}
 
-			imports := cron.Status.CurrentImports
-			Expect(imports).ToNot(BeNil())
-			Expect(imports).ToNot(BeEmpty())
-			dvName := imports[0].DataVolumeName
-			Expect(dvName).ToNot(BeEmpty())
-			digest = imports[0].Digest
-			Expect(digest).To(Equal(testDigest))
+			DescribeTable("Should update the dockerRef if the tagReferencePolicyType is changed", func(initialPolicy, updatedPolicy imagev1.TagReferencePolicyType, initialDockerRef, expectedDockerRef string) {
+				cron = newDataImportCronWithImageStream(cronName, imageStreamNameWithTag)
+				imageStream = newImageStream(imageStreamName, initialPolicy)
+				reconciler = createDataImportCronReconciler(cron, imageStream)
+				reconcileAndPollCron()
 
-			dv := &cdiv1.DataVolume{}
-			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(*dv.Spec.Source.Registry.URL).To(Equal("docker://" + testDockerRef))
-			Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
-			dv.Status.Phase = cdiv1.Succeeded
-			dv.Status.Conditions = dvc.UpdateReadyCondition(dv.Status.Conditions, corev1.ConditionTrue, "", "")
-			err = reconciler.client.Update(context.TODO(), dv)
-			Expect(err).ToNot(HaveOccurred())
+				dockerRef := cron.Annotations[AnnImageStreamDockerRef]
+				Expect(dockerRef).To(Equal(initialDockerRef))
 
-			pvc := cc.CreatePvc(dv.Name, dv.Namespace, nil, nil)
-			err = reconciler.client.Create(context.TODO(), pvc)
-			Expect(err).ToNot(HaveOccurred())
-			verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready, &corev1.PersistentVolumeClaim{})
+				err := reconciler.client.Get(context.TODO(), imageStreamKey, imageStream)
+				Expect(err).ToNot(HaveOccurred())
 
-			err = reconciler.client.Delete(context.TODO(), cron)
-			Expect(err).ToNot(HaveOccurred())
-			_, err = reconciler.Reconcile(context.TODO(), cronReq)
-			Expect(err).ToNot(HaveOccurred())
+				imageStream.Spec.Tags[0].ReferencePolicy.Type = updatedPolicy
 
-			err = reconciler.client.Get(context.TODO(), cronKey, cron)
-			Expect(err).To(HaveOccurred())
+				err = reconciler.client.Update(context.TODO(), imageStream)
+				Expect(err).ToNot(HaveOccurred())
 
-			// Should retain DataSource and DataVolume on DataImportCron deletion as default RetentionPolicy is RetainAll
-			dataSource = &cdiv1.DataSource{}
-			err = reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)
-			Expect(err).ToNot(HaveOccurred())
-			dvList := &cdiv1.DataVolumeList{}
-			err = reconciler.client.List(context.TODO(), dvList, &client.ListOptions{})
-			Expect(err).ToNot(HaveOccurred())
-			Expect(dvList.Items).ToNot(BeEmpty())
+				timestamp := time.Now().Format(time.RFC3339)
+				cron.Annotations[AnnNextCronTime] = timestamp
+				err = reconciler.client.Update(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
 
-			// Test DV is reused
-			time.Sleep(1 * time.Second)
-			cron = newDataImportCronWithImageStream(cronName, taggedImageStreamName)
-			reconciler = createDataImportCronReconciler(cron, imageStream, dv)
-			_, err = reconciler.Reconcile(context.TODO(), cronReq)
-			Expect(err).ToNot(HaveOccurred())
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
 
-			err = reconciler.client.Get(context.TODO(), cronKey, cron)
-			Expect(err).ToNot(HaveOccurred())
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
 
-			imports = cron.Status.CurrentImports
-			Expect(imports).ToNot(BeEmpty())
-			dvName = imports[0].DataVolumeName
-			Expect(dvName).ToNot(BeEmpty())
+				digest := cron.Annotations[AnnSourceDesiredDigest]
+				Expect(digest).To(Equal(testDigest))
+				dockerRef = cron.Annotations[AnnImageStreamDockerRef]
+				Expect(dockerRef).To(Equal(expectedDockerRef))
+			},
+				Entry("when tagReferencePolicyType=source", imagev1.SourceTagReferencePolicy, imagev1.LocalTagReferencePolicy, testDockerRef, testLocalImageStreamDockerRef),
+				Entry("when tagReferencePolicyType=local", imagev1.LocalTagReferencePolicy, imagev1.SourceTagReferencePolicy, testLocalImageStreamDockerRef, testDockerRef),
+			)
 
-			dv1 := &cdiv1.DataVolume{}
-			err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv1)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(dv1.Status.Phase).To(Equal(cdiv1.Succeeded))
-		},
-			Entry("has tag", imageStreamName+":"+imageStreamTag, 0),
-			Entry("has no tag", imageStreamName, 1),
-		)
+			DescribeTable("Should start an import and update DataImportCron when ImageStream", func(taggedImageStreamName string, imageStreamTagsFromIndex int, policyType imagev1.TagReferencePolicyType, expectedDockerRef string) {
+				cron = newDataImportCronWithImageStream(cronName, taggedImageStreamName)
+				imageStream = newImageStream(imageStreamName, policyType)
+				imageStream.Status.Tags = imageStream.Status.Tags[imageStreamTagsFromIndex:]
+				reconciler = createDataImportCronReconciler(cron, imageStream)
+				reconcileAndPollCron()
+				digest := cron.Annotations[AnnSourceDesiredDigest]
+				Expect(digest).To(Equal(testDigest))
+				dockerRef := cron.Annotations[AnnImageStreamDockerRef]
+				Expect(dockerRef).To(Equal(expectedDockerRef))
+
+				imports := cron.Status.CurrentImports
+				Expect(imports).ToNot(BeNil())
+				Expect(imports).ToNot(BeEmpty())
+				dvName := imports[0].DataVolumeName
+				Expect(dvName).ToNot(BeEmpty())
+				digest = imports[0].Digest
+				Expect(digest).To(Equal(testDigest))
+
+				dv := &cdiv1.DataVolume{}
+				err := reconciler.client.Get(context.TODO(), dvKey(dvName), dv)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(*dv.Spec.Source.Registry.URL).To(Equal("docker://" + expectedDockerRef))
+				Expect(dv.Annotations[cc.AnnImmediateBinding]).To(Equal("true"))
+				dv.Status.Phase = cdiv1.Succeeded
+				dv.Status.Conditions = dvc.UpdateReadyCondition(dv.Status.Conditions, corev1.ConditionTrue, "", "")
+				err = reconciler.client.Update(context.TODO(), dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				pvc := cc.CreatePvc(dv.Name, dv.Namespace, nil, nil)
+				err = reconciler.client.Create(context.TODO(), pvc)
+				Expect(err).ToNot(HaveOccurred())
+				verifyConditions("Import succeeded", false, true, true, noImport, upToDate, ready, &corev1.PersistentVolumeClaim{})
+
+				err = reconciler.client.Delete(context.TODO(), cron)
+				Expect(err).ToNot(HaveOccurred())
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).To(HaveOccurred())
+
+				// Should retain DataSource and DataVolume on DataImportCron deletion as default RetentionPolicy is RetainAll
+				dataSource = &cdiv1.DataSource{}
+				err = reconciler.client.Get(context.TODO(), dataSourceKey(cron), dataSource)
+				Expect(err).ToNot(HaveOccurred())
+				dvList := &cdiv1.DataVolumeList{}
+				err = reconciler.client.List(context.TODO(), dvList, &client.ListOptions{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dvList.Items).ToNot(BeEmpty())
+
+				// Test DV is reused
+				cron = newDataImportCronWithImageStream(cronName, taggedImageStreamName)
+				reconciler = createDataImportCronReconciler(cron, imageStream, dv)
+				_, err = reconciler.Reconcile(context.TODO(), cronReq)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = reconciler.client.Get(context.TODO(), cronKey, cron)
+				Expect(err).ToNot(HaveOccurred())
+
+				imports = cron.Status.CurrentImports
+				Expect(imports).ToNot(BeEmpty())
+				dvName = imports[0].DataVolumeName
+				Expect(dvName).ToNot(BeEmpty())
+
+				dv1 := &cdiv1.DataVolume{}
+				err = reconciler.client.Get(context.TODO(), dvKey(dvName), dv1)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(dv1.Status.Phase).To(Equal(cdiv1.Succeeded))
+			},
+				Entry("has tag with tagReferencePolicyType=source", imageStreamNameWithTag, 0, imagev1.SourceTagReferencePolicy, testDockerRef),
+				Entry("has no tag with tagReferencePolicyType=source", imageStreamName, 1, imagev1.SourceTagReferencePolicy, testDockerRef),
+				Entry("has tag with tagReferencePolicyType=local", imageStreamNameWithTag, 0, imagev1.LocalTagReferencePolicy, testLocalImageStreamDockerRef),
+				Entry("has no tag with tagReferencePolicyType=local", imageStreamName, 1, imagev1.LocalTagReferencePolicy, testLocalImageStreamDockerRef),
+			)
+		})
 
 		It("Should fail with non-existing source PVC", func() {
 			cron := newDataImportCron(cronName)
@@ -1979,9 +2030,9 @@ func (s *fakeSarClient) Create(ctx context.Context, obj client.Object, opts ...c
 	return s.Client.Create(ctx, obj, opts...)
 }
 
-func newDataImportCronWithImageStream(dataImportCronName, taggedImageStreamName string) *cdiv1.DataImportCron {
+func newDataImportCronWithImageStream(dataImportCronName, imageStreamName string) *cdiv1.DataImportCron {
 	cron := newDataImportCron(dataImportCronName)
-	cron.Spec.Template.Spec.Source.Registry.ImageStream = &taggedImageStreamName
+	cron.Spec.Template.Spec.Source.Registry.ImageStream = &imageStreamName
 	cron.Spec.Template.Spec.Source.Registry.URL = nil
 	return cron
 }
@@ -1996,7 +2047,7 @@ func newPVC(name, namespace string) *corev1.PersistentVolumeClaim {
 	}
 }
 
-func newImageStream(name string) *imagev1.ImageStream {
+func newImageStream(name string, tagReferencePolicyType imagev1.TagReferencePolicyType) *imagev1.ImageStream {
 	return &imagev1.ImageStream{
 		TypeMeta: metav1.TypeMeta{APIVersion: imagev1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -2004,7 +2055,18 @@ func newImageStream(name string) *imagev1.ImageStream {
 			Namespace: metav1.NamespaceDefault,
 			UID:       types.UID(metav1.NamespaceDefault + "-" + name),
 		},
+		Spec: imagev1.ImageStreamSpec{
+			Tags: []imagev1.TagReference{
+				{
+					Name: imageStreamTag,
+					ReferencePolicy: imagev1.TagReferencePolicy{
+						Type: tagReferencePolicyType,
+					},
+				},
+			},
+		},
 		Status: imagev1.ImageStreamStatus{
+			DockerImageRepository: testDockerImageRepository,
 			Tags: []imagev1.NamedTagEventList{
 				{
 					Tag: tagWithNoItems,

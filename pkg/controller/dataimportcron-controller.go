@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"github.com/containers/image/v5/docker/reference"
 	"github.com/go-logr/logr"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	digest "github.com/opencontainers/go-digest"
 	imagev1 "github.com/openshift/api/image/v1"
 	secv1 "github.com/openshift/api/security/v1"
 	"github.com/pkg/errors"
@@ -213,33 +215,57 @@ func (r *DataImportCronReconciler) getImageStream(ctx context.Context, imageStre
 	return imageStream, tag, nil
 }
 
+func resolveImageStreamDockerRef(imageStream *imagev1.ImageStream, tagName string, latest imagev1.TagEvent) string {
+	specIdx := slices.IndexFunc(imageStream.Spec.Tags, func(t imagev1.TagReference) bool { return t.Name == tagName })
+	if specIdx == -1 || imageStream.Spec.Tags[specIdx].ReferencePolicy.Type != imagev1.LocalTagReferencePolicy {
+		return latest.DockerImageReference
+	}
+
+	repo, err := reference.ParseNormalizedNamed(imageStream.Status.DockerImageRepository)
+	if err != nil {
+		return latest.DockerImageReference
+	}
+
+	dgst, err := digest.Parse(latest.Image)
+	if err != nil {
+		return latest.DockerImageReference
+	}
+
+	local, err := reference.WithDigest(reference.TrimNamed(repo), dgst)
+	if err != nil {
+		return latest.DockerImageReference
+	}
+
+	return local.String()
+}
+
 func getImageStreamDigest(imageStream *imagev1.ImageStream, imageStreamTag string) (string, string, error) {
 	if imageStream == nil {
 		return "", "", errors.Errorf("No ImageStream")
 	}
+
 	tags := imageStream.Status.Tags
 	if len(tags) == 0 {
 		return "", "", errors.Errorf("ImageStream %s has no tags", imageStream.Name)
 	}
 
 	tagIdx := 0
-	if len(imageStreamTag) > 0 {
-		tagIdx = -1
-		for i, tag := range tags {
-			if tag.Tag == imageStreamTag {
-				tagIdx = i
-				break
-			}
-		}
+	if imageStreamTag != "" {
+		tagIdx = slices.IndexFunc(tags, func(t imagev1.NamedTagEventList) bool { return t.Tag == imageStreamTag })
 	}
+
 	if tagIdx == -1 {
 		return "", "", errors.Errorf("ImageStream %s has no tag %s", imageStream.Name, imageStreamTag)
 	}
 
-	if len(tags[tagIdx].Items) == 0 {
+	tag := tags[tagIdx]
+	if len(tag.Items) == 0 {
 		return "", "", errors.Errorf("ImageStream %s tag %s has no items", imageStream.Name, imageStreamTag)
 	}
-	return tags[tagIdx].Items[0].Image, tags[tagIdx].Items[0].DockerImageReference, nil
+
+	// Items[0] is the most recent image
+	latest := tag.Items[0]
+	return latest.Image, resolveImageStreamDockerRef(imageStream, tag.Tag, latest), nil
 }
 
 func splitImageStreamName(imageStreamName string) (string, string, error) {
@@ -635,16 +661,26 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	if err != nil {
 		return err
 	}
-	digest, dockerRef, err := getImageStreamDigest(imageStream, imageStreamTag)
+
+	digest, registry, err := getImageStreamDigest(imageStream, imageStreamTag)
 	if err != nil {
 		return err
 	}
+
 	cc.AddAnnotation(dataImportCron, AnnLastCronTime, time.Now().Format(time.RFC3339))
-	if digest != "" && dataImportCron.Annotations[AnnSourceDesiredDigest] != digest {
+
+	desiredDigest := dataImportCron.Annotations[AnnSourceDesiredDigest]
+	if digest != "" && digest != desiredDigest {
 		log.Info("Updating DataImportCron", "digest", digest)
 		cc.AddAnnotation(dataImportCron, AnnSourceDesiredDigest, digest)
-		cc.AddAnnotation(dataImportCron, AnnImageStreamDockerRef, dockerRef)
 	}
+
+	desiredRegistry := dataImportCron.Annotations[AnnImageStreamDockerRef]
+	if registry != "" && registry != desiredRegistry {
+		log.Info("Updating DataImportCron", "registry", registry)
+		cc.AddAnnotation(dataImportCron, AnnImageStreamDockerRef, registry)
+	}
+
 	return nil
 }
 
