@@ -108,7 +108,7 @@ func (rd *RegistryDataSource) Transfer(path string, preallocation bool) (Process
 	}
 
 	klog.V(1).Infof("Copying registry image to scratch space.")
-	rd.info, err = copyRegistryImage(rd.endpoint, path, containerDiskImageDir, rd.accessKey, rd.secKey, rd.imageArchitecture, rd.certDir, rd.insecureTLS, preallocation)
+	rd.info, err = rd.copyImage(path, containerDiskImageDir, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, fmt.Errorf("Failed to read registry image: %w", err)
 	}
@@ -315,23 +315,16 @@ func closeImage(c io.Closer) {
 	}
 }
 
-// copyRegistryImage download image from registry with docker image API. It will extract first file under the pathPrefix
-// url: source registry url.
-// destDir: the scratch space destination.
-// pathPrefix: path to extract files from.
-// accessKey: accessKey for the registry described in url.
-// secKey: secretKey for the registry described in url.
-// imageArchitecture: image index filter for CPU architecture.
-// certDir: directory public CA keys are stored for registry identity verification
-// insecureRegistry: boolean if true will allow insecure registries.
-func copyRegistryImage(url, destDir, pathPrefix, accessKey, secKey, imageArchitecture, certDir string, insecureRegistry, preallocation bool) (*types.ImageInspectInfo, error) {
-	klog.Infof("Downloading image from '%v', copying file from '%v' to '%v'", url, pathPrefix, destDir)
+// copyImage downloads the image from the registry and extracts its disk image into destDir,
+// taking the first file found under pathPrefix.
+func (rd *RegistryDataSource) copyImage(destDir, pathPrefix string, preallocation bool) (*types.ImageInspectInfo, error) {
+	klog.Infof("Downloading image from '%v', copying file from '%v' to '%v'", rd.endpoint, pathPrefix, destDir)
 
 	ctx, cancel := commandTimeoutContext()
 	defer cancel()
-	srcCtx := buildSourceContext(accessKey, secKey, imageArchitecture, certDir, insecureRegistry)
+	srcCtx := buildSourceContext(rd.accessKey, rd.secKey, rd.imageArchitecture, rd.certDir, rd.insecureTLS)
 
-	src, err := readImageSource(ctx, srcCtx, url)
+	src, err := readImageSource(ctx, srcCtx, rd.endpoint)
 	if err != nil {
 		return nil, err
 	}
