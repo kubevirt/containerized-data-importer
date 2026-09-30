@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -64,6 +65,56 @@ var _ = Describe("UpdateHTTPAnnotations", func() {
 		_, exists := annotations[AnnInsecureSkipVerify]
 		Expect(exists).To(BeFalse())
 	})
+})
+
+var _ = Describe("UpdateRegistryAnnotations", func() {
+	const (
+		url       = "docker://registry.example.com/vms/fedora:v1"
+		secretRef = "registry-credentials"
+	)
+
+	DescribeTable("Should translate the registry source into annotations", func(registry *cdiv1.DataVolumeSourceRegistry, expected map[string]string) {
+		annotations := map[string]string{}
+		UpdateRegistryAnnotations(annotations, registry)
+		Expect(annotations).To(Equal(expected))
+	},
+		Entry("with a URL only", &cdiv1.DataVolumeSourceRegistry{URL: ptr.To(url)},
+			map[string]string{AnnSource: SourceRegistry, AnnEndpoint: url}),
+		Entry("with an image stream in place of a URL", &cdiv1.DataVolumeSourceRegistry{
+			ImageStream: ptr.To("fedora:latest"),
+			PullMethod:  ptr.To(cdiv1.RegistryPullNode),
+		}, map[string]string{
+			AnnSource:               SourceRegistry,
+			AnnEndpoint:             "fedora:latest",
+			AnnRegistryImageStream:  "true",
+			AnnRegistryImportMethod: string(cdiv1.RegistryPullNode),
+		}),
+		Entry("with every optional field", &cdiv1.DataVolumeSourceRegistry{
+			URL:           ptr.To(url),
+			PullMethod:    ptr.To(cdiv1.RegistryPullPod),
+			SecretRef:     ptr.To(secretRef),
+			CertConfigMap: ptr.To("registry-ca"),
+			Platform:      &cdiv1.PlatformOptions{Architecture: "arm64"},
+		}, map[string]string{
+			AnnSource:                    SourceRegistry,
+			AnnEndpoint:                  url,
+			AnnRegistryImportMethod:      string(cdiv1.RegistryPullPod),
+			AnnSecret:                    secretRef,
+			AnnCertConfigMap:             "registry-ca",
+			AnnRegistryImageArchitecture: "arm64",
+		}),
+		Entry("without the empty optional fields", &cdiv1.DataVolumeSourceRegistry{
+			URL:           ptr.To(url),
+			PullMethod:    ptr.To(cdiv1.RegistryPullMethod("")),
+			SecretRef:     ptr.To(""),
+			CertConfigMap: ptr.To(""),
+			Platform:      &cdiv1.PlatformOptions{},
+		}, map[string]string{AnnSource: SourceRegistry, AnnEndpoint: url}),
+		Entry("with the URL taking precedence over an image stream", &cdiv1.DataVolumeSourceRegistry{
+			URL:         ptr.To(url),
+			ImageStream: ptr.To("fedora:latest"),
+		}, map[string]string{AnnSource: SourceRegistry, AnnEndpoint: url}),
+	)
 })
 
 var _ = Describe("GetStorageClassByName", func() {
