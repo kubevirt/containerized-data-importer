@@ -897,7 +897,7 @@ func (r *ImportReconciler) getVddkNodeSelector(namespace, cmName string) (map[st
 func getRegistryImportImage(pvc *corev1.PersistentVolumeClaim) (string, error) {
 	ep, err := cc.GetEndpoint(pvc)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 	if cc.IsImageStream(pvc) {
 		return ep, nil
