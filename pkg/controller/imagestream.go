@@ -2,13 +2,13 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/containers/image/v5/docker/reference"
 	digest "github.com/opencontainers/go-digest"
 	imagev1 "github.com/openshift/api/image/v1"
-	"github.com/pkg/errors"
 
 	"k8s.io/apimachinery/pkg/types"
 
@@ -17,20 +17,24 @@ import (
 
 func getImageStream(ctx context.Context, client client.Client, imageStreamName, imageStreamNamespace string) (*imagev1.ImageStream, string, error) {
 	if imageStreamName == "" || imageStreamNamespace == "" {
-		return nil, "", errors.Errorf("Missing ImageStream name or namespace")
+		return nil, "", fmt.Errorf("Missing ImageStream name or namespace")
 	}
+
 	imageStream := &imagev1.ImageStream{}
 	name, tag, err := splitImageStreamName(imageStreamName)
 	if err != nil {
 		return nil, "", err
 	}
+
 	imageStreamNamespacedName := types.NamespacedName{
 		Namespace: imageStreamNamespace,
 		Name:      name,
 	}
+
 	if err := client.Get(ctx, imageStreamNamespacedName, imageStream); err != nil {
 		return nil, "", err
 	}
+
 	return imageStream, tag, nil
 }
 
@@ -40,17 +44,17 @@ func splitImageStreamName(imageStreamName string) (string, string, error) {
 	} else if len(subs) == 2 && len(subs[0]) > 0 && len(subs[1]) > 0 {
 		return subs[0], subs[1], nil
 	}
-	return "", "", errors.Errorf("Illegal ImageStream name %s", imageStreamName)
+	return "", "", fmt.Errorf("Illegal ImageStream name %s", imageStreamName)
 }
 
 func getImageStreamDigest(imageStream *imagev1.ImageStream, imageStreamTag string) (string, string, error) {
 	if imageStream == nil {
-		return "", "", errors.Errorf("No ImageStream")
+		return "", "", fmt.Errorf("No ImageStream")
 	}
 
 	tags := imageStream.Status.Tags
 	if len(tags) == 0 {
-		return "", "", errors.Errorf("ImageStream %s has no tags", imageStream.Name)
+		return "", "", fmt.Errorf("ImageStream %s has no tags", imageStream.Name)
 	}
 
 	tagIdx := 0
@@ -59,12 +63,12 @@ func getImageStreamDigest(imageStream *imagev1.ImageStream, imageStreamTag strin
 	}
 
 	if tagIdx == -1 {
-		return "", "", errors.Errorf("ImageStream %s has no tag %s", imageStream.Name, imageStreamTag)
+		return "", "", fmt.Errorf("ImageStream %s has no tag %s", imageStream.Name, imageStreamTag)
 	}
 
 	tag := tags[tagIdx]
 	if len(tag.Items) == 0 {
-		return "", "", errors.Errorf("ImageStream %s tag %s has no items", imageStream.Name, imageStreamTag)
+		return "", "", fmt.Errorf("ImageStream %s tag %s has no items", imageStream.Name, imageStreamTag)
 	}
 
 	// Items[0] is the most recent image
@@ -95,4 +99,3 @@ func resolveImageStreamDockerRef(imageStream *imagev1.ImageStream, tagName strin
 
 	return local.String()
 }
-
