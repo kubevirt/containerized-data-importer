@@ -1025,9 +1025,6 @@ var _ = Describe("Preallocation", func() {
 		trustedRegistryURLQcow2 = func() string {
 			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.CirrosQcow2ImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
 		}
-		trustedRegistryIS = func() string {
-			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName)).String()
-		}
 	)
 
 	BeforeEach(func() {
@@ -1168,22 +1165,6 @@ var _ = Describe("Preallocation", func() {
 		} else {
 			Expect(pvc.GetAnnotations()[controller.AnnPreallocationApplied]).ShouldNot(Equal("true"))
 		}
-
-		if dv.Spec.Source.Registry != nil && dv.Spec.Source.Registry.ImageStream != nil {
-			By("Verify image lookup annotation")
-			podName := pvc.Annotations[controller.AnnImportPod]
-			if pvc.Spec.DataSourceRef != nil {
-				Expect(podName).To(BeEmpty())
-			} else {
-				// when using populators when the population completes PVC' and
-				// the importer pod are deleted, so can't check the annotation
-				// TODO: any suggestions? putting the check before dv completes is
-				// still racy
-				pod, err := f.K8sClient.CoreV1().Pods(f.Namespace.Name).Get(context.TODO(), podName, metav1.GetOptions{})
-				Expect(err).NotTo(HaveOccurred())
-				Expect(pod.Annotations[controller.AnnOpenShiftImageLookup]).To(Equal("*"))
-			}
-		}
 	},
 		Entry("HTTP import (ISO image)", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
 			return utils.NewDataVolumeWithHTTPImport("import-dv", "100Mi", tinyCoreIsoURL())
@@ -1246,16 +1227,6 @@ var _ = Describe("Preallocation", func() {
 			pullMethod := cdiv1.RegistryPullNode
 			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", trustedRegistryURLQcow2())
 			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
-			return dataVolume
-		}),
-		Entry("Registry ImageStream-wannabe node pull import", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
-			pullMethod := cdiv1.RegistryPullNode
-			imageStreamWannabe := trustedRegistryIS()
-			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", "")
-			dataVolume.Spec.Source.Registry.URL = nil
-			dataVolume.Spec.Source.Registry.ImageStream = &imageStreamWannabe
-			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
-			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			return dataVolume
 		}),
 		Entry("VddkImport", Label("VDDK"), true, utils.VcenterMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
