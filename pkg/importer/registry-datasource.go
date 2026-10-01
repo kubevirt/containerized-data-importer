@@ -251,10 +251,6 @@ func collectCerts(certDir, targetDir, targetPrefix string) error {
 // but conversion is not yet implemented.
 var ErrBootcImageDetected = errors.New("bootc image detected: this image contains an ostree-based bootable OS (containers.bootc=1 or ostree.bootable=1) and cannot be imported as a regular container disk; bootc-to-disk conversion is not yet implemented")
 
-func commandTimeoutContext() (context.Context, context.CancelFunc) {
-	return context.WithCancel(context.Background())
-}
-
 func buildSourceContext(accessKey, secKey, imageArchitecture, certDir string, insecureRegistry bool) *types.SystemContext {
 	ctx := &types.SystemContext{}
 	if accessKey != "" && secKey != "" {
@@ -320,7 +316,7 @@ func closeImage(c io.Closer) {
 func (rd *RegistryDataSource) copyImage(destDir, pathPrefix string, preallocation bool) (*types.ImageInspectInfo, error) {
 	klog.Infof("Downloading image from '%v', copying file from '%v' to '%v'", rd.endpoint, pathPrefix, destDir)
 
-	ctx, cancel := commandTimeoutContext()
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	srcCtx := buildSourceContext(rd.accessKey, rd.secKey, rd.imageArchitecture, rd.certDir, rd.insecureTLS)
 
@@ -395,7 +391,7 @@ func validateImagePlatformMatch(sys *types.SystemContext, info *types.ImageInspe
 func GetImageDigest(url, accessKey, secKey, certDir string, insecureRegistry bool) (string, error) {
 	klog.Infof("Inspecting image from '%v'", url)
 
-	ctx, cancel := commandTimeoutContext()
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	srcCtx := buildSourceContext(accessKey, secKey, "", certDir, insecureRegistry)
 
