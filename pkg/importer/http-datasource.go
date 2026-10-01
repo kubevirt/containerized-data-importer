@@ -271,6 +271,29 @@ func (hs *HTTPDataSource) Close() error {
 	return err
 }
 
+// helper to append certs to cert pool
+func appendCertsToPool(certPool *x509.CertPool, dir string) error {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if file.IsDir() || file.Name()[0] == '.' {
+			continue
+		}
+		fp := path.Join(dir, file.Name())
+		certs, err := os.ReadFile(fp)
+		if err != nil {
+			return err
+		}
+		if ok := certPool.AppendCertsFromPEM(certs); !ok {
+			klog.Warningf("No certs in %s", fp)
+		}
+	}
+	return nil
+}
+
 func createCertPool(certDir string) (*x509.CertPool, error) {
 	// let's get system certs as well
 	certPool, err := x509.SystemCertPool()
@@ -278,42 +301,16 @@ func createCertPool(certDir string) (*x509.CertPool, error) {
 		return nil, errors.Wrap(err, "Error getting system certs")
 	}
 
-	// append the user-provided trusted CA certificates bundle when making egress connections using proxy
-	if files, err := os.ReadDir(common.ImporterProxyCertDir); err == nil {
-		for _, file := range files {
-			if file.IsDir() || file.Name()[0] == '.' {
-				continue
-			}
-			fp := path.Join(common.ImporterProxyCertDir, file.Name())
-			if certs, err := os.ReadFile(fp); err == nil {
-				certPool.AppendCertsFromPEM(certs)
-			}
-		}
-	}
+	trustedCACertDir, _ := util.ParseEnvVar(common.ImporterTrustedCADirVar, false)
+	proxyCertDir, _ := util.ParseEnvVar(common.ImporterProxyCertDirVar, false)
 
-	// append server CA certificates if the directory exists
-	if certDir != "" {
-		files, err := os.ReadDir(certDir)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Error listing files in %s", certDir)
-		}
-
-		for _, file := range files {
-			if file.IsDir() || file.Name()[0] == '.' {
-				continue
-			}
-
-			fp := path.Join(certDir, file.Name())
-
-			klog.Infof("Attempting to get certs from %s", fp)
-
-			certs, err := os.ReadFile(fp)
-			if err != nil {
-				return nil, errors.Wrapf(err, "Error reading file %s", fp)
-			}
-
-			if ok := certPool.AppendCertsFromPEM(certs); !ok {
-				klog.Warningf("No certs in %s", fp)
+	// append the user-provided trusted proxy and non-proxy
+	// CA certificates bundle when making egress connections using proxy
+	// append certs from each configured directory
+	for _, dir := range []string{proxyCertDir, trustedCACertDir, certDir} {
+		if dir != "" {
+			if err := appendCertsToPool(certPool, dir); err != nil {
+				return nil, errors.Wrapf(err, "Error appending certs from %s", dir)
 			}
 		}
 	}
@@ -325,14 +322,18 @@ func createHTTPClient(certDir string, insecureSkipVerify bool) (*http.Client, er
 		// Don't set timeout here, since that will be an absolute timeout, we need a relative to last progress timeout.
 	}
 
-	// if any cluster wide certs are configured, they will exist in the proxy cert dir
-	proxyCertDir, err := os.ReadDir(common.ImporterProxyCertDir)
-
-	if err != nil && !os.IsNotExist(err) {
-		klog.Warningf("Unable to read proxy cert directory %v", err)
+	trustedCACertDir, err := util.ParseEnvVar(common.ImporterTrustedCADirVar, false)
+	if err != nil {
+		return nil, err
 	}
 
-	if certDir == "" && len(proxyCertDir) == 0 && !insecureSkipVerify {
+	proxyCertDir, err := util.ParseEnvVar(common.ImporterProxyCertDirVar, false)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if certDir == "" && trustedCACertDir == "" && proxyCertDir == "" && !insecureSkipVerify {
 		return client, nil
 	}
 	// the default transport contains Proxy configurations to use environment variables and default timeouts
