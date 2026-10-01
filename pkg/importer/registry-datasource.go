@@ -53,6 +53,7 @@ type RegistryDataSource struct {
 	accessKey         string
 	secKey            string
 	imageArchitecture string
+	layer             *cdiv1.LayerSelector // nil for a container image
 	certDir           string
 	insecureTLS       bool
 	imageDir          string
@@ -63,7 +64,7 @@ type RegistryDataSource struct {
 }
 
 // NewRegistryDataSource creates a new instance of the Registry Data Source.
-func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, certDir string, insecureTLS bool) *RegistryDataSource {
+func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture string, layer *cdiv1.LayerSelector, certDir string, insecureTLS bool) *RegistryDataSource {
 	allCertDir, err := CreateCertificateDir(certDir)
 	if err != nil {
 		klog.Infof("Error creating allCertDir %v", err)
@@ -80,6 +81,7 @@ func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, certD
 		accessKey:         accessKey,
 		secKey:            secKey,
 		imageArchitecture: imageArchitecture,
+		layer:             layer,
 		certDir:           allCertDir,
 		insecureTLS:       insecureTLS,
 	}
@@ -326,7 +328,15 @@ func (rd *RegistryDataSource) copyImage(destDir, pathPrefix string, preallocatio
 		return blob, err
 	}
 
-	disk := containerDisk{disk: diskWriter{destDir: destDir, preallocation: preallocation}, pathPrefix: pathPrefix}
+	writer := diskWriter{destDir: destDir, preallocation: preallocation}
+	var disk layerDisk
+	switch {
+	case rd.layer != nil:
+		disk = artifactDisk{disk: writer, pathPrefix: pathPrefix, selector: rd.layer}
+	default:
+		disk = containerDisk{disk: writer, pathPrefix: pathPrefix}
+	}
+
 	candidates, info, err := disk.resolve(ctx, srcCtx, src, cache)
 	if err != nil {
 		return nil, err
