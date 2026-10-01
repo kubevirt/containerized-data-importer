@@ -575,12 +575,7 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 		return nil
 	}
 
-	imageStream, imageStreamTag, err := getImageStream(ctx, r.client, *regSource.ImageStream, dataImportCron.Namespace)
-	if err != nil {
-		return err
-	}
-
-	digest, registry, err := getImageStreamDigest(imageStream, imageStreamTag)
+	digest, registry, err := getImageStreamAndRegistry(ctx, r.client, *regSource.ImageStream, dataImportCron.Namespace)
 	if err != nil {
 		return err
 	}

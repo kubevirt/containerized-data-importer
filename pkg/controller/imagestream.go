@@ -99,3 +99,18 @@ func resolveImageStreamDockerRef(imageStream *imagev1.ImageStream, tagName strin
 
 	return local.String()
 }
+
+func getImageStreamAndRegistry(ctx context.Context, client client.Client, imageStreamName, namespace string) (string, string, error) {
+	imageStream, imageStreamTag, err := getImageStream(ctx, client, imageStreamName, namespace)
+
+	if err != nil {
+		return "", "", err
+	}
+
+	digest, registry, err := getImageStreamDigest(imageStream, imageStreamTag)
+	if err != nil {
+		return "", "", err
+	}
+
+	return digest, registry, nil
+}
