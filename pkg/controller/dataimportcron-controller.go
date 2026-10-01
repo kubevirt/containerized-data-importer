@@ -575,12 +575,7 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 		return nil
 	}
 
-	imageStream, imageStreamTag, err := getImageStream(ctx, r.client, *regSource.ImageStream, dataImportCron.Namespace)
-	if err != nil {
-		return err
-	}
-
-	digest, registry, err := getImageStreamDigest(imageStream, imageStreamTag)
+	digest, dockerRef, err := getImageStreamAndDockerRef(ctx, r.client, *regSource.ImageStream, dataImportCron.Namespace)
 	if err != nil {
 		return err
 	}
@@ -594,9 +589,9 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 	}
 
 	desiredRegistry := dataImportCron.Annotations[AnnImageStreamDockerRef]
-	if registry != "" && registry != desiredRegistry {
-		log.Info("Updating DataImportCron", "registry", registry)
-		cc.AddAnnotation(dataImportCron, AnnImageStreamDockerRef, registry)
+	if dockerRef != "" && dockerRef != desiredRegistry {
+		log.Info("Updating DataImportCron", "registry", dockerRef)
+		cc.AddAnnotation(dataImportCron, AnnImageStreamDockerRef, dockerRef)
 	}
 
 	return nil

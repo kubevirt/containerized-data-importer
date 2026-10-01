@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func getImageStream(ctx context.Context, client client.Client, imageStreamName, imageStreamNamespace string) (*imagev1.ImageStream, string, error) {
+func getImageStream(ctx context.Context, reader client.Reader, imageStreamName, imageStreamNamespace string) (*imagev1.ImageStream, string, error) {
 	if imageStreamName == "" || imageStreamNamespace == "" {
 		return nil, "", fmt.Errorf("Missing ImageStream name or namespace")
 	}
@@ -31,7 +31,7 @@ func getImageStream(ctx context.Context, client client.Client, imageStreamName, 
 		Name:      name,
 	}
 
-	if err := client.Get(ctx, imageStreamNamespacedName, imageStream); err != nil {
+	if err := reader.Get(ctx, imageStreamNamespacedName, imageStream); err != nil {
 		return nil, "", err
 	}
 
@@ -101,4 +101,19 @@ func resolveImageStreamDockerRef(imageStream *imagev1.ImageStream, tagName strin
 	}
 
 	return local.String()
+}
+
+func getImageStreamAndDockerRef(ctx context.Context, reader client.Reader, imageStreamName, namespace string) (string, string, error) {
+	imageStream, imageStreamTag, err := getImageStream(ctx, reader, imageStreamName, namespace)
+
+	if err != nil {
+		return "", "", err
+	}
+
+	digest, dockerRef, err := getImageStreamDigest(imageStream, imageStreamTag)
+	if err != nil {
+		return "", "", err
+	}
+
+	return digest, dockerRef, nil
 }
