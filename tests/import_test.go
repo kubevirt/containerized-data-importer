@@ -1143,7 +1143,7 @@ var _ = Describe("Preallocation", func() {
 		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 		if err != nil {
 			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			if dverr != nil {
+			if dverr == nil {
 				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 			}
 		}
