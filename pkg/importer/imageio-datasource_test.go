@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1014,6 +1015,9 @@ func createDefaultTestExtentData() []byte {
 		value := byte(0x55)
 		if extent.Zero {
 			value = 0
+		}
+		if extent.Length < 0 || extent.Length > math.MaxInt {
+			panic(fmt.Sprintf("extent length %d cannot be converted to int", extent.Length))
 		}
 		block := bytes.Repeat([]byte{value}, int(extent.Length))
 		copy(data[extent.Start:], block)

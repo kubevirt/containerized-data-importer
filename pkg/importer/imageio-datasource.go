@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -294,7 +295,11 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 		return err
 	}
 	isBlock := !info.Mode().IsRegular()
-	preallocated := info.Size() >= int64(is.contentLength)
+	contentLength := is.contentLength
+	if contentLength > math.MaxInt64 {
+		return fmt.Errorf("content length %d exceeds maximum int64 size", contentLength)
+	}
+	preallocated := info.Size() >= int64(contentLength)
 
 	// Choose seek for regular files, and hole punching for block devices and pre-allocated files
 	zeroRange := AppendZeroWithTruncate
@@ -304,11 +309,14 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 
 	// Transfer all the non-zero extents, and try to quickly write out blocks of all zero bytes for extents that only contain zero
 	for index, extent := range extentsReader.extents {
+		if extent.Length < 0 {
+			return fmt.Errorf("extent has negative length: %d", extent.Length)
+		}
 		if extent.Zero {
 			err = zeroRange(outFile, extent.Start, extent.Length)
 			if err != nil {
 				klog.Infof("Initial zero method failed, trying AppendZeroWithWrite instead. Error was: %v", err)
-				zeroRange = AppendZeroWithWrite // If the initial choice fails, fall back to regular file writing
+				zeroRange = AppendZeroWithWrite
 				err = zeroRange(outFile, extent.Start, extent.Length)
 				if err != nil {
 					return errors.Wrap(err, "failed to zero range on destination")
@@ -318,7 +326,7 @@ func (is *ImageioDataSource) StreamExtents(extentsReader *extentReader, fileName
 		} else {
 			klog.Infof("Downloading %d-byte extent at offset %d", extent.Length, extent.Start)
 			responseBody, err := extentsReader.GetRange(extent.Start, extent.Start+extent.Length-1)
-			if err != nil { // Ignore special EOF case, extents should give the exact right size to read
+			if err != nil {
 				return errors.Wrap(err, "failed to get range")
 			}
 			final := (index == (len(extentsReader.extents) - 1))
@@ -584,6 +592,9 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 		total = 0
 		nonzero := int64(0)
 		for _, extent := range extents {
+			if extent.Length < 0 {
+				return nil, uint64(0), it, conn, fmt.Errorf("extent has negative length: %d", extent.Length)
+			}
 			total += uint64(extent.Length)
 			if !extent.Zero {
 				nonzero += extent.Length
@@ -591,11 +602,15 @@ func createImageioReader(ctx context.Context, ep string, accessKey string, secKe
 		}
 		klog.Infof("Total size of non-zero extents: %d, total size of all extents: %d", nonzero, total)
 
-		reader = &extentReader{
-			client:      client,
-			extents:     extents,
-			transferURL: transferURL,
-			size:        int64(total),
+		if total <= math.MaxInt64 {
+			reader = &extentReader{
+				client:      client,
+				extents:     extents,
+				transferURL: transferURL,
+				size:        int64(total),
+			}
+		} else {
+			return nil, uint64(0), it, conn, errors.New("total extent size exceeds maximum int64")
 		}
 	} else {
 		req, err := http.NewRequest(http.MethodGet, transferURL, nil)
@@ -906,6 +921,9 @@ func getTransfer(conn ConnectionInterface, disk *ovirtsdk4.Disk, snapshot *ovirt
 		}
 	}
 
+	if totalSize < 0 {
+		return it, uint64(0), errors.New("disk size is negative")
+	}
 	return it, uint64(totalSize), nil
 }
 
