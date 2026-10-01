@@ -18,6 +18,7 @@ package importer
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -53,6 +54,7 @@ type RegistryDataSource struct {
 	accessKey         string
 	secKey            string
 	imageArchitecture string
+	layer             *cdiv1.LayerSelector // nil for a container image
 	certDir           string
 	insecureTLS       bool
 	imageDir          string
@@ -63,7 +65,11 @@ type RegistryDataSource struct {
 }
 
 // NewRegistryDataSource creates a new instance of the Registry Data Source.
-func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, certDir string, insecureTLS bool) *RegistryDataSource {
+func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, layerMatchAnnotationsJSON, certDir string, insecureTLS bool) (*RegistryDataSource, error) {
+	layer, err := parseLayerSelector(layerMatchAnnotationsJSON)
+	if err != nil {
+		return nil, err
+	}
 	allCertDir, err := CreateCertificateDir(certDir)
 	if err != nil {
 		klog.Infof("Error creating allCertDir %v", err)
@@ -80,9 +86,24 @@ func NewRegistryDataSource(endpoint, accessKey, secKey, imageArchitecture, certD
 		accessKey:         accessKey,
 		secKey:            secKey,
 		imageArchitecture: imageArchitecture,
+		layer:             layer,
 		certDir:           allCertDir,
 		insecureTLS:       insecureTLS,
+	}, nil
+}
+
+func parseLayerSelector(matchAnnotationsJSON string) (*cdiv1.LayerSelector, error) {
+	if matchAnnotationsJSON == "" {
+		return nil, nil
 	}
+	var matchAnnotations map[string]string
+	if err := json.Unmarshal([]byte(matchAnnotationsJSON), &matchAnnotations); err != nil {
+		return nil, fmt.Errorf("invalid layer match annotations %q: %w", matchAnnotationsJSON, err)
+	}
+	if len(matchAnnotations) == 0 {
+		return nil, nil
+	}
+	return &cdiv1.LayerSelector{MatchAnnotations: matchAnnotations}, nil
 }
 
 // Info is called to get initial information about the data. No information available for registry currently.
@@ -326,7 +347,12 @@ func (rd *RegistryDataSource) copyImage(destDir, pathPrefix string, preallocatio
 		return blob, err
 	}
 
-	disk := containerDisk{disk: diskWriter{destDir: destDir, preallocation: preallocation}, pathPrefix: pathPrefix}
+	writer := diskWriter{destDir: destDir, preallocation: preallocation}
+	var disk layerDisk = containerDisk{disk: writer, pathPrefix: pathPrefix}
+	if rd.layer != nil {
+		disk = artifactDisk{disk: writer, pathPrefix: pathPrefix, selector: rd.layer}
+	}
+
 	candidates, info, err := disk.resolve(ctx, srcCtx, src)
 	if err != nil {
 		return nil, err
