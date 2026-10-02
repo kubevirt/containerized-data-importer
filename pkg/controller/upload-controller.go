@@ -196,7 +196,7 @@ func (r *UploadReconciler) reconcilePVC(log logr.Logger, pvc *corev1.PersistentV
 		}
 		if err = ValidateCanCloneSourceAndTargetSpec(context.TODO(), r.client, source, pvc, contentType); err != nil {
 			log.Error(err, "Error validating clone spec, ignoring")
-			r.recorder.Eventf(pvc, corev1.EventTypeWarning, cc.ErrIncompatiblePVC, err.Error())
+			r.recorder.Event(pvc, corev1.EventTypeWarning, cc.ErrIncompatiblePVC, err.Error())
 			return reconcile.Result{}, nil
 		}
 

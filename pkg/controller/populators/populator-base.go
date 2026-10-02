@@ -377,7 +377,7 @@ func (r *ReconcilerBase) reconcileCommon(pvc *corev1.PersistentVolumeClaim, popu
 	if cc.IsUnbound(pvc) && !cc.IsLost(pvc) {
 		_, err := r.createPVCPrime(pvc, populationSource, nodeName != "", populator.updatePVCForPopulation)
 		if err != nil {
-			r.recorder.Eventf(pvc, corev1.EventTypeWarning, errCreatingPVCPrime, err.Error())
+			r.recorder.Event(pvc, corev1.EventTypeWarning, errCreatingPVCPrime, err.Error())
 			return nil, err
 		}
 	}

@@ -18,7 +18,6 @@ package populators
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"github.com/go-logr/logr"
@@ -155,7 +154,7 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 	switch phase {
 	case string(corev1.PodFailed):
 		// We'll get called later once it succeeds
-		r.recorder.Eventf(pvc, corev1.EventTypeWarning, errUploadFailed, fmt.Sprintf(messageUploadFailed, pvc.Name))
+		r.recorder.Eventf(pvc, corev1.EventTypeWarning, errUploadFailed, messageUploadFailed, pvc.Name)
 	case string(corev1.PodSucceeded):
 		if cc.IsPVCComplete(pvcPrime) && cc.IsUnbound(pvc) {
 			// Once the upload is succeeded, we rebind the PV from PVC' to target PVC
@@ -170,7 +169,7 @@ func (r *UploadPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.Per
 		return reconcile.Result{}, err
 	}
 	if cc.IsPVCComplete(pvcPrime) {
-		r.recorder.Eventf(pvc, corev1.EventTypeNormal, uploadSucceeded, fmt.Sprintf(messageUploadSucceeded, pvc.Name))
+		r.recorder.Eventf(pvc, corev1.EventTypeNormal, uploadSucceeded, messageUploadSucceeded, pvc.Name)
 	}
 
 	return reconcile.Result{}, nil
