@@ -321,6 +321,14 @@ func hasString(strings []string, str string) bool {
 	return false
 }
 
+// AddOCSExternalLabel labels the StorageClass so the OCS provider-side gRPC server
+// excludes it from GetDesiredClientState(), allowing test teardown to delete it.
+func AddOCSExternalLabel(client kubernetes.Interface, obj metav1.Object) {
+	if IsOpenshift(client) {
+		cc.AddLabel(obj, "storageclass.ocs.openshift.io/is-external", "true")
+	}
+}
+
 // IsOpenshift checks if we are on OpenShift platform
 func IsOpenshift(client kubernetes.Interface) bool {
 	//OpenShift 3.X check
