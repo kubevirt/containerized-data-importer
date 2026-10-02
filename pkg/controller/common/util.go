@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -203,6 +204,8 @@ const (
 	AnnChecksum = AnnAPIGroup + "/storage.import.checksum"
 	// AnnRegistryImageArchitecture provides a const for our PVC registryImageArchitecture annotation
 	AnnRegistryImageArchitecture = AnnAPIGroup + "/storage.import.registryImageArchitecture"
+	// AnnRegistryImageLayerMatchAnnotations provides a const for our PVC registryImageLayerMatchAnnotations annotation
+	AnnRegistryImageLayerMatchAnnotations = AnnAPIGroup + "/storage.import.registryImageLayerMatchAnnotations"
 
 	// AnnCloneToken is the annotation containing the clone token
 	AnnCloneToken = AnnAPIGroup + "/storage.clone.token"
@@ -1899,6 +1902,11 @@ func UpdateRegistryAnnotations(annotations map[string]string, registry *cdiv1.Da
 
 	if registry.Platform != nil && registry.Platform.Architecture != "" {
 		annotations[AnnRegistryImageArchitecture] = registry.Platform.Architecture
+	}
+
+	if registry.Layer != nil && len(registry.Layer.MatchAnnotations) > 0 {
+		matchAnnotations, _ := json.Marshal(registry.Layer.MatchAnnotations)
+		annotations[AnnRegistryImageLayerMatchAnnotations] = string(matchAnnotations)
 	}
 }
 

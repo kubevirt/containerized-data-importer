@@ -17,7 +17,6 @@ limitations under the License.
 package importer
 
 import (
-	"archive/tar"
 	"context"
 	"errors"
 	"fmt"
@@ -31,81 +30,60 @@ import (
 	"k8s.io/klog/v2"
 )
 
-const (
-	whFilePrefix = ".wh."
-)
+var (
+	errReadingLayer = errors.New("Error reading layer")
 
-var errReadingLayer = errors.New("Error reading layer")
+	errDiskImageNotFound = errors.New("Failed to find VM disk image file in the container image")
+)
 
 type blobOpener func(ctx context.Context, layer types.BlobInfo) (io.ReadCloser, error)
 
-type fileExtractor struct {
-	destDir       string
-	pathPrefix    string
-	preallocation bool
+// layerDisk is a kind of registry image, holding its disk image in one of its layers.
+type layerDisk interface {
+	// resolve returns the candidate layers, in order, and the inspect info if the image has any.
+	resolve(ctx context.Context, sys *types.SystemContext, src types.ImageSource, cache types.BlobInfoCache) ([]types.BlobInfo, *types.ImageInspectInfo, error)
+	// read reports whether the layer held the disk image.
+	read(ctx context.Context, layer types.BlobInfo, open blobOpener) (bool, error)
 }
 
-func (e fileExtractor) extract(ctx context.Context, layers []types.BlobInfo, open blobOpener) error {
-	for _, layer := range layers {
+func extractDisk(ctx context.Context, disk layerDisk, candidates []types.BlobInfo, open blobOpener) error {
+	var readErr error
+	for _, layer := range candidates {
 		klog.Infof("Processing layer %+v", layer)
 
-		found, err := e.fromLayer(ctx, layer, open)
-		if found {
+		found, err := disk.read(ctx, layer, open)
+		switch {
+		case found:
 			return nil
-		}
-		// An unreadable layer is not fatal, the file may still live in the next one.
-		if err != nil && !errors.Is(err, errReadingLayer) {
+		case errors.Is(err, errReadingLayer):
+			// the disk image may be in a later layer
+			readErr = err
+		case err != nil:
 			return err
 		}
 	}
 
-	err := errors.New("Failed to find VM disk image file in the container image")
-	klog.Error(err)
-	return err
+	if readErr != nil {
+		return fmt.Errorf("%w: %w", errDiskImageNotFound, readErr)
+	}
+	return errDiskImageNotFound
 }
 
-func (e fileExtractor) fromLayer(ctx context.Context, layer types.BlobInfo, open blobOpener) (bool, error) {
+func decompressLayer(ctx context.Context, layer types.BlobInfo, open blobOpener) (*FormatReaders, error) {
 	blob, err := open(ctx, layer)
 	if err != nil {
-		klog.Errorf("%v: %v", errReadingLayer, err)
-		return false, fmt.Errorf("%w: %v", errReadingLayer, err)
+		return nil, err
 	}
-
-	readers, err := NewFormatReaders(blob, 0, nil)
-	if err != nil {
-		klog.Errorf("%v: %v", errReadingLayer, err)
-		return false, fmt.Errorf("%w: %v", errReadingLayer, err)
-	}
-	defer readers.Close()
-
-	tarReader := tar.NewReader(readers.TopReader())
-	for {
-		hdr, err := tarReader.Next()
-		if errors.Is(err, io.EOF) {
-			return false, nil // End of archive
-		}
-		if err != nil {
-			klog.Errorf("%v: %v", errReadingLayer, err)
-			return false, fmt.Errorf("%w: %v", errReadingLayer, err)
-		}
-		if !e.wants(hdr) {
-			continue
-		}
-
-		klog.Infof("File '%v' found in the layer", hdr.Name)
-		if err := e.writeFile(tarReader, hdr.Name); err != nil {
-			return false, err
-		}
-		return true, nil
-	}
+	return NewFormatReaders(blob, 0, nil)
 }
 
-func (e fileExtractor) wants(hdr *tar.Header) bool {
-	return hasPrefix(hdr.Name, e.pathPrefix) && !isWhiteout(hdr.Name) && !isDir(hdr)
+type diskWriter struct {
+	destDir       string
+	preallocation bool
 }
 
-func (e fileExtractor) writeFile(r io.Reader, name string) error {
-	destFile, err := safeJoinPaths(e.destDir, name)
+func (w diskWriter) write(r io.Reader, name string) error {
+	destFile, err := safeJoinPaths(w.destDir, name)
 	if err != nil {
 		klog.Errorf("Error sanitizing archive path: %v", err)
 		return fmt.Errorf("Error sanitizing archive path: %w", err)
@@ -116,24 +94,11 @@ func (e fileExtractor) writeFile(r io.Reader, name string) error {
 		return fmt.Errorf("Error creating output file's directory: %w", err)
 	}
 
-	if _, _, err := StreamDataToFile(r, destFile, e.preallocation); err != nil {
+	if _, _, err := StreamDataToFile(r, destFile, w.preallocation); err != nil {
 		klog.Errorf("Error copying file: %v", err)
 		return fmt.Errorf("Error copying file: %w", err)
 	}
 	return nil
-}
-
-func hasPrefix(path string, pathPrefix string) bool {
-	return strings.HasPrefix(path, pathPrefix) ||
-		strings.HasPrefix(path, "./"+pathPrefix)
-}
-
-func isWhiteout(path string) bool {
-	return strings.HasPrefix(filepath.Base(path), whFilePrefix)
-}
-
-func isDir(hdr *tar.Header) bool {
-	return hdr.Typeflag == tar.TypeDir
 }
 
 // Sanitize archive file pathing from "G305: Zip Slip vulnerability"
