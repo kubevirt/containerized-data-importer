@@ -447,39 +447,108 @@ var _ = Describe("Forklift populator tests", func() {
 			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
 		})
 
-		It("should create the populator pod with expected specifications", func() {
-			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
-			targetPvc.Spec.DataSourceRef = dataSourceRef
-			pvcPrime := getPVCPrime(targetPvc, make(map[string]string))
+		DescribeTable(
+			"should create the populator pod with expected specifications",
+			func(volumeMode corev1.PersistentVolumeMode, expectedVolumePath string) {
+				targetPvc := CreatePvcInStorageClass(
+					targetPvcName,
+					metav1.NamespaceDefault,
+					&sc.Name,
+					nil,
+					nil,
+					corev1.ClaimPending,
+				)
+				targetPvc.Spec.DataSourceRef = dataSourceRef
+				targetPvc.Spec.VolumeMode = ptr.To(volumeMode)
 
-			By("Reconcile")
-			reconciler = createForkliftPopulatorReconciler(targetPvc, pvcPrime, sc, ovirtCr)
+				pvcPrime := getPVCPrime(targetPvc, make(map[string]string))
 
-			// Call createPopulatorPod directly
-			err := reconciler.createPopulatorPod(pvcPrime, targetPvc)
-			Expect(err).To(Not(HaveOccurred()))
+				reconciler = createForkliftPopulatorReconciler(
+					targetPvc,
+					pvcPrime,
+					sc,
+					ovirtCr,
+				)
 
-			By("Checking if the populator pod is created with the expected specifications")
-			pod := &corev1.Pod{}
-			podName := fmt.Sprintf("%s-%s", populatorPodPrefix, targetPvc.UID)
-			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: podName, Namespace: targetPvc.Namespace}, pod)
-			Expect(err).To(Not(HaveOccurred()))
-			Expect(pod.Name).To(Equal(podName))
-			Expect(pod.Namespace).To(Equal(targetPvc.Namespace))
-			Expect(pod.Spec.Containers).To(HaveLen(1))
-			container := pod.Spec.Containers[0]
-			Expect(container.Name).To(Equal("populate"))
-			Expect(container.Image).To(Equal(reconciler.ovirtPopulatorImage))
-			Expect(container.Command).To(Equal([]string{"ovirt-populator"}))
-			Expect(container.Args).To(ContainElements(
-				fmt.Sprintf("--owner-uid=%s", string(targetPvc.UID)),
-				fmt.Sprintf("--pvc-size=%d", targetPvc.Spec.Resources.Requests.Storage().Value()),
-				"--volume-path=/mnt/disk.img",
-				"--secret-name=ovirt-engine-secret",
-				"--disk-id=12345678-1234-1234-1234-123456789012",
-				"--engine-url=https://ovirt-engine.example.com",
-			))
-		})
+				err := reconciler.createPopulatorPod(pvcPrime, targetPvc)
+				Expect(err).NotTo(HaveOccurred())
+
+				pod := &corev1.Pod{}
+				podName := fmt.Sprintf("%s-%s", populatorPodPrefix, targetPvc.UID)
+
+				Expect(reconciler.client.Get(
+					context.TODO(),
+					types.NamespacedName{
+						Name:      podName,
+						Namespace: targetPvc.Namespace,
+					},
+					pod,
+				)).To(Succeed())
+
+				Expect(pod.Spec.Containers).To(HaveLen(1))
+				container := pod.Spec.Containers[0]
+
+				Expect(container.Name).To(Equal(populatorContainerName))
+				Expect(container.Image).To(Equal(reconciler.ovirtPopulatorImage))
+				Expect(container.Command).To(Equal([]string{"ovirt-populator"}))
+				Expect(container.Args).To(ContainElements(
+					fmt.Sprintf("--owner-uid=%s", targetPvc.UID),
+					fmt.Sprintf(
+						"--pvc-size=%d",
+						targetPvc.Spec.Resources.Requests.Storage().Value(),
+					),
+					expectedVolumePath,
+					"--secret-name=ovirt-engine-secret",
+					"--disk-id=12345678-1234-1234-1234-123456789012",
+					"--engine-url=https://ovirt-engine.example.com",
+				))
+
+				if volumeMode == corev1.PersistentVolumeBlock {
+					Expect(container.VolumeDevices).To(ContainElement(
+						corev1.VolumeDevice{
+							Name:       populatorPodVolumeName,
+							DevicePath: devicePath,
+						},
+					))
+				} else {
+					Expect(container.VolumeMounts).To(ContainElement(
+						And(
+							HaveField("Name", Equal(populatorPodVolumeName)),
+							HaveField("MountPath", Equal(mountPath)),
+						),
+					))
+				}
+
+				Expect(container).To(HaveField(
+					"SecurityContext.ReadOnlyRootFilesystem",
+					HaveValue(BeTrue()),
+				))
+
+				Expect(container.VolumeMounts).To(ContainElement(
+					And(
+						HaveField("Name", Equal(common.TmpVolumeName)),
+						HaveField("MountPath", Equal(common.TmpMountPath)),
+					),
+				))
+
+				Expect(pod.Spec.Volumes).To(ContainElement(
+					And(
+						HaveField("Name", Equal(common.TmpVolumeName)),
+						HaveField("VolumeSource.EmptyDir", Not(BeNil())),
+					),
+				))
+			},
+			Entry(
+				"with filesystem volume mode",
+				corev1.PersistentVolumeFilesystem,
+				"--volume-path="+mountPath+"disk.img",
+			),
+			Entry(
+				"with raw-block volume mode",
+				corev1.PersistentVolumeBlock,
+				"--volume-path="+devicePath,
+			),
+		)
 
 		It("should correctly identify a PVC as Forklift kind", func() {
 			validPVC := &corev1.PersistentVolumeClaim{

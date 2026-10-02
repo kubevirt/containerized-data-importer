@@ -1,44 +1,39 @@
 package main
 
 import (
-	"errors"
-	"io"
 	"os"
-	"time"
+	"path"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"k8s.io/client-go/util/cert"
 
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
 
 var _ = Describe("Prometheus Endpoint", func() {
-	It("Should start prometheus endpoint", func() {
-		By("Creating cert directory, we can store self signed CAs")
+	It("Should start prometheus endpoint with pre-generated certs", func() {
 		certsDirectory, err := os.MkdirTemp("", "certsdir")
 		Expect(err).NotTo(HaveOccurred())
-		empty, err := isDirEmpty(certsDirectory)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(empty).To(BeTrue())
-		prometheusutil.StartPrometheusEndpoint(certsDirectory)
-		time.Sleep(time.Second)
-		empty, err = isDirEmpty(certsDirectory)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(empty).To(BeFalse())
 		defer os.RemoveAll(certsDirectory)
+
+		certBytes, keyBytes, err := cert.GenerateSelfSignedCertKey("test", nil, nil)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(os.WriteFile(path.Join(certsDirectory, "tls.crt"), certBytes, 0600)).To(Succeed())
+		Expect(os.WriteFile(path.Join(certsDirectory, "tls.key"), keyBytes, 0600)).To(Succeed())
+
+		Expect(prometheusutil.StartPrometheusEndpointNoCertGeneration(certsDirectory)).To(Succeed())
+	})
+
+	It("Should fail if certs are missing", func() {
+		certsDirectory, err := os.MkdirTemp("", "certsdir")
+		Expect(err).NotTo(HaveOccurred())
+		defer os.RemoveAll(certsDirectory)
+
+		err = prometheusutil.StartPrometheusEndpointNoCertGeneration(certsDirectory)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("cert file"))
+		Expect(err.Error()).To(ContainSubstring("does not exist"))
 	})
 })
-
-func isDirEmpty(dirName string) (bool, error) {
-	f, err := os.Open(dirName)
-	if err != nil {
-		return false, err
-	}
-	defer f.Close()
-
-	_, err = f.Readdirnames(1)
-	if errors.Is(err, io.EOF) {
-		return true, nil
-	}
-	return false, err
-}

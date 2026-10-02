@@ -297,6 +297,17 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 				return reconcile.Result{}, err
 			}
 		} else {
+			if pod.Status.Phase == corev1.PodPending || pod.Status.Phase == "" {
+				if err := cc.EnsurePrometheusCertSecret(
+					context.TODO(),
+					r.client,
+					pod,
+					r.installerLabels,
+				); err != nil {
+					return reconcile.Result{}, err
+				}
+			}
+
 			// Copy import proxy ConfigMap (if exists) from cdi namespace to the import namespace
 			if err := r.copyImportProxyConfigMap(pvc, pod); err != nil {
 				return reconcile.Result{}, err
@@ -1075,7 +1086,23 @@ func makeImporterPodSpec(args *importerPodArgs) *corev1.Pod {
 	}
 
 	cc.CopyAllowedAnnotations(args.pvc, pod)
+
+	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
+		Name: common.TmpVolumeName,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	})
+	pod.Spec.Containers[0].VolumeMounts = append(
+		pod.Spec.Containers[0].VolumeMounts,
+		corev1.VolumeMount{
+			Name:      common.TmpVolumeName,
+			MountPath: common.TmpMountPath,
+		},
+	)
+
 	cc.SetRestrictedSecurityContext(&pod.Spec)
+	cc.AppendPrometheusCertVolume(&pod.Spec, pod.Name)
 	// We explicitly define a NodeName for dynamically provisioned PVCs
 	// when the PVC is being handled by a populator (PVC')
 	cc.SetNodeNameIfPopulator(args.pvc, &pod.Spec)
