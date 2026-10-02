@@ -52,6 +52,9 @@ const (
 	//nolint:gosec // This is not a real secret
 	SecretVolName = "cdi-secret-vol"
 
+	// NbdCertVolName is the name of the volume containing NBD TLS client certs from the import secret
+	NbdCertVolName = "cdi-nbd-cert-vol"
+
 	// AnnOwnerRef is used when owner is in a different namespace
 	AnnOwnerRef = cc.AnnAPIGroup + "/storage.ownerRef"
 

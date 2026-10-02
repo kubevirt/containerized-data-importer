@@ -1733,6 +1733,10 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 			Name:  common.ImporterChecksum,
 			Value: podEnvVar.checksum,
 		},
+		{
+			Name:  common.ImporterVddkNbdConnection,
+			Value: podEnvVar.vddkNbdConnection,
+		},
 	}
 
 	if podEnvVar.secretName != "" {
@@ -1832,3 +1836,4 @@ func updateCdiWithTestNodePlacement(c client.Client) sdkapi.NodePlacement {
 
 	return workloads
 }
+
