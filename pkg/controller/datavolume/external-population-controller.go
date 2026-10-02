@@ -217,6 +217,14 @@ func (r *PopulatorReconciler) syncExternalPopulation(log logr.Logger, req reconc
 }
 
 func (r *PopulatorReconciler) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+	if IsExpansionInProgress(pvc) {
+		dataVolumeCopy.Status.Phase = cdiv1.ExpansionInProgress
+		event.eventType = corev1.EventTypeNormal
+		event.reason = ExpansionInProgress
+		event.message = fmt.Sprintf(MessageExpansionInProgress, dataVolumeCopy.Namespace, dataVolumeCopy.Name)
+		return nil
+	}
+
 	// * Population by Snapshots doesn't have additional requirements.
 	// * Population by PVC requires CSI drivers.
 	// * Population by external populators requires both CSI drivers and the AnyVolumeDataSource feature gate.
