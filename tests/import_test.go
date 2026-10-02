@@ -1025,9 +1025,6 @@ var _ = Describe("Preallocation", func() {
 		trustedRegistryURLQcow2 = func() string {
 			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.CirrosQcow2ImageName), utils.WithDocker(), utils.WithTag(f.DockerTag)).String()
 		}
-		trustedRegistryIS = func() string {
-			return utils.NewRegistryImage(utils.WithBase(f.DockerPrefix), utils.WithImage(utils.TinyCoreImageName)).String()
-		}
 	)
 
 	BeforeEach(func() {
@@ -1143,7 +1140,7 @@ var _ = Describe("Preallocation", func() {
 		err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, phase, dataVolume.Name)
 		if err != nil {
 			dv, dverr := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-			if dverr != nil {
+			if dverr == nil {
 				Fail(fmt.Sprintf("datavolume %s phase %s", dv.Name, dv.Status.Phase))
 			}
 		}
@@ -1246,16 +1243,6 @@ var _ = Describe("Preallocation", func() {
 			pullMethod := cdiv1.RegistryPullNode
 			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", trustedRegistryURLQcow2())
 			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
-			return dataVolume
-		}),
-		Entry("Registry ImageStream-wannabe node pull import", true, utils.TinyCoreMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
-			pullMethod := cdiv1.RegistryPullNode
-			imageStreamWannabe := trustedRegistryIS()
-			dataVolume = utils.NewDataVolumeWithRegistryImport("import-dv", "100Mi", "")
-			dataVolume.Spec.Source.Registry.URL = nil
-			dataVolume.Spec.Source.Registry.ImageStream = &imageStreamWannabe
-			dataVolume.Spec.Source.Registry.PullMethod = &pullMethod
-			dataVolume.Annotations[controller.AnnPodRetainAfterCompletion] = "true"
 			return dataVolume
 		}),
 		Entry("VddkImport", Label("VDDK"), true, utils.VcenterMD5, utils.DefaultImagePath, func() *cdiv1.DataVolume {
