@@ -510,6 +510,12 @@ var _ = Describe("Importer Test Suite-Block_device", func() {
 		By("verifying pvc was created")
 		pvc, err := utils.WaitForPVC(f.K8sClient, dv.Namespace, dv.Name)
 		Expect(err).ToNot(HaveOccurred())
+
+		By("verifying no PVC prime was created")
+		Expect(pvc.Spec.DataSourceRef).To(BeNil())
+		_, err = f.K8sClient.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), populators.PVCPrimeName(pvc), metav1.GetOptions{})
+		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+
 		if consumer {
 			f.ForceBindIfWaitForFirstConsumer(pvc)
 		}

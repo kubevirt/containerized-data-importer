@@ -1313,6 +1313,7 @@ func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncState *dvSyncSta
 // Currently it will use populators only if:
 // * storageClass used is CSI storageClass
 // * annotation cdi.kubevirt.io/storage.usePopulator is not set by user to "false"
+// * there is something to populate
 func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, error) {
 	dv := syncState.dvMutated
 	if usePopulator, ok := dv.Annotations[cc.AnnUsePopulator]; ok {
@@ -1323,6 +1324,10 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 		return boolUsePopulator, nil
 	}
 	log := r.log.WithValues("DataVolume", dv.Name, "Namespace", dv.Namespace)
+	if r.populationIsNoop(syncState) {
+		log.Info("Not using CDI populators, nothing to populate")
+		return false, nil
+	}
 	usePopulator, err := storageClassCSIDriverExists(r.client, r.log, syncState.pvcSpec.StorageClassName)
 	if err != nil {
 		return false, err
@@ -1334,6 +1339,22 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 	}
 
 	return usePopulator, nil
+}
+
+// populationIsNoop returns true when population would not write to the PVC.
+// A blank block volume without preallocation is already an empty disk.
+func (r *ReconcilerBase) populationIsNoop(syncState *dvSyncState) bool {
+	dv := syncState.dvMutated
+	if dv.Spec.Source == nil || dv.Spec.Source.Blank == nil {
+		return false
+	}
+	if cc.GetContentType(dv.Spec.ContentType) != cdiv1.DataVolumeKubeVirt {
+		return false
+	}
+	if util.ResolveVolumeMode(syncState.pvcSpec.VolumeMode) != corev1.PersistentVolumeBlock {
+		return false
+	}
+	return !cc.GetPreallocation(context.TODO(), r.client, dv.Spec.Preallocation)
 }
 
 func (r *ReconcilerBase) pvcRequiresWork(pvc *corev1.PersistentVolumeClaim, dv *cdiv1.DataVolume) (bool, error) {
