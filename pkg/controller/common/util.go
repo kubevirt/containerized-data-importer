@@ -235,6 +235,10 @@ const (
 
 	// AnnMinimumSupportedPVCSize annotation on a StorageProfile specifies its minimum supported PVC size
 	AnnMinimumSupportedPVCSize = AnnAPIGroup + "/minimumSupportedPvcSize"
+	// LabelOriginalRequestedSizeBytes carries the pre-bump requested size (in bytes)
+	LabelOriginalRequestedSizeBytes = AnnAPIGroup + "/originalRequestedSizeBytes"
+	// LabelMinSupportedSizeSource records what triggered the size bump: "datavolume" (user-requested DataVolume) or "external" (directly-created PVC, e.g. TPM).
+	LabelMinSupportedSizeSource = AnnAPIGroup + "/minSupportedSizeSource"
 	// AnnUseReadWriteOnceForDataImportCron annotation on a StorageProfile signals that DataImportCron should use RWO for DataImportCron PVCs
 	AnnUseReadWriteOnceForDataImportCron = AnnAPIGroup + "/useReadWriteOnceForDataImportCron"
 	// AnnSnapshotClassForDataImportCron annotation on a StorageProfile specifies the VolumeSnapshotClass to use for DataImportCron snapshots

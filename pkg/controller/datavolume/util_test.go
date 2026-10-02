@@ -245,6 +245,70 @@ var _ = Describe("RenderPvc", func() {
 		expectedSize := resource.MustParse("2Gi")
 		Expect(requestedSize.Value()).To(Equal(expectedSize.Value()))
 	})
+
+	It("Should label an external PVC (no DataVolume annotation) with source=external when the size is bumped to the minimum", func() {
+		spWithMin := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, corev1.PersistentVolumeFilesystem)
+		spWithMin.Annotations = map[string]string{AnnMinimumSupportedPVCSize: "4Gi"}
+		cdiConfig := &cdiv1.CDIConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "config"},
+			Status: cdiv1.CDIConfigStatus{
+				FilesystemOverhead: &cdiv1.FilesystemOverhead{Global: "1.0"},
+			},
+		}
+
+		pvc := createTestPvc(nil)
+
+		cl := createClient(sc, spWithMin, cdiConfig)
+		Expect(RenderPvc(context.Background(), cl, pvc)).To(Succeed())
+
+		Expect(pvc.Labels).To(HaveKeyWithValue(LabelOriginalRequestedSizeBytes, strconv.FormatInt(originalSize.Value(), 10)))
+		Expect(pvc.Labels).To(HaveKeyWithValue(LabelMinSupportedSizeSource, "external"))
+	})
+
+	It("Should grow a filesystem PVC for overhead but not add bump labels when no profile minimum is set", func() {
+		cdiConfig := &cdiv1.CDIConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "config"},
+			Status: cdiv1.CDIConfigStatus{
+				FilesystemOverhead: &cdiv1.FilesystemOverhead{Global: "1.0"},
+			},
+		}
+
+		pvc := createTestPvc(nil)
+
+		cl := createClient(sc, sp, cdiConfig)
+		Expect(RenderPvc(context.Background(), cl, pvc)).To(Succeed())
+
+		// Size grows due to filesystem overhead
+		requestedSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		expectedSize := resource.MustParse("2Gi")
+		Expect(requestedSize.Value()).To(Equal(expectedSize.Value()))
+		//no minimum was applied, so no bump labels are stamped.
+		Expect(pvc.Labels).ToNot(HaveKey(LabelOriginalRequestedSizeBytes))
+		Expect(pvc.Labels).ToNot(HaveKey(LabelMinSupportedSizeSource))
+	})
+
+	It("Should not change size or add bump labels when the request is already at or above the minimum", func() {
+		spWithMin := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, corev1.PersistentVolumeFilesystem)
+		spWithMin.Annotations = map[string]string{AnnMinimumSupportedPVCSize: "4Gi"}
+		cdiConfig := &cdiv1.CDIConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "config"},
+			Status: cdiv1.CDIConfigStatus{
+				FilesystemOverhead: &cdiv1.FilesystemOverhead{Global: "0"},
+			},
+		}
+
+		pvc := createTestPvc(nil)
+		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = resource.MustParse("5Gi") // already above the 4Gi minimum
+
+		cl := createClient(sc, spWithMin, cdiConfig)
+		Expect(RenderPvc(context.Background(), cl, pvc)).To(Succeed())
+
+		requestedSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		expectedSize := resource.MustParse("5Gi")
+		Expect(requestedSize.Value()).To(Equal(expectedSize.Value()))
+		Expect(pvc.Labels).ToNot(HaveKey(LabelOriginalRequestedSizeBytes))
+		Expect(pvc.Labels).ToNot(HaveKey(LabelMinSupportedSizeSource))
+	})
 })
 
 var _ = Describe("renderPvcSpec", func() {
@@ -279,7 +343,7 @@ var _ = Describe("renderPvcSpec", func() {
 		}
 		dv := createDataVolumeWithStorageAPI("testDV", metav1.NamespaceDefault, &cdiv1.DataVolumeSource{}, storageSpec)
 
-		pvcSpec, err := renderPvcSpec(client, nil, logr.Logger{}, dv, nil)
+		pvcSpec, _, err := renderPvcSpec(client, nil, logr.Logger{}, dv, nil)
 		if expectedError != nil {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(*expectedError))
