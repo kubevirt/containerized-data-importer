@@ -74,6 +74,8 @@ Deploying the CDI controller is straightforward. In this document the _default_ 
   $ kubectl create -f https://github.com/kubevirt/containerized-data-importer/releases/download/$VERSION/cdi-cr.yaml
   ```
 
+Before upgrading an existing installation, check [Upgrading CDI](doc/upgrading.md).
+
 ## Use it
 
 Create a DataVolume and populate it with data from an http source
