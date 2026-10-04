@@ -1,6 +1,6 @@
 module kubevirt.io/containerized-data-importer
 
-go 1.25.0
+go 1.26.0
 
 require (
 	cloud.google.com/go/storage v1.38.0

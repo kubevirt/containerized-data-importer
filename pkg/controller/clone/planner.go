@@ -467,7 +467,7 @@ func (p *Planner) validateSourcePVC(args *ChooseStrategyArgs, sourceClaim *corev
 	}
 
 	if err := cc.ValidateRequestedCloneSize(sourceClaim.Spec.Resources, targetResources); err != nil {
-		p.Recorder.Eventf(args.TargetClaim, corev1.EventTypeWarning, cc.ErrIncompatiblePVC, err.Error())
+		p.Recorder.Event(args.TargetClaim, corev1.EventTypeWarning, cc.ErrIncompatiblePVC, err.Error())
 		return err
 	}
 

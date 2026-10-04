@@ -218,7 +218,7 @@ func renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client client.Client, 
 		if err != nil {
 			logInfo("Cannot set accessMode and volumeMode for new pvc", "Error", err)
 			recordEventf(v1.EventTypeWarning, cc.ErrClaimNotValid,
-				fmt.Sprintf("Spec is missing accessMode and volumeMode, cannot get access mode from StorageProfile %s", getName(storageClass)))
+				"Spec is missing accessMode and volumeMode, cannot get access mode from StorageProfile %s", getName(storageClass))
 			return err
 		}
 		pvcSpec.AccessModes = append(pvcSpec.AccessModes, accessModes...)
@@ -228,7 +228,7 @@ func renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client client.Client, 
 		if err != nil {
 			logInfo("Cannot set accessMode for new pvc", "Error", err)
 			recordEventf(v1.EventTypeWarning, cc.ErrClaimNotValid,
-				fmt.Sprintf("Spec is missing accessMode and cannot get access mode from StorageProfile %s", getName(storageClass)))
+				"Spec is missing accessMode and cannot get access mode from StorageProfile %s", getName(storageClass))
 			return err
 		}
 		pvcSpec.AccessModes = append(pvcSpec.AccessModes, accessModes...)
