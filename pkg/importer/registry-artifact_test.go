@@ -1,8 +1,11 @@
 package importer
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -120,6 +123,32 @@ var _ = Describe("Registry artifact import", func() {
 			Expect(extractDisk(context.Background(), artifact(), layers, open)).To(Succeed())
 			Expect(os.ReadFile(diskImage())).To(Equal(rawDisk("root")))
 		})
+
+		DescribeTable("should refuse a tar layer rather than import the archive as a raw disk", func(compress func([]byte) []byte) {
+			// random content keeps the compressed layer longer than the header the format is detected by
+			content := make([]byte, 4096)
+			Expect(rand.Read(content)).To(Equal(len(content)))
+			var archive bytes.Buffer
+			tw := tar.NewWriter(&archive)
+			Expect(tw.WriteHeader(&tar.Header{Name: "disk.img", Mode: 0600, Size: int64(len(content))})).To(Succeed())
+			Expect(tw.Write(content)).To(Equal(len(content)))
+			Expect(tw.Close()).To(Succeed())
+			layers, open := openLayers(compress(archive.Bytes()))
+
+			err := extractDisk(context.Background(), artifact(), layers, open)
+			Expect(err).To(MatchError(errLayerTar))
+			Expect(diskImage()).ToNot(BeAnExistingFile())
+		},
+			Entry("an uncompressed tar", func(b []byte) []byte { return b }),
+			Entry("a gzipped tar", func(b []byte) []byte {
+				var gz bytes.Buffer
+				zw := gzip.NewWriter(&gz)
+				_, err := zw.Write(b)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(zw.Close()).To(Succeed())
+				return gz.Bytes()
+			}),
+		)
 
 		It("should fail on the layer being unreadable rather than report it holds no disk", func() {
 			layers, open := openLayers(nil)

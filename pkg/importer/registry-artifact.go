@@ -46,6 +46,7 @@ var (
 	errLayerAmbiguous     = errors.New("The selected annotations have to match a single layer of the manifest")
 	errPlatformUndeclared = errors.New("A plain manifest declares no platform to check the requested architecture against")
 	errArtifactType       = errors.New("Layer selection requires a valid artifact type")
+	errLayerTar           = errors.New("The selected layer is a tar archive rather than a disk image")
 )
 
 // artifactDisk is an OCI artifact, the disk image being the whole blob of the selected layer.
@@ -73,6 +74,10 @@ func (a artifactDisk) read(ctx context.Context, layer types.BlobInfo, open blobO
 		return false, fmt.Errorf("Error reading layer %v: %w", layer.Digest, err)
 	}
 	defer readers.Close()
+	if readers.Tar {
+		// a tar holds no disk format qemu-img recognizes, so it would be imported as a raw disk
+		return false, fmt.Errorf("%w: %v", errLayerTar, layer.Digest)
+	}
 
 	if err := a.disk.write(readers.TopReader(), filepath.Join(a.pathPrefix, artifactDiskImageName)); err != nil {
 		return false, err
