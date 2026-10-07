@@ -840,6 +840,25 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(reconciler.createImporterPod(pvc)).To(Succeed())
 	})
 
+	It("Should reject invalid VDDK NBD connection annotation before creating pod", func() {
+		annotations := map[string]string{
+			cc.AnnEndpoint:          testEndPoint,
+			cc.AnnImportPod:         "importer-testPvc1",
+			cc.AnnSource:            cc.SourceVDDK,
+			cc.AnnVddkNbdConnection: "https://nbd-server.example.com",
+		}
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, annotations, nil, corev1.ClaimBound)
+		reconciler = createImportReconciler(pvc)
+
+		err := reconciler.createImporterPod(pvc)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("nbd:// or nbds://"))
+
+		resPvc := &corev1.PersistentVolumeClaim{}
+		Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)).To(Succeed())
+		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionReason]).To(Equal("InvalidVddkNbdConnection"))
+	})
+
 	It("Should not mark PVC as waiting for VDDK configmap, if already present", func() {
 		configmap := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
