@@ -16670,13 +16670,6 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 							},
 						},
 					},
-					"dataVolumeTTLSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Description: "DataVolumeTTLSeconds is the time in seconds after DataVolume completion it can be garbage collected. Disabled by default. Deprecated: Removed in v1.62.",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
 					"tlsSecurityProfile": {
 						SchemaProps: spec.SchemaProps{
 							Description: "TLSSecurityProfile is used by operators to apply cluster-wide TLS security settings to operands.",
