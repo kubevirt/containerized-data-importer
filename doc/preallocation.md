@@ -10,7 +10,7 @@ underlying file system and device type. It tries to use the OS's `fallocate` cal
 supports it and falls back to "full" preallocation for block devices. Preallocation does not depend
 on the source of the DV, i.e. it can be used for import, upload or blank DVs.
 
-See `qemu-img` [documentation](https://qemu.readthedocs.io/en/latest/system/images.html) to learn
+See `qemu-img` [documentation](https://www.qemu.org/docs/master/system/images.html) to learn
 more about preallocation. See also below for considerations regarding different datavolume types.
 
 ## Preallocation for a DataVolume
