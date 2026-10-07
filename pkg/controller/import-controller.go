@@ -543,6 +543,21 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		scratchPvcName = &name
 	}
 
+	if nbdConnection := pvc.Annotations[cc.AnnVddkNbdConnection]; nbdConnection != "" {
+		u, parseErr := url.Parse(nbdConnection)
+		if parseErr != nil || (u.Scheme != "nbd" && u.Scheme != "nbds") || u.Hostname() == "" {
+			message := fmt.Sprintf("invalid %s %q: must be nbd:// or nbds:// URI with hostname", cc.AnnVddkNbdConnection, nbdConnection)
+			anno := pvc.GetAnnotations()
+			anno[cc.AnnBoundCondition] = "false"
+			anno[cc.AnnBoundConditionMessage] = message
+			anno[cc.AnnBoundConditionReason] = "InvalidVddkNbdConnection"
+			if err := r.updatePVC(pvc, r.log); err != nil {
+				return err
+			}
+			return errors.New(message)
+		}
+	}
+
 	if cc.GetSource(pvc) == cc.SourceVDDK && pvc.Annotations[cc.AnnVddkNbdConnection] == "" {
 		r.log.V(1).Info("Pod requires VDDK sidecar for VMware transfer")
 		anno := pvc.GetAnnotations()

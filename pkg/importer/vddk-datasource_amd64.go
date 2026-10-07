@@ -155,6 +155,10 @@ func createExternalNbdConnection(uri string) (*NbdKitWrapper, error) {
 		handle.Close()
 		return nil, err
 	}
+	if (u.Scheme != "nbd" && u.Scheme != "nbds") || u.Hostname() == "" {
+		handle.Close()
+		return nil, errors.Errorf("invalid NBD connection URI %q: must be nbd:// or nbds:// with hostname", uri)
+	}
 	_ = handle.AddMetaContext(libnbd.CONTEXT_BASE_ALLOCATION)
 	if u.Scheme == "nbds" {
 		_ = handle.SetTlsPriority("NORMAL")
