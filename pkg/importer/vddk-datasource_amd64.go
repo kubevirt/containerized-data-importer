@@ -121,9 +121,9 @@ func createNbdKitWrapper(vmware *VMwareClient, diskFileName, snapshot string) (*
 		return nil, err
 	}
 
-	err = handle.AddMetaContext("base:allocation")
+	err = handle.AddMetaContext(libnbd.CONTEXT_BASE_ALLOCATION)
 	if err != nil {
-		klog.Errorf("Error adding base:allocation context to libnbd handle: %v", err)
+		klog.Errorf("Error adding %s context to libnbd handle: %v", libnbd.CONTEXT_BASE_ALLOCATION, err)
 	}
 
 	socket, _ := url.Parse("nbd://" + nbdUnixSocket)
@@ -155,7 +155,7 @@ func createExternalNbdConnection(uri string) (*NbdKitWrapper, error) {
 		handle.Close()
 		return nil, err
 	}
-	_ = handle.AddMetaContext("base:allocation")
+	_ = handle.AddMetaContext(libnbd.CONTEXT_BASE_ALLOCATION)
 	if u.Scheme == "nbds" {
 		_ = handle.SetTlsPriority("NORMAL")
 		_ = handle.SetTls(libnbd.TLS_REQUIRE)
@@ -772,8 +772,8 @@ func GetBlockStatus(handle NbdOperations, extent types.DiskChangeExtent) []*Bloc
 			klog.Errorf("Block status callback error at offset %d: error code %d", offset, *err)
 			return *err
 		}
-		if metacontext != "base:allocation" {
-			klog.Infof("Offset %d not base:allocation, ignoring", offset)
+		if metacontext != libnbd.CONTEXT_BASE_ALLOCATION {
+			klog.Infof("Offset %d not %s, ignoring", offset, libnbd.CONTEXT_BASE_ALLOCATION)
 			return 0
 		}
 		if (len(extents) % 2) != 0 {
