@@ -99,6 +99,7 @@ type imageReadCloser func(*http.Request) (io.ReadCloser, error)
 // may be overridden in tests
 var uploadProcessorFunc = newUploadStreamProcessor
 var uploadProcessorFuncAsync = newAsyncUploadStreamProcessor
+var cleanDestFunc = importer.CleanAll
 
 func bodyReadCloser(r *http.Request) (io.ReadCloser, error) {
 	return r.Body, nil
@@ -487,6 +488,10 @@ func cloneProcessor(stream io.ReadCloser, contentType, dest string, preallocate 
 	}
 
 	defer stream.Close()
+
+	if err := cleanDestFunc(dest); err != nil {
+		return false, err
+	}
 
 	_, _, err := importer.StreamDataToFile(stream, dest, preallocate)
 	if err != nil {
