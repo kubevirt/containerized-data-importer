@@ -100,6 +100,10 @@ const (
 	ImporterNbdCertDir = "/nbd-certs"
 	// NbdTlsServerName is the logical TLS hostname of forklift toehold NBD exports
 	NbdTlsServerName = "nbd-server"
+	// NBD TLS PEM keys projected into ImporterNbdCertDir for nbds:// imports
+	NbdTlsCACert     = "ca-cert.pem"
+	NbdTlsClientCert = "client-cert.pem"
+	NbdTlsClientKey  = "client-key.pem"
 	// DefaultPullPolicy imports k8s "IfNotPresent" string for the import_controller_gingko_test and the cdi-controller executable
 	DefaultPullPolicy = string(v1.PullIfNotPresent)
 	// ImportProxyConfigMapName provides the key for getting the name of the ConfigMap in the cdi namespace containing a CA certificate bundle
