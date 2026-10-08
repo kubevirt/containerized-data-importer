@@ -856,7 +856,68 @@ var _ = Describe("Update PVC from POD", func() {
 
 		resPvc := &corev1.PersistentVolumeClaim{}
 		Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)).To(Succeed())
-		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionReason]).To(Equal("InvalidVddkNbdConnection"))
+		Expect(resPvc.GetAnnotations()[cc.AnnRunningCondition]).To(Equal("false"))
+		Expect(resPvc.GetAnnotations()[cc.AnnRunningConditionReason]).To(Equal("InvalidVddkNbdConnection"))
+	})
+
+	It("Should reject nbds:// without NBD TLS secret annotation", func() {
+		annotations := map[string]string{
+			cc.AnnEndpoint:          testEndPoint,
+			cc.AnnImportPod:         "importer-testPvc1",
+			cc.AnnSource:            cc.SourceVDDK,
+			cc.AnnVddkNbdConnection: "nbds://192.0.2.10:10809",
+		}
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, annotations, nil, corev1.ClaimBound)
+		reconciler = createImportReconciler(pvc)
+
+		err := reconciler.createImporterPod(pvc)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring(cc.AnnVddkNbdTlsSecret))
+		Expect(err.Error()).To(ContainSubstring("nbds://"))
+	})
+
+	It("Should mount only NBD TLS PEM keys for nbds://", func() {
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "nbd-tls", Namespace: "default"},
+			Data: map[string][]byte{
+				common.NbdTlsCACert:     []byte("ca"),
+				common.NbdTlsClientCert: []byte("cert"),
+				common.NbdTlsClientKey:  []byte("key"),
+				"accessKeyId":           []byte("user"),
+				"secretKey":             []byte("pass"),
+			},
+		}
+		annotations := map[string]string{
+			cc.AnnEndpoint:          testEndPoint,
+			cc.AnnImportPod:         "importer-testPvc1",
+			cc.AnnSource:            cc.SourceVDDK,
+			cc.AnnVddkNbdConnection: "nbds://192.0.2.10:10809",
+			cc.AnnVddkNbdTlsSecret:  secret.Name,
+			cc.AnnSecret:            "vddk-creds",
+		}
+		creds := createSecret("vddk-creds", "default", "accessKeyId", "user", map[string]string{cc.AnnSecret: "vddk-creds"})
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, annotations, nil, corev1.ClaimBound)
+		reconciler = createImportReconciler(pvc, secret, creds)
+
+		Expect(reconciler.createImporterPod(pvc)).To(Succeed())
+		pod := &corev1.Pod{}
+		Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "importer-testPvc1", Namespace: "default"}, pod)).To(Succeed())
+
+		var nbdVol *corev1.Volume
+		for i := range pod.Spec.Volumes {
+			if pod.Spec.Volumes[i].Name == NbdCertVolName {
+				nbdVol = &pod.Spec.Volumes[i]
+				break
+			}
+		}
+		Expect(nbdVol).ToNot(BeNil())
+		Expect(nbdVol.Secret).ToNot(BeNil())
+		Expect(nbdVol.Secret.SecretName).To(Equal(secret.Name))
+		Expect(nbdVol.Secret.Items).To(ConsistOf(
+			corev1.KeyToPath{Key: common.NbdTlsCACert, Path: common.NbdTlsCACert},
+			corev1.KeyToPath{Key: common.NbdTlsClientCert, Path: common.NbdTlsClientCert},
+			corev1.KeyToPath{Key: common.NbdTlsClientKey, Path: common.NbdTlsClientKey},
+		))
 	})
 
 	It("Should not mark PVC as waiting for VDDK configmap, if already present", func() {

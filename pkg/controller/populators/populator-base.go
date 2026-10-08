@@ -209,6 +209,9 @@ func (r *ReconcilerBase) createPVCPrime(pvc *corev1.PersistentVolumeClaim, sourc
 	if vddkNbdConnection, ok := pvc.Annotations[cc.AnnVddkNbdConnection]; ok && vddkNbdConnection != "" {
 		annotations[cc.AnnVddkNbdConnection] = vddkNbdConnection
 	}
+	if vddkNbdTlsSecret, ok := pvc.Annotations[cc.AnnVddkNbdTlsSecret]; ok && vddkNbdTlsSecret != "" {
+		annotations[cc.AnnVddkNbdTlsSecret] = vddkNbdTlsSecret
+	}
 
 	// Assemble PVC' spec
 	pvcPrime := &corev1.PersistentVolumeClaim{

@@ -106,6 +106,7 @@ type importPodEnvVar struct {
 	registryImageArchitecture string
 	checksum                  string
 	vddkNbdConnection         string
+	vddkNbdTlsSecret          string
 }
 
 type importerPodArgs struct {
@@ -543,18 +544,24 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		scratchPvcName = &name
 	}
 
-	if nbdConnection := pvc.Annotations[cc.AnnVddkNbdConnection]; nbdConnection != "" {
+	if nbdConnection := pvc.Annotations[cc.AnnVddkNbdConnection]; nbdConnection != "" && cc.GetSource(pvc) == cc.SourceVDDK {
+		var nbdErr string
 		u, parseErr := url.Parse(nbdConnection)
 		if parseErr != nil || (u.Scheme != "nbd" && u.Scheme != "nbds") || u.Hostname() == "" {
-			message := fmt.Sprintf("invalid %s %q: must be nbd:// or nbds:// URI with hostname", cc.AnnVddkNbdConnection, nbdConnection)
+			nbdErr = fmt.Sprintf("invalid %s %q: must be nbd:// or nbds:// URI with hostname", cc.AnnVddkNbdConnection, nbdConnection)
+		} else if u.Scheme == "nbds" && pvc.Annotations[cc.AnnVddkNbdTlsSecret] == "" {
+			nbdErr = fmt.Sprintf("%s with nbds:// requires %s", cc.AnnVddkNbdConnection, cc.AnnVddkNbdTlsSecret)
+		}
+		if nbdErr != "" {
 			anno := pvc.GetAnnotations()
-			anno[cc.AnnBoundCondition] = "false"
-			anno[cc.AnnBoundConditionMessage] = message
-			anno[cc.AnnBoundConditionReason] = "InvalidVddkNbdConnection"
+			anno[cc.AnnRunningCondition] = "false"
+			anno[cc.AnnRunningConditionMessage] = nbdErr
+			anno[cc.AnnRunningConditionReason] = "InvalidVddkNbdConnection"
+			r.recorder.Event(pvc, corev1.EventTypeWarning, "InvalidVddkNbdConnection", nbdErr)
 			if err := r.updatePVC(pvc, r.log); err != nil {
 				return err
 			}
-			return errors.New(message)
+			return errors.New(nbdErr)
 		}
 	}
 
@@ -677,6 +684,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.registryImageArchitecture = getValueFromAnnotation(pvc, cc.AnnRegistryImageArchitecture)
 		podEnvVar.checksum = getValueFromAnnotation(pvc, cc.AnnChecksum)
 		podEnvVar.vddkNbdConnection = getValueFromAnnotation(pvc, cc.AnnVddkNbdConnection)
+		podEnvVar.vddkNbdTlsSecret = getValueFromAnnotation(pvc, cc.AnnVddkNbdTlsSecret)
 
 		for annotation, value := range pvc.Annotations {
 			if strings.HasPrefix(annotation, cc.AnnExtraHeaders) {
@@ -1166,7 +1174,7 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 			MountPath: common.ImporterCertDir,
 		})
 	}
-	if strings.HasPrefix(args.podEnvVar.vddkNbdConnection, "nbds://") && args.podEnvVar.secretName != "" {
+	if args.podEnvVar.vddkNbdTlsSecret != "" {
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
 			Name:      NbdCertVolName,
 			MountPath: common.ImporterNbdCertDir,
@@ -1252,8 +1260,20 @@ func makeImporterVolumeSpec(args *importerPodArgs) []corev1.Volume {
 	if args.podEnvVar.certConfigMap != "" {
 		volumes = append(volumes, createConfigMapVolume(CertVolName, args.podEnvVar.certConfigMap))
 	}
-	if strings.HasPrefix(args.podEnvVar.vddkNbdConnection, "nbds://") && args.podEnvVar.secretName != "" {
-		volumes = append(volumes, createSecretVolume(NbdCertVolName, args.podEnvVar.secretName))
+	if args.podEnvVar.vddkNbdTlsSecret != "" {
+		volumes = append(volumes, corev1.Volume{
+			Name: NbdCertVolName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: args.podEnvVar.vddkNbdTlsSecret,
+					Items: []corev1.KeyToPath{
+						{Key: common.NbdTlsCACert, Path: common.NbdTlsCACert},
+						{Key: common.NbdTlsClientCert, Path: common.NbdTlsClientCert},
+						{Key: common.NbdTlsClientKey, Path: common.NbdTlsClientKey},
+					},
+				},
+			},
+		})
 	}
 	if args.podEnvVar.certConfigMapProxy != "" {
 		volumes = append(volumes, createConfigMapVolume(ProxyCertVolName, GetImportProxyConfigMapName(args.pvc.Name)))

@@ -156,6 +156,8 @@ const (
 	AnnVddkExtraArgs = AnnAPIGroup + "/storage.pod.vddk.extraargs"
 	// AnnVddkNbdConnection provides an external NBD server address for VDDK imports
 	AnnVddkNbdConnection = AnnAPIGroup + "/storage.import.vddk.nbdConnection"
+	// AnnVddkNbdTlsSecret names a Secret with ca-cert.pem / client-cert.pem / client-key.pem for nbds://
+	AnnVddkNbdTlsSecret = AnnAPIGroup + "/storage.import.vddk.nbdTlsSecret"
 
 	// AnnRequiresScratch provides a const for our PVC requiring scratch annotation
 	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"
