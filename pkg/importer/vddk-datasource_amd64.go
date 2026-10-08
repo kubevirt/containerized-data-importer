@@ -161,12 +161,9 @@ func createExternalNbdConnection(uri string) (*NbdKitWrapper, error) {
 	}
 	_ = handle.AddMetaContext(libnbd.CONTEXT_BASE_ALLOCATION)
 	if u.Scheme == "nbds" {
-		// Importer image has no crypto-policies gnutls.config; @SYSTEM priority fails
-		// with gnutls_priority_set_direct. NORMAL is a valid direct priority string.
-		if err := handle.SetTlsPriority("NORMAL"); err != nil {
-			handle.Close()
-			return nil, err
-		}
+		// Prefer NORMAL when available; el9 libnbd stubs this as "function missing".
+		// crypto_policies_tar in the importer image makes the @SYSTEM default work.
+		_ = handle.SetTlsPriority("NORMAL")
 		if err := handle.SetTls(libnbd.TLS_REQUIRE); err != nil {
 			handle.Close()
 			return nil, err
