@@ -13,6 +13,7 @@ package main
 //    ImporterSecretKey     Optional. Secret key is the password to your account.
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -280,6 +281,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 	insecureTLS, _ := strconv.ParseBool(os.Getenv(common.InsecureTLSVar))
 	thumbprint, _ := util.ParseEnvVar(common.ImporterThumbprint, false)
 	registryImageArchitecture, _ := util.ParseEnvVar(common.ImporterRegistryImageArchitecture, false)
+	layerMatchAnnotationsJSON, _ := util.ParseEnvVar(common.ImporterRegistryImageLayerMatchAnnotations, false)
 
 	currentCheckpoint, _ := util.ParseEnvVar(common.ImporterCurrentCheckpoint, false)
 	previousCheckpoint, _ := util.ParseEnvVar(common.ImporterPreviousCheckpoint, false)
@@ -300,7 +302,11 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 		}
 		return ds
 	case cc.SourceRegistry:
-		ds := importer.NewRegistryDataSource(ep, acc, sec, registryImageArchitecture, certDir, insecureTLS)
+		layer, err := parseRegistryImageLayer(layerMatchAnnotationsJSON)
+		if err != nil {
+			errorCannotConnectDataSource(err, "registry")
+		}
+		ds := importer.NewRegistryDataSource(ep, acc, sec, registryImageArchitecture, layer, certDir, insecureTLS)
 		return ds
 	case cc.SourceS3:
 		ds, err := importer.NewS3DataSource(ep, acc, sec, certDir)
@@ -364,6 +370,20 @@ func createBlankImage(imageSize string, availableDestSpace int64, preallocation 
 		}
 		os.Exit(1)
 	}
+}
+
+func parseRegistryImageLayer(matchAnnotationsJSON string) (*cdiv1.LayerSelector, error) {
+	if matchAnnotationsJSON == "" {
+		return nil, nil
+	}
+	var matchAnnotations map[string]string
+	if err := json.Unmarshal([]byte(matchAnnotationsJSON), &matchAnnotations); err != nil {
+		return nil, fmt.Errorf("invalid layer match annotations %q: %w", matchAnnotationsJSON, err)
+	}
+	if len(matchAnnotations) == 0 {
+		return nil, nil
+	}
+	return &cdiv1.LayerSelector{MatchAnnotations: matchAnnotations}, nil
 }
 
 func errorCannotConnectDataSource(err error, dsName string) {
