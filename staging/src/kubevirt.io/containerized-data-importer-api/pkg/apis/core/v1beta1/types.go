@@ -261,6 +261,9 @@ type DataVolumeSourceHTTP struct {
 	// If specified, the importer will verify the downloaded content matches this checksum
 	// +optional
 	Checksum string `json:"checksum,omitempty"`
+	// InsecureSkipVerify is a flag to skip certificate verification for the HTTP endpoint
+	// +optional
+	InsecureSkipVerify *bool `json:"insecureSkipVerify,omitempty"`
 }
 
 // DataVolumeSourceImageIO provides the parameters to create a Data Volume from an imageio source

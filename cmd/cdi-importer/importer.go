@@ -291,7 +291,7 @@ func newDataSource(source string, contentType string, volumeMode v1.PersistentVo
 
 	switch source {
 	case cc.SourceHTTP:
-		ds, err := importer.NewHTTPDataSource(getHTTPEp(ep), acc, sec, certDir, cdiv1.DataVolumeContentType(contentType), checksum)
+		ds, err := importer.NewHTTPDataSource(getHTTPEp(ep), acc, sec, certDir, cdiv1.DataVolumeContentType(contentType), checksum, insecureTLS)
 		if err != nil {
 			errorCannotConnectDataSource(err, "http")
 		}

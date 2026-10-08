@@ -1229,6 +1229,37 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 					Message: "checksum validation failed",
 					Reason:  "ChecksumError",
 				}}),
+			Entry("succeed creating import dv with insecureSkipVerify defined", dataVolumeTestArguments{
+				// Using the httpsTinyCoreQcow2URL which has a self signed cert.
+				// This will fail without insecureSkipVerify set to true, but should succeed with it.
+				name: "dv-https-insecure-skip-verify-pass",
+				size: "1Gi",
+				url:  httpsTinyCoreQcow2URL,
+				dvFunc: func(name, size, url string) *cdiv1.DataVolume {
+					dv := utils.NewDataVolumeWithHTTPImport(name, size, url)
+					insecureSkipVerify := true
+					dv.Spec.Source.HTTP.InsecureSkipVerify = &insecureSkipVerify
+					return dv
+				},
+				eventReason:      dvc.ImportSucceeded,
+				phase:            cdiv1.Succeeded,
+				checkPermissions: true,
+				readyCondition: &cdiv1.DataVolumeCondition{
+					Type:   cdiv1.DataVolumeReady,
+					Status: v1.ConditionTrue,
+				},
+				boundCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeBound,
+					Status:  v1.ConditionTrue,
+					Message: "PVC dv-https-insecure-skip-verify-pass Bound",
+					Reason:  "Bound",
+				},
+				runningCondition: &cdiv1.DataVolumeCondition{
+					Type:    cdiv1.DataVolumeRunning,
+					Status:  v1.ConditionFalse,
+					Message: "Import Complete",
+					Reason:  "Completed",
+				}}),
 		)
 
 		savedVddkConfigMap := common.VddkConfigMap + "-saved"
