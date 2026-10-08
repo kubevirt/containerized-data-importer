@@ -18,6 +18,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -209,15 +210,12 @@ var _ = Describe("DataSource", func() {
 				}
 			},
 			func() {
-				if !f.IsSnapshotStorageClassAvailable() {
-					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
-				}
 				createSnap(snap1Name, map[string]string{
 					testKubevirtIoKey:             testKubevirtIoValue,
 					testInstancetypeKubevirtIoKey: testInstancetypeKubevirtIoValue,
 					testKubevirtIoKeyExisting:     testKubevirtIoNewValueExisting,
 				})
-			},
+			}, decorators.RequiresSnapshotStorageClass,
 		),
 	)
 
@@ -283,7 +281,7 @@ var _ = Describe("DataSource", func() {
 		}, 60*time.Second, pollingInterval).ShouldNot(Equal(ts))
 	})
 
-	Context("snapshot source", func() {
+	Context("snapshot source", decorators.RequiresSnapshotStorageClass, func() {
 		createSnapDs := func(dsName, snapName string) *cdiv1.DataSource {
 			By(fmt.Sprintf("creating DataSource %s -> %s", dsName, snapName))
 			ds := newDataSource(dsName)
@@ -292,12 +290,6 @@ var _ = Describe("DataSource", func() {
 			Expect(err).ToNot(HaveOccurred())
 			return waitForReadyCondition(ds, corev1.ConditionTrue, "Ready")
 		}
-
-		BeforeEach(func() {
-			if !f.IsSnapshotStorageClassAvailable() {
-				Skip("Clone from volumesnapshot does not work without snapshot capable storage")
-			}
-		})
 
 		It("[test_id:9762] status conditions should be updated on snapshot create/update/delete", func() {
 			By("Create DataSource with no source")

@@ -16,6 +16,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	cdiclientset "kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -276,11 +277,7 @@ var _ = Describe("Clone Auth Webhook tests", func() {
 				Entry("[test_id:3936]when using implicit CDI permissions", implicitRole, serviceAccountName, ""),
 			)
 
-			DescribeTable("should deny/allow user when creating snapshot clone datavolume", func(role *rbacv1.Role, saName, groupName string, fail bool) {
-				if !f.IsSnapshotStorageClassAvailable() {
-					Skip("Clone from volumesnapshot does not work without snapshot capable storage")
-				}
-
+			DescribeTable("should deny/allow user when creating snapshot clone datavolume", decorators.RequiresSnapshotStorageClass, func(role *rbacv1.Role, saName, groupName string, fail bool) {
 				srcPVCDef := utils.NewPVCDefinition("source-pvc", "1Gi", nil, nil)
 				srcPVCDef.Namespace = f.Namespace.Name
 				pvc := f.CreateAndPopulateSourcePVC(srcPVCDef, "fill-source", fmt.Sprintf("echo \"hello world\" > %s/data.txt", utils.DefaultPvcMountPath))
