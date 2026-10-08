@@ -18,6 +18,7 @@ The following statuses are possible.
 * CSICloneInProgress: The CSI Volume Clone operation is in progress
 * CloneFromSnapshotSourceInProgress: Clone from VolumeSnapshot source is in progress
 * Paused: A [multi-stage](#multi-stage-import) import is waiting to transfer a new checkpoint.
+* ExpansionInProgress: The target PVC is being expanded to satisfy an increased [storage size](#resizing-a-datavolume) request.
 * Succeeded: The operation has succeeded.
 * Failed: The operation has failed.
 * Unknown: Unknown status.
@@ -117,6 +118,47 @@ spec:
       requests:
         storage: "64Mi"
 ```
+
+## Resizing a DataVolume
+
+Once a DataVolume has been created, its storage request can be **increased** at any time.
+This provides a single-source-of-truth for the disk size that Kubevirt and other consumers can rely on, without needing to update the underlying PVC directly.
+
+**Requirements**
+
+* The storage class backing the target PVC must set `allowVolumeExpansion: true`. If it doesn't, the Kubernetes API server / CSI driver will reject the resize when the PVC is patched, and the DataVolume will report a `Failed` event carrying the driver's error.
+* Only **increases** are accepted. The admission webhook rejects any update that would shrink `spec.storage.resources.requests.storage` (or `spec.pvc.resources.requests.storage`) with `Cannot update DataVolume Spec`.
+
+**Behaviour**
+
+1. The user patches `spec.storage.resources.requests.storage` (or `spec.pvc.resources.requests.storage`) on the DataVolume with the new larger size.
+2. The DataVolume controller propagates the new size to the underlying PVC's `spec.resources.requests.storage`.
+3. While the CSI provisioner is resizing the volume, the DataVolume phase is set to `ExpansionInProgress` and a `Resizing` event is emitted on the DataVolume.
+4. When the PVC's `status.capacity.storage` reaches the requested size and the resize conditions clear, the DataVolume returns to `Succeeded`.
+
+**Example**
+
+Increase the size of an existing DataVolume from 1Gi to 5Gi:
+
+```bash
+kubectl patch dv example-import-dv --type=merge -p \
+  '{"spec":{"storage":{"resources":{"requests":{"storage":"5Gi"}}}}}'
+```
+
+Watching the DataVolume during expansion:
+
+```bash
+$ kubectl get dv example-import-dv -w
+NAME                PHASE                 PROGRESS   RESTARTS   AGE
+example-import-dv   Succeeded             100.0%                4m
+example-import-dv   ExpansionInProgress   100.0%                4m10s
+example-import-dv   Succeeded             100.0%                4m30s
+```
+
+**Limitations**
+
+* Filesystem-level expansion happens the next time the volume is mounted for the file-system-capable CSI driver's rules.
+* Shrinking is not supported. To decrease disk size, create a new DataVolume of the desired size and re-import.
 
 ## Source 
 

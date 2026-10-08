@@ -1594,7 +1594,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 
 			By("Create PVC")
 			annotations := map[string]string{"cdi.kubevirt.io/storage.populatedFor": dataVolumeName}
-			pvc := utils.NewPVCDefinition(dataVolumeName, "100Mi", annotations, nil)
+			pvc := utils.NewPVCDefinition(dataVolumeName, "1Gi", annotations, nil)
 			pvc = f.CreateBoundPVCFromDefinition(pvc)
 
 			By("Verifying Succeed with PVC Bound")
@@ -1614,7 +1614,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("initializing target PVC %s", dataVolumeName))
 			targetPodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
 			annotations := map[string]string{controller.AnnPopulatedFor: dataVolumeName}
-			targetPvcDef := utils.NewPVCDefinition(dataVolumeName, "1G", annotations, nil)
+			targetPvcDef := utils.NewPVCDefinition(dataVolumeName, "1Gi", annotations, nil)
 			targetPvc = f.CreateAndPopulateSourcePVC(targetPvcDef, targetPodFillerName, fillCommand)
 
 			By(fmt.Sprintf("creating new populated datavolume %s", dataVolumeName))
@@ -1641,7 +1641,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			By(fmt.Sprintf("initializing target PVC %s", dataVolumeName))
 			targetPodFillerName := fmt.Sprintf("%s-filler-pod", dataVolumeName)
 			annotations := map[string]string{controller.AnnPopulatedFor: dataVolumeName}
-			targetPvcDef := utils.NewPVCDefinition(dataVolumeName, "1G", annotations, nil)
+			targetPvcDef := utils.NewPVCDefinition(dataVolumeName, "1Gi", annotations, nil)
 			targetPvc = f.CreateAndPopulateSourcePVC(targetPvcDef, targetPodFillerName, fillCommand)
 
 			By(fmt.Sprintf("creating new populated datavolume %s", dataVolumeName))
@@ -3658,6 +3658,112 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		Entry("DV bound condition should be correctly set without Prime PVC event when DV is bound",
 			tinyCoreIsoURL, false),
 	)
+
+	Describe("Expand DataVolume storage size", func() {
+		var expandableSC *storagev1.StorageClass
+
+		BeforeEach(func() {
+			sc, err := f.K8sClient.StorageV1().StorageClasses().Get(context.TODO(), utils.DefaultStorageClass.GetName(), metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			if sc.AllowVolumeExpansion == nil || !*sc.AllowVolumeExpansion {
+				allow := true
+				expandableSC, err = f.CreateNonDefaultVariationOfStorageClass(sc, func(sc *storagev1.StorageClass) {
+					sc.AllowVolumeExpansion = &allow
+				})
+				Expect(err).ToNot(HaveOccurred())
+			} else {
+				expandableSC = sc
+			}
+		})
+
+		AfterEach(func() {
+			if expandableSC != nil && expandableSC.Labels["cdi.kubevirt.io/testing"] == "" {
+				err := f.K8sClient.StorageV1().StorageClasses().Delete(context.TODO(), expandableSC.Name, metav1.DeleteOptions{})
+				Expect(err).ToNot(HaveOccurred())
+			}
+		})
+
+		DescribeTable("should expand the target PVC when the DataVolume storage size is increased", func(useStorageSpec bool) {
+			initialSize := "1Gi"
+			increasedSize := "2Gi"
+
+			var dv *cdiv1.DataVolume
+			if useStorageSpec {
+				dv = utils.NewDataVolumeWithHTTPImportAndStorageSpec("expand-storage-dv", initialSize, tinyCoreIsoURL())
+				dv.Spec.Storage.StorageClassName = &expandableSC.Name
+			} else {
+				dv = utils.NewDataVolumeWithHTTPImport("expand-pvc-dv", initialSize, tinyCoreIsoURL())
+				dv.Spec.PVC.StorageClassName = &expandableSC.Name
+			}
+
+			By(fmt.Sprintf("Creating DataVolume %s with size %s", dv.Name, initialSize))
+			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
+
+			By("Waiting for DataVolume to Succeed")
+			err = utils.WaitForDataVolumePhaseWithTimeout(f, dv.Namespace, cdiv1.Succeeded, dv.Name, 10*time.Minute)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Increasing DataVolume storage size")
+			Eventually(func() error {
+				current, err := f.CdiClient.CdiV1beta1().DataVolumes(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if useStorageSpec {
+					current.Spec.Storage.Resources.Requests[v1.ResourceStorage] = resource.MustParse(increasedSize)
+				} else {
+					current.Spec.PVC.Resources.Requests[v1.ResourceStorage] = resource.MustParse(increasedSize)
+				}
+				_, err = f.CdiClient.CdiV1beta1().DataVolumes(current.Namespace).Update(context.TODO(), current, metav1.UpdateOptions{})
+				return err
+			}, timeout, pollingInterval).Should(Succeed())
+
+			By("Verifying PVC storage request is increased")
+			Eventually(func() (resource.Quantity, error) {
+				pvc, err := f.K8sClient.CoreV1().PersistentVolumeClaims(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+				if err != nil {
+					return resource.Quantity{}, err
+				}
+				return pvc.Spec.Resources.Requests[v1.ResourceStorage], nil
+			}, timeout, pollingInterval).Should(Satisfy(func(q resource.Quantity) bool {
+				return q.Cmp(resource.MustParse(increasedSize)) >= 0
+			}))
+
+			By("Waiting for DataVolume to return to Succeeded")
+			err = utils.WaitForDataVolumePhaseWithTimeout(f, dv.Namespace, cdiv1.Succeeded, dv.Name, 5*time.Minute)
+			Expect(err).ToNot(HaveOccurred())
+		},
+			Entry("[test_id:XXXX] using Spec.PVC", false),
+			Entry("[test_id:XXXX] using Spec.Storage", true),
+		)
+
+		It("should reject a DataVolume storage size decrease", func() {
+			initialSize := "2Gi"
+			decreasedSize := "1Gi"
+
+			dv := utils.NewDataVolumeWithHTTPImport("shrink-reject-dv", initialSize, tinyCoreIsoURL())
+			dv.Spec.PVC.StorageClassName = &expandableSC.Name
+
+			By(fmt.Sprintf("Creating DataVolume %s with size %s", dv.Name, initialSize))
+			dv, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dv)
+
+			By("Waiting for DataVolume to Succeed")
+			err = utils.WaitForDataVolumePhaseWithTimeout(f, dv.Namespace, cdiv1.Succeeded, dv.Name, 10*time.Minute)
+			Expect(err).ToNot(HaveOccurred())
+
+			By("Attempting to decrease the storage size")
+			current, err := f.CdiClient.CdiV1beta1().DataVolumes(dv.Namespace).Get(context.TODO(), dv.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			current.Spec.PVC.Resources.Requests[v1.ResourceStorage] = resource.MustParse(decreasedSize)
+			_, err = f.CdiClient.CdiV1beta1().DataVolumes(current.Namespace).Update(context.TODO(), current, metav1.UpdateOptions{})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("Cannot update DataVolume Spec"))
+		})
+	})
 })
 
 func SetFilesystemOverhead(f *framework.Framework, globalOverhead, scOverhead string) {
