@@ -436,6 +436,27 @@ var _ = Describe("Upload server tests", func() {
 	})
 })
 
+var _ = Describe("Clone processor tests", func() {
+	It("should clean destination before writing on blockdevice-clone", func() {
+		var cleanedPath string
+		origClean := cleanDestFunc
+		defer func() {
+			cleanDestFunc = origClean
+		}()
+
+		cleanDestFunc = func(paths ...string) error {
+			cleanedPath = paths[0]
+			return nil
+		}
+
+		dest := "/data/disk.img"
+		stream := io.NopCloser(strings.NewReader("data"))
+		// StreamDataToFile may fail — we only care that clean was called
+		_, _ = cloneProcessor(stream, common.BlockdeviceClone, dest, false)
+		Expect(cleanedPath).To(Equal(dest))
+	})
+})
+
 func newFormRequest(path string) *http.Request {
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
