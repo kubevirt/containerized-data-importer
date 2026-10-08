@@ -104,6 +104,14 @@ const (
 	ScratchDataDir = "/scratch"
 	// ImporterCertDir is where the configmap containing certs will be mounted
 	ImporterCertDir = "/certs"
+	// ImporterNbdCertDir is where the VDDK secret's NBD TLS client certs are mounted
+	ImporterNbdCertDir = "/nbd-certs"
+	// NbdTlsServerName is the logical TLS hostname of forklift toehold NBD exports
+	NbdTlsServerName = "nbd-server"
+	// NBD TLS PEM keys projected into ImporterNbdCertDir for nbds:// imports
+	NbdTlsCACert     = "ca-cert.pem"
+	NbdTlsClientCert = "client-cert.pem"
+	NbdTlsClientKey  = "client-key.pem"
 	// DefaultPullPolicy imports k8s "IfNotPresent" string for the import_controller_gingko_test and the cdi-controller executable
 	DefaultPullPolicy = string(v1.PullIfNotPresent)
 	// ImportProxyConfigMapName provides the key for getting the name of the ConfigMap in the cdi namespace containing a CA certificate bundle
@@ -155,6 +163,8 @@ const (
 	ImporterPreviousCheckpoint = "IMPORTER_PREVIOUS_CHECKPOINT"
 	// ImporterFinalCheckpoint provides a constant to capture our env variable "IMPORTER_FINAL_CHECKPOINT"
 	ImporterFinalCheckpoint = "IMPORTER_FINAL_CHECKPOINT"
+	// ImporterVddkNbdConnection provides a constant to capture our env variable "IMPORTER_VDDK_NBD_CONNECTION"
+	ImporterVddkNbdConnection = "IMPORTER_VDDK_NBD_CONNECTION"
 	// ImporterChecksum provides a constant to capture our env variable "IMPORTER_CHECKSUM"
 	ImporterChecksum = "IMPORTER_CHECKSUM"
 	// CacheMode provides a constant to capture our env variable "CACHE_MODE"

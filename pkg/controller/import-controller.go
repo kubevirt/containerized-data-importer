@@ -105,6 +105,8 @@ type importPodEnvVar struct {
 	cacheMode                 string
 	registryImageArchitecture string
 	checksum                  string
+	vddkNbdConnection         string
+	vddkNbdTlsSecret          string
 }
 
 type importerPodArgs struct {
@@ -553,7 +555,28 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		scratchPvcName = &name
 	}
 
-	if cc.GetSource(pvc) == cc.SourceVDDK {
+	if nbdConnection := pvc.Annotations[cc.AnnVddkNbdConnection]; nbdConnection != "" && cc.GetSource(pvc) == cc.SourceVDDK {
+		var nbdErr string
+		u, parseErr := url.Parse(nbdConnection)
+		if parseErr != nil || (u.Scheme != "nbd" && u.Scheme != "nbds") || u.Hostname() == "" {
+			nbdErr = fmt.Sprintf("invalid %s %q: must be nbd:// or nbds:// URI with hostname", cc.AnnVddkNbdConnection, nbdConnection)
+		} else if u.Scheme == "nbds" && pvc.Annotations[cc.AnnVddkNbdTlsSecret] == "" {
+			nbdErr = fmt.Sprintf("%s with nbds:// requires %s", cc.AnnVddkNbdConnection, cc.AnnVddkNbdTlsSecret)
+		}
+		if nbdErr != "" {
+			anno := pvc.GetAnnotations()
+			anno[cc.AnnRunningCondition] = "false"
+			anno[cc.AnnRunningConditionMessage] = nbdErr
+			anno[cc.AnnRunningConditionReason] = "InvalidVddkNbdConnection"
+			r.recorder.Event(pvc, corev1.EventTypeWarning, "InvalidVddkNbdConnection", nbdErr)
+			if err := r.updatePVC(pvc, r.log); err != nil {
+				return err
+			}
+			return errors.New(nbdErr)
+		}
+	}
+
+	if cc.GetSource(pvc) == cc.SourceVDDK && pvc.Annotations[cc.AnnVddkNbdConnection] == "" {
 		r.log.V(1).Info("Pod requires VDDK sidecar for VMware transfer")
 		anno := pvc.GetAnnotations()
 		if imageName, ok := anno[cc.AnnVddkInitImageURL]; ok {
@@ -671,6 +694,8 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, cc.AnnFinalCheckpoint)
 		podEnvVar.registryImageArchitecture = getValueFromAnnotation(pvc, cc.AnnRegistryImageArchitecture)
 		podEnvVar.checksum = getValueFromAnnotation(pvc, cc.AnnChecksum)
+		podEnvVar.vddkNbdConnection = getValueFromAnnotation(pvc, cc.AnnVddkNbdConnection)
+		podEnvVar.vddkNbdTlsSecret = getValueFromAnnotation(pvc, cc.AnnVddkNbdTlsSecret)
 
 		for annotation, value := range pvc.Annotations {
 			if strings.HasPrefix(annotation, cc.AnnExtraHeaders) {
@@ -1176,6 +1201,12 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 			MountPath: common.ImporterCertDir,
 		})
 	}
+	if args.podEnvVar.vddkNbdTlsSecret != "" {
+		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
+			Name:      NbdCertVolName,
+			MountPath: common.ImporterNbdCertDir,
+		})
+	}
 	if args.podEnvVar.certConfigMapProxy != "" {
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
 			Name:      ProxyCertVolName,
@@ -1255,6 +1286,21 @@ func makeImporterVolumeSpec(args *importerPodArgs) []corev1.Volume {
 	}
 	if args.podEnvVar.certConfigMap != "" {
 		volumes = append(volumes, createConfigMapVolume(CertVolName, args.podEnvVar.certConfigMap))
+	}
+	if args.podEnvVar.vddkNbdTlsSecret != "" {
+		volumes = append(volumes, corev1.Volume{
+			Name: NbdCertVolName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: args.podEnvVar.vddkNbdTlsSecret,
+					Items: []corev1.KeyToPath{
+						{Key: common.NbdTlsCACert, Path: common.NbdTlsCACert},
+						{Key: common.NbdTlsClientCert, Path: common.NbdTlsClientCert},
+						{Key: common.NbdTlsClientKey, Path: common.NbdTlsClientKey},
+					},
+				},
+			},
+		})
 	}
 	if args.podEnvVar.certConfigMapProxy != "" {
 		volumes = append(volumes, createConfigMapVolume(ProxyCertVolName, GetImportProxyConfigMapName(args.pvc.Name)))
@@ -1462,6 +1508,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.ImporterChecksum,
 			Value: podEnvVar.checksum,
+		},
+		{
+			Name:  common.ImporterVddkNbdConnection,
+			Value: podEnvVar.vddkNbdConnection,
 		},
 	}
 	if podEnvVar.secretName != "" && podEnvVar.source != cc.SourceGCS {
