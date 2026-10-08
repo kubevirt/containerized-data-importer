@@ -26,6 +26,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	imagev1 "github.com/openshift/api/image/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -1598,6 +1600,56 @@ var _ = Describe("GetEndpoint", func() {
 	)
 })
 
+var _ = Describe("ImageStream tests", func() {
+	It("GetRegistryImportImage should resolves ImageStream import when tagReferencePolicyType=source", func() {
+		imageStream := newImageStream(imageStreamName, imagev1.SourceTagReferencePolicy)
+		r := createImportReconciler(imageStream)
+
+		anno := map[string]string{
+			cc.AnnEndpoint:             imageStreamNameWithTag,
+			cc.AnnSource:               cc.SourceRegistry,
+			cc.AnnRegistryImportMethod: string(cdiv1.RegistryPullNode),
+			cc.AnnRegistryImageStream:  "true",
+		}
+		pvc := cc.CreatePvc("testImageStreamPVC", "default", anno, nil)
+
+		importImage, err := getRegistryImportImage(context.TODO(), r.client, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(importImage).To(BeEquivalentTo(testDockerRef))
+	})
+
+	It("GetRegistryImportImage should resolves ImageStream import when tagReferencePolicyType=local", func() {
+		imageStream := newImageStream(imageStreamName, imagev1.LocalTagReferencePolicy)
+		r := createImportReconciler(imageStream)
+
+		anno := map[string]string{
+			cc.AnnEndpoint:             imageStreamNameWithTag,
+			cc.AnnSource:               cc.SourceRegistry,
+			cc.AnnRegistryImportMethod: string(cdiv1.RegistryPullNode),
+			cc.AnnRegistryImageStream:  "true",
+		}
+		pvc := cc.CreatePvc("testImageStreamPVC", "default", anno, nil)
+
+		importImage, err := getRegistryImportImage(context.TODO(), r.client, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(importImage).To(BeEquivalentTo(testLocalImageStreamDockerRef))
+	})
+
+	It("GetRegistryImportImage should throw an error when the ImageStream does not exist", func() {
+		anno := map[string]string{
+			cc.AnnEndpoint:             imageStreamNameWithTag,
+			cc.AnnSource:               cc.SourceRegistry,
+			cc.AnnRegistryImportMethod: string(cdiv1.RegistryPullNode),
+			cc.AnnRegistryImageStream:  "true",
+		}
+
+		pvc := cc.CreatePvc("testImageStreamPVC", "default", anno, nil)
+		r := createImportReconciler()
+		_, err := getRegistryImportImage(context.TODO(), r.client, pvc)
+		Expect(err).To(HaveOccurred())
+	})
+})
+
 func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
@@ -1605,6 +1657,7 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	// Register cdi types with the runtime scheme.
 	s := scheme.Scheme
 	_ = cdiv1.AddToScheme(s)
+	_ = imagev1.Install(s)
 
 	objs = append(objs, cc.MakeEmptyCDICR())
 
