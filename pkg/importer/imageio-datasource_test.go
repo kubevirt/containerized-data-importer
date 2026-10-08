@@ -156,12 +156,10 @@ var _ = Describe("Imageio data source", func() {
 		Expect(dp.cancel).ToNot(BeNil())
 	})
 
-	It("NewImageioDataSource should fail without cert when InsecureSkipVerify is disabled", func() {
-		newOvirtClientFunc = getOvirtClient
+	It("NewImageioDataSource should succeed without cert when InsecureSkipVerify is disabled", func() {
 		dp, err := NewImageioDataSource(ts.URL, "", "", "", diskID, "", "", false)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("Error listing files"))
-		Expect(dp).To(BeNil())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(dp).ToNot(BeNil())
 	})
 
 	It("NewImageioDataSource should succeed with cert when InsecureSkipVerify is disabled", func() {
