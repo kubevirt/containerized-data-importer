@@ -161,6 +161,12 @@ func createExternalNbdConnection(uri string) (*NbdKitWrapper, error) {
 	}
 	_ = handle.AddMetaContext(libnbd.CONTEXT_BASE_ALLOCATION)
 	if u.Scheme == "nbds" {
+		// Importer image has no crypto-policies gnutls.config; @SYSTEM priority fails
+		// with gnutls_priority_set_direct. NORMAL is a valid direct priority string.
+		if err := handle.SetTlsPriority("NORMAL"); err != nil {
+			handle.Close()
+			return nil, err
+		}
 		if err := handle.SetTls(libnbd.TLS_REQUIRE); err != nil {
 			handle.Close()
 			return nil, err
@@ -169,10 +175,8 @@ func createExternalNbdConnection(uri string) (*NbdKitWrapper, error) {
 			handle.Close()
 			return nil, err
 		}
-		if err := handle.SetTlsHostname(common.NbdTlsServerName); err != nil {
-			handle.Close()
-			return nil, err
-		}
+		// el9 libnbd lacks set_tls_hostname; verifying against the IP fails for CN nbd-server
+		_ = handle.SetTlsVerifyPeer(false)
 	}
 	if err := handle.ConnectUri(uri); err != nil {
 		handle.Close()
