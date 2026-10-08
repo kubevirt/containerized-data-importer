@@ -16607,6 +16607,13 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportProxy"),
 						},
 					},
+					"trustedCA": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TrustedCA is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"scratchSpaceStorageClass": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
@@ -16737,6 +16744,13 @@ func schema_pkg_apis_core_v1beta1_CDIConfigStatus(ref common.ReferenceCallback) 
 						SchemaProps: spec.SchemaProps{
 							Description: "ImportProxy contains importer pod proxy configuration.",
 							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportProxy"),
+						},
+					},
+					"trustedCA": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TrustedCA is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle.",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
 					"scratchSpaceStorageClass": {
