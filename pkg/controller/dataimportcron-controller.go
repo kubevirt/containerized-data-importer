@@ -575,7 +575,8 @@ func (r *DataImportCronReconciler) updateImageStreamDesiredDigest(ctx context.Co
 		return nil
 	}
 
-	digest, dockerRef, err := getImageStreamAndDockerRef(ctx, r.client, *regSource.ImageStream, dataImportCron.Namespace)
+	// we are setting defaultToFirstTag here to preserve the previous behavior in dataImportCron
+	digest, dockerRef, err := getImageStreamAndDockerRef(ctx, r.client, *regSource.ImageStream, dataImportCron.Namespace, defaultToFirstTag)
 	if err != nil {
 		return err
 	}

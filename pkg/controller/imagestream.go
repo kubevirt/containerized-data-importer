@@ -15,6 +15,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type imageStreamDefaultTagPolicy string
+
+const (
+	defaultToLatestTag imageStreamDefaultTagPolicy = "defaultToLatestTag"
+	defaultToFirstTag  imageStreamDefaultTagPolicy = "defaultToFirstTag"
+)
+
 func getImageStream(ctx context.Context, reader client.Reader, imageStreamName, imageStreamNamespace string) (*imagev1.ImageStream, string, error) {
 	if imageStreamName == "" || imageStreamNamespace == "" {
 		return nil, "", fmt.Errorf("Missing ImageStream name or namespace")
@@ -103,11 +110,14 @@ func resolveImageStreamDockerRef(imageStream *imagev1.ImageStream, tagName strin
 	return local.String()
 }
 
-func getImageStreamAndDockerRef(ctx context.Context, reader client.Reader, imageStreamName, namespace string) (string, string, error) {
+func getImageStreamAndDockerRef(ctx context.Context, reader client.Reader, imageStreamName, namespace string, tagPolicy imageStreamDefaultTagPolicy) (string, string, error) {
 	imageStream, imageStreamTag, err := getImageStream(ctx, reader, imageStreamName, namespace)
-
 	if err != nil {
 		return "", "", err
+	}
+
+	if tagPolicy == defaultToLatestTag && imageStreamTag == "" {
+		imageStreamTag = imagev1.DefaultImageTag
 	}
 
 	digest, dockerRef, err := getImageStreamDigest(imageStream, imageStreamTag)
