@@ -103,11 +103,14 @@ func resolveImageStreamDockerRef(imageStream *imagev1.ImageStream, tagName strin
 	return local.String()
 }
 
-func getImageStreamAndDockerRef(ctx context.Context, reader client.Reader, imageStreamName, namespace string) (string, string, error) {
+func getImageStreamAndDockerRef(ctx context.Context, reader client.Reader, imageStreamName, namespace string, defaultToLatestTag bool) (string, string, error) {
 	imageStream, imageStreamTag, err := getImageStream(ctx, reader, imageStreamName, namespace)
-
 	if err != nil {
 		return "", "", err
+	}
+
+	if defaultToLatestTag && imageStreamTag == "" {
+		imageStreamTag = imagev1.DefaultImageTag
 	}
 
 	digest, dockerRef, err := getImageStreamDigest(imageStream, imageStreamTag)

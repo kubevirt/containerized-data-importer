@@ -912,8 +912,9 @@ func getRegistryImportImage(ctx context.Context, client client.Client, pvc *core
 	}
 
 	if cc.IsImageStream(pvc) {
+		// we are setting defaultToLatestTag=true here to preserve the previous behavior in OpenShift
 		// TODO: remove this once OpenShift add ImageStream support for ImageVolumes
-		_, dockerRef, err := getImageStreamAndDockerRef(ctx, client, ep, pvc.Namespace)
+		_, dockerRef, err := getImageStreamAndDockerRef(ctx, client, ep, pvc.Namespace, true)
 		if err != nil {
 			return "", err
 		}
