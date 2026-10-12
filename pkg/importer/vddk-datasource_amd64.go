@@ -61,7 +61,25 @@ var newVddkDataSource = createVddkDataSource
 var newVddkDataSink = createVddkDataSink
 var newVMwareClient = createVMwareClient
 var newNbdKitWrapper = createNbdKitWrapper
+var newExternalNbdConnection = createExternalNbdConnection
+var newLibnbdHandle = createLibnbdHandle
 var newNbdKitLogWatcher = createNbdKitLogWatcher
+
+// nbdTlsCertificatesDir is where nbds:// client material is mounted; overridable in tests.
+var nbdTlsCertificatesDir = common.ImporterNbdCertDir
+
+// externalNbdHandle is the libnbd surface used while establishing an external NBD connection.
+type externalNbdHandle interface {
+	NbdOperations
+	AddMetaContext(string) error
+	SetTls(libnbd.Tls) error
+	SetTlsCertificates(string) error
+	ConnectUri(string) error
+}
+
+func createLibnbdHandle() (externalNbdHandle, error) {
+	return libnbd.Create()
+}
 
 /* Section: nbdkit */
 
@@ -146,7 +164,7 @@ func createNbdKitWrapper(vmware *VMwareClient, diskFileName, snapshot string) (*
 }
 
 func createExternalNbdConnection(uri string) (*NbdKitWrapper, error) {
-	handle, err := libnbd.Create()
+	handle, err := newLibnbdHandle()
 	if err != nil {
 		return nil, err
 	}
@@ -159,21 +177,24 @@ func createExternalNbdConnection(uri string) (*NbdKitWrapper, error) {
 		handle.Close()
 		return nil, errors.Errorf("invalid NBD connection URI %q: must be nbd:// or nbds:// with hostname", uri)
 	}
-	_ = handle.AddMetaContext(libnbd.CONTEXT_BASE_ALLOCATION)
+	if err := handle.AddMetaContext(libnbd.CONTEXT_BASE_ALLOCATION); err != nil {
+		handle.Close()
+		return nil, errors.Wrapf(err, "error adding %s context", libnbd.CONTEXT_BASE_ALLOCATION)
+	}
 	if u.Scheme == "nbds" {
-		// Prefer NORMAL when available; el9 libnbd stubs this as "function missing".
-		// crypto_policies_tar in the importer image makes the @SYSTEM default work.
-		_ = handle.SetTlsPriority("NORMAL")
+		// Leave TLS priority at libnbd's default (@SYSTEM). set_tls_priority needs
+		// libnbd >= 1.24; el9 ships 1.20.3. crypto_policies_tar (amd64) provides
+		// /etc/crypto-policies/back-ends/gnutls.config so @SYSTEM resolves.
+		// Peer verification stays on: the server cert must carry a SAN matching the
+		// URI host (DNS or IP). el9 has no set_tls_hostname for a fixed logical name.
 		if err := handle.SetTls(libnbd.TLS_REQUIRE); err != nil {
 			handle.Close()
 			return nil, err
 		}
-		if err := handle.SetTlsCertificates(common.ImporterNbdCertDir); err != nil {
+		if err := handle.SetTlsCertificates(nbdTlsCertificatesDir); err != nil {
 			handle.Close()
 			return nil, err
 		}
-		// el9 libnbd lacks set_tls_hostname; verifying against the IP fails for CN nbd-server
-		_ = handle.SetTlsVerifyPeer(false)
 	}
 	if err := handle.ConnectUri(uri); err != nil {
 		handle.Close()
@@ -1084,7 +1105,7 @@ func createVddkDataSource(cfg VDDKDataSourceConfig) (*VDDKDataSource, error) {
 
 	var nbdkit *NbdKitWrapper
 	if cfg.NbdConnection != "" {
-		nbdkit, err = createExternalNbdConnection(cfg.NbdConnection)
+		nbdkit, err = newExternalNbdConnection(cfg.NbdConnection)
 	} else {
 		diskFileName := cfg.BackingFile // By default, just set the nbdkit file name to the given backingFile path
 		if currentSnapshot != nil {
@@ -1110,6 +1131,18 @@ func createVddkDataSource(cfg VDDKDataSourceConfig) (*VDDKDataSource, error) {
 	if err != nil {
 		klog.Errorf("Unable to get source disk size: %v", err)
 		return nil, err
+	}
+
+	// External NBD skips snapshot disk-name resolution; catch at least wrong-disk URIs.
+	if cfg.NbdConnection != "" {
+		expected := uint64(backingFileObject.CapacityInBytes)
+		if size != expected {
+			nbdkit.Handle.Close()
+			if nbdkit.n != nil {
+				_ = nbdkit.n.KillNbdkit()
+			}
+			return nil, errors.Errorf("external NBD export size %d does not match VMware disk capacity %d; URI must export the same disk (at CurrentCheckpoint for warm migration)", size, expected)
+		}
 	}
 
 	MaxPreadLength = MaxPreadLengthESX

@@ -98,9 +98,10 @@ const (
 	ImporterCertDir = "/certs"
 	// ImporterNbdCertDir is where the VDDK secret's NBD TLS client certs are mounted
 	ImporterNbdCertDir = "/nbd-certs"
-	// NbdTlsServerName is the logical TLS hostname of forklift toehold NBD exports
-	NbdTlsServerName = "nbd-server"
-	// NBD TLS PEM keys projected into ImporterNbdCertDir for nbds:// imports
+	// NBD TLS PEM keys projected into ImporterNbdCertDir for nbds:// imports.
+	// The mounted ca-cert.pem must sign a server cert whose SAN matches the host in
+	// the nbds:// URI (libnbd verifies against the URI host; set_tls_hostname needs
+	// libnbd >= 1.22 / el10).
 	NbdTlsCACert     = "ca-cert.pem"
 	NbdTlsClientCert = "client-cert.pem"
 	NbdTlsClientKey  = "client-key.pem"
@@ -155,7 +156,8 @@ const (
 	ImporterPreviousCheckpoint = "IMPORTER_PREVIOUS_CHECKPOINT"
 	// ImporterFinalCheckpoint provides a constant to capture our env variable "IMPORTER_FINAL_CHECKPOINT"
 	ImporterFinalCheckpoint = "IMPORTER_FINAL_CHECKPOINT"
-	// ImporterVddkNbdConnection provides a constant to capture our env variable "IMPORTER_VDDK_NBD_CONNECTION"
+	// ImporterVddkNbdConnection provides a constant to capture our env variable "IMPORTER_VDDK_NBD_CONNECTION".
+	// For warm migration the URI must export the disk at IMPORTER_CURRENT_CHECKPOINT each stage.
 	ImporterVddkNbdConnection = "IMPORTER_VDDK_NBD_CONNECTION"
 	// ImporterChecksum provides a constant to capture our env variable "IMPORTER_CHECKSUM"
 	ImporterChecksum = "IMPORTER_CHECKSUM"
