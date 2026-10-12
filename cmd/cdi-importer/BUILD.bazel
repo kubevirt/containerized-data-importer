@@ -67,13 +67,14 @@ oci_image(
         "@io_bazel_rules_go//go/platform:linux_s390x": [
             "//rpm:cdi_importer_base_s390x",
             ":ca_anchors_tar",
-            ":crypto_policies_tar",
         ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
             "//rpm:cdi_importer_base_aarch64",
             ":ca_anchors_tar",
-            ":crypto_policies_tar",
         ],
+        # nbds:// (external NBD) is amd64-only (vddk-datasource_amd64.go). bazeldnf
+        # does not run crypto-policies %post, so add the gnutls.config symlink here.
+        # Downstream RPM installs create it via %post; this layer is upstream-only.
         "//conditions:default": [
             "//rpm:cdi_importer_base_x86_64",
             ":ca_anchors_tar",
@@ -83,14 +84,13 @@ oci_image(
     visibility = ["//visibility:private"],
 )
 
-genrule(
+# Reproducible replacement for the crypto-policies %post symlink that bazeldnf skips.
+pkg_tar(
     name = "crypto_policies_tar",
-    outs = ["crypto-policies-backends.tar"],
-    cmd = """
-        mkdir -p etc/crypto-policies/back-ends
-        ln -s /usr/share/crypto-policies/DEFAULT/gnutls.txt etc/crypto-policies/back-ends/gnutls.config
-        tar -cf $@ etc
-    """,
+    package_dir = "/etc/crypto-policies/back-ends",
+    symlinks = {
+        "gnutls.config": "/usr/share/crypto-policies/DEFAULT/gnutls.txt",
+    },
 )
 
 genrule(
