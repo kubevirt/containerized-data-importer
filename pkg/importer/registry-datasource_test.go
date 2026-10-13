@@ -36,7 +36,7 @@ var _ = Describe("Registry data source", func() {
 	})
 
 	It("should return transfer after info is called", func() {
-		ds = NewRegistryDataSource("", "", "", "", "", true)
+		ds = NewRegistryDataSource("", "", "", "", nil, "", true)
 		result, err := ds.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
@@ -46,7 +46,7 @@ var _ = Describe("Registry data source", func() {
 		if scratchPath == "" {
 			scratchPath = tmpDir
 		}
-		ds = NewRegistryDataSource(ep, accKey, secKey, "", certDir, insecureRegistry)
+		ds = NewRegistryDataSource(ep, accKey, secKey, "", nil, certDir, insecureRegistry)
 
 		// Need to pass in a real path if we don't want scratch space needed error.
 		result, err := ds.Transfer(scratchPath, false)
@@ -66,14 +66,14 @@ var _ = Describe("Registry data source", func() {
 	)
 
 	It("TransferFile should not be called", func() {
-		ds = NewRegistryDataSource("", "", "", "", "", true)
+		ds = NewRegistryDataSource("", "", "", "", nil, "", true)
 		result, err := ds.TransferFile("file", false)
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
 	})
 
 	It("GetTerminationMessage should contain labels collected from the image", func() {
-		ds = NewRegistryDataSource("", "", "", "", "", true)
+		ds = NewRegistryDataSource("", "", "", "", nil, "", true)
 		ds.info = &types.ImageInspectInfo{
 			Env: []string{
 				"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE=u1.small",
@@ -89,7 +89,7 @@ var _ = Describe("Registry data source", func() {
 	})
 
 	It("Transfer should return error for bootc image", func() {
-		ds = NewRegistryDataSource("oci-archive:"+filepath.Join(imageDir, "bootc-registry-image.tar"), "", "", "", "", true)
+		ds = NewRegistryDataSource("oci-archive:"+filepath.Join(imageDir, "bootc-registry-image.tar"), "", "", "", nil, "", true)
 		result, err := ds.Transfer(tmpDir, false)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("bootc image detected"))
@@ -171,7 +171,7 @@ var _ = Describe("Registry Importer", func() {
 	})
 
 	DescribeTable("Should extract a single file", func(source string) {
-		info, err := copyRegistryImage(source, tmpDir, "disk/cirros-0.3.4-x86_64-disk.img", "", "", "", "", false, false)
+		info, err := (&RegistryDataSource{endpoint: source}).copyImage(tmpDir, "disk/cirros-0.3.4-x86_64-disk.img", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(info).ToNot(BeNil())
 
@@ -182,7 +182,7 @@ var _ = Describe("Registry Importer", func() {
 		Entry("when one of the image layers is malformed", malformedSource),
 	)
 	It("Should return an error if a single file is not found", func() {
-		info, err := copyRegistryImage(source, tmpDir, "disk/invalid.img", "", "", "", "", false, false)
+		info, err := (&RegistryDataSource{endpoint: source}).copyImage(tmpDir, "disk/invalid.img", false)
 		Expect(err).To(HaveOccurred())
 		Expect(info).To(BeNil())
 
@@ -191,7 +191,7 @@ var _ = Describe("Registry Importer", func() {
 		Expect(err).To(HaveOccurred())
 	})
 	DescribeTable("Should correctly assert image architecture", func(source string, architecture string, wantErr bool) {
-		info, err := copyRegistryImage(source, tmpDir, "disk/", "", "", architecture, "", false, false)
+		info, err := (&RegistryDataSource{endpoint: source, imageArchitecture: architecture}).copyImage(tmpDir, "disk/", false)
 		if wantErr {
 			Expect(err).To(HaveOccurred())
 			Expect(info).To(BeNil())
@@ -207,14 +207,14 @@ var _ = Describe("Registry Importer", func() {
 	)
 
 	It("Should detect a bootc image and return ErrBootcImageDetected", func() {
-		info, err := copyRegistryImage(bootcSource, tmpDir, "disk/", "", "", "", "", false, false)
+		info, err := (&RegistryDataSource{endpoint: bootcSource}).copyImage(tmpDir, "disk/", false)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(ErrBootcImageDetected))
 		Expect(info).To(BeNil())
 	})
 
 	It("Should not detect a non-bootc image as bootc", func() {
-		info, err := copyRegistryImage(source, tmpDir, "disk/cirros-0.3.4-x86_64-disk.img", "", "", "", "", false, false)
+		info, err := (&RegistryDataSource{endpoint: source}).copyImage(tmpDir, "disk/cirros-0.3.4-x86_64-disk.img", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(info).ToNot(BeNil())
 	})

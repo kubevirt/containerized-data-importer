@@ -195,6 +195,37 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(BeTrue())
 		})
 
+		Context("registry with Layer", func() {
+
+			newLayerDataVolume := func(matchAnnotations map[string]string) *cdiv1.DataVolume {
+				dataVolume := newRegistryDataVolume("testDV", "docker://registry:5000/test")
+				dataVolume.Spec.Source.Registry.Layer = &cdiv1.LayerSelector{MatchAnnotations: matchAnnotations}
+				return dataVolume
+			}
+			diskName := map[string]string{"org.example.disk.name": "rootdisk"}
+
+			DescribeTable("should validate Registry source Layer with PullMethod", func(pullMethod *cdiv1.RegistryPullMethod, expected bool) {
+				dataVolume := newLayerDataVolume(diskName)
+				dataVolume.Spec.Source.Registry.PullMethod = pullMethod
+				resp := validateDataVolumeCreate(dataVolume)
+				Expect(resp.Allowed).To(Equal(expected))
+			},
+				Entry("reject with node PullMethod", ptr.To(cdiv1.RegistryPullNode), false),
+				Entry("accept with pod PullMethod", ptr.To(cdiv1.RegistryPullPod), true),
+				Entry("accept with no PullMethod", nil, true),
+			)
+
+			DescribeTable("should validate Registry source Layer annotations", func(matchAnnotations map[string]string, expected bool) {
+				resp := validateDataVolumeCreate(newLayerDataVolume(matchAnnotations))
+				Expect(resp.Allowed).To(Equal(expected))
+			},
+				Entry("reject for no annotations", map[string]string{}, false),
+				Entry("reject for an empty annotation key", map[string]string{"": "rootdisk"}, false),
+				Entry("accept for one annotation", diskName, true),
+				Entry("accept for several annotations", map[string]string{"org.example.disk.name": "rootdisk", "org.example.disk.size": "10Gi"}, true),
+			)
+		})
+
 		It("should accept DataVolume with PVC source on create", func() {
 			dataVolume := newPVCDataVolume("testDV", "testNamespace", "test")
 			pvc := &corev1.PersistentVolumeClaim{

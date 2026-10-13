@@ -158,6 +158,34 @@ func validateDataVolumeSourceRegistry(sourceRegistry *cdiv1.DataVolumeSourceRegi
 		return causes
 	}
 
+	if sourceRegistry.Layer != nil {
+		if importMethod != nil && *importMethod == cdiv1.RegistryPullNode {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueNotSupported,
+				Message: "Node pull import method is not supported with Layer",
+				Field:   field.Child("source", "registry", "layer").String(),
+			})
+			return causes
+		}
+		matchAnnotations := sourceRegistry.Layer.MatchAnnotations
+		if len(matchAnnotations) == 0 {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueRequired,
+				Message: "Source registry Layer has to select an annotation to match",
+				Field:   field.Child("source", "registry", "layer", "matchAnnotations").String(),
+			})
+			return causes
+		}
+		if _, ok := matchAnnotations[""]; ok {
+			causes = append(causes, metav1.StatusCause{
+				Type:    metav1.CauseTypeFieldValueInvalid,
+				Message: "Source registry Layer annotation key cannot be empty",
+				Field:   field.Child("source", "registry", "layer", "matchAnnotations").String(),
+			})
+			return causes
+		}
+	}
+
 	return causes
 }
 

@@ -36,6 +36,10 @@ const (
 	TinyCoreQcow2URL = "http://cdi-file-host.%s/tinyCore.qcow2"
 	//TinyCoreIsoRegistryURL provides a test url for the tinycore.qcow2 image wrapped in docker container
 	TinyCoreIsoRegistryURL = "docker://cdi-docker-registry-host.%s/tinycoreqcow2"
+	//OCIArtifactRegistryURL provides a test url for an OCI disk artifact, an image index over an
+	//amd64 manifest carrying a rootdisk and a datadisk layer and an arm64 manifest carrying a
+	//rootdisk layer
+	OCIArtifactRegistryURL = "docker://cdi-docker-registry-host.%s/oci-disk-artifact"
 	//TinyCoreIsoRegistryProxyURL provides a test url for the tinycore.qcow2 image wrapped in docker container available through rate-limiting proxy
 	TinyCoreIsoRegistryProxyURL = "docker://cdi-file-host.%s:83/tinycoreqcow2"
 	// TinyCoreIsoAuthURL provides a tinyCore ISO from a URL that requires basic authentication
@@ -86,6 +90,8 @@ const (
 	VcenterURL = "https://vcenter.%s:8989/sdk"
 	// MD5PrefixSize is the number of bytes used by the MD5 constants below
 	MD5PrefixSize = int64(100000)
+	// OCIArtifactDiskSize is the number of bytes every disk layer of the OCI artifact holds
+	OCIArtifactDiskSize = int64(65536)
 	// TinyCoreMD5 is the MD5 hash of first 100k bytes of tinyCore image
 	TinyCoreMD5 = "3710416a680523c7d07538cb1026c60c"
 	// CirrosMD5 is the MD5 hash of first 100k bytes of cirros image
@@ -98,6 +104,8 @@ const (
 	VcenterMD5 = "91150be031835ccfac458744da57d4f6"
 	// BlankMD5 is the MD5 hash of first 100k bytes of blank image
 	BlankMD5 = "0019d23bef56a136a1891211d7007f6f"
+	// OCIArtifactRootDiskMD5 is the MD5 hash of the rootdisk layer of the OCI artifact's amd64 manifest
+	OCIArtifactRootDiskMD5 = "86b8a26839388cfa0aea6cfb662020f9"
 )
 
 // CreateDataVolumeFromDefinition is used by tests to create a testable Data Volume
