@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -2576,6 +2577,48 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 				Expect(pvc.Spec.AccessModes).To(Equal([]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}))
 				return pvc.Spec.Resources.Requests.Storage().Cmp(expectedSize) == 0
 			}, 1*time.Minute, 2*time.Second).Should(BeTrue())
+		})
+
+		It("[test_id:XXXX]Should label a PVC with the original requested size when bumped to the profile minimum", func() {
+			By(fmt.Sprintf("configure storage profile %s", defaultScName))
+			configureStorageProfile(f.CrClient,
+				defaultScName,
+				[]v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+				v1.PersistentVolumeFilesystem)
+
+			By("raising the storage profile minimum above the requested size")
+			originalMinSize, err := utils.GetMinimumSupportedPVCSize(f.CrClient, defaultScName)
+			Expect(err).ToNot(HaveOccurred())
+
+			defer func() {
+				Expect(utils.SetMinimumSupportedPVCSize(f.CrClient, defaultScName, originalMinSize)).To(Succeed())
+			}()
+			Expect(utils.SetMinimumSupportedPVCSize(f.CrClient, defaultScName, "4Gi")).To(Succeed())
+
+			requestedSize := resource.MustParse("1Gi")
+			spec := cdiv1.StorageSpec{
+				StorageClassName: &defaultScName,
+				Resources: v1.VolumeResourceRequirements{
+					Requests: v1.ResourceList{
+						v1.ResourceStorage: requestedSize,
+					},
+				},
+			}
+
+			By(fmt.Sprintf("creating new datavolume %s requesting less than the minimum", dataVolumeName))
+			dataVolume := createDataVolumeForImport(f, spec)
+
+			By("verifying the PVC carries both bump labels")
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+
+			wantBytes := strconv.FormatInt(requestedSize.Value(), 10)
+			Expect(pvc.Labels).To(HaveKeyWithValue(controller.LabelOriginalRequestedSizeBytes, wantBytes))
+			Expect(pvc.Labels).To(HaveKeyWithValue(controller.LabelMinSupportedSizeSource, "datavolume"))
+
+			By("verifying the request was grown to at least the profile minimum")
+			grownSize := pvc.Spec.Resources.Requests[v1.ResourceStorage]
+			Expect(grownSize.Cmp(resource.MustParse("4Gi"))).To(BeNumerically(">=", 0))
 		})
 	})
 
