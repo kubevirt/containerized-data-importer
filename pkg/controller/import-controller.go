@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 
@@ -163,7 +164,8 @@ func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pu
 
 func addImportControllerWatches(mgr manager.Manager, importController controller.Controller) error {
 	// Setup watches
-	if err := importController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}, &handler.TypedEnqueueRequestForObject[*corev1.PersistentVolumeClaim]{})); err != nil {
+	if err := importController.Watch(source.Kind(mgr.GetCache(), &corev1.PersistentVolumeClaim{}, &handler.TypedEnqueueRequestForObject[*corev1.PersistentVolumeClaim]{},
+		predicate.NewTypedPredicateFuncs[*corev1.PersistentVolumeClaim](isImportPVC))); err != nil {
 		return err
 	}
 	if err := importController.Watch(source.Kind(mgr.GetCache(), &corev1.Pod{}, handler.TypedEnqueueRequestForOwner[*corev1.Pod](
@@ -172,6 +174,11 @@ func addImportControllerWatches(mgr manager.Manager, importController controller
 	}
 
 	return nil
+}
+
+// isImportPVC returns true if the PVC has the import annotations; Reconcile ignores all other PVCs
+func isImportPVC(pvc *corev1.PersistentVolumeClaim) bool {
+	return metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnEndpoint) || metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnSource)
 }
 
 func (r *ImportReconciler) shouldReconcilePVC(pvc *corev1.PersistentVolumeClaim,
@@ -217,7 +224,11 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	if !shouldReconcile {
+	// Even if the PVC itself is done importing, keep reconciling a CDI import PVC while it
+	// is being deleted, so a leftover importer pod (e.g. from a delete that previously
+	// failed) still gets cleaned up instead of blocking pvc-protection forever. Restricted
+	// to PVCs this controller actually manages, so unrelated terminating PVCs are unaffected.
+	if !shouldReconcile && !(pvc.DeletionTimestamp != nil && isImportPVC(pvc)) {
 		multiStageImport := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnCurrentCheckpoint)
 		multiStageAlreadyDone := metav1.HasAnnotation(pvc.ObjectMeta, cc.AnnMultiStageImportDone)
 
