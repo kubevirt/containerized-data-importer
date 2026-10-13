@@ -38,6 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -950,6 +951,76 @@ var _ = Describe("GetImportProxyConfig", func() {
 		cdiConfig.Status.ImportProxy = nil
 		_, err := GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP)
 		Expect(err.Error()).To(ContainSubstring("failed to get field, the CDIConfig ImportProxy is nil"))
+	})
+})
+
+var _ = DescribeTable("Config Controller TrustedCA Reconcile Loop", func(
+	trustedCA *string,
+	existingStatus *string,
+	configMapName string,
+	cmData map[string]string,
+	expectedTrustedCA OmegaMatcher,
+) {
+	var objects []runtime.Object
+	if configMapName != "" {
+		cm := createConfigMap(configMapName, testNamespace)
+		cm.Data = cmData
+		objects = append(objects, cm)
+	}
+	reconciler, cdiConfig := createConfigReconciler(objects...)
+	cdiConfig.Spec.TrustedCA = trustedCA
+	cdiConfig.Status.TrustedCA = existingStatus
+
+	err := reconciler.reconcileTrustedCA(cdiConfig)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(cdiConfig.Status.TrustedCA).To(expectedTrustedCA)
+},
+	Entry("should reconcile TrustedCA from Spec to Status",
+		ptr.To("my-ca-bundle"), nil, "my-ca-bundle",
+		map[string]string{"my-custom-ca.crt": "some-cert-data"},
+		HaveValue(Equal("my-ca-bundle"))),
+	Entry("should set Status.TrustedCA when Spec.TrustedCA is changed to a valid value",
+		ptr.To("my-ca-bundle"), ptr.To("does-not-exist-or-invalid"), "my-ca-bundle",
+		map[string]string{"my-custom-ca.crt": "some-cert-data"},
+		HaveValue(Equal("my-ca-bundle"))),
+	Entry("should set Status.TrustedCA to nil when Spec.TrustedCA is nil",
+		nil, nil, "", nil, BeNil()),
+	Entry("should set Status.TrustedCA to nil when ConfigMap in Spec.TrustedCA does not exist",
+		ptr.To("does-not-exist"), nil, "", nil, BeNil()),
+	Entry("should set Status.TrustedCA to nil when ConfigMap has empty certificate data",
+		ptr.To("my-ca-bundle"), nil, "my-ca-bundle",
+		map[string]string{"my-custom-ca.crt": ""}, BeNil()),
+	Entry("should set Status.TrustedCA to nil when ConfigMap has no data keys",
+		ptr.To("my-ca-bundle"), nil, "my-ca-bundle",
+		map[string]string{}, BeNil()),
+	Entry("should clear Status.TrustedCA when Spec.TrustedCA changes to nil",
+		nil, ptr.To("old-ca-bundle"), "", nil, BeNil()),
+	Entry("should clear Status.TrustedCA when Spec.TrustedCA changes to nonexistent ConfigMap",
+		ptr.To("does-not-exist"), ptr.To("old-ca-bundle"), "", nil, BeNil()),
+)
+
+var _ = Describe("GetTrustedCA", func() {
+	It("should return the trustedCA name when configured", func() {
+		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
+		trustedCA := "my-ca-bundle"
+		cdiConfig.Status.TrustedCA = &trustedCA
+		result, err := GetTrustedCA(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).To(Equal("my-ca-bundle"))
+	})
+
+	It("should return empty string when TrustedCA is nil", func() {
+		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
+		cdiConfig.Status.TrustedCA = nil
+		result, err := GetTrustedCA(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).To(BeEmpty())
+	})
+
+	It("should return error when CDIConfig is nil", func() {
+		_, err := GetTrustedCA(nil)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError(ContainSubstring("failed to get field, the CDIConfig is nil")))
 	})
 })
 
