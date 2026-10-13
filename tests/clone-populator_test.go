@@ -23,11 +23,12 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/controller/clone"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
 
-var _ = Describe("Clone Populator tests", func() {
+var _ = Describe("Clone Populator tests", decorators.RequiresCsiDriver, func() {
 	const (
 		sourceName     = "test-source"
 		targetName     = "test-target"
@@ -44,12 +45,6 @@ var _ = Describe("Clone Populator tests", func() {
 	)
 
 	f := framework.NewFramework("clone-populator-test")
-
-	BeforeEach(func() {
-		if utils.DefaultStorageClassCsiDriver == nil {
-			Skip("No CSI driver found")
-		}
-	})
 
 	createSource := func(sz resource.Quantity, vm corev1.PersistentVolumeMode) *corev1.PersistentVolumeClaim {
 		dataVolume := utils.NewDataVolumeWithHTTPImport(sourceName, sz.String(), fmt.Sprintf(utils.TinyCoreIsoURL, f.CdiInstallNs))
@@ -280,10 +275,7 @@ var _ = Describe("Clone Populator tests", func() {
 			Expect(targetHash).To(Equal(sourceHash))
 		})
 
-		DescribeTable("should do block to filesystem clone", func(webhookRendering bool) {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
+		DescribeTable("should do block to filesystem clone", decorators.RequiresBlockStorage, func(webhookRendering bool) {
 			source := createSource(defaultSize, corev1.PersistentVolumeBlock)
 			createDataSource()
 			if webhookRendering {
@@ -301,10 +293,7 @@ var _ = Describe("Clone Populator tests", func() {
 			Entry("[rfe_id:10985][crit:high][test_id:10976]with incomplete target PVC webhook rendering", true),
 		)
 
-		DescribeTable("should do filesystem to block clone", func(webhookRendering bool) {
-			if !f.IsBlockVolumeStorageClassAvailable() {
-				Skip("Storage Class for block volume is not available")
-			}
+		DescribeTable("should do filesystem to block clone", decorators.RequiresBlockStorage, func(webhookRendering bool) {
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
 			if webhookRendering {
@@ -324,10 +313,7 @@ var _ = Describe("Clone Populator tests", func() {
 			Entry("[rfe_id:10985][crit:high][test_id:11013]with incomplete target PVC webhook rendering", true),
 		)
 
-		DescribeTable("should clone explicit types requested by user", func(cloneType string, webhookRendering bool, canDo func() bool) {
-			if canDo != nil && !canDo() {
-				Skip(fmt.Sprintf("Clone type %s does not work without a capable storage class", cloneType))
-			}
+		DescribeTable("should clone explicit types requested by user", func(cloneType string, webhookRendering bool) {
 			source := createSource(defaultSize, corev1.PersistentVolumeFilesystem)
 			createDataSource()
 			if webhookRendering {
@@ -341,23 +327,17 @@ var _ = Describe("Clone Populator tests", func() {
 			targetHash := getHash(target, 0)
 			Expect(targetHash).To(Equal(sourceHash))
 		},
-			Entry("[test_id:10977]should do csi clone if possible", "csi-clone", false, f.IsCSIVolumeCloneStorageClassAvailable),
-			Entry("[rfe_id:10985][crit:high][test_id:10992]should do csi clone if possible, with pvc webhook rendering", "csi-clone", true, f.IsCSIVolumeCloneStorageClassAvailable),
-			Entry("[test_id:10993]should do snapshot clone if possible", "snapshot", false, f.IsSnapshotStorageClassAvailable),
-			Entry("[rfe_id:10985][crit:high][test_id:10994]should do snapshot clone if possible, with pvc webhook rendering", "snapshot", true, f.IsSnapshotStorageClassAvailable),
-			Entry("[test_id:10995]should do host assisted clone", "copy", false, nil),
-			Entry("[rfe_id:10985][crit:high][test_id:10996]should do host assisted clone, with pvc webhook rendering", "copy", true, nil),
+			Entry("[test_id:10977]should do csi clone if possible", "csi-clone", false, decorators.RequiresCSICloneClass),
+			Entry("[rfe_id:10985][crit:high][test_id:10992]should do csi clone if possible, with pvc webhook rendering", "csi-clone", true, decorators.RequiresCSICloneClass),
+			Entry("[test_id:10993]should do snapshot clone if possible", "snapshot", false, decorators.RequiresSnapshotStorageClass),
+			Entry("[rfe_id:10985][crit:high][test_id:10994]should do snapshot clone if possible, with pvc webhook rendering", "snapshot", true, decorators.RequiresSnapshotStorageClass),
+			Entry("[test_id:10995]should do host assisted clone", "copy", false),
+			Entry("[rfe_id:10985][crit:high][test_id:10996]should do host assisted clone, with pvc webhook rendering", "copy", true),
 		)
 	})
 
-	Context("Clone from Snapshot", func() {
+	Context("Clone from Snapshot", decorators.RequiresSnapshotStorageClass, func() {
 		var snapshot *snapshotv1.VolumeSnapshot
-
-		BeforeEach(func() {
-			if !f.IsSnapshotStorageClassAvailable() {
-				Skip("Clone from volumesnapshot does not work without snapshot capable storage")
-			}
-		})
 
 		AfterEach(func() {
 			if snapshot == nil {

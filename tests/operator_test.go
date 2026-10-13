@@ -35,6 +35,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	resourcesutils "kubevirt.io/containerized-data-importer/pkg/operator/resources/utils"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
@@ -185,11 +186,7 @@ var _ = Describe("ALL Operator tests", func() {
 				})
 			})
 
-			It("[test_id:3951]should create a route in OpenShift", func() {
-				if !utils.IsOpenshift(f.K8sClient) {
-					Skip("This test is OpenShift specific")
-				}
-
+			It("[test_id:3951]should create a route in OpenShift", decorators.OpenShift, func() {
 				routeClient, err := routeclient.NewForConfig(f.RestConfig)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -221,11 +218,7 @@ var _ = Describe("ALL Operator tests", func() {
 				Expect(promService.Spec.Selector[common.PrometheusLabelKey]).To(Equal(common.PrometheusLabelValue))
 			})
 
-			It("[test_id:3952]add cdi-sa to containerized-data-importer scc", func() {
-				if !utils.IsOpenshift(f.K8sClient) {
-					Skip("This test is OpenShift specific")
-				}
-
+			It("[test_id:3952]add cdi-sa to containerized-data-importer scc", decorators.OpenShift, func() {
 				secClient, err := secclient.NewForConfig(f.RestConfig)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -721,11 +714,7 @@ var _ = Describe("ALL Operator tests", func() {
 				}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 			})
 
-			It("SCC priority always reset to default", func() {
-				if !utils.IsOpenshift(f.K8sClient) {
-					Skip("This test is OpenShift specific")
-				}
-
+			It("SCC priority always reset to default", decorators.OpenShift, func() {
 				secClient, err := secclient.NewForConfig(f.RestConfig)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1157,10 +1146,7 @@ var _ = Describe("ALL Operator tests", func() {
 				verifyPodPriorityClass(cdiUploadProxyPodPrefix, string(systemClusterCritical), common.CDILabelSelector)
 			})
 
-			It("should use openshift priority class if not set and available", func() {
-				if utils.IsOpenshift(f.K8sClient) {
-					Skip("This test is not needed in OpenShift")
-				}
+			It("should use openshift priority class if not set and available", decorators.OpenShift, func() {
 				getCDI(f)
 				_, err := f.K8sClient.SchedulingV1().PriorityClasses().Create(context.TODO(), osUserCrit, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())

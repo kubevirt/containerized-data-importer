@@ -8,9 +8,9 @@ import (
 	. "github.com/onsi/gomega"
 
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 )
 
@@ -106,12 +106,9 @@ var _ = Describe("[rfe_id:1347][crit:high][vendor:cnv-qe@redhat.com][level:compo
 		})
 	})
 
-	Context("CRDs must be a structural schema", func() {
+	Context("CRDs must be a structural schema", decorators.OpenShift, func() {
 		DescribeTable("crd name", func(crdName string) {
 			crd, err := f.ExtClient.ApiextensionsV1().CustomResourceDefinitions().Get(context.TODO(), crdName, metav1.GetOptions{})
-			if k8serrors.IsNotFound(err) {
-				Skip("Doesn't work on openshift 3.11")
-			}
 			Expect(err).ToNot(HaveOccurred())
 			Expect(crd.ObjectMeta.Name).To(Equal(crdName))
 			for _, cond := range crd.Status.Conditions {

@@ -32,6 +32,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
 	"kubevirt.io/containerized-data-importer/pkg/image"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -391,7 +392,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		)
 	})
 
-	Context("Upload population", func() {
+	Context("Upload population", decorators.RequiresCsiDriver, func() {
 		var (
 			pvc      *v1.PersistentVolumeClaim
 			pvcPrime *v1.PersistentVolumeClaim
@@ -409,9 +410,6 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 		}
 
 		BeforeEach(func() {
-			if utils.DefaultStorageClassCsiDriver == nil {
-				Skip("No CSI driver found")
-			}
 			verifyCleanup(pvc)
 		})
 
@@ -440,9 +438,6 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 			DescribeTable("should", func(uploader uploadFunc, validToken, blockMode bool, expectedStatus int) {
 				pvcDef := utils.UploadPopulationPVCDefinition()
 				if blockMode {
-					if !f.IsBlockVolumeStorageClassAvailable() {
-						Skip("Storage Class for block volume is not available")
-					}
 					pvcDef = utils.UploadPopulationBlockPVCDefinition(f.BlockSCName)
 				}
 				pvc = f.CreateScheduledPVCFromDefinition(pvcDef)
@@ -523,7 +518,7 @@ var _ = Describe("[rfe_id:138][crit:high][vendor:cnv-qe@redhat.com][level:compon
 				Entry("succeed given a valid token (form)", uploadForm, true, false, http.StatusOK),
 				Entry("succeed given a valid token (form async)", uploadFormAsync, true, false, http.StatusOK),
 				Entry("fail given an invalid token", uploadImage, false, false, http.StatusUnauthorized),
-				Entry("succeed given a valid token and block mode", uploadImage, true, true, http.StatusOK),
+				Entry("succeed given a valid token and block mode", decorators.RequiresBlockStorage, uploadImage, true, true, http.StatusOK),
 			)
 
 			It("should upload with ImmediateBinding requested", func() {
@@ -983,7 +978,7 @@ func HasVolumeFromSecret(pod *v1.Pod, name string, secret *v1.Secret) bool {
 	return false
 }
 
-var _ = Describe("Block PV upload Test", Serial, func() {
+var _ = Describe("Block PV upload Test", decorators.RequiresBlockStorage, Serial, func() {
 	var (
 		pvc *v1.PersistentVolumeClaim
 		err error
@@ -995,10 +990,6 @@ var _ = Describe("Block PV upload Test", Serial, func() {
 	f := framework.NewFramework(namespacePrefix)
 
 	BeforeEach(func() {
-		if !f.IsBlockVolumeStorageClassAvailable() {
-			Skip("Storage Class for block volume is not available")
-		}
-
 		if pvc != nil {
 			Eventually(func() bool {
 				// Make sure the pvc doesn't still exist. The after each should have called delete.
@@ -1239,10 +1230,7 @@ var _ = Describe("CDIConfig manipulation upload tests", Serial, func() {
 		Expect(token).ToNot(BeEmpty())
 	})
 
-	It("[test_id:9063]Should fail upload when TLS profile requires minimal TLS version higher than our client's", func() {
-		if utils.IsOpenshift(f.K8sClient) {
-			Skip("OpenShift reencrypt routes are used, client tls config will be dropped")
-		}
+	It("[test_id:9063]Should fail upload when TLS profile requires minimal TLS version higher than our client's", decorators.OpenShift, func() {
 		err := utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
 			config.TLSSecurityProfile = &cdiv1.TLSSecurityProfile{
 				// Modern profile requires TLS 1.3

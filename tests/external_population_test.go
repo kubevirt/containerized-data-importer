@@ -5,7 +5,6 @@ import (
 	"crypto/md5" //nolint:gosec // This is not production code
 	"fmt"
 	"path/filepath"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -21,6 +20,7 @@ import (
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
+	"kubevirt.io/containerized-data-importer/tests/decorators"
 	"kubevirt.io/containerized-data-importer/tests/framework"
 	"kubevirt.io/containerized-data-importer/tests/utils"
 )
@@ -55,22 +55,6 @@ var _ = Describe("Population tests", func() {
 		APIGroup: &dummyAPIGroup,
 		Kind:     "Dummy",
 		Name:     "dummyname",
-	}
-
-	// If the AnyVolumeDataSource feature gate is disabled, Kubernetes drops the contents of the dataSourceRef field.
-	// We can then determine if the feature is enabled or not by checking that field after creating a PVC.
-	isAnyVolumeDataSourceEnabled := func() bool {
-		pvc := utils.NewPVCDefinition("test", "10Mi", nil, nil)
-		pvc.Spec.DataSourceRef = dummySourceRef
-		pvc, err := f.CreatePVCFromDefinition(pvc)
-		Expect(err).ToNot(HaveOccurred())
-		enabled := pvc.Spec.DataSourceRef != nil
-		err = f.DeletePVC(pvc)
-		Expect(err).ToNot(HaveOccurred())
-		deleted, err := utils.WaitPVCDeleted(f.K8sClient, pvc.Name, pvc.Namespace, 10*time.Second)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(deleted).To(BeTrue())
-		return enabled
 	}
 
 	getSnapshotClassName := func() string {
@@ -124,14 +108,7 @@ var _ = Describe("Population tests", func() {
 			}
 		})
 
-		It("Should provision storage with any volume data source", func() {
-			if utils.DefaultStorageClassCsiDriver == nil {
-				Skip("No CSI drivers available in default SC - Population not supported")
-			}
-			if !isAnyVolumeDataSourceEnabled() {
-				Skip("No AnyVolumeDataSource feature gate")
-			}
-
+		It("Should provision storage with any volume data source", decorators.RequiresCsiDriver, func() {
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
 			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeFilesystem, nil, dataSourceRef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -166,41 +143,7 @@ var _ = Describe("Population tests", func() {
 			}, timeout, pollingInterval).Should(BeTrue())
 		})
 
-		It("Should not populate PVC when AnyVolumeDataSource is disabled", func() {
-			if !f.IsCSIVolumeCloneStorageClassAvailable() {
-				Skip("No CSI drivers available - Population not supported")
-			}
-			if isAnyVolumeDataSourceEnabled() {
-				Skip("AnyVolumeDataSource is enabled - Population will succeed")
-			}
-
-			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
-			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", f.CsiCloneSCName, corev1.PersistentVolumeBlock, nil, dataSourceRef)
-			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
-			Expect(err).ToNot(HaveOccurred())
-
-			By("Verifying pvc was created")
-			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-			f.ForceBindIfWaitForFirstConsumer(pvc)
-			// We check the expected event
-			f.ExpectEvent(dataVolume.Namespace).Should(ContainSubstring(dvc.NoAnyVolumeDataSource))
-
-			By("Cleaning up")
-			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
-			Expect(err).ToNot(HaveOccurred())
-			Eventually(func() bool {
-				_, err := f.K8sClient.CoreV1().PersistentVolumeClaims(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
-				return k8serrors.IsNotFound(err)
-			}, timeout, pollingInterval).Should(BeTrue())
-		})
-
-		It("Should not populate PVC when CSI drivers are not available", func() {
-			By("Checking if non-CSI storage class is available")
-			if utils.DefaultStorageClassCsiDriver != nil {
-				Skip("default storage class has CSI Driver, cannot run test")
-			}
-
+		It("Should not populate PVC when CSI drivers are not available", decorators.RequiresNoCsiDriver, func() {
 			By(fmt.Sprintf("Creating new datavolume %s", dataVolumeName))
 			dataVolume := utils.NewDataVolumeWithExternalPopulationAndStorageSpec(dataVolumeName, "100Mi", utils.DefaultStorageClass.Name, corev1.PersistentVolumeFilesystem, nil, dummySourceRef)
 			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
@@ -227,11 +170,7 @@ var _ = Describe("Population tests", func() {
 	})
 
 	Context("Legacy population", func() {
-		It("Should perform a CSI PVC clone by manually populating the DataSource field", func() {
-			if !f.IsCSIVolumeCloneStorageClassAvailable() {
-				Skip("No CSI drivers available - Population not supported")
-			}
-
+		It("Should perform a CSI PVC clone by manually populating the DataSource field", decorators.RequiresCSICloneClass, func() {
 			By("Creating source PVC")
 			pvcDef := utils.NewPVCDefinition(sourcePVCName, "80Mi", nil, nil)
 			pvcDef.Namespace = f.Namespace.Name
@@ -277,10 +216,7 @@ var _ = Describe("Population tests", func() {
 			}, timeout, pollingInterval).Should(BeTrue())
 		})
 
-		It("Should perform a Volume Snapshot clone through the DataSource field", func() {
-			if !f.IsSnapshotStorageClassAvailable() {
-				Skip("Snapshot not possible")
-			}
+		It("Should perform a Volume Snapshot clone through the DataSource field", decorators.RequiresSnapshotStorageClass, func() {
 
 			By("Creating source PVC")
 			pvcDef := utils.NewPVCDefinition(sourcePVCName, "80Mi", nil, nil)
