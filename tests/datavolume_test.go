@@ -27,6 +27,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	cdicontroller "kubevirt.io/containerized-data-importer/pkg/controller"
 	controller "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 	"kubevirt.io/containerized-data-importer/pkg/controller/populators"
@@ -3578,6 +3579,194 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			dataVolume.Spec.Source.VDDK.ExtraArgs = "vddk-extras"
 		}),
 	)
+
+	Context("VDDK external NBD import", Serial, Label("VDDK"), func() {
+		const externalNBDTestNet = "nbd://192.0.2.10:10809"
+		const nbdsExternalNBDTestNet = "nbds://192.0.2.10:10809"
+		savedVddkConfigMap := common.VddkConfigMap + "-ext-nbd-saved"
+
+		withVddkConfigMapRemoved := func() {
+			_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, common.VddkConfigMap, f.CdiInstallNs, savedVddkConfigMap, "")
+			Expect(err).ToNot(HaveOccurred())
+			err = utils.DeleteConfigMap(f.K8sClient, f.CdiInstallNs, common.VddkConfigMap)
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		restoreVddkConfigMap := func() {
+			_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, savedVddkConfigMap, f.CdiInstallNs, common.VddkConfigMap, "")
+			Expect(err).ToNot(HaveOccurred())
+			err = utils.DeleteConfigMap(f.K8sClient, f.CdiInstallNs, savedVddkConfigMap)
+			Expect(err).ToNot(HaveOccurred())
+		}
+
+		waitForImporterPod := func(namespace string) *v1.Pod {
+			var importer *v1.Pod
+			Eventually(func() error {
+				pod, err := utils.FindPodByPrefix(f.K8sClient, namespace, common.ImporterPodName, common.CDILabelSelector)
+				if err != nil {
+					return err
+				}
+				importer = pod
+				return nil
+			}, timeout, pollingInterval).Should(Succeed())
+			return importer
+		}
+
+		importerMainContainer := func(pod *v1.Pod) *v1.Container {
+			for i := range pod.Spec.Containers {
+				if pod.Spec.Containers[i].Name == common.ImporterPodName {
+					return &pod.Spec.Containers[i]
+				}
+			}
+			Expect(pod.Spec.Containers).ToNot(BeEmpty())
+			return &pod.Spec.Containers[0]
+		}
+
+		It("should reject an invalid external NBD connection URI without waiting for VDDK image", func() {
+			withVddkConfigMapRemoved()
+			defer restoreVddkConfigMap()
+
+			dataVolume := createVddkDataVolume("dv-vddk-ext-nbd-invalid-uri", "100Mi", vcenterURL())
+			controller.AddAnnotation(dataVolume, controller.AnnVddkNbdConnection, "https://nbd-server.example.com")
+
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			runningCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeRunning,
+				Status:  v1.ConditionFalse,
+				Message: "must be nbd:// or nbds:// URI with hostname",
+				Reason:  "InvalidVddkNbdConnection",
+			}
+			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, runningCondition)
+
+			dv, err := f.CdiClient.CdiV1beta1().DataVolumes(f.Namespace.Name).Get(context.TODO(), dataVolume.Name, metav1.GetOptions{})
+			Expect(err).ToNot(HaveOccurred())
+			for _, cond := range dv.Status.Conditions {
+				if cond.Type == cdiv1.DataVolumeBound {
+					Expect(cond.Reason).ToNot(Equal(common.AwaitingVDDK))
+				}
+			}
+
+			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should reject nbds:// without an NBD TLS secret annotation", func() {
+			withVddkConfigMapRemoved()
+			defer restoreVddkConfigMap()
+
+			dataVolume := createVddkDataVolume("dv-vddk-ext-nbd-nbds-no-tls", "100Mi", vcenterURL())
+			controller.AddAnnotation(dataVolume, controller.AnnVddkNbdConnection, nbdsExternalNBDTestNet)
+
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			runningCondition := &cdiv1.DataVolumeCondition{
+				Type:    cdiv1.DataVolumeRunning,
+				Status:  v1.ConditionFalse,
+				Message: controller.AnnVddkNbdTlsSecret,
+				Reason:  "InvalidVddkNbdConnection",
+			}
+			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, runningCondition)
+
+			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should start importer without VDDK sidecar when external NBD is configured", func() {
+			withVddkConfigMapRemoved()
+			defer restoreVddkConfigMap()
+
+			dataVolume := createVddkDataVolume("dv-vddk-ext-nbd-sidecar", "100Mi", vcenterURL())
+			controller.AddAnnotation(dataVolume, controller.AnnVddkNbdConnection, externalNBDTestNet)
+
+			dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Annotations[controller.AnnVddkNbdConnection]).To(Equal(externalNBDTestNet))
+
+			importer := waitForImporterPod(dataVolume.Namespace)
+			for _, init := range importer.Spec.InitContainers {
+				Expect(init.Name).ToNot(Equal("vddk-side-car"))
+			}
+			for _, vol := range importer.Spec.Volumes {
+				Expect(vol.Name).ToNot(Equal("vddk-vol-mount"))
+			}
+
+			main := importerMainContainer(importer)
+			var nbdEnv string
+			for _, env := range main.Env {
+				if env.Name == common.ImporterVddkNbdConnection {
+					nbdEnv = env.Value
+					break
+				}
+			}
+			Expect(nbdEnv).To(Equal(externalNBDTestNet))
+
+			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should mount NBD TLS credentials for nbds:// imports", func() {
+			withVddkConfigMapRemoved()
+			defer restoreVddkConfigMap()
+
+			nbdTLSSecretName := "vddk-ext-nbd-tls"
+			_, err := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, map[string]string{
+				common.NbdTlsCACert:     "ca",
+				common.NbdTlsClientCert: "cert",
+				common.NbdTlsClientKey:  "key",
+				common.KeyAccess:        "user",
+				common.KeySecret:        "pass",
+			}, nil, f.Namespace.Name, nbdTLSSecretName))
+			Expect(err).ToNot(HaveOccurred())
+
+			dataVolume := createVddkDataVolume("dv-vddk-ext-nbd-tls", "100Mi", vcenterURL())
+			controller.AddAnnotation(dataVolume, controller.AnnVddkNbdConnection, nbdsExternalNBDTestNet)
+			controller.AddAnnotation(dataVolume, controller.AnnVddkNbdTlsSecret, nbdTLSSecretName)
+
+			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
+			Expect(err).ToNot(HaveOccurred())
+			f.ForceBindPvcIfDvIsWaitForFirstConsumer(dataVolume)
+
+			importer := waitForImporterPod(dataVolume.Namespace)
+			var nbdVol *v1.Volume
+			for i := range importer.Spec.Volumes {
+				if importer.Spec.Volumes[i].Name == cdicontroller.NbdCertVolName {
+					nbdVol = &importer.Spec.Volumes[i]
+					break
+				}
+			}
+			Expect(nbdVol).ToNot(BeNil())
+			Expect(nbdVol.Secret).ToNot(BeNil())
+			Expect(nbdVol.Secret.SecretName).To(Equal(nbdTLSSecretName))
+			Expect(nbdVol.Secret.Items).To(ConsistOf(
+				v1.KeyToPath{Key: common.NbdTlsCACert, Path: common.NbdTlsCACert},
+				v1.KeyToPath{Key: common.NbdTlsClientCert, Path: common.NbdTlsClientCert},
+				v1.KeyToPath{Key: common.NbdTlsClientKey, Path: common.NbdTlsClientKey},
+			))
+
+			main := importerMainContainer(importer)
+			var nbdCertMount *v1.VolumeMount
+			for i := range main.VolumeMounts {
+				if main.VolumeMounts[i].Name == cdicontroller.NbdCertVolName {
+					nbdCertMount = &main.VolumeMounts[i]
+					break
+				}
+			}
+			Expect(nbdCertMount).ToNot(BeNil())
+			Expect(nbdCertMount.MountPath).To(Equal(common.ImporterNbdCertDir))
+
+			err = utils.DeleteDataVolume(f.CdiClient, f.Namespace.Name, dataVolume.Name)
+			Expect(err).ToNot(HaveOccurred())
+		})
+	})
 
 	DescribeTable("Events and Conditions from Prime PVC", func(url func() string, containsPrimeEvent bool) {
 		// create a DV that will never be able to be imported
