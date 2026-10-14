@@ -39,11 +39,14 @@ func getImageStream(ctx context.Context, client client.Client, imageStreamName, 
 }
 
 func splitImageStreamName(imageStreamName string) (string, string, error) {
-	if subs := strings.Split(imageStreamName, ":"); len(subs) == 1 {
-		return imageStreamName, "", nil
-	} else if len(subs) == 2 && len(subs[0]) > 0 && len(subs[1]) > 0 {
-		return subs[0], subs[1], nil
+	name, tag, found := strings.Cut(imageStreamName, ":")
+	if !found {
+		return name, "", nil
 	}
+	if name != "" && tag != "" && !strings.Contains(tag, ":") {
+		return name, tag, nil
+	}
+
 	return "", "", fmt.Errorf("Illegal ImageStream name %s", imageStreamName)
 }
 
