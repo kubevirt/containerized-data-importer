@@ -8,6 +8,7 @@ go_library(
         "dataimportcron-conditions.go",
         "dataimportcron-controller.go",
         "datasource-controller.go",
+        "imagestream.go",
         "import-controller.go",
         "storageprofile-controller.go",
         "upload-controller.go",
