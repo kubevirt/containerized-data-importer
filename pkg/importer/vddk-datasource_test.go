@@ -565,6 +565,47 @@ var _ = Describe("VDDK data source", func() {
 		Expect(MaxPreadLength).To(Equal(MaxPreadLengthVC))
 	})
 
+	DescribeTable("external NBD export size vs VMware disk capacity",
+		func(exportSize, diskCapacity uint64, expectErr bool) {
+			newVddkDataSource = createVddkDataSource
+			diskName := "testdisk.vmdk"
+
+			currentExport.Size = func() (uint64, error) {
+				return exportSize, nil
+			}
+			newExternalNbdConnection = func(uri string) (*NbdKitWrapper, error) {
+				return createMockNbdKitWrapper(nil, uri, "")
+			}
+			DeferCleanup(func() {
+				newExternalNbdConnection = createExternalNbdConnection
+			})
+
+			currentVMwareFunctions.Properties = func(ctx context.Context, ref types.ManagedObjectReference, property []string, result interface{}) error {
+				switch out := result.(type) {
+				case *mo.VirtualMachine:
+					if property[0] == "config.hardware.device" {
+						out.Config = createVirtualDiskConfigWithSize(diskName, 12345, int64(diskCapacity))
+					}
+				}
+				return nil
+			}
+
+			cfg := vddkCfg("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem, "", false)
+			cfg.NbdConnection = "nbd://192.0.2.10:10809"
+			ds, err := NewVDDKDataSource(cfg)
+			if expectErr {
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("external NBD export size"))
+				Expect(err.Error()).To(ContainSubstring("does not match VMware disk capacity"))
+				return
+			}
+			Expect(err).ToNot(HaveOccurred())
+			Expect(ds.Size).To(Equal(exportSize))
+		},
+		Entry("accepts matching size", uint64(9563078656), uint64(9563078656), false),
+		Entry("rejects mismatched size", uint64(12345), uint64(9563078656), true),
+	)
+
 	It("GetTerminationMessage should contain VDDK connection information", func() {
 		const testVersion = "testVersion"
 		const testHost = "testHost"

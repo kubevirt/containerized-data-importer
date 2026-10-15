@@ -158,6 +158,15 @@ const (
 	AnnVddkInitImageURL = AnnAPIGroup + "/storage.pod.vddk.initimageurl"
 	// AnnVddkExtraArgs references a ConfigMap that holds arguments to pass directly to the VDDK library
 	AnnVddkExtraArgs = AnnAPIGroup + "/storage.pod.vddk.extraargs"
+	// AnnVddkNbdConnection is an nbd:// or nbds:// URI for an external NBD export used
+	// instead of the importer-local nbdkit+VDDK path. For multi-stage (warm) imports the
+	// caller must update this annotation each stage so it points at an export of the same
+	// disk at AnnCurrentCheckpoint; CDI still computes changed areas from VMware snapshots
+	// and will read those ranges from whatever this URI serves. CDI does not verify the
+	// export is the correct snapshot—only that its size matches the VMware disk capacity.
+	AnnVddkNbdConnection = AnnAPIGroup + "/storage.import.vddk.nbdConnection"
+	// AnnVddkNbdTLSSecret names a Secret with ca-cert.pem / client-cert.pem / client-key.pem for nbds://
+	AnnVddkNbdTLSSecret = AnnAPIGroup + "/storage.import.vddk.nbdTlsSecret"
 
 	// AnnRequiresScratch provides a const for our PVC requiring scratch annotation
 	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"
