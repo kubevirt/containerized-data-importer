@@ -65,8 +65,8 @@ var newExternalNbdConnection = createExternalNbdConnection
 var newLibnbdHandle = createLibnbdHandle
 var newNbdKitLogWatcher = createNbdKitLogWatcher
 
-// nbdTlsCertificatesDir is where nbds:// client material is mounted; overridable in tests.
-var nbdTlsCertificatesDir = common.ImporterNbdCertDir
+// nbdTLSCertificatesDir is where nbds:// client material is mounted; overridable in tests.
+var nbdTLSCertificatesDir = common.ImporterNbdCertDir
 
 // externalNbdHandle is the libnbd surface used while establishing an external NBD connection.
 type externalNbdHandle interface {
@@ -191,7 +191,7 @@ func createExternalNbdConnection(uri string) (*NbdKitWrapper, error) {
 			handle.Close()
 			return nil, err
 		}
-		if err := handle.SetTlsCertificates(nbdTlsCertificatesDir); err != nil {
+		if err := handle.SetTlsCertificates(nbdTLSCertificatesDir); err != nil {
 			handle.Close()
 			return nil, err
 		}

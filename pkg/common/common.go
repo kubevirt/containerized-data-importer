@@ -102,9 +102,9 @@ const (
 	// The mounted ca-cert.pem must sign a server cert whose SAN matches the host in
 	// the nbds:// URI (libnbd verifies against the URI host; set_tls_hostname needs
 	// libnbd >= 1.22 / el10).
-	NbdTlsCACert     = "ca-cert.pem"
-	NbdTlsClientCert = "client-cert.pem"
-	NbdTlsClientKey  = "client-key.pem"
+	NbdTLSCACert     = "ca-cert.pem"
+	NbdTLSClientCert = "client-cert.pem"
+	NbdTLSClientKey  = "client-key.pem"
 	// DefaultPullPolicy imports k8s "IfNotPresent" string for the import_controller_gingko_test and the cdi-controller executable
 	DefaultPullPolicy = string(v1.PullIfNotPresent)
 	// ImportProxyConfigMapName provides the key for getting the name of the ConfigMap in the cdi namespace containing a CA certificate bundle

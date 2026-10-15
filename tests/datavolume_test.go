@@ -3667,7 +3667,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			runningCondition := &cdiv1.DataVolumeCondition{
 				Type:    cdiv1.DataVolumeRunning,
 				Status:  v1.ConditionFalse,
-				Message: controller.AnnVddkNbdTlsSecret,
+				Message: controller.AnnVddkNbdTLSSecret,
 				Reason:  "InvalidVddkNbdConnection",
 			}
 			utils.WaitForConditions(f, dataVolume.Name, f.Namespace.Name, timeout, pollingInterval, runningCondition)
@@ -3717,19 +3717,19 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			withVddkConfigMapRemoved()
 			defer restoreVddkConfigMap()
 
-			nbdTLSSecretName := "vddk-ext-nbd-tls"
+			nbdTLSName := "vddk-ext-nbd-tls"
 			_, err := utils.CreateSecretFromDefinition(f.K8sClient, utils.NewSecretDefinition(nil, map[string]string{
-				common.NbdTlsCACert:     "ca",
-				common.NbdTlsClientCert: "cert",
-				common.NbdTlsClientKey:  "key",
+				common.NbdTLSCACert:     "ca",
+				common.NbdTLSClientCert: "cert",
+				common.NbdTLSClientKey:  "key",
 				common.KeyAccess:        "user",
 				common.KeySecret:        "pass",
-			}, nil, f.Namespace.Name, nbdTLSSecretName))
+			}, nil, f.Namespace.Name, nbdTLSName))
 			Expect(err).ToNot(HaveOccurred())
 
 			dataVolume := createVddkDataVolume("dv-vddk-ext-nbd-tls", "100Mi", vcenterURL())
 			controller.AddAnnotation(dataVolume, controller.AnnVddkNbdConnection, nbdsExternalNBDTestNet)
-			controller.AddAnnotation(dataVolume, controller.AnnVddkNbdTlsSecret, nbdTLSSecretName)
+			controller.AddAnnotation(dataVolume, controller.AnnVddkNbdTLSSecret, nbdTLSName)
 
 			dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dataVolume)
 			Expect(err).ToNot(HaveOccurred())
@@ -3745,11 +3745,11 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 			}
 			Expect(nbdVol).ToNot(BeNil())
 			Expect(nbdVol.Secret).ToNot(BeNil())
-			Expect(nbdVol.Secret.SecretName).To(Equal(nbdTLSSecretName))
+			Expect(nbdVol.Secret.SecretName).To(Equal(nbdTLSName))
 			Expect(nbdVol.Secret.Items).To(ConsistOf(
-				v1.KeyToPath{Key: common.NbdTlsCACert, Path: common.NbdTlsCACert},
-				v1.KeyToPath{Key: common.NbdTlsClientCert, Path: common.NbdTlsClientCert},
-				v1.KeyToPath{Key: common.NbdTlsClientKey, Path: common.NbdTlsClientKey},
+				v1.KeyToPath{Key: common.NbdTLSCACert, Path: common.NbdTLSCACert},
+				v1.KeyToPath{Key: common.NbdTLSClientCert, Path: common.NbdTLSClientCert},
+				v1.KeyToPath{Key: common.NbdTLSClientKey, Path: common.NbdTLSClientKey},
 			))
 
 			main := importerMainContainer(importer)

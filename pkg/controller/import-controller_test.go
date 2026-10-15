@@ -872,7 +872,7 @@ var _ = Describe("Update PVC from POD", func() {
 
 		err := reconciler.createImporterPod(pvc)
 		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring(cc.AnnVddkNbdTlsSecret))
+		Expect(err.Error()).To(ContainSubstring(cc.AnnVddkNbdTLSSecret))
 		Expect(err.Error()).To(ContainSubstring("nbds://"))
 	})
 
@@ -880,9 +880,9 @@ var _ = Describe("Update PVC from POD", func() {
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "nbd-tls", Namespace: "default"},
 			Data: map[string][]byte{
-				common.NbdTlsCACert:     []byte("ca"),
-				common.NbdTlsClientCert: []byte("cert"),
-				common.NbdTlsClientKey:  []byte("key"),
+				common.NbdTLSCACert:     []byte("ca"),
+				common.NbdTLSClientCert: []byte("cert"),
+				common.NbdTLSClientKey:  []byte("key"),
 				"accessKeyId":           []byte("user"),
 				"secretKey":             []byte("pass"),
 			},
@@ -892,7 +892,7 @@ var _ = Describe("Update PVC from POD", func() {
 			cc.AnnImportPod:         "importer-testPvc1",
 			cc.AnnSource:            cc.SourceVDDK,
 			cc.AnnVddkNbdConnection: "nbds://192.0.2.10:10809",
-			cc.AnnVddkNbdTlsSecret:  secret.Name,
+			cc.AnnVddkNbdTLSSecret:  secret.Name,
 			cc.AnnSecret:            "vddk-creds",
 		}
 		creds := createSecret("vddk-creds", "default", "accessKeyId", "user", map[string]string{cc.AnnSecret: "vddk-creds"})
@@ -914,9 +914,9 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(nbdVol.Secret).ToNot(BeNil())
 		Expect(nbdVol.Secret.SecretName).To(Equal(secret.Name))
 		Expect(nbdVol.Secret.Items).To(ConsistOf(
-			corev1.KeyToPath{Key: common.NbdTlsCACert, Path: common.NbdTlsCACert},
-			corev1.KeyToPath{Key: common.NbdTlsClientCert, Path: common.NbdTlsClientCert},
-			corev1.KeyToPath{Key: common.NbdTlsClientKey, Path: common.NbdTlsClientKey},
+			corev1.KeyToPath{Key: common.NbdTLSCACert, Path: common.NbdTLSCACert},
+			corev1.KeyToPath{Key: common.NbdTLSClientCert, Path: common.NbdTLSClientCert},
+			corev1.KeyToPath{Key: common.NbdTLSClientKey, Path: common.NbdTLSClientKey},
 		))
 	})
 
@@ -1808,4 +1808,3 @@ func updateCdiWithTestNodePlacement(c client.Client) sdkapi.NodePlacement {
 
 	return workloads
 }
-
