@@ -161,8 +161,8 @@ const (
 	// and will read those ranges from whatever this URI serves. CDI does not verify the
 	// export is the correct snapshot—only that its size matches the VMware disk capacity.
 	AnnVddkNbdConnection = AnnAPIGroup + "/storage.import.vddk.nbdConnection"
-	// AnnVddkNbdTlsSecret names a Secret with ca-cert.pem / client-cert.pem / client-key.pem for nbds://
-	AnnVddkNbdTlsSecret = AnnAPIGroup + "/storage.import.vddk.nbdTlsSecret"
+	// AnnVddkNbdTLSSecret names a Secret with ca-cert.pem / client-cert.pem / client-key.pem for nbds://
+	AnnVddkNbdTLSSecret = AnnAPIGroup + "/storage.import.vddk.nbdTlsSecret"
 
 	// AnnRequiresScratch provides a const for our PVC requiring scratch annotation
 	AnnRequiresScratch = AnnAPIGroup + "/storage.import.requiresScratch"

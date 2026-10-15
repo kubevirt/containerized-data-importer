@@ -106,7 +106,7 @@ type importPodEnvVar struct {
 	registryImageArchitecture string
 	checksum                  string
 	vddkNbdConnection         string
-	vddkNbdTlsSecret          string
+	vddkNbdTLSSecret          string
 }
 
 type importerPodArgs struct {
@@ -549,8 +549,8 @@ func (r *ImportReconciler) createImporterPod(pvc *corev1.PersistentVolumeClaim) 
 		u, parseErr := url.Parse(nbdConnection)
 		if parseErr != nil || (u.Scheme != "nbd" && u.Scheme != "nbds") || u.Hostname() == "" {
 			nbdErr = fmt.Sprintf("invalid %s %q: must be nbd:// or nbds:// URI with hostname", cc.AnnVddkNbdConnection, nbdConnection)
-		} else if u.Scheme == "nbds" && pvc.Annotations[cc.AnnVddkNbdTlsSecret] == "" {
-			nbdErr = fmt.Sprintf("%s with nbds:// requires %s", cc.AnnVddkNbdConnection, cc.AnnVddkNbdTlsSecret)
+		} else if u.Scheme == "nbds" && pvc.Annotations[cc.AnnVddkNbdTLSSecret] == "" {
+			nbdErr = fmt.Sprintf("%s with nbds:// requires %s", cc.AnnVddkNbdConnection, cc.AnnVddkNbdTLSSecret)
 		}
 		if nbdErr != "" {
 			anno := pvc.GetAnnotations()
@@ -684,7 +684,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.registryImageArchitecture = getValueFromAnnotation(pvc, cc.AnnRegistryImageArchitecture)
 		podEnvVar.checksum = getValueFromAnnotation(pvc, cc.AnnChecksum)
 		podEnvVar.vddkNbdConnection = getValueFromAnnotation(pvc, cc.AnnVddkNbdConnection)
-		podEnvVar.vddkNbdTlsSecret = getValueFromAnnotation(pvc, cc.AnnVddkNbdTlsSecret)
+		podEnvVar.vddkNbdTLSSecret = getValueFromAnnotation(pvc, cc.AnnVddkNbdTLSSecret)
 
 		for annotation, value := range pvc.Annotations {
 			if strings.HasPrefix(annotation, cc.AnnExtraHeaders) {
@@ -1170,7 +1170,7 @@ func makeImporterContainerSpec(args *importerPodArgs) []corev1.Container {
 			MountPath: common.ImporterCertDir,
 		})
 	}
-	if args.podEnvVar.vddkNbdTlsSecret != "" {
+	if args.podEnvVar.vddkNbdTLSSecret != "" {
 		containers[0].VolumeMounts = append(containers[0].VolumeMounts, corev1.VolumeMount{
 			Name:      NbdCertVolName,
 			MountPath: common.ImporterNbdCertDir,
@@ -1256,16 +1256,16 @@ func makeImporterVolumeSpec(args *importerPodArgs) []corev1.Volume {
 	if args.podEnvVar.certConfigMap != "" {
 		volumes = append(volumes, createConfigMapVolume(CertVolName, args.podEnvVar.certConfigMap))
 	}
-	if args.podEnvVar.vddkNbdTlsSecret != "" {
+	if args.podEnvVar.vddkNbdTLSSecret != "" {
 		volumes = append(volumes, corev1.Volume{
 			Name: NbdCertVolName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: args.podEnvVar.vddkNbdTlsSecret,
+					SecretName: args.podEnvVar.vddkNbdTLSSecret,
 					Items: []corev1.KeyToPath{
-						{Key: common.NbdTlsCACert, Path: common.NbdTlsCACert},
-						{Key: common.NbdTlsClientCert, Path: common.NbdTlsClientCert},
-						{Key: common.NbdTlsClientKey, Path: common.NbdTlsClientKey},
+						{Key: common.NbdTLSCACert, Path: common.NbdTLSCACert},
+						{Key: common.NbdTLSClientCert, Path: common.NbdTLSClientCert},
+						{Key: common.NbdTLSClientKey, Path: common.NbdTLSClientKey},
 					},
 				},
 			},
