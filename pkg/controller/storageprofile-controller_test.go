@@ -58,6 +58,7 @@ const (
 	provisionerName         = "testProvisioner"
 	cephProvisioner         = "rook-ceph.rbd.csi.ceph.com"
 	mayastorProvisioner     = "io.openebs.csi-mayastor"
+	localPathProvisioner    = "rancher.io/local-path"
 )
 
 var (
@@ -183,6 +184,20 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 			claimPropertySets = append(claimPropertySets, claimPropertySet)
 		}
 		Expect(sp.Status.ClaimPropertySets).To(Equal(claimPropertySets))
+	})
+
+	It("Should create storage profile with RWO filesystem claim property set for local-path-provisioner", func() {
+		reconciler = createStorageProfileReconciler(CreateStorageClassWithProvisioner(storageClassName, nil, nil, localPathProvisioner))
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+
+		sp := &cdiv1.StorageProfile{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(*sp.Status.Provisioner).To(Equal(localPathProvisioner))
+		Expect(sp.Status.ClaimPropertySets).To(Equal([]cdiv1.ClaimPropertySet{
+			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: ptr.To(v1.PersistentVolumeFilesystem)},
+		}))
 	})
 
 	It("Should find storage capabilities for no-provisioner storage class", func() {
@@ -732,6 +747,9 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 			v1.ConditionTrue, string(storagecapabilities.RecognizedProvisioner), recognizedProvisionerMessage),
 		Entry("recognized provisioner with rwxBlock parameter",
 			mayastorProvisioner, map[string]string{"rwxBlock": "true"},
+			v1.ConditionTrue, string(storagecapabilities.RecognizedProvisioner), recognizedProvisionerMessage),
+		Entry("recognized local-path-provisioner",
+			localPathProvisioner, nil,
 			v1.ConditionTrue, string(storagecapabilities.RecognizedProvisioner), recognizedProvisionerMessage),
 	)
 
