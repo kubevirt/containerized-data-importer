@@ -42,6 +42,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	ProvisionerHPPOverlayCSI:   {{rwx, file}},
 	ProvisionerHPPLegacy:       {{rwo, file}},
 	"k8s.io/minikube-hostpath": {{rwo, file}},
+	// local-path-provisioner (default in k3s and kind); node-local directories,
+	// so only RWO filesystem volumes unless a shared filesystem is configured
+	"rancher.io/local-path": {{rwo, file}},
 	// nfs-csi
 	"nfs.csi.k8s.io": {{rwx, file}},
 	"k8s-sigs.io/nfs-subdir-external-provisioner": {{rwx, file}},
