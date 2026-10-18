@@ -38,13 +38,12 @@ const (
 // CapabilitiesByProvisionerKey defines default capabilities for different storage classes
 var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// hostpath-provisioner
-	ProvisionerHPPCSI:          {{rwo, file}},
-	ProvisionerHPPOverlayCSI:   {{rwx, file}},
-	ProvisionerHPPLegacy:       {{rwo, file}},
-	"k8s.io/minikube-hostpath": {{rwo, file}},
-	// local-path-provisioner (default in k3s and kind); node-local directories,
-	// so only RWO filesystem volumes unless a shared filesystem is configured
-	"rancher.io/local-path": {{rwo, file}},
+	ProvisionerHPPCSI:        createLocalPathCapabilities(),
+	ProvisionerHPPOverlayCSI: {{rwx, file}},
+	ProvisionerHPPLegacy:     createLocalPathCapabilities(),
+	// other node-local path provisioners
+	"k8s.io/minikube-hostpath": createLocalPathCapabilities(),
+	"rancher.io/local-path":    createLocalPathCapabilities(), // local-path-provisioner, default in k3s and kind
 	// nfs-csi
 	"nfs.csi.k8s.io": {{rwx, file}},
 	"k8s-sigs.io/nfs-subdir-external-provisioner": {{rwx, file}},
@@ -615,6 +614,12 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 
 func getFSType(sc *storagev1.StorageClass) string {
 	return strings.ToLower(sc.Parameters["csi.storage.k8s.io/fstype"])
+}
+
+// createLocalPathCapabilities is shared by provisioners that back each volume
+// with a directory on a single node, so they only offer RWO filesystem volumes.
+func createLocalPathCapabilities() []StorageCapabilities {
+	return []StorageCapabilities{{rwo, file}}
 }
 
 func createRbdCapabilities() []StorageCapabilities {
