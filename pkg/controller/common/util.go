@@ -647,7 +647,7 @@ func GetFilesystemOverheadForStorageClass(ctx context.Context, client client.Cli
 
 	targetStorageClass, err := GetStorageClassByNameWithK8sFallback(ctx, client, storageClassName)
 	if err != nil || targetStorageClass == nil {
-		klog.V(3).Info("Storage class", storageClassName, "not found, trying default storage class")
+		klog.V(3).Infof("Storage class %q not found, trying default storage class", ptr.Deref(storageClassName, ""))
 		targetStorageClass, err = GetStorageClassByNameWithK8sFallback(ctx, client, nil)
 		if err != nil {
 			klog.V(3).Info("No default storage class found, continuing with global overhead")
@@ -661,7 +661,7 @@ func GetFilesystemOverheadForStorageClass(ctx context.Context, client client.Cli
 	}
 
 	if targetStorageClass == nil {
-		klog.V(3).Info("Storage class", storageClassName, "not found, continuing with global overhead")
+		klog.V(3).Infof("Storage class %q not found, continuing with global overhead", ptr.Deref(storageClassName, ""))
 		return cdiConfig.Status.FilesystemOverhead.Global, nil
 	}
 
