@@ -1135,6 +1135,14 @@ func createVddkDataSource(cfg VDDKDataSourceConfig) (*VDDKDataSource, error) {
 
 	// External NBD skips snapshot disk-name resolution; catch at least wrong-disk URIs.
 	if cfg.NbdConnection != "" {
+		// Shouldn't happen as disk capacity whould have to be negative but protect against int-overflow
+		if backingFileObject.CapacityInBytes < 0 {
+			nbdkit.Handle.Close()
+			if nbdkit.n != nil {
+				_ = nbdkit.n.KillNbdkit()
+			}
+			return nil, errors.Errorf("VMware disk capacity %d is negative, cannot validate external NBD export size", backingFileObject.CapacityInBytes)
+		}
 		expected := uint64(backingFileObject.CapacityInBytes)
 		if size != expected {
 			nbdkit.Handle.Close()
