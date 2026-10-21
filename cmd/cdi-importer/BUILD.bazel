@@ -72,12 +72,25 @@ oci_image(
             "//rpm:cdi_importer_base_aarch64",
             ":ca_anchors_tar",
         ],
+        # nbds:// (external NBD) is amd64-only (vddk-datasource_amd64.go). bazeldnf
+        # does not run crypto-policies %post, so add the gnutls.config symlink here.
+        # Downstream RPM installs create it via %post; this layer is upstream-only.
         "//conditions:default": [
             "//rpm:cdi_importer_base_x86_64",
             ":ca_anchors_tar",
+            ":crypto_policies_tar",
         ],
     }),
     visibility = ["//visibility:private"],
+)
+
+# Reproducible replacement for the crypto-policies %post symlink that bazeldnf skips.
+pkg_tar(
+    name = "crypto_policies_tar",
+    package_dir = "/etc/crypto-policies/back-ends",
+    symlinks = {
+        "gnutls.config": "/usr/share/crypto-policies/DEFAULT/gnutls.txt",
+    },
 )
 
 genrule(

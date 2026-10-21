@@ -18,4 +18,7 @@ type VDDKDataSourceConfig struct {
 	VolumeMode         v1.PersistentVolumeMode
 	CertDir            string
 	InsecureTLS        bool
+	// NbdConnection is an nbd:// or nbds:// URI. For warm migration it must export the
+	// disk at CurrentCheckpoint; the caller updates it each stage.
+	NbdConnection string
 }
