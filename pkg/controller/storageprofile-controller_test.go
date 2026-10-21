@@ -633,6 +633,24 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Entry("rwxBlock parameter set to true", map[string]string{"rwxBlock": "true"}, mayastorRwxBlockClaimPropertySets()),
 	)
 
+	It("should set claimPropertySets for csi.kubevirt.io", func() {
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, "csi.kubevirt.io")
+		reconciler = createStorageProfileReconciler(storageClass)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+
+		sp := &cdiv1.StorageProfile{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(*sp.Status.Provisioner).To(Equal("csi.kubevirt.io"))
+		Expect(sp.Status.ClaimPropertySets).To(Equal([]cdiv1.ClaimPropertySet{
+			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteMany}, VolumeMode: ptr.To(v1.PersistentVolumeBlock)},
+			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: ptr.To(v1.PersistentVolumeBlock)},
+			{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: ptr.To(v1.PersistentVolumeFilesystem)},
+		}))
+	})
+
 	DescribeTable("Should set the StorageProfileStatus metric correctly", func(provisioner string, isComplete bool) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
 		reconciler = createStorageProfileReconciler(storageClass)

@@ -156,6 +156,8 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// OpenEBS Replicated PV Mayastor
 	"io.openebs.csi-mayastor":           {{rwo, block}, {rwo, file}},
 	"io.openebs.csi-mayastor/rwx-block": {{rwx, block}, {rwo, block}, {rwo, file}},
+	// KubeVirt CSI driver (RWX is only supported for block volumes)
+	"csi.kubevirt.io": {{rwx, block}, {rwo, block}, {rwo, file}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
