@@ -1893,6 +1893,75 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(usePopulator).To(BeFalse())
 		})
 
+		DescribeTable("Should return false if there is nothing to populate", func(volumeMode corev1.PersistentVolumeMode, preallocation *bool, contentType cdiv1.DataVolumeContentType, expected bool) {
+			blankSource := &cdiv1.DataVolumeSource{
+				Blank: &cdiv1.DataVolumeBlankImage{},
+			}
+			storageSpec := &cdiv1.StorageSpec{}
+			dv := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault, blankSource, storageSpec)
+			dv.Spec.Preallocation = preallocation
+			dv.Spec.ContentType = contentType
+
+			reconciler = createImportReconciler(sc, csiDriver)
+			syncState := dvSyncState{
+				dvMutated: dv,
+				pvcSpec: &corev1.PersistentVolumeClaimSpec{
+					StorageClassName: &scName,
+					VolumeMode:       &volumeMode,
+				},
+			}
+			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(usePopulator).To(Equal(expected))
+		},
+			Entry("blank block without preallocation has nothing to populate", corev1.PersistentVolumeBlock, nil, cdiv1.DataVolumeKubeVirt, false),
+			Entry("blank block with preallocation disabled has nothing to populate", corev1.PersistentVolumeBlock, ptr.To[bool](false), cdiv1.DataVolumeKubeVirt, false),
+			Entry("blank block with preallocation has to be preallocated", corev1.PersistentVolumeBlock, ptr.To[bool](true), cdiv1.DataVolumeKubeVirt, true),
+			Entry("blank filesystem has to create a blank image", corev1.PersistentVolumeFilesystem, nil, cdiv1.DataVolumeKubeVirt, true),
+			Entry("blank block with archive content type, rejected by the webhook but not by this check", corev1.PersistentVolumeBlock, nil, cdiv1.DataVolumeArchive, true),
+		)
+
+		It("Should return true if blank source has no volume mode", func() {
+			blankSource := &cdiv1.DataVolumeSource{
+				Blank: &cdiv1.DataVolumeBlankImage{},
+			}
+			storageSpec := &cdiv1.StorageSpec{}
+			dv := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault, blankSource, storageSpec)
+
+			reconciler = createImportReconciler(sc, csiDriver)
+			syncState := dvSyncState{
+				dvMutated: dv,
+				pvcSpec: &corev1.PersistentVolumeClaimSpec{
+					StorageClassName: &scName,
+				},
+			}
+			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(usePopulator).To(BeTrue())
+		})
+
+		It("Should return true if blank block volume has usePopulator annotation", func() {
+			blankSource := &cdiv1.DataVolumeSource{
+				Blank: &cdiv1.DataVolumeBlankImage{},
+			}
+			storageSpec := &cdiv1.StorageSpec{}
+			dv := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault, blankSource, storageSpec)
+			AddAnnotation(dv, AnnUsePopulator, "true")
+			volumeMode := corev1.PersistentVolumeBlock
+
+			reconciler = createImportReconciler(sc, csiDriver)
+			syncState := dvSyncState{
+				dvMutated: dv,
+				pvcSpec: &corev1.PersistentVolumeClaimSpec{
+					StorageClassName: &scName,
+					VolumeMode:       &volumeMode,
+				},
+			}
+			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(usePopulator).To(BeTrue())
+		})
+
 		It("Should return true if storage class has csi driver", func() {
 			httpSource := &cdiv1.DataVolumeSource{
 				HTTP: &cdiv1.DataVolumeSourceHTTP{},
