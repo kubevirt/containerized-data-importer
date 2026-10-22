@@ -74,6 +74,87 @@ fi
 
 kubectl() { cluster-up/kubectl.sh "$@"; }
 
+################################################################################
+# TEMPORARY DEBUG INSTRUMENTATION -- uploadproxy connect-timeout canary.
+#
+# Added to help root-cause an intermittent external uploadproxy connection
+# timeout (`dial tcp <ip>:6005: connect: connection timed out`) seen on the
+# s390x e2e job.
+################################################################################
+CANARY_PID=""
+
+function start_uploadproxy_canary {
+  # Parse host:port out of the same override the tests use, e.g.
+  # "https://cdi-uploadproxy-cdi.apps.odf.cdi.ci:6005" -> host + port.
+  # Falls back to the known current Prow job config if the override isn't
+  # set, but prefers the real env var so this stays correct if that ever
+  # changes.
+  local target="${UPLOAD_PROXY_URL_OVERRIDE:-https://cdi-uploadproxy-cdi.apps.odf.cdi.ci:6005}"
+  target="${target#*://}"
+  target="${target%%/*}"
+  local host="${target%%:*}"
+  local port="${target##*:}"
+  local canary_log="${ARTIFACTS_PATH}/uploadproxy-canary.log"
+
+  echo "timestamp,check,result,elapsed_ms,detail" >"${canary_log}"
+  echo "Starting uploadproxy canary against ${host}:${port}, logging to ${canary_log}"
+
+  (
+    # Own subshell: relax -e/-x so one failed probe (the whole point of this
+    # loop) never trips errexit, and so we don't flood the main job log with
+    # xtrace lines every 5s for the life of the run.
+    set +e
+    set +x
+    iteration=0
+    while true; do
+      iteration=$((iteration + 1))
+
+      ts=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)
+      start_ns=$(date +%s%N)
+      tcp_err=$(timeout 15 bash -c "exec 3<>/dev/tcp/${host}/${port}" 2>&1)
+      rc=$?
+      end_ns=$(date +%s%N)
+      elapsed_ms=$(((end_ns - start_ns) / 1000000))
+      if [ "$rc" -eq 0 ]; then
+        echo "${ts},tcp,OK,${elapsed_ms}," >>"${canary_log}"
+      else
+        detail=$(echo "$tcp_err" | tr '\n' ' ' | tr ',' ';')
+        echo "${ts},tcp,FAIL,${elapsed_ms},rc=${rc} ${detail}" >>"${canary_log}"
+      fi
+
+      # Roughly once a minute, also do a real HTTPS-level connect to capture
+      # TLS-handshake-layer timing, not just the bare TCP connect above.
+      if [ $((iteration % 12)) -eq 0 ]; then
+        ts=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)
+        start_ns=$(date +%s%N)
+        http_out=$(curl -sk -o /dev/null -w '%{http_code} %{time_connect} %{time_appconnect}' --connect-timeout 15 "https://${host}:${port}/" 2>&1)
+        rc=$?
+        end_ns=$(date +%s%N)
+        elapsed_ms=$(((end_ns - start_ns) / 1000000))
+        detail=$(echo "$http_out" | tr '\n' ' ' | tr ',' ';')
+        if [ "$rc" -eq 0 ]; then
+          echo "${ts},https,OK,${elapsed_ms},${detail}" >>"${canary_log}"
+        else
+          echo "${ts},https,FAIL,${elapsed_ms},rc=${rc} ${detail}" >>"${canary_log}"
+        fi
+      fi
+
+      sleep 5
+    done
+  ) &
+  CANARY_PID=$!
+}
+
+function stop_uploadproxy_canary {
+  if [ -n "${CANARY_PID}" ]; then
+    kill "${CANARY_PID}" >/dev/null 2>&1 || true
+    wait "${CANARY_PID}" 2>/dev/null || true
+  fi
+}
+################################################################################
+# END TEMPORARY DEBUG INSTRUMENTATION
+################################################################################
+
 make cluster-down
 # Create .bazelrc to use remote cache
 cat >ci.bazelrc <<EOF
@@ -111,6 +192,14 @@ if [ "$KUBEVIRT_STORAGE" == "hpp" ] && [ "$CDI_E2E_FOCUS" == "Destructive" ]; th
 fi
 
 make cluster-sync
+
+# TEMPORARY DEBUG INSTRUMENTATION (see block above near `kubectl()`): start
+# the uploadproxy canary now that CDI (incl. cdi-uploadproxy) is deployed,
+# and guarantee it gets stopped -- leaving its log file intact under
+# $ARTIFACTS_PATH -- no matter how this script subsequently exits. REMOVE
+# once the uploadproxy connect-timeout investigation concludes.
+start_uploadproxy_canary
+trap stop_uploadproxy_canary EXIT
 
 kubectl version
 
