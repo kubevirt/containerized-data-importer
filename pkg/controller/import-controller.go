@@ -930,14 +930,24 @@ func (r *ImportReconciler) getVddkNodeSelector(namespace, cmName string) (map[st
 }
 
 // returns the import image part of the endpoint string
-func getRegistryImportImage(pvc *corev1.PersistentVolumeClaim) (string, error) {
+func getRegistryImportImage(ctx context.Context, client client.Client, pvc *corev1.PersistentVolumeClaim) (string, error) {
 	ep, err := cc.GetEndpoint(pvc)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
+
 	if cc.IsImageStream(pvc) {
-		return ep, nil
+		// we are setting defaultToLatestTag here to preserve the behavior in OpenShift
+		// https://github.com/openshift/apiserver-library-go/blob/bd0cd9c86e37bcc3acae4dcd11f2a9d24b15bb83/pkg/admission/imagepolicy/imagepolicy.go#L351-L354
+		// TODO: remove this once OpenShift add ImageStream support for ImageVolumes
+		_, dockerRef, err := getImageStreamAndDockerRef(ctx, client, ep, pvc.Namespace, defaultToLatestTag)
+		if err != nil {
+			return "", err
+		}
+
+		return dockerRef, nil
 	}
+
 	url, err := url.Parse(ep)
 	if err != nil {
 		return "", errors.Errorf("illegal registry endpoint %s", ep)
@@ -994,7 +1004,7 @@ func createImporterPod(ctx context.Context, log logr.Logger, client client.Clien
 	}
 
 	if isRegistryNodeImport(args) {
-		args.importImage, err = getRegistryImportImage(args.pvc)
+		args.importImage, err = getRegistryImportImage(ctx, client, args.pvc)
 		if err != nil {
 			return nil, err
 		}
