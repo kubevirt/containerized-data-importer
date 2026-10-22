@@ -67,6 +67,20 @@ or implicitly as explained in the previous paragraph), CDI will take the file sy
 overhead into account and request a PVC big enough to fit both an image and the file
 system metadata. This logic only applies to the `DataVolume.spec.storage`.
 
+In that case the requested size is the size of the disk image, and CDI requests a PVC of
+`size * (1 + overhead)`, where `size` is rounded up to a multiple of 1MiB and `overhead`
+is the filesystem overhead of the storage class (`0.06` by default, see
+[CDI configuration](cdi-config.md)). For example, with the default overhead, a
+DataVolume that requests `storage: 10Gi` creates a PVC that requests `11381663335` bytes
+(`10Gi * 1.06`), and the resulting `disk.img` has a virtual size of `10Gi`. If the
+filesystem on the provisioned volume has less free space than the PVC request, the image
+is sized down to `free space / (1 + overhead)` instead (see
+[#4024](https://github.com/kubevirt/containerized-data-importer/issues/4024)).
+
+With `DataVolume.spec.pvc` the PVC is created with the requested size as is, but the
+overhead is still reserved inside it when CDI writes the image (import, upload or blank),
+so the disk image ends up smaller than the requested size (about `size / (1 + overhead)`).
+
 #### Default virtualization storage class
 If you skip the `storageClassName` parameter, CDI will prioritize the default
 virtualization storage class over k8s' default. You can define your default

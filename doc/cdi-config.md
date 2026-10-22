@@ -22,6 +22,14 @@ filesystemOverhead configuration:
  - `global` - default value is `"0.06"` - The amount to reserve for a Filesystem volume unless a per-storageClass value is chosen.                                                                                                                                     
  - `storageClass` - default value is `nil` - A value of `local: "0.6"` is understood to mean that the overhead for the local storageClass is 60%.
 
+The overhead is a fraction of the disk image size, added on top of it. When a DataVolume
+uses `spec.storage`, CDI requests a PVC of `image size * (1 + overhead)`, so with the
+default `0.06` a `10Gi` disk image gets a PVC request of `11381663335` bytes. When the
+image is imported, uploaded or created blank, CDI sizes it to at most
+`available space / (1 + overhead)`. See
+[DataVolumes](datavolumes.md#storage) for how this differs between `spec.storage` and
+`spec.pvc`.
+
 ### Example
 
 To configure scratchSpaceStorageClass 
