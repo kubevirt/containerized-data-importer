@@ -206,7 +206,9 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 
 			numAddedStorageClasses = 2
 			for i := 0; i < numAddedStorageClasses; i++ {
-				_, err = f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), createUnknownStorageClass(fmt.Sprintf("unknown-sc-%d", i), "kubernetes.io/non-existent-provisioner"), metav1.CreateOptions{})
+				sc := createUnknownStorageClass(fmt.Sprintf("unknown-sc-%d", i), "kubernetes.io/non-existent-provisioner")
+				utils.AddOCSExternalLabel(f.K8sClient, sc)
+				_, err = f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 			}
 
@@ -240,6 +242,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 			for i := 0; i < numAddedStorageClasses; i++ {
 				sc := createUnknownStorageClass(fmt.Sprintf("unknown-sc-%d", i), "kubernetes.io/non-existent-provisioner")
 				cc.AddAnnotation(sc, cc.AnnDefaultVirtStorageClass, "true")
+				utils.AddOCSExternalLabel(f.K8sClient, sc)
 				_, err := f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
 				Expect(err).ToNot(HaveOccurred())
 			}
@@ -356,7 +359,10 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 		})
 
 		It("[test_id:9659] StorageProfile incomplete metric expected value remains unchanged for provisioner known to not work", func() {
-			sc, err := f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), createUnknownStorageClass("unknown-sc-0", storagecapabilities.ProvisionerNoobaa), metav1.CreateOptions{})
+			sc := createUnknownStorageClass("unknown-sc-0", storagecapabilities.ProvisionerNoobaa)
+			utils.AddOCSExternalLabel(f.K8sClient, sc)
+
+			sc, err := f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), sc, metav1.CreateOptions{})
 			Expect(err).ToNot(HaveOccurred())
 			numAddedStorageClasses = 1
 
