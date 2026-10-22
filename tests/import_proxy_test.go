@@ -367,6 +367,87 @@ var _ = Describe("Import Proxy tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		Describe("Global TrustedCA tests", func() {
+			AfterEach(func() {
+				_ = f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Delete(
+					context.TODO(), "test-invalid-trusted-ca", metav1.DeleteOptions{})
+				_ = f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Delete(
+					context.TODO(), "test-global-trusted-ca", metav1.DeleteOptions{})
+			})
+
+			It("should succeed after trustedCA is updated from nonexistent to valid ConfigMap", func() {
+				// phase 1: set trustedCA to a ConfigMap that doesn't exist
+				By("setting CDIConfig.Spec.TrustedCA to a nonexistent ConfigMap")
+				nonExistent := "non-existent-cm"
+				err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+					config.TrustedCA = &nonExistent
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("waiting for Status.TrustedCA to remain empty")
+				Eventually(func() string {
+					config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(
+						context.TODO(), common.ConfigName, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					ca, _ := cont.GetTrustedCA(config)
+					return ca
+				}, time.Second*120, time.Second).Should(BeEmpty())
+
+				By("creating a DataVolume targeting the HTTPS endpoint")
+				imgURL := fmt.Sprintf("https://%s.%s:%d/%s",
+					fileHostName, f.CdiInstallNs, utils.HTTPSNoAuthPort, tinyCoreIso)
+				dvName = "test-global-trusted-ca"
+				dv := utils.NewDataVolumeWithHTTPImport(dvName, "400Mi", imgURL)
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verifying pvc was created")
+				pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dvName)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindIfWaitForFirstConsumer(pvc)
+
+				By("verifying the import fails without trustedCA")
+				err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.ImportInProgress, dv.Name)
+				Expect(err).ToNot(HaveOccurred())
+
+				// phase 2: now create the real CM and update trustedCA
+				By("copying the real cert ConfigMap into CDI namespace")
+				caConfigMapName, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, utils.FileHostCertConfigMap,
+					f.CdiInstallNs, "test-global-trusted-ca", "ca-bundle.crt")
+				Expect(err).ToNot(HaveOccurred())
+
+				By("updating CDIConfig.Spec.TrustedCA to the valid ConfigMap")
+				err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+					config.TrustedCA = &caConfigMapName
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("waiting for Status.TrustedCA to reconcile")
+				Eventually(func() string {
+					config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(
+						context.TODO(), common.ConfigName, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					ca, _ := cont.GetTrustedCA(config)
+					return ca
+				}, time.Second*120, time.Second).Should(Equal(caConfigMapName))
+
+				By("creating a new DataVolume to retry the import using the same image URL")
+				dvName = "test-global-trusted-ca-new"
+				dv = utils.NewDataVolumeWithHTTPImport(dvName, "400Mi", imgURL)
+				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verifying pvc was created")
+				pvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dvName)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindIfWaitForFirstConsumer(pvc)
+
+				By("verifying the import succeeds this time")
+				err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
 		DescribeTable("should proxy registry imports", func(isHTTPS, hasAuth bool) {
 			now := time.Now()
 			updateProxy(f, "", createProxyURL(isHTTPS, hasAuth, f.CdiInstallNs), "", ocpClient)
