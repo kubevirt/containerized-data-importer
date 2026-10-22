@@ -104,6 +104,7 @@ type importPodEnvVar struct {
 	secretExtraHeaders        []string
 	cacheMode                 string
 	registryImageArchitecture string
+	layerMatchAnnotations     string
 	checksum                  string
 	vddkNbdConnection         string
 	vddkNbdTLSSecret          string
@@ -693,6 +694,7 @@ func (r *ImportReconciler) createImportEnvVar(pvc *corev1.PersistentVolumeClaim)
 		podEnvVar.currentCheckpoint = getValueFromAnnotation(pvc, cc.AnnCurrentCheckpoint)
 		podEnvVar.finalCheckpoint = getValueFromAnnotation(pvc, cc.AnnFinalCheckpoint)
 		podEnvVar.registryImageArchitecture = getValueFromAnnotation(pvc, cc.AnnRegistryImageArchitecture)
+		podEnvVar.layerMatchAnnotations = getValueFromAnnotation(pvc, cc.AnnRegistryImageLayerMatchAnnotations)
 		podEnvVar.checksum = getValueFromAnnotation(pvc, cc.AnnChecksum)
 		podEnvVar.vddkNbdConnection = getValueFromAnnotation(pvc, cc.AnnVddkNbdConnection)
 		podEnvVar.vddkNbdTLSSecret = getValueFromAnnotation(pvc, cc.AnnVddkNbdTLSSecret)
@@ -1504,6 +1506,10 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		{
 			Name:  common.ImporterRegistryImageArchitecture,
 			Value: podEnvVar.registryImageArchitecture,
+		},
+		{
+			Name:  common.ImporterRegistryImageLayerMatchAnnotations,
+			Value: podEnvVar.layerMatchAnnotations,
 		},
 		{
 			Name:  common.ImporterChecksum,

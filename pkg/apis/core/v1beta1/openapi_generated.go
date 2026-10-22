@@ -367,6 +367,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportSourceType":              schema_pkg_apis_core_v1beta1_ImportSourceType(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportStatus":                  schema_pkg_apis_core_v1beta1_ImportStatus(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.IntermediateTLSProfile":        schema_pkg_apis_core_v1beta1_IntermediateTLSProfile(ref),
+		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.LayerSelector":                 schema_pkg_apis_core_v1beta1_LayerSelector(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ModernTLSProfile":              schema_pkg_apis_core_v1beta1_ModernTLSProfile(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransfer":                schema_pkg_apis_core_v1beta1_ObjectTransfer(ref),
 		"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ObjectTransferCondition":       schema_pkg_apis_core_v1beta1_ObjectTransferCondition(ref),
@@ -18352,11 +18353,17 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceRegistry(ref common.ReferenceC
 							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.PlatformOptions"),
 						},
 					},
+					"layer": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Layer selects a single OCI artifact layer to import as the disk image, not supported with the node pull method",
+							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.LayerSelector"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.PlatformOptions"},
+			"kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.LayerSelector", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.PlatformOptions"},
 	}
 }
 
@@ -18870,6 +18877,35 @@ func schema_pkg_apis_core_v1beta1_IntermediateTLSProfile(ref common.ReferenceCal
 			SchemaProps: spec.SchemaProps{
 				Description: "IntermediateTLSProfile is a TLS security profile based on: https://wiki.mozilla.org/Security/Server_Side_TLS#Intermediate_compatibility_.28default.29",
 				Type:        []string{"object"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_core_v1beta1_LayerSelector(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "LayerSelector selects a single layer of an OCI artifact",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"matchAnnotations": {
+						SchemaProps: spec.SchemaProps{
+							Description: "MatchAnnotations the layer has to carry",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
