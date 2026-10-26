@@ -190,11 +190,6 @@ func (in *CDIConfigSpec) DeepCopyInto(out *CDIConfigSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
-	if in.DataVolumeTTLSeconds != nil {
-		in, out := &in.DataVolumeTTLSeconds, &out.DataVolumeTTLSeconds
-		*out = new(int32)
-		**out = **in
-	}
 	if in.TLSSecurityProfile != nil {
 		in, out := &in.TLSSecurityProfile, &out.TLSSecurityProfile
 		*out = new(TLSSecurityProfile)
