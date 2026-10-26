@@ -56,6 +56,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util/cert"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
+	"kubevirt.io/containerized-data-importer/pkg/util/clientconfig"
 	cryptowatch "kubevirt.io/containerized-data-importer/pkg/util/tls-crypto-watch"
 )
 
@@ -74,6 +75,8 @@ var (
 	configName             string
 	pullPolicy             string
 	verbose                string
+	kubeAPIQPS             float64
+	kubeAPIBurst           int
 	installerLabels        map[string]string
 	log                    = logf.Log.WithName("controller")
 	controllerEnvs         ControllerEnvs
@@ -106,6 +109,8 @@ type ControllerEnvs struct {
 func init() {
 	// flags
 	flag.StringVar(&kubeURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
+	flag.Float64Var(&kubeAPIQPS, "kube-api-qps", 0, "(Optional) Client-side rate limit (queries per second) for requests to the Kubernetes API server. 0 keeps the controller-runtime default (20).")
+	flag.IntVar(&kubeAPIBurst, "kube-api-burst", 0, "(Optional) Client-side burst for requests to the Kubernetes API server. 0 keeps the controller-runtime default (30).")
 	klog.InitFlags(nil)
 	flag.Parse()
 
@@ -175,6 +180,8 @@ func start() {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
 	}
 
+	clientconfig.ApplyRateLimits(cfg, kubeAPIQPS, kubeAPIBurst)
+
 	k8sClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("Unable to get kube client: %v\n", errors.WithStack(err))
@@ -236,7 +243,11 @@ func start() {
 		},
 	}
 
-	mgr, err := manager.New(config.GetConfigOrDie(), opts)
+	mgrCfg := config.GetConfigOrDie()
+	clientconfig.ApplyRateLimits(mgrCfg, kubeAPIQPS, kubeAPIBurst)
+	klog.Infof("Kubernetes API client rate limit: QPS=%v Burst=%d", mgrCfg.QPS, mgrCfg.Burst)
+
+	mgr, err := manager.New(mgrCfg, opts)
 	if err != nil {
 		klog.Errorf("Unable to setup controller manager: %v", err)
 		os.Exit(1)
