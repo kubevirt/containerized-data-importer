@@ -73,4 +73,34 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s) or on() vector(0)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
 		),
 	},
+	{
+		MetricsOpts: operatormetrics.MetricOpts{
+			Name: "namespace:kubevirt_cdi_import_pods_high_restart:count",
+			Help: "The number of CDI import pods with high restart count, per namespace",
+		},
+		MetricType: operatormetrics.GaugeType,
+		Expr: intstr.FromString(
+			fmt.Sprintf("count by (namespace) (kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+		),
+	},
+	{
+		MetricsOpts: operatormetrics.MetricOpts{
+			Name: "namespace:kubevirt_cdi_upload_pods_high_restart:count",
+			Help: "The number of CDI upload server pods with high restart count, per namespace",
+		},
+		MetricType: operatormetrics.GaugeType,
+		Expr: intstr.FromString(
+			fmt.Sprintf("count by (namespace) (kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
+		),
+	},
+	{
+		MetricsOpts: operatormetrics.MetricOpts{
+			Name: "namespace:kubevirt_cdi_clone_pods_high_restart:count",
+			Help: "The number of CDI clone pods with high restart count, per namespace",
+		},
+		MetricType: operatormetrics.GaugeType,
+		Expr: intstr.FromString(
+			fmt.Sprintf("count by (namespace) (kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+		),
+	},
 }
