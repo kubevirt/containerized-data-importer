@@ -264,9 +264,17 @@ func addFlagsPatch(name, resource string, flags map[string]string, patches []v1b
 func flagsToArray(flags map[string]string) []string {
 	farr := make([]string, 0)
 
-	for flag, v := range flags {
+	// map iteration order is random, sort so the rendered args are stable between reconciles
+	// otherwise the deployment keeps being updated and rolled out
+	keys := make([]string, 0, len(flags))
+	for flag := range flags {
+		keys = append(keys, flag)
+	}
+	sort.Strings(keys)
+
+	for _, flag := range keys {
 		farr = append(farr, fmt.Sprintf("-%s", strings.ToLower(flag)))
-		if v != "" {
+		if v := flags[flag]; v != "" {
 			farr = append(farr, v)
 		}
 	}

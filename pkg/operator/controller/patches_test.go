@@ -171,6 +171,14 @@ var _ = Describe("Patches", func() {
 			Expect(strings.Join(fa, " ")).To(ContainSubstring("-bool-flag"))
 		})
 
+		It("should return flags in a stable order", func() {
+			expected := []string{"-bool-flag", "-flag", "3", "-flag-one", "1"}
+			// map iteration is random, make sure the output never changes
+			for i := 0; i < 50; i++ {
+				Expect(flagsToArray(flags)).To(Equal(expected))
+			}
+		})
+
 		It("should add flag patch", func() {
 			patches := addFlagsPatch(common.CDIApiServerResourceName, resource, flags, []cdiv1.CustomizeComponentsPatch{})
 			Expect(patches).To(HaveLen(1))
