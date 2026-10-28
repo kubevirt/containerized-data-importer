@@ -429,6 +429,8 @@ var _ = Describe("Http client", func() {
 
 		err = os.WriteFile(path.Join(common.ImporterProxyCertDir, "tls.crt"), certBytes, 0600)
 		Expect(err).ToNot(HaveOccurred())
+
+		os.Setenv(common.ImporterProxyCertDirVar, common.ImporterProxyCertDir)
 	})
 
 	AfterEach(func() {
@@ -437,6 +439,7 @@ var _ = Describe("Http client", func() {
 		}
 
 		os.RemoveAll(common.ImporterProxyCertDir)
+		os.Unsetenv(common.ImporterProxyCertDirVar)
 	})
 
 	DescribeTable("should load", func(useCertDir bool) {
