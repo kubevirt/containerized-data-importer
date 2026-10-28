@@ -115,6 +115,14 @@ func (DataVolumeSourceRegistry) SwaggerDoc() map[string]string {
 		"secretRef":     "SecretRef provides the secret reference needed to access the Registry source\n+optional",
 		"certConfigMap": "CertConfigMap provides a reference to the Registry certs\n+optional",
 		"platform":      "Platform describes the minimum runtime requirements of the image\n+optional",
+		"layer":         "Layer selects a single OCI artifact layer to import as the disk image, not supported with the node pull method\n+optional",
+	}
+}
+
+func (LayerSelector) SwaggerDoc() map[string]string {
+	return map[string]string{
+		"":                 "LayerSelector selects a single layer of an OCI artifact",
+		"matchAnnotations": "MatchAnnotations the layer has to carry",
 	}
 }
 

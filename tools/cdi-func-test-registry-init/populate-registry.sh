@@ -3,6 +3,11 @@
 # Populate regisry host with disk images encapsulated inside container images. 
 # Disk images are taken from /tmp/shared/images directory populated by cdi-func-test-registry-init
 # Container images are built with buildah 
+# The OCI disk artifact is not a container image, so buildah cannot build it. It is baked
+# into this image as an oci-archive, which buildah adds to a manifest list and pushes.
+
+ARTIFACT_ARCHIVE="/tmp/source/oci-disk-artifact.tar"
+ARTIFACT_IMAGE="oci-disk-artifact"
 
 CONTAINER_DISK_IMAGE=${CONTAINER_DISK_IMAGE:-quay.io/kubevirt/container-disk-v1alpha}
 ARCHITECTURES="${ARCHITECTURES:-amd64,arm64,s390x}"
@@ -136,6 +141,21 @@ function pushImages {
    done
 }
 
+#Push the OCI disk artifact into cdi registry
+function pushArtifact {
+   registry_host=$1
+   registry_port=$2
+   registry_tls=$3
+   registry=$registry_host":"$registry_port
+
+   buildah manifest create $ARTIFACT_IMAGE
+   error $?
+   buildah manifest add --all $ARTIFACT_IMAGE "oci-archive:"$ARTIFACT_ARCHIVE
+   error $?
+   echo "pushing the OCI artifact "$ARTIFACT_IMAGE" to registry-service: "$registry
+   buildah manifest push --all $registry_tls $ARTIFACT_IMAGE "docker://"$registry"/"$ARTIFACT_IMAGE
+}
+
 update-ca-trust
 
 # Avoid 'overlay' is not supported over overlayfs error
@@ -150,6 +170,8 @@ health $HEALTH_PATH $HEALTH_PERIOD &
 #prepare and poush images
 prepareImages $IMAGES_SRC $IMAGES_CTR
 pushImages $IMAGES_CTR $REGISTRY_HOST $REGISTRY_PORT $REGISTRY_TLS
+pushArtifact $REGISTRY_HOST $REGISTRY_PORT $REGISTRY_TLS
+error $?
 
 #mark container as ready
 ready $READYNESS_PATH $READYNESS_PERIOD &
