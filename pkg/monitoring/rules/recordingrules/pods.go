@@ -23,94 +23,61 @@ var (
 )
 
 var podsRecordingRules = []operatorrules.RecordingRule{
-	{
+	gaugeRule(
+		"kubevirt_cdi_import_pods_high_restart",
+		"[Deprecated] The number of CDI import pods with high restart count",
+		"count("+importPodsHighRestart+") or on() vector(0)",
+	),
+	gaugeRule(
+		"cluster:kubevirt_cdi_import_pods_high_restart:count",
+		"The number of CDI import pods with high restart count",
+		"count("+importPodsHighRestart+") or on() vector(0)",
+	),
+	gaugeRule(
+		"kubevirt_cdi_upload_pods_high_restart",
+		"[Deprecated] The number of CDI upload server pods with high restart count",
+		"count("+uploadPodsHighRestart+") or on() vector(0)",
+	),
+	gaugeRule(
+		"cluster:kubevirt_cdi_upload_pods_high_restart:count",
+		"The number of CDI upload server pods with high restart count",
+		"count("+uploadPodsHighRestart+") or on() vector(0)",
+	),
+	gaugeRule(
+		"kubevirt_cdi_clone_pods_high_restart",
+		"[Deprecated] The number of CDI clone pods with high restart count",
+		"count("+clonePodsHighRestart+") or on() vector(0)",
+	),
+	gaugeRule(
+		"cluster:kubevirt_cdi_clone_pods_high_restart:count",
+		"The number of CDI clone pods with high restart count",
+		"count("+clonePodsHighRestart+") or on() vector(0)",
+	),
+	gaugeRule(
+		"namespace:kubevirt_cdi_import_pods_high_restart:count",
+		"The number of CDI import pods with high restart count, per namespace",
+		"count by (namespace) ("+importPodsHighRestart+")",
+	),
+	gaugeRule(
+		"namespace:kubevirt_cdi_upload_pods_high_restart:count",
+		"The number of CDI upload server pods with high restart count, per namespace",
+		"count by (namespace) ("+uploadPodsHighRestart+")",
+	),
+	gaugeRule(
+		"namespace:kubevirt_cdi_clone_pods_high_restart:count",
+		"The number of CDI clone pods with high restart count, per namespace",
+		"count by (namespace) ("+clonePodsHighRestart+")",
+	),
+}
+
+// gaugeRule returns a gauge recording rule.
+func gaugeRule(name, help, expr string) operatorrules.RecordingRule {
+	return operatorrules.RecordingRule{
 		MetricsOpts: operatormetrics.MetricOpts{
-			Name: "kubevirt_cdi_import_pods_high_restart",
-			Help: "[Deprecated] The number of CDI import pods with high restart count",
+			Name: name,
+			Help: help,
 		},
 		MetricType: operatormetrics.GaugeType,
-		Expr: intstr.FromString(
-			"count(" + importPodsHighRestart + ") or on() vector(0)",
-		),
-	},
-	{
-		MetricsOpts: operatormetrics.MetricOpts{
-			Name: "cluster:kubevirt_cdi_import_pods_high_restart:count",
-			Help: "The number of CDI import pods with high restart count",
-		},
-		MetricType: operatormetrics.GaugeType,
-		Expr: intstr.FromString(
-			"count(" + importPodsHighRestart + ") or on() vector(0)",
-		),
-	},
-	{
-		MetricsOpts: operatormetrics.MetricOpts{
-			Name: "kubevirt_cdi_upload_pods_high_restart",
-			Help: "[Deprecated] The number of CDI upload server pods with high restart count",
-		},
-		MetricType: operatormetrics.GaugeType,
-		Expr: intstr.FromString(
-			"count(" + uploadPodsHighRestart + ") or on() vector(0)",
-		),
-	},
-	{
-		MetricsOpts: operatormetrics.MetricOpts{
-			Name: "cluster:kubevirt_cdi_upload_pods_high_restart:count",
-			Help: "The number of CDI upload server pods with high restart count",
-		},
-		MetricType: operatormetrics.GaugeType,
-		Expr: intstr.FromString(
-			"count(" + uploadPodsHighRestart + ") or on() vector(0)",
-		),
-	},
-	{
-		MetricsOpts: operatormetrics.MetricOpts{
-			Name: "kubevirt_cdi_clone_pods_high_restart",
-			Help: "[Deprecated] The number of CDI clone pods with high restart count",
-		},
-		MetricType: operatormetrics.GaugeType,
-		Expr: intstr.FromString(
-			"count(" + clonePodsHighRestart + ") or on() vector(0)",
-		),
-	},
-	{
-		MetricsOpts: operatormetrics.MetricOpts{
-			Name: "cluster:kubevirt_cdi_clone_pods_high_restart:count",
-			Help: "The number of CDI clone pods with high restart count",
-		},
-		MetricType: operatormetrics.GaugeType,
-		Expr: intstr.FromString(
-			"count(" + clonePodsHighRestart + ") or on() vector(0)",
-		),
-	},
-	{
-		MetricsOpts: operatormetrics.MetricOpts{
-			Name: "namespace:kubevirt_cdi_import_pods_high_restart:count",
-			Help: "The number of CDI import pods with high restart count, per namespace",
-		},
-		MetricType: operatormetrics.GaugeType,
-		Expr: intstr.FromString(
-			"count by (namespace) (" + importPodsHighRestart + ")",
-		),
-	},
-	{
-		MetricsOpts: operatormetrics.MetricOpts{
-			Name: "namespace:kubevirt_cdi_upload_pods_high_restart:count",
-			Help: "The number of CDI upload server pods with high restart count, per namespace",
-		},
-		MetricType: operatormetrics.GaugeType,
-		Expr: intstr.FromString(
-			"count by (namespace) (" + uploadPodsHighRestart + ")",
-		),
-	},
-	{
-		MetricsOpts: operatormetrics.MetricOpts{
-			Name: "namespace:kubevirt_cdi_clone_pods_high_restart:count",
-			Help: "The number of CDI clone pods with high restart count, per namespace",
-		},
-		MetricType: operatormetrics.GaugeType,
-		Expr: intstr.FromString(
-			"count by (namespace) (" + clonePodsHighRestart + ")",
-		),
-	},
+		Expr:       intstr.FromString(expr),
+	}
 }
