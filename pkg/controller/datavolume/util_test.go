@@ -635,3 +635,73 @@ type fakeClientWithGetServiceUnavailableErr struct {
 func (c fakeClientWithGetServiceUnavailableErr) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	return errors.NewServiceUnavailable("error")
 }
+
+var _ = Describe("IsExpansionInProgress", func() {
+	It("should return false if pvc is nil", func() {
+		Expect(IsExpansionInProgress(nil)).To(BeFalse())
+	})
+
+	It("should return true if PersistentVolumeClaimResizing condition is true", func() {
+		pvc := &corev1.PersistentVolumeClaim{
+			Status: corev1.PersistentVolumeClaimStatus{
+				Conditions: []corev1.PersistentVolumeClaimCondition{
+					{
+						Type:   corev1.PersistentVolumeClaimResizing,
+						Status: corev1.ConditionTrue,
+					},
+				},
+			},
+		}
+		Expect(IsExpansionInProgress(pvc)).To(BeTrue())
+	})
+
+	It("should return true if PersistentVolumeClaimFileSystemResizePending condition is true", func() {
+		pvc := &corev1.PersistentVolumeClaim{
+			Status: corev1.PersistentVolumeClaimStatus{
+				Conditions: []corev1.PersistentVolumeClaimCondition{
+					{
+						Type:   corev1.PersistentVolumeClaimFileSystemResizePending,
+						Status: corev1.ConditionTrue,
+					},
+				},
+			},
+		}
+		Expect(IsExpansionInProgress(pvc)).To(BeTrue())
+	})
+
+	It("should return true if current capacity is less than requested size", func() {
+		pvc := &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("10G"),
+					},
+				},
+			},
+			Status: corev1.PersistentVolumeClaimStatus{
+				Capacity: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("5G"),
+				},
+			},
+		}
+		Expect(IsExpansionInProgress(pvc)).To(BeTrue())
+	})
+
+	It("should return false if current capacity matches requested size", func() {
+		pvc := &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{
+						corev1.ResourceStorage: resource.MustParse("10G"),
+					},
+				},
+			},
+			Status: corev1.PersistentVolumeClaimStatus{
+				Capacity: corev1.ResourceList{
+					corev1.ResourceStorage: resource.MustParse("10G"),
+				},
+			},
+		}
+		Expect(IsExpansionInProgress(pvc)).To(BeFalse())
+	})
+})

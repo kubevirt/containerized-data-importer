@@ -81,10 +81,6 @@ const (
 	// MessageCsiCloneInProgress provides a const to form a CSI Volume Clone in progress message
 	MessageCsiCloneInProgress = "CSI Volume clone in progress (for pvc %s/%s)"
 
-	// ExpansionInProgress is const representing target PVC expansion
-	ExpansionInProgress = "ExpansionInProgress"
-	// MessageExpansionInProgress is a const for reporting target expansion
-	MessageExpansionInProgress = "Expanding PersistentVolumeClaim for DataVolume %s/%s"
 	// NamespaceTransferInProgress is const representing target PVC transfer
 	NamespaceTransferInProgress = "NamespaceTransferInProgress"
 	// MessageNamespaceTransferInProgress is a const for reporting target transfer
@@ -448,6 +444,14 @@ func (r *CloneReconcilerBase) updateStatusPhaseForPopulator(pvc *corev1.Persiste
 }
 
 func (r *CloneReconcilerBase) updateStatusPhase(pvc *corev1.PersistentVolumeClaim, dataVolumeCopy *cdiv1.DataVolume, event *Event) error {
+	if IsExpansionInProgress(pvc) {
+		dataVolumeCopy.Status.Phase = cdiv1.ExpansionInProgress
+		event.eventType = corev1.EventTypeNormal
+		event.reason = ExpansionInProgress
+		event.message = fmt.Sprintf(MessageExpansionInProgress, dataVolumeCopy.Namespace, dataVolumeCopy.Name)
+		return nil
+	}
+
 	if err := r.populateSourceIfSourceRef(dataVolumeCopy); err != nil {
 		return err
 	}

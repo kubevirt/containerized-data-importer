@@ -501,7 +501,7 @@ var _ = Describe("Validating Webhook", func() {
 			Expect(resp.Allowed).To(BeTrue())
 		})
 
-		It("should reject DataVolume spec PVC size update", func() {
+		It("should reject DataVolume spec PVC size decrease", func() {
 			blankSource := cdiv1.DataVolumeSource{
 				Blank: &cdiv1.DataVolumeBlankImage{},
 			}
@@ -512,6 +512,76 @@ var _ = Describe("Validating Webhook", func() {
 			oldDataVolume := newDataVolume.DeepCopy()
 			oldDataVolume.Spec.PVC.Resources.Requests["storage"] =
 				*resource.NewQuantity(pvcSizeDefault+1, resource.BinarySI)
+			oldBytes, _ := json.Marshal(oldDataVolume)
+
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdiv1.SchemeGroupVersion.Group,
+						Version:  cdiv1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: newBytes,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: oldBytes,
+					},
+				},
+			}
+
+			resp := validateAdmissionReview(ar)
+			Expect(resp.Allowed).To(BeFalse())
+		})
+
+		It("should accept DataVolume spec PVC size increase", func() {
+			blankSource := cdiv1.DataVolumeSource{
+				Blank: &cdiv1.DataVolumeBlankImage{},
+			}
+			pvc := newPVCSpec(pvcSizeDefault + 1)
+			newDataVolume := newDataVolume("testDv", blankSource, pvc)
+			newBytes, _ := json.Marshal(&newDataVolume)
+
+			oldDataVolume := newDataVolume.DeepCopy()
+			oldDataVolume.Spec.PVC.Resources.Requests["storage"] =
+				*resource.NewQuantity(pvcSizeDefault, resource.BinarySI)
+			oldBytes, _ := json.Marshal(oldDataVolume)
+
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Update,
+					Resource: metav1.GroupVersionResource{
+						Group:    cdiv1.SchemeGroupVersion.Group,
+						Version:  cdiv1.SchemeGroupVersion.Version,
+						Resource: "datavolumes",
+					},
+					Object: runtime.RawExtension{
+						Raw: newBytes,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: oldBytes,
+					},
+				},
+			}
+
+			resp := validateAdmissionReview(ar)
+			Expect(resp.Allowed).To(BeTrue())
+		})
+
+		It("should reject DataVolume spec other changes while increasing size", func() {
+			blankSource := cdiv1.DataVolumeSource{
+				Blank: &cdiv1.DataVolumeBlankImage{},
+			}
+			pvc := newPVCSpec(pvcSizeDefault + 1)
+			newDataVolume := newDataVolume("testDv", blankSource, pvc)
+			newDataVolume.Spec.PriorityClassName = "high"
+			newBytes, _ := json.Marshal(&newDataVolume)
+
+			oldDataVolume := newDataVolume.DeepCopy()
+			oldDataVolume.Spec.PVC.Resources.Requests["storage"] =
+				*resource.NewQuantity(pvcSizeDefault, resource.BinarySI)
+			oldDataVolume.Spec.PriorityClassName = "low"
 			oldBytes, _ := json.Marshal(oldDataVolume)
 
 			ar := &admissionv1.AdmissionReview{

@@ -65,6 +65,7 @@ go_test(
         "external-population-controller_test.go",
         "import-controller_test.go",
         "pvc-clone-controller_test.go",
+        "resize_test.go",
         "snapshot-clone-controller_test.go",
         "static-volume_test.go",
         "upload-controller_test.go",
