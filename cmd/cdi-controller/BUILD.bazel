@@ -19,6 +19,7 @@ go_library(
         "//pkg/util/cert:go_default_library",
         "//pkg/util/cert/fetcher:go_default_library",
         "//pkg/util/cert/generator:go_default_library",
+        "//pkg/util/clientconfig:go_default_library",
         "//pkg/util/tls-crypto-watch:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/forklift/v1beta1:go_default_library",
