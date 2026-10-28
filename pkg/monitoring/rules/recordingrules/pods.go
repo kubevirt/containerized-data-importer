@@ -12,6 +12,16 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
+var (
+	highRestartThreshold = strconv.Itoa(common.UnusualRestartCountThreshold)
+
+	// Selectors for the containers of CDI workload pods that restarted more than
+	// the threshold, shared by the cluster-wide and per-namespace rules.
+	importPodsHighRestart = fmt.Sprintf("kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s", common.ImporterPodName, common.ImporterPodName, highRestartThreshold)
+	uploadPodsHighRestart = fmt.Sprintf("kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s", common.UploadPodName, common.UploadServerPodname, highRestartThreshold)
+	clonePodsHighRestart  = fmt.Sprintf("kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, highRestartThreshold)
+)
+
 var podsRecordingRules = []operatorrules.RecordingRule{
 	{
 		MetricsOpts: operatormetrics.MetricOpts{
@@ -20,7 +30,7 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 		},
 		MetricType: operatormetrics.GaugeType,
 		Expr: intstr.FromString(
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s) or on() vector(0)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			"count(" + importPodsHighRestart + ") or on() vector(0)",
 		),
 	},
 	{
@@ -30,7 +40,7 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 		},
 		MetricType: operatormetrics.GaugeType,
 		Expr: intstr.FromString(
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s) or on() vector(0)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			"count(" + importPodsHighRestart + ") or on() vector(0)",
 		),
 	},
 	{
@@ -40,7 +50,7 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 		},
 		MetricType: operatormetrics.GaugeType,
 		Expr: intstr.FromString(
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s) or on() vector(0)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			"count(" + uploadPodsHighRestart + ") or on() vector(0)",
 		),
 	},
 	{
@@ -50,7 +60,7 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 		},
 		MetricType: operatormetrics.GaugeType,
 		Expr: intstr.FromString(
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s) or on() vector(0)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			"count(" + uploadPodsHighRestart + ") or on() vector(0)",
 		),
 	},
 	{
@@ -60,7 +70,7 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 		},
 		MetricType: operatormetrics.GaugeType,
 		Expr: intstr.FromString(
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s) or on() vector(0)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			"count(" + clonePodsHighRestart + ") or on() vector(0)",
 		),
 	},
 	{
@@ -70,7 +80,7 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 		},
 		MetricType: operatormetrics.GaugeType,
 		Expr: intstr.FromString(
-			fmt.Sprintf("count(kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s) or on() vector(0)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			"count(" + clonePodsHighRestart + ") or on() vector(0)",
 		),
 	},
 	{
@@ -80,7 +90,7 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 		},
 		MetricType: operatormetrics.GaugeType,
 		Expr: intstr.FromString(
-			fmt.Sprintf("count by (namespace) (kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.ImporterPodName, common.ImporterPodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			"count by (namespace) (" + importPodsHighRestart + ")",
 		),
 	},
 	{
@@ -90,7 +100,7 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 		},
 		MetricType: operatormetrics.GaugeType,
 		Expr: intstr.FromString(
-			fmt.Sprintf("count by (namespace) (kube_pod_container_status_restarts_total{pod=~'%s-.*', container='%s'} > %s)", common.UploadPodName, common.UploadServerPodname, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			"count by (namespace) (" + uploadPodsHighRestart + ")",
 		),
 	},
 	{
@@ -100,7 +110,7 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 		},
 		MetricType: operatormetrics.GaugeType,
 		Expr: intstr.FromString(
-			fmt.Sprintf("count by (namespace) (kube_pod_container_status_restarts_total{pod=~'.*%s', container='%s'} > %s)", common.ClonerSourcePodNameSuffix, common.ClonerSourcePodName, strconv.Itoa(common.UnusualRestartCountThreshold)),
+			"count by (namespace) (" + clonePodsHighRestart + ")",
 		),
 	},
 }
