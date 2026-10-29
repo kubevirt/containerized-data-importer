@@ -2,6 +2,7 @@ package common
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -599,6 +600,27 @@ var _ = Describe("PrometheusCertSecretName", func() {
 	})
 })
 
+type fakeEnsureCertGenerator struct {
+	cert, key    []byte
+	err          error
+	serverCalls  int
+	gotNamespace string
+	gotService   string
+	gotDuration  time.Duration
+}
+
+func (f *fakeEnsureCertGenerator) MakeClientCert(name string, groups []string, duration time.Duration) ([]byte, []byte, error) {
+	return f.cert, f.key, f.err
+}
+
+func (f *fakeEnsureCertGenerator) MakeServerCert(namespace, service string, duration time.Duration) ([]byte, []byte, error) {
+	f.serverCalls++
+	f.gotNamespace = namespace
+	f.gotService = service
+	f.gotDuration = duration
+	return f.cert, f.key, f.err
+}
+
 var _ = Describe("EnsurePrometheusCertSecret", func() {
 	var pod *v1.Pod
 
@@ -612,16 +634,19 @@ var _ = Describe("EnsurePrometheusCertSecret", func() {
 		}
 	})
 
-	It("should create the secret with the pod OwnerReference", func() {
+	It("should create the secret with the pod OwnerReference and generated cert/key", func() {
 		s := scheme.Scheme
 		Expect(v1.AddToScheme(s)).To(Succeed())
 		cl := fake.NewClientBuilder().WithScheme(s).Build()
 
+		cg := &fakeEnsureCertGenerator{cert: []byte("the-cert"), key: []byte("the-key")}
 		err := EnsurePrometheusCertSecret(
 			context.TODO(),
 			cl,
 			pod,
 			nil,
+			cg,
+			time.Hour,
 		)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -636,15 +661,38 @@ var _ = Describe("EnsurePrometheusCertSecret", func() {
 		)
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(secret.Data).To(HaveKey(v1.TLSCertKey))
-		Expect(secret.Data).To(HaveKey(v1.TLSPrivateKeyKey))
+		Expect(secret.Data).To(HaveKeyWithValue(v1.TLSCertKey, []byte("the-cert")))
+		Expect(secret.Data).To(HaveKeyWithValue(v1.TLSPrivateKeyKey, []byte("the-key")))
 
 		Expect(secret.OwnerReferences).To(HaveLen(1))
 		Expect(secret.OwnerReferences[0].Name).To(Equal(pod.Name))
 		Expect(secret.OwnerReferences[0].UID).To(Equal(pod.UID))
+
+		Expect(cg.serverCalls).To(Equal(1))
+		Expect(cg.gotNamespace).To(Equal(pod.Namespace))
+		Expect(cg.gotService).To(Equal(pod.Name))
+		Expect(cg.gotDuration).To(Equal(time.Hour))
 	})
 
-	It("should not error when the secret already exists", func() {
+	It("should return the generator error and not create a secret", func() {
+		s := scheme.Scheme
+		Expect(v1.AddToScheme(s)).To(Succeed())
+		cl := fake.NewClientBuilder().WithScheme(s).Build()
+
+		generatorErr := fmt.Errorf("certificate generation failed")
+		cg := &fakeEnsureCertGenerator{err: generatorErr}
+		err := EnsurePrometheusCertSecret(context.TODO(), cl, pod, nil, cg, time.Hour)
+		Expect(err).To(MatchError(generatorErr))
+
+		secret := &v1.Secret{}
+		err = cl.Get(context.TODO(), types.NamespacedName{
+			Name:      PrometheusCertSecretName(pod.Name),
+			Namespace: pod.Namespace,
+		}, secret)
+		Expect(errors.IsNotFound(err)).To(BeTrue())
+	})
+
+	It("should not error and leave an existing secret unchanged when it already exists", func() {
 		s := scheme.Scheme
 		Expect(v1.AddToScheme(s)).To(Succeed())
 
@@ -653,6 +701,10 @@ var _ = Describe("EnsurePrometheusCertSecret", func() {
 				Name:      PrometheusCertSecretName(pod.Name),
 				Namespace: pod.Namespace,
 			},
+			Data: map[string][]byte{
+				v1.TLSCertKey:       []byte("existing-cert"),
+				v1.TLSPrivateKeyKey: []byte("existing-key"),
+			},
 		}
 
 		cl := fake.NewClientBuilder().
@@ -660,14 +712,25 @@ var _ = Describe("EnsurePrometheusCertSecret", func() {
 			WithObjects(existingSecret).
 			Build()
 
+		cg := &fakeEnsureCertGenerator{cert: []byte("new-cert"), key: []byte("new-key")}
 		err := EnsurePrometheusCertSecret(
 			context.TODO(),
 			cl,
 			pod,
 			nil,
+			cg,
+			time.Hour,
 		)
-
 		Expect(err).NotTo(HaveOccurred())
+
+		secret := &v1.Secret{}
+		err = cl.Get(context.TODO(), types.NamespacedName{
+			Name:      PrometheusCertSecretName(pod.Name),
+			Namespace: pod.Namespace,
+		}, secret)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(secret.Data).To(HaveKeyWithValue(v1.TLSCertKey, []byte("existing-cert")))
+		Expect(secret.Data).To(HaveKeyWithValue(v1.TLSPrivateKeyKey, []byte("existing-key")))
 	})
 
 	It("should apply installer labels when provided", func() {
@@ -675,11 +738,12 @@ var _ = Describe("EnsurePrometheusCertSecret", func() {
 		Expect(v1.AddToScheme(s)).To(Succeed())
 		cl := fake.NewClientBuilder().WithScheme(s).Build()
 
+		cg := &fakeEnsureCertGenerator{cert: []byte("c"), key: []byte("k")}
 		labels := map[string]string{
 			"app.kubernetes.io/part-of": "testing",
 			"app.kubernetes.io/version": "v1.0.0",
 		}
-		err := EnsurePrometheusCertSecret(context.TODO(), cl, pod, labels)
+		err := EnsurePrometheusCertSecret(context.TODO(), cl, pod, labels, cg, time.Hour)
 		Expect(err).NotTo(HaveOccurred())
 
 		secret := &v1.Secret{}

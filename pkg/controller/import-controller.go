@@ -35,7 +35,9 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
@@ -62,18 +64,19 @@ const (
 
 // ImportReconciler members
 type ImportReconciler struct {
-	client             client.Client
-	uncachedClient     client.Client
-	recorder           record.EventRecorder
-	scheme             *runtime.Scheme
-	log                logr.Logger
-	image              string
-	verbose            string
-	pullPolicy         string
-	filesystemOverhead string //nolint:unused // TODO: check if need to remove this field
-	cdiNamespace       string
-	featureGates       featuregates.FeatureGates
-	installerLabels    map[string]string
+	client              client.Client
+	uncachedClient      client.Client
+	recorder            record.EventRecorder
+	scheme              *runtime.Scheme
+	log                 logr.Logger
+	image               string
+	verbose             string
+	pullPolicy          string
+	filesystemOverhead  string //nolint:unused // TODO: check if need to remove this field
+	cdiNamespace        string
+	featureGates        featuregates.FeatureGates
+	installerLabels     map[string]string
+	serverCertGenerator generator.CertGenerator
 }
 
 type importPodEnvVar struct {
@@ -128,7 +131,7 @@ type importerPodArgs struct {
 }
 
 // NewImportController creates a new instance of the import controller.
-func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pullPolicy, verbose string, installerLabels map[string]string) (controller.Controller, error) {
+func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pullPolicy, verbose string, serverCertGenerator generator.CertGenerator, installerLabels map[string]string) (controller.Controller, error) {
 	uncachedClient, err := client.New(mgr.GetConfig(), client.Options{
 		Scheme: mgr.GetScheme(),
 		Mapper: mgr.GetRESTMapper(),
@@ -138,17 +141,18 @@ func NewImportController(mgr manager.Manager, log logr.Logger, importerImage, pu
 	}
 	client := mgr.GetClient()
 	reconciler := &ImportReconciler{
-		client:          client,
-		uncachedClient:  uncachedClient,
-		scheme:          mgr.GetScheme(),
-		log:             log.WithName("import-controller"),
-		image:           importerImage,
-		verbose:         verbose,
-		pullPolicy:      pullPolicy,
-		recorder:        mgr.GetEventRecorderFor("import-controller"),
-		cdiNamespace:    util.GetNamespace(),
-		featureGates:    featuregates.NewFeatureGates(client),
-		installerLabels: installerLabels,
+		client:              client,
+		uncachedClient:      uncachedClient,
+		scheme:              mgr.GetScheme(),
+		log:                 log.WithName("import-controller"),
+		image:               importerImage,
+		verbose:             verbose,
+		pullPolicy:          pullPolicy,
+		recorder:            mgr.GetEventRecorderFor("import-controller"),
+		cdiNamespace:        util.GetNamespace(),
+		featureGates:        featuregates.NewFeatureGates(client),
+		installerLabels:     installerLabels,
+		serverCertGenerator: serverCertGenerator,
 	}
 	importController, err := controller.New("import-controller", mgr, controller.Options{
 		MaxConcurrentReconciles: 3,
@@ -300,11 +304,17 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 			}
 		} else {
 			if pod.Status.Phase == corev1.PodPending || pod.Status.Phase == "" {
+				certConfig, err := operator.GetCertConfigWithDefaults(context.TODO(), r.client)
+				if err != nil {
+					return reconcile.Result{}, err
+				}
 				if err := cc.EnsurePrometheusCertSecret(
 					context.TODO(),
 					r.client,
 					pod,
 					r.installerLabels,
+					r.serverCertGenerator,
+					certConfig.Server.Duration.Duration,
 				); err != nil {
 					return reconcile.Result{}, err
 				}

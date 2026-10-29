@@ -65,6 +65,7 @@ type CloneReconciler struct {
 	scheme              *runtime.Scheme
 	recorder            record.EventRecorder
 	clientCertGenerator generator.CertGenerator
+	serverCertGenerator generator.CertGenerator
 	serverCAFetcher     fetcher.CertBundleFetcher
 	log                 logr.Logger
 	multiTokenValidator *cc.MultiTokenValidator
@@ -80,6 +81,7 @@ func NewCloneController(mgr manager.Manager,
 	image, pullPolicy,
 	verbose string,
 	clientCertGenerator generator.CertGenerator,
+	serverCertGenerator generator.CertGenerator,
 	serverCAFetcher fetcher.CertBundleFetcher,
 	apiServerKey *rsa.PublicKey,
 	installerLabels map[string]string) (controller.Controller, error) {
@@ -93,6 +95,7 @@ func NewCloneController(mgr manager.Manager,
 		pullPolicy:          pullPolicy,
 		recorder:            mgr.GetEventRecorderFor("clone-controller"),
 		clientCertGenerator: clientCertGenerator,
+		serverCertGenerator: serverCertGenerator,
 		serverCAFetcher:     serverCAFetcher,
 		installerLabels:     installerLabels,
 	}
@@ -222,11 +225,17 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 	if sourcePod != nil &&
 		(sourcePod.Status.Phase == corev1.PodPending ||
 			sourcePod.Status.Phase == "") {
+		certConfig, err := operator.GetCertConfigWithDefaults(ctx, r.client)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
 		if err := cc.EnsurePrometheusCertSecret(
 			ctx,
 			r.client,
 			sourcePod,
 			r.installerLabels,
+			r.serverCertGenerator,
+			certConfig.Server.Duration.Duration,
 		); err != nil {
 			return reconcile.Result{}, err
 		}

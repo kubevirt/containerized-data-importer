@@ -65,7 +65,7 @@ import (
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
@@ -1295,8 +1295,10 @@ func EnsurePrometheusCertSecret(
 	c client.Client,
 	pod *corev1.Pod,
 	installerLabels map[string]string,
+	certGenerator generator.CertGenerator,
+	duration time.Duration,
 ) error {
-	certBytes, keyBytes, err := cert.GenerateSelfSignedCertKey(pod.Name, nil, nil)
+	certBytes, keyBytes, err := certGenerator.MakeServerCert(pod.Namespace, pod.Name, duration)
 	if err != nil {
 		return fmt.Errorf("generating prometheus cert for pod %s/%s: %w", pod.Namespace, pod.Name, err)
 	}

@@ -1701,12 +1701,13 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	rec := record.NewFakeRecorder(1)
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &ImportReconciler{
-		client:         cl,
-		uncachedClient: cl,
-		scheme:         s,
-		log:            importLog,
-		recorder:       rec,
-		featureGates:   featuregates.NewFeatureGates(cl),
+		client:              cl,
+		uncachedClient:      cl,
+		scheme:              s,
+		log:                 importLog,
+		recorder:            rec,
+		featureGates:        featuregates.NewFeatureGates(cl),
+		serverCertGenerator: &fakeCertGenerator{},
 		installerLabels: map[string]string{
 			common.AppKubernetesPartOfLabel:  "testing",
 			common.AppKubernetesVersionLabel: "v0.0.0-tests",

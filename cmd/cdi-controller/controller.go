@@ -297,12 +297,12 @@ func start() {
 		os.Exit(1)
 	}
 
-	if _, err := controller.NewImportController(mgr, log, importerImage, pullPolicy, verbose, installerLabels); err != nil {
+	if _, err := controller.NewImportController(mgr, log, importerImage, pullPolicy, verbose, uploadServerCertGenerator, installerLabels); err != nil {
 		klog.Errorf("Unable to setup import controller: %v", err)
 		os.Exit(1)
 	}
 
-	if _, err := controller.NewCloneController(mgr, log, clonerImage, pullPolicy, verbose, uploadClientCertGenerator, uploadServerBundleFetcher, getTokenPublicKey(), installerLabels); err != nil {
+	if _, err := controller.NewCloneController(mgr, log, clonerImage, pullPolicy, verbose, uploadClientCertGenerator, uploadServerCertGenerator, uploadServerBundleFetcher, getTokenPublicKey(), installerLabels); err != nil {
 		klog.Errorf("Unable to setup clone controller: %v", err)
 		os.Exit(1)
 	}
