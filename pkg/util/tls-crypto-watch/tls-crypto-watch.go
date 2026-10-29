@@ -77,17 +77,16 @@ func NewCdiConfigTLSWatcher(ctx context.Context, cdiClient cdiclient.Interface) 
 	}
 
 	_, err := cdiConfigInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			klog.V(3).Infof("cdiConfigInformer add callback: %+v", obj)
 			ctw.updateConfig(obj.(*cdiv1.CDIConfig))
 		},
-		UpdateFunc: func(_, obj interface{}) {
+		UpdateFunc: func(_, obj any) {
 			klog.V(3).Infof("cdiConfigInformer update callback: %+v", obj)
 			ctw.updateConfig(obj.(*cdiv1.CDIConfig))
 		},
-		DeleteFunc: func(obj interface{}) {
-			config := obj.(*cdiv1.CDIConfig)
-			klog.Errorf("CDIConfig %s deleted", config.Name)
+		DeleteFunc: func(obj any) {
+			klog.Error("CDIConfig deleted")
 		},
 	})
 
