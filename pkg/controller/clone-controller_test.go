@@ -892,6 +892,7 @@ func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
 		},
 		image:               testImage,
 		clientCertGenerator: &fakeCertGenerator{},
+		serverCertGenerator: &fakeCertGenerator{},
 		serverCAFetcher:     &fetcher.MemCertBundleFetcher{Bundle: []byte("baz")},
 		installerLabels: map[string]string{
 			common.AppKubernetesPartOfLabel:  "testing",
