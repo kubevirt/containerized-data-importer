@@ -1242,6 +1242,91 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionMessage]).To(Equal(eventBasedBoundMessage))
 		Expect(resPvc.GetAnnotations()[cc.AnnBoundConditionReason]).To(Equal(eventBasedBoundReason))
 	})
+
+	It("Should keep requiresDirectIo while the cache=trynone pod is still running", func() {
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{
+			cc.AnnEndpoint:         testEndPoint,
+			cc.AnnRequiresDirectIO: "true",
+		}, nil, corev1.ClaimPending)
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, corev1.EnvVar{
+			Name:  common.CacheMode,
+			Value: common.CacheModeTryNone,
+		})
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Running: &v1.ContainerStateRunning{},
+					},
+				},
+			},
+		}
+		reconciler = createImportReconciler(pvc, pod)
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
+		Expect(err).ToNot(HaveOccurred())
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPvc.GetAnnotations()[cc.AnnRequiresDirectIO]).To(Equal("true"))
+	})
+
+	It("Should keep requiresDirectIo when a cache=trynone pod succeeds but needs scratch space", func() {
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{
+			cc.AnnEndpoint:         testEndPoint,
+			cc.AnnRequiresDirectIO: "true",
+		}, nil, corev1.ClaimPending)
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, corev1.EnvVar{
+			Name:  common.CacheMode,
+			Value: common.CacheModeTryNone,
+		})
+		scratchRequired := true
+		termMsg, err := json.Marshal(common.TerminationMessage{ScratchSpaceRequired: &scratchRequired})
+		Expect(err).ToNot(HaveOccurred())
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodSucceeded,
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Message: string(termMsg),
+						},
+					},
+				},
+			},
+		}
+		reconciler = createImportReconciler(pvc, pod)
+		err = reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
+		Expect(err).ToNot(HaveOccurred())
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPvc.GetAnnotations()[cc.AnnRequiresDirectIO]).To(Equal("true"))
+	})
+
+	It("Should clear requiresDirectIo when a cache=trynone pod succeeds without needing scratch space", func() {
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{
+			cc.AnnEndpoint:         testEndPoint,
+			cc.AnnRequiresDirectIO: "true",
+		}, nil, corev1.ClaimPending)
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, corev1.EnvVar{
+			Name:  common.CacheMode,
+			Value: common.CacheModeTryNone,
+		})
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodSucceeded,
+		}
+		reconciler = createImportReconciler(pvc, pod)
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
+		Expect(err).ToNot(HaveOccurred())
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPvc.GetAnnotations()[cc.AnnRequiresDirectIO]).To(Equal("false"))
+	})
 })
 
 var _ = Describe("Create Importer Pod", func() {
