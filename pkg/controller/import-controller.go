@@ -461,7 +461,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	}
 
 	for _, ev := range pod.Spec.Containers[0].Env {
-		if ev.Name == common.CacheMode && ev.Value == common.CacheModeTryNone {
+		if ev.Name == common.CacheMode && ev.Value == common.CacheModeTryNone && pod.Status.Phase == corev1.PodSucceeded && !podModificationsNeeded {
 			anno[cc.AnnRequiresDirectIO] = "false"
 		}
 	}
