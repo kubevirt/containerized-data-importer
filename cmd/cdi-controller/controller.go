@@ -342,7 +342,7 @@ func start() {
 		klog.Errorf("Unable to setup clone populator: %v", err)
 		os.Exit(1)
 	}
-	if _, err := populators.NewForkliftPopulator(ctx, mgr, log, importerImage, ovirtPopulatorImage, installerLabels); err != nil {
+	if _, err := populators.NewForkliftPopulator(ctx, mgr, log, importerImage, ovirtPopulatorImage, uploadServerCertGenerator, installerLabels); err != nil {
 		klog.Errorf("Unable to setup forklift populator: %v", err)
 		os.Exit(1)
 	}

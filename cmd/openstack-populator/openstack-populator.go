@@ -22,6 +22,7 @@ import (
 
 	"k8s.io/klog/v2"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/openstack-populator"
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
@@ -95,14 +96,9 @@ func main() {
 	flag.Int64Var(&config.pvcSize, "pvc-size", 0, "Size of pvc (in bytes)")
 	flag.Parse()
 
-	certsDirectory, err := os.MkdirTemp("", "certsdir")
-	if err != nil {
-		panic(err)
+	if err := prometheusutil.StartPrometheusEndpointNoCertGeneration(common.PrometheusCertDir); err != nil {
+		klog.Warningf("Failed to start prometheus endpoint: %v", err)
 	}
-
-	defer os.RemoveAll(certsDirectory)
-
-	prometheusutil.StartPrometheusEndpoint("/certsdir")
 
 	populate(config)
 }

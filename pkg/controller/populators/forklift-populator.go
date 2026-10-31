@@ -28,6 +28,8 @@ import (
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	openstackMetric "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/openstack-populator"
 	ovirtMetric "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/ovirt-populator"
+	"kubevirt.io/containerized-data-importer/pkg/operator"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 )
 
 const (
@@ -55,6 +57,7 @@ type ForkliftPopulatorReconciler struct {
 	ReconcilerBase
 	importerImage       string
 	ovirtPopulatorImage string
+	serverCertGenerator generator.CertGenerator
 }
 
 // NewForkliftPopulator creates a new instance of the forklift controller.
@@ -64,6 +67,7 @@ func NewForkliftPopulator(
 	log logr.Logger,
 	importerImage string,
 	ovirtPopulatorImage string,
+	serverCertGenerator generator.CertGenerator,
 	installerLabels map[string]string,
 ) (controller.Controller, error) {
 	client := mgr.GetClient()
@@ -78,6 +82,7 @@ func NewForkliftPopulator(
 		},
 		importerImage:       importerImage,
 		ovirtPopulatorImage: ovirtPopulatorImage,
+		serverCertGenerator: serverCertGenerator,
 	}
 
 	forkliftPopulatorController, err := controller.New(forkliftPopulatorName, mgr, controller.Options{
@@ -307,6 +312,23 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 		}
 
 		return reconcile.Result{}, nil
+	}
+
+	if pod.Status.Phase == corev1.PodPending || pod.Status.Phase == "" {
+		certConfig, err := operator.GetCertConfigWithDefaults(context.TODO(), r.client)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		if err := cc.EnsurePrometheusCertSecret(
+			context.TODO(),
+			r.client,
+			pod,
+			r.installerLabels,
+			r.serverCertGenerator,
+			certConfig.Server.Duration.Duration,
+		); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	if len(pod.Status.ContainerStatuses) == 0 {
@@ -547,6 +569,8 @@ func (r *ForkliftPopulatorReconciler) createPopulatorPod(pvcPrime, pvc *corev1.P
 		Name:      common.TmpVolumeName,
 		MountPath: common.TmpMountPath,
 	})
+
+	cc.AppendPrometheusCertVolume(&pod.Spec, pod.Name)
 
 	if err := r.client.Create(context.TODO(), &pod); err != nil {
 		return err
