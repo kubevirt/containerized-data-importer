@@ -137,6 +137,7 @@ func main() {
 						cryptoConfig := w.GetCdiTLSConfig()
 						config.CipherSuites = cryptoConfig.CipherSuites
 						config.MinVersion = cryptoConfig.MinVersion
+						config.CurvePreferences = cryptoConfig.CurvePreferences
 					}
 					return config, nil
 				}
