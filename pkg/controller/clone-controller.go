@@ -225,17 +225,12 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 	if sourcePod != nil &&
 		(sourcePod.Status.Phase == corev1.PodPending ||
 			sourcePod.Status.Phase == "") {
-		certConfig, err := operator.GetCertConfigWithDefaults(ctx, r.client)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-		if err := cc.EnsurePrometheusCertSecret(
+		if err := cc.EnsureWorkerPrometheusCert(
 			ctx,
 			r.client,
 			sourcePod,
 			r.installerLabels,
 			r.serverCertGenerator,
-			certConfig.Server.Duration.Duration,
 		); err != nil {
 			return reconcile.Result{}, err
 		}

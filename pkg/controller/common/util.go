@@ -63,6 +63,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
@@ -1285,6 +1286,58 @@ func AppendPrometheusCertVolume(podSpec *corev1.PodSpec, podName string) {
 	for i := range podSpec.Containers {
 		podSpec.Containers[i].VolumeMounts = append(podSpec.Containers[i].VolumeMounts, mount)
 	}
+}
+
+// GetCertConfigWithDefaults returns the CDI cert config with default values when not set
+func GetCertConfigWithDefaults(ctx context.Context, c client.Client) (*cdiv1.CDICertConfig, error) {
+	cdi, err := GetActiveCDI(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+
+	certConfig := cdi.Spec.CertConfig
+	if certConfig == nil {
+		certConfig = &cdiv1.CDICertConfig{}
+	}
+
+	if certConfig.CA == nil || certConfig.CA.Duration == nil || certConfig.CA.RenewBefore == nil {
+		certConfig.CA = &cdiv1.CertConfig{
+			Duration:    &metav1.Duration{Duration: cert.SignerLifetime},
+			RenewBefore: &metav1.Duration{Duration: cert.SignerLifetime - cert.SignerRefresh},
+		}
+	}
+
+	if certConfig.Server == nil || certConfig.Server.Duration == nil || certConfig.Server.RenewBefore == nil {
+		certConfig.Server = &cdiv1.CertConfig{
+			Duration:    &metav1.Duration{Duration: cert.ServerLifetime},
+			RenewBefore: &metav1.Duration{Duration: cert.ServerLifetime - cert.ServerRefresh},
+		}
+	}
+
+	if certConfig.Client == nil || certConfig.Client.Duration == nil || certConfig.Client.RenewBefore == nil {
+		certConfig.Client = &cdiv1.CertConfig{
+			Duration:    &metav1.Duration{Duration: cert.ClientLifetime},
+			RenewBefore: &metav1.Duration{Duration: cert.ClientLifetime - cert.ClientRefresh},
+		}
+	}
+
+	return certConfig, nil
+}
+
+// EnsureWorkerPrometheusCert provisions the worker Pod's Prometheus TLS Secret
+// using the configured server certificate duration.
+func EnsureWorkerPrometheusCert(
+	ctx context.Context,
+	c client.Client,
+	pod *corev1.Pod,
+	installerLabels map[string]string,
+	certGenerator generator.CertGenerator,
+) error {
+	certConfig, err := GetCertConfigWithDefaults(ctx, c)
+	if err != nil {
+		return err
+	}
+	return EnsurePrometheusCertSecret(ctx, c, pod, installerLabels, certGenerator, certConfig.Server.Duration.Duration)
 }
 
 // EnsurePrometheusCertSecret ensures that the worker Pod has a Prometheus

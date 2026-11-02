@@ -28,7 +28,6 @@ import (
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	openstackMetric "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/openstack-populator"
 	ovirtMetric "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/ovirt-populator"
-	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 )
 
@@ -315,17 +314,12 @@ func (r *ForkliftPopulatorReconciler) reconcileTargetPVC(pvc, pvcPrime *corev1.P
 	}
 
 	if pod.Status.Phase == corev1.PodPending || pod.Status.Phase == "" {
-		certConfig, err := operator.GetCertConfigWithDefaults(context.TODO(), r.client)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-		if err := cc.EnsurePrometheusCertSecret(
+		if err := cc.EnsureWorkerPrometheusCert(
 			context.TODO(),
 			r.client,
 			pod,
 			r.installerLabels,
 			r.serverCertGenerator,
-			certConfig.Server.Duration.Duration,
 		); err != nil {
 			return reconcile.Result{}, err
 		}

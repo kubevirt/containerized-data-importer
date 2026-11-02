@@ -20,7 +20,6 @@ go_library(
         "//pkg/monitoring/metrics/cdi-importer:go_default_library",
         "//pkg/monitoring/metrics/openstack-populator:go_default_library",
         "//pkg/monitoring/metrics/ovirt-populator:go_default_library",
-        "//pkg/operator:go_default_library",
         "//pkg/util:go_default_library",
         "//pkg/util/cert/generator:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",

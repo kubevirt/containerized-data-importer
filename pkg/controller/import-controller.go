@@ -35,7 +35,6 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
-	"kubevirt.io/containerized-data-importer/pkg/operator"
 	"kubevirt.io/containerized-data-importer/pkg/util"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
@@ -304,17 +303,12 @@ func (r *ImportReconciler) reconcilePvc(pvc *corev1.PersistentVolumeClaim, log l
 			}
 		} else {
 			if pod.Status.Phase == corev1.PodPending || pod.Status.Phase == "" {
-				certConfig, err := operator.GetCertConfigWithDefaults(context.TODO(), r.client)
-				if err != nil {
-					return reconcile.Result{}, err
-				}
-				if err := cc.EnsurePrometheusCertSecret(
+				if err := cc.EnsureWorkerPrometheusCert(
 					context.TODO(),
 					r.client,
 					pod,
 					r.installerLabels,
 					r.serverCertGenerator,
-					certConfig.Server.Duration.Duration,
 				); err != nil {
 					return reconcile.Result{}, err
 				}
