@@ -330,8 +330,7 @@ spec:
 
                               When omitted, this means no opinion and the platform is left to choose reasonable defaults which are
                               subject to change over time and may be different per platform component depending on the underlying TLS
-                              libraries they use. If specified, the list must contain at least one and at most 7 groups,
-                              and each group must be unique.
+                              libraries they use. If specified each group must be unique.
 
                               For example, to use X25519 and secp256r1 (yaml):
 
@@ -339,24 +338,7 @@ spec:
                                   - X25519
                                   - secp256r1
                             items:
-                              description: |-
-                                TLSGroup is a supported group identifier that can be used in TLSProfile.Groups.
-                                There is a one-to-one mapping between these names and the group IDs defined
-                                in Go's crypto/tls package based on IANA's "TLS Supported Groups" registry:
-                                https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-8
-                                Note that X25519MLKEM768 is a post-quantum hybrid group that is not
-                                FIPS-approved and should be ignored by components running in FIPS mode.
-                              enum:
-                              - X25519
-                              - secp256r1
-                              - secp384r1
-                              - secp521r1
-                              - X25519MLKEM768
-                              - SecP256r1MLKEM768
-                              - SecP384r1MLKEM1024
                               type: string
-                            maxItems: 7
-                            minItems: 1
                             type: array
                             x-kubernetes-list-type: set
                           minTLSVersion:
@@ -2899,8 +2881,7 @@ spec:
 
                               When omitted, this means no opinion and the platform is left to choose reasonable defaults which are
                               subject to change over time and may be different per platform component depending on the underlying TLS
-                              libraries they use. If specified, the list must contain at least one and at most 7 groups,
-                              and each group must be unique.
+                              libraries they use. If specified each group must be unique.
 
                               For example, to use X25519 and secp256r1 (yaml):
 
@@ -2908,24 +2889,7 @@ spec:
                                   - X25519
                                   - secp256r1
                             items:
-                              description: |-
-                                TLSGroup is a supported group identifier that can be used in TLSProfile.Groups.
-                                There is a one-to-one mapping between these names and the group IDs defined
-                                in Go's crypto/tls package based on IANA's "TLS Supported Groups" registry:
-                                https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-8
-                                Note that X25519MLKEM768 is a post-quantum hybrid group that is not
-                                FIPS-approved and should be ignored by components running in FIPS mode.
-                              enum:
-                              - X25519
-                              - secp256r1
-                              - secp384r1
-                              - secp521r1
-                              - X25519MLKEM768
-                              - SecP256r1MLKEM768
-                              - SecP384r1MLKEM1024
                               type: string
-                            maxItems: 7
-                            minItems: 1
                             type: array
                             x-kubernetes-list-type: set
                           minTLSVersion:
@@ -5422,8 +5386,7 @@ spec:
 
                           When omitted, this means no opinion and the platform is left to choose reasonable defaults which are
                           subject to change over time and may be different per platform component depending on the underlying TLS
-                          libraries they use. If specified, the list must contain at least one and at most 7 groups,
-                          and each group must be unique.
+                          libraries they use. If specified each group must be unique.
 
                           For example, to use X25519 and secp256r1 (yaml):
 
@@ -5431,24 +5394,7 @@ spec:
                               - X25519
                               - secp256r1
                         items:
-                          description: |-
-                            TLSGroup is a supported group identifier that can be used in TLSProfile.Groups.
-                            There is a one-to-one mapping between these names and the group IDs defined
-                            in Go's crypto/tls package based on IANA's "TLS Supported Groups" registry:
-                            https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-8
-                            Note that X25519MLKEM768 is a post-quantum hybrid group that is not
-                            FIPS-approved and should be ignored by components running in FIPS mode.
-                          enum:
-                          - X25519
-                          - secp256r1
-                          - secp384r1
-                          - secp521r1
-                          - X25519MLKEM768
-                          - SecP256r1MLKEM768
-                          - SecP384r1MLKEM1024
                           type: string
-                        maxItems: 7
-                        minItems: 1
                         type: array
                         x-kubernetes-list-type: set
                       minTLSVersion:

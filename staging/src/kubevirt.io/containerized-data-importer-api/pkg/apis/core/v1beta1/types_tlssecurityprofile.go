@@ -1,6 +1,9 @@
 package v1beta1
 
 // following copied from https://github.com/openshift/api/blob/f2ddf1eb36afb7c3250bfbed3f870f01393f74e5/config/v1/types_tlssecurityprofile.go
+// Deliberate divergence from upstream: TLSProfileSpec.Groups is []string instead of OpenShift's TLSGroup enum,
+// following https://github.com/kubevirt/enhancements/blob/eedd684e165ebabea2f5180b6e404b276e8b02ee/veps/sig-compute/287-tls-group-preferences/vep.md#typed-tlsgroup-enum
+// Keep this divergence when re-syncing from OpenShift.
 
 // TLSSecurityProfile defines the schema for a TLS security profile. This object
 // is used by operators to apply TLS security settings to operands.
@@ -166,31 +169,26 @@ const (
 	TLSProfileCustomType TLSProfileType = "Custom"
 )
 
-// TLSGroup is a supported group identifier that can be used in TLSProfile.Groups.
 // There is a one-to-one mapping between these names and the group IDs defined
 // in Go's crypto/tls package based on IANA's "TLS Supported Groups" registry:
 // https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-8
 // Note that X25519MLKEM768 is a post-quantum hybrid group that is not
 // FIPS-approved and should be ignored by components running in FIPS mode.
-//
-// +kubebuilder:validation:Enum=X25519;secp256r1;secp384r1;secp521r1;X25519MLKEM768;SecP256r1MLKEM768;SecP384r1MLKEM1024
-type TLSGroup string
-
 const (
 	// TLSGroupX25519 represents X25519.
-	TLSGroupX25519 TLSGroup = "X25519"
+	TLSGroupX25519 = "X25519"
 	// TLSGroupSecP256r1 represents P-256 (secp256r1).
-	TLSGroupSecP256r1 TLSGroup = "secp256r1"
+	TLSGroupSecP256r1 = "secp256r1"
 	// TLSGroupSecP384r1 represents P-384 (secp384r1).
-	TLSGroupSecP384r1 TLSGroup = "secp384r1"
+	TLSGroupSecP384r1 = "secp384r1"
 	// TLSGroupSecP521r1 represents P-521 (secp521r1).
-	TLSGroupSecP521r1 TLSGroup = "secp521r1"
+	TLSGroupSecP521r1 = "secp521r1"
 	// TLSGroupX25519MLKEM768 represents X25519MLKEM768.
-	TLSGroupX25519MLKEM768 TLSGroup = "X25519MLKEM768"
+	TLSGroupX25519MLKEM768 = "X25519MLKEM768"
 	// TLSGroupSecP256r1MLKEM768 represents SecP256r1MLKEM768.
-	TLSGroupSecP256r1MLKEM768 TLSGroup = "SecP256r1MLKEM768"
+	TLSGroupSecP256r1MLKEM768 = "SecP256r1MLKEM768"
 	// TLSGroupSecP384r1MLKEM1024 represents SecP384r1MLKEM1024.
-	TLSGroupSecP384r1MLKEM1024 TLSGroup = "SecP384r1MLKEM1024"
+	TLSGroupSecP384r1MLKEM1024 = "SecP384r1MLKEM1024"
 )
 
 // TLSProfileSpec is the desired behavior of a TLSSecurityProfile.
@@ -215,8 +213,7 @@ type TLSProfileSpec struct {
 	//
 	// When omitted, this means no opinion and the platform is left to choose reasonable defaults which are
 	// subject to change over time and may be different per platform component depending on the underlying TLS
-	// libraries they use. If specified, the list must contain at least one and at most 7 groups,
-	// and each group must be unique.
+	// libraries they use. If specified each group must be unique.
 	//
 	// For example, to use X25519 and secp256r1 (yaml):
 	//
@@ -226,10 +223,7 @@ type TLSProfileSpec struct {
 	//
 	// +optional
 	// +listType=set
-	// +kubebuilder:validation:MaxItems=7
-	// +kubebuilder:validation:MinItems=1
-	// +openshift:enable:FeatureGate=TLSGroupPreferences
-	Groups []TLSGroup `json:"groups,omitempty"`
+	Groups []string `json:"groups,omitempty"`
 	// minTLSVersion is used to specify the minimal version of the TLS protocol
 	// that is negotiated during the TLS handshake. For example, to use TLS
 	// versions 1.1, 1.2 and 1.3 (yaml):
@@ -306,7 +300,7 @@ var TLSProfiles = map[TLSProfileType]*TLSProfileSpec{
 			"AES256-SHA",
 			"DES-CBC3-SHA",
 		},
-		Groups: []TLSGroup{
+		Groups: []string{
 			TLSGroupX25519MLKEM768,
 			TLSGroupX25519,
 			TLSGroupSecP256r1,
@@ -326,7 +320,7 @@ var TLSProfiles = map[TLSProfileType]*TLSProfileSpec{
 			"ECDHE-ECDSA-CHACHA20-POLY1305",
 			"ECDHE-RSA-CHACHA20-POLY1305",
 		},
-		Groups: []TLSGroup{
+		Groups: []string{
 			TLSGroupX25519MLKEM768,
 			TLSGroupX25519,
 			TLSGroupSecP256r1,
@@ -340,7 +334,7 @@ var TLSProfiles = map[TLSProfileType]*TLSProfileSpec{
 			"TLS_AES_256_GCM_SHA384",
 			"TLS_CHACHA20_POLY1305_SHA256",
 		},
-		Groups: []TLSGroup{
+		Groups: []string{
 			TLSGroupX25519MLKEM768,
 			TLSGroupX25519,
 			TLSGroupSecP256r1,
