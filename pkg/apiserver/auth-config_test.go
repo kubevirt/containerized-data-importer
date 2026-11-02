@@ -268,11 +268,11 @@ var _ = Describe("Auth config tests", func() {
 		}
 
 		cdiTLSConfig := ctw.GetCdiTLSConfig()
-		Expect(cdiTLSConfig.CipherSuites).ToNot(BeEmpty())
-		Expect(tlsConfig.CipherSuites).ToNot(BeEmpty())
-		if !reflect.DeepEqual(tlsConfig.CipherSuites, cdiTLSConfig.CipherSuites) {
-			Fail("Cipher Suites do not match")
-		}
+		Expect(tlsConfig).To(SatisfyAll(
+			HaveField("CipherSuites", SatisfyAll(Not(BeEmpty()), Equal(cdiTLSConfig.CipherSuites))),
+			HaveField("CurvePreferences", SatisfyAll(Not(BeEmpty()), Equal(cdiTLSConfig.CurvePreferences))),
+			HaveField("MinVersion", Equal(cdiTLSConfig.MinVersion)),
+		))
 	})
 
 	DescribeTable("Validate client CN", func(f func() *corev1.ConfigMap, name string, allowed bool) {
