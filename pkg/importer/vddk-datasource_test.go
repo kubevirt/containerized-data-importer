@@ -73,14 +73,14 @@ var _ = Describe("VDDK data source", func() {
 	It("NewVDDKDataSource should fail when called with an invalid endpoint", func() {
 		newVddkDataSource = createVddkDataSource
 		newVMwareClient = createVMwareClient
-		_, err := NewVDDKDataSource("httpx://-------", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("httpx://-------", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).To(HaveOccurred())
 	})
 
 	It("NewVDDKDataSource should not fail on credentials with special characters", func() {
 		newVddkDataSource = createVddkDataSource
 		newVMwareClient = createVMwareClient
-		_, err := NewVDDKDataSource("http://--------", "test#user@vsphere.local", "Test#password", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("http://--------", "test#user@vsphere.local", "Test#password", "", "", "", "", "", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("no such host"))
 		Expect(err.Error()).ToNot(ContainSubstring("Test#password"))
@@ -88,7 +88,7 @@ var _ = Describe("VDDK data source", func() {
 	})
 
 	It("VDDK data source GetURL should pass through NBD socket information", func() {
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		socket := dp.GetURL()
 		path := socket.String()
@@ -96,7 +96,7 @@ var _ = Describe("VDDK data source", func() {
 	})
 
 	It("VDDK data source should move to transfer data phase after Info", func() {
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		phase, err := dp.Info()
 		Expect(err).ToNot(HaveOccurred())
@@ -115,7 +115,7 @@ var _ = Describe("VDDK data source", func() {
 			return nil, nil
 		}
 		currentExport = replaceExport
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		phase, err := dp.Info()
 		Expect(err).ToNot(HaveOccurred())
@@ -127,7 +127,7 @@ var _ = Describe("VDDK data source", func() {
 
 	It("VDDK data source should fail if TransferFile fails", func() {
 		newVddkDataSink = createVddkDataSink
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		phase, err := dp.Info()
 		Expect(err).ToNot(HaveOccurred())
@@ -138,19 +138,19 @@ var _ = Describe("VDDK data source", func() {
 	})
 
 	It("VDDK data source should know if it is a delta copy", func() {
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "checkpoint-2", "", v1.PersistentVolumeFilesystem)
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "checkpoint-1", "checkpoint-2", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dp.IsDeltaCopy()).To(BeTrue())
 	})
 
 	It("VDDK data source should know if it is not a delta copy", func() {
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(dp.IsDeltaCopy()).To(BeFalse())
 	})
 
 	It("VDDK delta copy should return immediately if there are no changed blocks", func() {
-		dp, err := NewVDDKDataSource("", "", "", "", "", "testdisk.vmdk", "snapshot-1", "snapshot-2", "", v1.PersistentVolumeFilesystem)
+		dp, err := NewVDDKDataSource("", "", "", "", "", "testdisk.vmdk", "snapshot-1", "snapshot-2", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		snapshots := createSnapshots("snapshot-1", "snapshot-2")
 		snapshotList := []*types.ManagedObjectReference{
@@ -194,7 +194,7 @@ var _ = Describe("VDDK data source", func() {
 	})
 
 	It("VDDK full copy should successfully copy the same bytes passed in", func() {
-		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem)
+		dp, err := NewVDDKDataSource("", "", "", "", "", "", "", "", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		dp.Size = 40 << 20
 		sourceBytes := bytes.Repeat([]byte{0x55}, int(dp.Size))
@@ -224,7 +224,7 @@ var _ = Describe("VDDK data source", func() {
 	It("VDDK delta copy should successfully apply a delta to a base disk image", func() {
 
 		// Copy base disk ("snapshot 1")
-		snap1, err := NewVDDKDataSource("", "", "", "", "", "testdisk.vmdk", "checkpoint-1", "", "", v1.PersistentVolumeFilesystem)
+		snap1, err := NewVDDKDataSource("", "", "", "", "", "testdisk.vmdk", "checkpoint-1", "", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		snap1.Size = 40 << 20
 		sourceBytes := bytes.Repeat([]byte{0x55}, int(snap1.Size))
@@ -251,7 +251,7 @@ var _ = Describe("VDDK data source", func() {
 		Expect(sourceSum).To(Equal(destSum))
 
 		// Write some data to the first snapshot, then copy the delta from difference between the two snapshots
-		snap2, err := NewVDDKDataSource("", "", "", "", "", "testdisk.vmdk", "checkpoint-1", "checkpoint-2", "", v1.PersistentVolumeFilesystem)
+		snap2, err := NewVDDKDataSource("", "", "", "", "", "testdisk.vmdk", "checkpoint-1", "checkpoint-2", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		snap2.Size = 40 << 20
 		copy(sourceBytes[1024:2048], bytes.Repeat([]byte{0xAA}, 1024))
@@ -358,7 +358,7 @@ var _ = Describe("VDDK data source", func() {
 		}
 
 		//ds, err := NewVDDKDataSource("", "", "", "", "", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem)
-		_, err := NewVDDKDataSource("", "", "", "", "", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("", "", "", "", "", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		//Expect(ds.ChangedBlocks).To(Equal(&changeInfo))
 	})
@@ -434,7 +434,7 @@ var _ = Describe("VDDK data source", func() {
 			return nil
 		}
 
-		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", targetDiskName, "", "", "", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", targetDiskName, "", "", "", v1.PersistentVolumeFilesystem, "")
 		if expectedSuccess {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(returnedDiskName).To(Equal(targetDiskName))
@@ -492,7 +492,7 @@ var _ = Describe("VDDK data source", func() {
 			return nil
 		}
 
-		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", "disk1", expectedSnapshot, "", "", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", "disk1", expectedSnapshot, "", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(receivedSnapshotRef).To(Equal(expectedSnapshot))
 	})
@@ -512,7 +512,7 @@ var _ = Describe("VDDK data source", func() {
 			return nil
 		}
 
-		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "false", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "false", v1.PersistentVolumeFilesystem, "")
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(Equal("disk 'testdisk.vmdk' is not present in VM hardware config or snapshot list"))
 	})
@@ -530,7 +530,7 @@ var _ = Describe("VDDK data source", func() {
 			}
 			return nil
 		}
-		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "snapshot-1", "snapshot-2", "false", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "snapshot-1", "snapshot-2", "false", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		mockTerminationChannel <- os.Interrupt
 		Expect(err).ToNot(HaveOccurred())
@@ -549,19 +549,58 @@ var _ = Describe("VDDK data source", func() {
 			}
 			return nil
 		}
-		_, err := NewVDDKDataSource("http://esx.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem)
+		_, err := NewVDDKDataSource("http://esx.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(MaxPreadLength).To(Equal(MaxPreadLengthESX))
-		_, err = NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem)
+		_, err = NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(MaxPreadLength).To(Equal(MaxPreadLengthVC))
 	})
+
+	DescribeTable("external NBD export size vs VMware disk capacity",
+		func(exportSize, diskCapacity uint64, expectErr bool) {
+			newVddkDataSource = createVddkDataSource
+			diskName := "testdisk.vmdk"
+
+			currentExport.Size = func() (uint64, error) {
+				return exportSize, nil
+			}
+			newExternalNbdConnection = func(uri string) (*NbdKitWrapper, error) {
+				return createMockNbdKitWrapper(nil, uri, "")
+			}
+			DeferCleanup(func() {
+				newExternalNbdConnection = createExternalNbdConnection
+			})
+
+			currentVMwareFunctions.Properties = func(ctx context.Context, ref types.ManagedObjectReference, property []string, result interface{}) error {
+				switch out := result.(type) {
+				case *mo.VirtualMachine:
+					if property[0] == "config.hardware.device" {
+						out.Config = createVirtualDiskConfigWithSize(diskName, 12345, int64(diskCapacity))
+					}
+				}
+				return nil
+			}
+
+			ds, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, "", "", "", v1.PersistentVolumeFilesystem, "nbd://192.0.2.10:10809")
+			if expectErr {
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("external NBD export size"))
+				Expect(err.Error()).To(ContainSubstring("does not match VMware disk capacity"))
+				return
+			}
+			Expect(err).ToNot(HaveOccurred())
+			Expect(ds.Size).To(Equal(exportSize))
+		},
+		Entry("accepts matching size", uint64(9563078656), uint64(9563078656), false),
+		Entry("rejects mismatched size", uint64(12345), uint64(9563078656), true),
+	)
 
 	It("GetTerminationMessage should contain VDDK connection information", func() {
 		const testVersion = "testVersion"
 		const testHost = "testHost"
 
-		source, err := NewVDDKDataSource("http://esx.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", "testdisk.vmdk", "", "", "", v1.PersistentVolumeFilesystem)
+		source, err := NewVDDKDataSource("http://esx.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", "testdisk.vmdk", "", "", "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 
 		vddkVersion = testVersion
@@ -656,7 +695,7 @@ var _ = Describe("VDDK data source", func() {
 			return resp, nil
 		}
 
-		ds, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem)
+		ds, err := NewVDDKDataSource("http://vcenter.test", "user", "pass", "aa:bb:cc:dd", "1-2-3-4", diskName, snapshotName, changeID, "", v1.PersistentVolumeFilesystem, "")
 		Expect(err).ToNot(HaveOccurred())
 		_, err = ds.TransferFile("", false)
 		Expect(err).ToNot(HaveOccurred())
@@ -1058,7 +1097,7 @@ func (handle *mockNbdOperations) BlockStatus(length uint64, offset uint64, callb
 	return currentMockNbdFunctions.BlockStatus(length, offset, callback, optargs)
 }
 
-func createMockVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode) (*VDDKDataSource, error) {
+func createMockVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode, nbdConnection string) (*VDDKDataSource, error) {
 	socketURL, err := url.Parse(socketPath)
 	if err != nil {
 		return nil, err
