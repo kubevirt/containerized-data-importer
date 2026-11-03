@@ -99,6 +99,7 @@ go_test(
         "//pkg/token:go_default_library",
         "//pkg/util/cert:go_default_library",
         "//pkg/util/cert/fetcher:go_default_library",
+        "//pkg/util/cert/generator/test:go_default_library",
         "//pkg/util/naming:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/google/uuid:go_default_library",

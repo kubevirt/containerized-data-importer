@@ -44,32 +44,12 @@ import (
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
+	generatortest "kubevirt.io/containerized-data-importer/pkg/util/cert/generator/test"
 )
 
 var (
 	cloneLog = logf.Log.WithName("clone-controller-test")
 )
-
-type fakeCertGenerator struct {
-	expectedDuration time.Duration
-	calls            int
-}
-
-func (cg *fakeCertGenerator) MakeClientCert(name string, groups []string, duration time.Duration) ([]byte, []byte, error) {
-	if cg.expectedDuration != 0 {
-		Expect(duration).To(Equal(cg.expectedDuration))
-	}
-	cg.calls++
-	return []byte("foo"), []byte("bar"), nil
-}
-
-func (cg *fakeCertGenerator) MakeServerCert(namespace, service string, duration time.Duration) ([]byte, []byte, error) {
-	if cg.expectedDuration != 0 {
-		Expect(duration).To(Equal(cg.expectedDuration))
-	}
-	cg.calls++
-	return []byte("foo"), []byte("bar"), nil
-}
 
 var _ = Describe("Clone controller reconcile loop", func() {
 	var (
@@ -358,7 +338,7 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		sourcePod := createSourcePod(testPvc, string(testPvc.GetUID()))
 		sourcePod.Namespace = "default"
 		reconciler = createCloneReconciler(testPvc, cc.CreatePvc("source", "default", map[string]string{}, nil), sourcePod)
-		reconciler.clientCertGenerator = &fakeCertGenerator{expectedDuration: expectedDuration}
+		reconciler.clientCertGenerator = &generatortest.CertGenerator{}
 		if setCertConfig {
 			cdi := &cdiv1.CDI{}
 			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cdi)
@@ -383,8 +363,10 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		secret := &corev1.Secret{}
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: sourcePod.Namespace, Name: sourcePod.Name}, secret)
 		Expect(err).ToNot(HaveOccurred())
-		fcg := reconciler.clientCertGenerator.(*fakeCertGenerator)
-		Expect(fcg.calls).To(Equal(1))
+		fcg := reconciler.clientCertGenerator.(*generatortest.CertGenerator)
+		Expect(fcg.ClientCalls).To(Equal(1))
+		Expect(fcg.ServerCalls).To(Equal(0))
+		Expect(fcg.ClientDuration).To(Equal(expectedDuration))
 	},
 		Entry("default cert duration", 24*time.Hour, false),
 		Entry("configured cert duration", 12*time.Hour, true),
@@ -891,8 +873,8 @@ func createCloneReconciler(objects ...runtime.Object) *CloneReconciler {
 			},
 		},
 		image:               testImage,
-		clientCertGenerator: &fakeCertGenerator{},
-		serverCertGenerator: &fakeCertGenerator{},
+		clientCertGenerator: &generatortest.CertGenerator{},
+		serverCertGenerator: &generatortest.CertGenerator{},
 		serverCAFetcher:     &fetcher.MemCertBundleFetcher{Bundle: []byte("baz")},
 		installerLabels: map[string]string{
 			common.AppKubernetesPartOfLabel:  "testing",

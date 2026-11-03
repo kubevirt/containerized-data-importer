@@ -55,6 +55,7 @@ go_test(
     deps = [
         "//pkg/common:go_default_library",
         "//pkg/operator/resources/cert:go_default_library",
+        "//pkg/util/cert/generator/test:go_default_library",
         "//staging/src/kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1:go_default_library",
         "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",

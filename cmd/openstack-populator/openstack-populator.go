@@ -96,7 +96,7 @@ func main() {
 	flag.Int64Var(&config.pvcSize, "pvc-size", 0, "Size of pvc (in bytes)")
 	flag.Parse()
 
-	if err := prometheusutil.StartPrometheusEndpointNoCertGeneration(common.PrometheusCertDir); err != nil {
+	if err := prometheusutil.StartPrometheusEndpoint(common.PrometheusCertDir); err != nil {
 		klog.Warningf("Failed to start prometheus endpoint: %v", err)
 	}
 

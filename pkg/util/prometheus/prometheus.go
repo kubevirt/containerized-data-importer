@@ -10,7 +10,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"k8s.io/client-go/util/cert"
 	"k8s.io/klog/v2"
 
 	"kubevirt.io/containerized-data-importer/pkg/util"
@@ -95,44 +94,12 @@ func (r *ProgressReader) SetNextReader(reader io.ReadCloser, final bool) {
 	r.final = final
 }
 
-// StartPrometheusEndpoint starts an http server providing a prometheus endpoint using the passed
-// in directory to store the self signed certificates that will be generated before starting the
-// http server.
-func StartPrometheusEndpoint(certsDirectory string) {
-	certBytes, keyBytes, err := cert.GenerateSelfSignedCertKey("cloner_target", nil, nil)
-	if err != nil {
-		klog.Error("Error generating cert for prometheus")
-		return
-	}
-
-	certFile := path.Join(certsDirectory, CertFileName)
-	if err = os.WriteFile(certFile, certBytes, 0600); err != nil {
-		klog.Error("Error writing cert file")
-		return
-	}
-
-	keyFile := path.Join(certsDirectory, KeyFileName)
-	if err = os.WriteFile(keyFile, keyBytes, 0600); err != nil {
-		klog.Error("Error writing key file")
-		return
-	}
-
-	go func() {
-		server := &http.Server{
-			Addr:              ":8443",
-			ReadHeaderTimeout: 10 * time.Second,
-			Handler:           promhttp.Handler(),
-		}
-
-		if err := server.ListenAndServeTLS(certFile, keyFile); err != nil {
-			return
-		}
-	}()
-}
-
-// StartPrometheusEndpointNoCertGeneration starts the prometheus HTTP endpoint without generating self-signed TLS certificates
-// but using the certificates from the ones passed in the directory.
-func StartPrometheusEndpointNoCertGeneration(certsDirectory string) error {
+// StartPrometheusEndpoint starts the prometheus HTTPS endpoint, reading the
+// serving certificate and key from certsDirectory, where they must be named
+// CertFileName (tls.crt) and KeyFileName (tls.key). It returns an error if
+// either file is missing. The server is started asynchronously, so errors from
+// serving are only logged by the goroutine, not returned.
+func StartPrometheusEndpoint(certsDirectory string) error {
 	certFile := path.Join(certsDirectory, CertFileName)
 	if _, err := os.Stat(certFile); os.IsNotExist(err) {
 		klog.Errorf("Cert file %s does not exist", certFile)

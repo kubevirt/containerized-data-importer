@@ -38,33 +38,12 @@ import (
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
+	generatortest "kubevirt.io/containerized-data-importer/pkg/util/cert/generator/test"
 )
 
 var (
 	forkliftPopulatorLog = logf.Log.WithName("forklift-populator-test")
 )
-
-type fakeCertGenerator struct {
-	cert, key []byte
-	err       error
-
-	serverCalls  int
-	gotNamespace string
-	gotName      string
-	gotDuration  time.Duration
-}
-
-func (cg *fakeCertGenerator) MakeClientCert(name string, groups []string, duration time.Duration) ([]byte, []byte, error) {
-	return cg.cert, cg.key, cg.err
-}
-
-func (cg *fakeCertGenerator) MakeServerCert(namespace, service string, duration time.Duration) ([]byte, []byte, error) {
-	cg.serverCalls++
-	cg.gotNamespace = namespace
-	cg.gotName = service
-	cg.gotDuration = duration
-	return cg.cert, cg.key, cg.err
-}
 
 var _ = Describe("Forklift populator tests", func() {
 	var (
@@ -349,7 +328,7 @@ var _ = Describe("Forklift populator tests", func() {
 				targetPvc.Spec.DataSourceRef = dataSourceRef
 				pvcPrime := getPVCPrime(targetPvc, make(map[string]string))
 				pod := newPendingPod(targetPvc, pvcPrime, phase)
-				cg := &fakeCertGenerator{cert: []byte(certData), key: []byte(keyData)}
+				cg := &generatortest.CertGenerator{Cert: []byte(certData), Key: []byte(keyData)}
 
 				reconciler = createForkliftPopulatorReconcilerWithCertConfig(cg, serverCertConfig, targetPvc, pvcPrime, sc, ovirtCr, pod)
 
@@ -369,10 +348,10 @@ var _ = Describe("Forklift populator tests", func() {
 				Expect(secret.OwnerReferences[0].Name).To(Equal(pod.Name))
 				Expect(secret.OwnerReferences[0].UID).To(Equal(pod.UID))
 
-				Expect(cg.serverCalls).To(Equal(1))
-				Expect(cg.gotNamespace).To(Equal(pod.Namespace))
-				Expect(cg.gotName).To(Equal(pod.Name))
-				Expect(cg.gotDuration).To(Equal(serverCertConfig.Duration.Duration))
+				Expect(cg.ServerCalls).To(Equal(1))
+				Expect(cg.ServerNamespace).To(Equal(pod.Namespace))
+				Expect(cg.ServerService).To(Equal(pod.Name))
+				Expect(cg.ServerDuration).To(Equal(serverCertConfig.Duration.Duration))
 			},
 			Entry("when the pod is pending", corev1.PodPending),
 			Entry("when the pod phase is empty", corev1.PodPhase("")),
@@ -390,7 +369,7 @@ var _ = Describe("Forklift populator tests", func() {
 					},
 				},
 			}}
-			cg := &fakeCertGenerator{cert: []byte(certData), key: []byte(keyData)}
+			cg := &generatortest.CertGenerator{Cert: []byte(certData), Key: []byte(keyData)}
 
 			reconciler = createForkliftPopulatorReconcilerWithCertConfig(cg, serverCertConfig, targetPvc, pvcPrime, sc, ovirtCr, pod)
 
@@ -410,10 +389,10 @@ var _ = Describe("Forklift populator tests", func() {
 			Expect(secret.OwnerReferences[0].Name).To(Equal(pod.Name))
 			Expect(secret.OwnerReferences[0].UID).To(Equal(pod.UID))
 
-			Expect(cg.serverCalls).To(Equal(1))
-			Expect(cg.gotNamespace).To(Equal(pod.Namespace))
-			Expect(cg.gotName).To(Equal(pod.Name))
-			Expect(cg.gotDuration).To(Equal(serverCertConfig.Duration.Duration))
+			Expect(cg.ServerCalls).To(Equal(1))
+			Expect(cg.ServerNamespace).To(Equal(pod.Namespace))
+			Expect(cg.ServerService).To(Equal(pod.Name))
+			Expect(cg.ServerDuration).To(Equal(serverCertConfig.Duration.Duration))
 		})
 
 		It("should not create a Secret or invoke the generator for a running pod", func() {
@@ -422,14 +401,14 @@ var _ = Describe("Forklift populator tests", func() {
 			pvcPrime := getPVCPrime(targetPvc, map[string]string{AnnPodPhase: string(corev1.PodRunning)})
 			pod := newPendingPod(targetPvc, pvcPrime, corev1.PodRunning)
 			pod.Status.ContainerStatuses = []corev1.ContainerStatus{{RestartCount: 0}}
-			cg := &fakeCertGenerator{cert: []byte(certData), key: []byte(keyData)}
+			cg := &generatortest.CertGenerator{Cert: []byte(certData), Key: []byte(keyData)}
 
 			reconciler = createForkliftPopulatorReconcilerWithCertConfig(cg, serverCertConfig, targetPvc, pvcPrime, sc, ovirtCr, pod)
 
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(cg.serverCalls).To(Equal(0))
+			Expect(cg.ServerCalls).To(Equal(0))
 			secret := &corev1.Secret{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{
 				Name:      PrometheusCertSecretName(pod.Name),
@@ -444,7 +423,7 @@ var _ = Describe("Forklift populator tests", func() {
 			pvcPrime := getPVCPrime(targetPvc, make(map[string]string))
 			pod := newPendingPod(targetPvc, pvcPrime, corev1.PodPending)
 			generatorErr := errors.New("certificate generation failed")
-			cg := &fakeCertGenerator{err: generatorErr}
+			cg := &generatortest.CertGenerator{Err: generatorErr}
 
 			reconciler = createForkliftPopulatorReconcilerWithCertConfig(cg, serverCertConfig, targetPvc, pvcPrime, sc, ovirtCr, pod)
 
@@ -474,7 +453,7 @@ var _ = Describe("Forklift populator tests", func() {
 					corev1.TLSPrivateKeyKey: []byte("existing-key"),
 				},
 			}
-			cg := &fakeCertGenerator{cert: []byte(certData), key: []byte(keyData)}
+			cg := &generatortest.CertGenerator{Cert: []byte(certData), Key: []byte(keyData)}
 
 			reconciler = createForkliftPopulatorReconcilerWithCertConfig(cg, serverCertConfig, targetPvc, pvcPrime, sc, ovirtCr, pod, existingSecret)
 
@@ -941,7 +920,7 @@ func createForkliftPopulatorReconcilerWithObjects(objects ...runtime.Object) *Fo
 		},
 		importerImage:       "importer-image",
 		ovirtPopulatorImage: "ovirt-populator-image",
-		serverCertGenerator: &fakeCertGenerator{},
+		serverCertGenerator: &generatortest.CertGenerator{},
 	}
 
 	return r

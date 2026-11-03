@@ -1294,6 +1294,9 @@ func GetCertConfigWithDefaults(ctx context.Context, c client.Client) (*cdiv1.CDI
 	if err != nil {
 		return nil, err
 	}
+	if cdi == nil {
+		return nil, fmt.Errorf("no active CDI resource found")
+	}
 
 	certConfig := cdi.Spec.CertConfig
 	if certConfig == nil {
@@ -1325,7 +1328,8 @@ func GetCertConfigWithDefaults(ctx context.Context, c client.Client) (*cdiv1.CDI
 }
 
 // EnsureWorkerPrometheusCert provisions the worker Pod's Prometheus TLS Secret
-// using the configured server certificate duration.
+// owned by the Pod, using the configured server certificate duration. The Pod
+// must already exist so its UID can be used in the Secret OwnerReference.
 func EnsureWorkerPrometheusCert(
 	ctx context.Context,
 	c client.Client,
@@ -1337,20 +1341,8 @@ func EnsureWorkerPrometheusCert(
 	if err != nil {
 		return err
 	}
-	return EnsurePrometheusCertSecret(ctx, c, pod, installerLabels, certGenerator, certConfig.Server.Duration.Duration)
-}
+	duration := certConfig.Server.Duration.Duration
 
-// EnsurePrometheusCertSecret ensures that the worker Pod has a Prometheus
-// TLS Secret owned by the Pod. The Pod must already exist so its UID can be
-// used in the Secret OwnerReference.
-func EnsurePrometheusCertSecret(
-	ctx context.Context,
-	c client.Client,
-	pod *corev1.Pod,
-	installerLabels map[string]string,
-	certGenerator generator.CertGenerator,
-	duration time.Duration,
-) error {
 	certBytes, keyBytes, err := certGenerator.MakeServerCert(pod.Namespace, pod.Name, duration)
 	if err != nil {
 		return fmt.Errorf("generating prometheus cert for pod %s/%s: %w", pod.Namespace, pod.Name, err)

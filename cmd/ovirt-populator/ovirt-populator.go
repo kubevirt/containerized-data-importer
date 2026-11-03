@@ -51,7 +51,7 @@ func main() {
 		klog.Fatal("pvc-size must be greater than 0")
 	}
 
-	if err := prometheusutil.StartPrometheusEndpointNoCertGeneration(common.PrometheusCertDir); err != nil {
+	if err := prometheusutil.StartPrometheusEndpoint(common.PrometheusCertDir); err != nil {
 		klog.Warningf("Failed to start prometheus endpoint: %v", err)
 	}
 

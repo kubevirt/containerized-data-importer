@@ -47,6 +47,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	generatortest "kubevirt.io/containerized-data-importer/pkg/util/cert/generator/test"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
@@ -1707,7 +1708,7 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 		log:                 importLog,
 		recorder:            rec,
 		featureGates:        featuregates.NewFeatureGates(cl),
-		serverCertGenerator: &fakeCertGenerator{},
+		serverCertGenerator: &generatortest.CertGenerator{},
 		installerLabels: map[string]string{
 			common.AppKubernetesPartOfLabel:  "testing",
 			common.AppKubernetesVersionLabel: "v0.0.0-tests",

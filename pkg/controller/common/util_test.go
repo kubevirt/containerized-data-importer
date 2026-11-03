@@ -22,6 +22,7 @@ import (
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
+	generatortest "kubevirt.io/containerized-data-importer/pkg/util/cert/generator/test"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
@@ -603,162 +604,6 @@ var _ = Describe("PrometheusCertSecretName", func() {
 	})
 })
 
-type fakeEnsureCertGenerator struct {
-	cert, key    []byte
-	err          error
-	serverCalls  int
-	gotNamespace string
-	gotService   string
-	gotDuration  time.Duration
-}
-
-func (f *fakeEnsureCertGenerator) MakeClientCert(name string, groups []string, duration time.Duration) ([]byte, []byte, error) {
-	return f.cert, f.key, f.err
-}
-
-func (f *fakeEnsureCertGenerator) MakeServerCert(namespace, service string, duration time.Duration) ([]byte, []byte, error) {
-	f.serverCalls++
-	f.gotNamespace = namespace
-	f.gotService = service
-	f.gotDuration = duration
-	return f.cert, f.key, f.err
-}
-
-var _ = Describe("EnsurePrometheusCertSecret", func() {
-	var pod *v1.Pod
-
-	BeforeEach(func() {
-		pod = &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-pod",
-				Namespace: "default",
-				UID:       types.UID("test-uid"),
-			},
-		}
-	})
-
-	It("should create the secret with the pod OwnerReference and generated cert/key", func() {
-		s := scheme.Scheme
-		Expect(v1.AddToScheme(s)).To(Succeed())
-		cl := fake.NewClientBuilder().WithScheme(s).Build()
-
-		cg := &fakeEnsureCertGenerator{cert: []byte("the-cert"), key: []byte("the-key")}
-		err := EnsurePrometheusCertSecret(
-			context.TODO(),
-			cl,
-			pod,
-			nil,
-			cg,
-			time.Hour,
-		)
-		Expect(err).NotTo(HaveOccurred())
-
-		secret := &v1.Secret{}
-		err = cl.Get(
-			context.TODO(),
-			types.NamespacedName{
-				Name:      PrometheusCertSecretName(pod.Name),
-				Namespace: pod.Namespace,
-			},
-			secret,
-		)
-		Expect(err).NotTo(HaveOccurred())
-
-		Expect(secret.Data).To(HaveKeyWithValue(v1.TLSCertKey, []byte("the-cert")))
-		Expect(secret.Data).To(HaveKeyWithValue(v1.TLSPrivateKeyKey, []byte("the-key")))
-
-		Expect(secret.OwnerReferences).To(HaveLen(1))
-		Expect(secret.OwnerReferences[0].Name).To(Equal(pod.Name))
-		Expect(secret.OwnerReferences[0].UID).To(Equal(pod.UID))
-
-		Expect(cg.serverCalls).To(Equal(1))
-		Expect(cg.gotNamespace).To(Equal(pod.Namespace))
-		Expect(cg.gotService).To(Equal(pod.Name))
-		Expect(cg.gotDuration).To(Equal(time.Hour))
-	})
-
-	It("should return the generator error and not create a secret", func() {
-		s := scheme.Scheme
-		Expect(v1.AddToScheme(s)).To(Succeed())
-		cl := fake.NewClientBuilder().WithScheme(s).Build()
-
-		generatorErr := fmt.Errorf("certificate generation failed")
-		cg := &fakeEnsureCertGenerator{err: generatorErr}
-		err := EnsurePrometheusCertSecret(context.TODO(), cl, pod, nil, cg, time.Hour)
-		Expect(err).To(MatchError(generatorErr))
-
-		secret := &v1.Secret{}
-		err = cl.Get(context.TODO(), types.NamespacedName{
-			Name:      PrometheusCertSecretName(pod.Name),
-			Namespace: pod.Namespace,
-		}, secret)
-		Expect(errors.IsNotFound(err)).To(BeTrue())
-	})
-
-	It("should not error and leave an existing secret unchanged when it already exists", func() {
-		s := scheme.Scheme
-		Expect(v1.AddToScheme(s)).To(Succeed())
-
-		existingSecret := &v1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      PrometheusCertSecretName(pod.Name),
-				Namespace: pod.Namespace,
-			},
-			Data: map[string][]byte{
-				v1.TLSCertKey:       []byte("existing-cert"),
-				v1.TLSPrivateKeyKey: []byte("existing-key"),
-			},
-		}
-
-		cl := fake.NewClientBuilder().
-			WithScheme(s).
-			WithObjects(existingSecret).
-			Build()
-
-		cg := &fakeEnsureCertGenerator{cert: []byte("new-cert"), key: []byte("new-key")}
-		err := EnsurePrometheusCertSecret(
-			context.TODO(),
-			cl,
-			pod,
-			nil,
-			cg,
-			time.Hour,
-		)
-		Expect(err).NotTo(HaveOccurred())
-
-		secret := &v1.Secret{}
-		err = cl.Get(context.TODO(), types.NamespacedName{
-			Name:      PrometheusCertSecretName(pod.Name),
-			Namespace: pod.Namespace,
-		}, secret)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(secret.Data).To(HaveKeyWithValue(v1.TLSCertKey, []byte("existing-cert")))
-		Expect(secret.Data).To(HaveKeyWithValue(v1.TLSPrivateKeyKey, []byte("existing-key")))
-	})
-
-	It("should apply installer labels when provided", func() {
-		s := scheme.Scheme
-		Expect(v1.AddToScheme(s)).To(Succeed())
-		cl := fake.NewClientBuilder().WithScheme(s).Build()
-
-		cg := &fakeEnsureCertGenerator{cert: []byte("c"), key: []byte("k")}
-		labels := map[string]string{
-			"app.kubernetes.io/part-of": "testing",
-			"app.kubernetes.io/version": "v1.0.0",
-		}
-		err := EnsurePrometheusCertSecret(context.TODO(), cl, pod, labels, cg, time.Hour)
-		Expect(err).NotTo(HaveOccurred())
-
-		secret := &v1.Secret{}
-		err = cl.Get(context.TODO(), types.NamespacedName{
-			Name:      PrometheusCertSecretName(pod.Name),
-			Namespace: pod.Namespace,
-		}, secret)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(secret.Labels).To(HaveKeyWithValue("app.kubernetes.io/part-of", "testing"))
-	})
-})
-
 var _ = Describe("GetCertConfigWithDefaults", func() {
 	caDefault := func() *cdiv1.CertConfig {
 		return &cdiv1.CertConfig{
@@ -856,17 +701,151 @@ var _ = Describe("GetCertConfigWithDefaults", func() {
 		Expect(err).To(MatchError(listErr))
 		Expect(cfg).To(BeNil())
 	})
+
+	It("should return an error when there is no active CDI CR", func() {
+		cfg, err := GetCertConfigWithDefaults(context.TODO(), CreateClient())
+		Expect(err).To(HaveOccurred())
+		Expect(cfg).To(BeNil())
+	})
 })
 
 var _ = Describe("EnsureWorkerPrometheusCert", func() {
-	It("should pass the configured server duration to the generator", func() {
-		pod := &v1.Pod{
+	var pod *v1.Pod
+
+	BeforeEach(func() {
+		pod = &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "test-pod",
 				Namespace: "default",
 				UID:       types.UID("test-uid"),
 			},
 		}
+	})
+
+	// cdiWithServerDuration returns a valid CDI CR whose server cert config has
+	// both Duration and RenewBefore set, so GetCertConfigWithDefaults preserves
+	// the configured server duration rather than replacing the whole block.
+	cdiWithServerDuration := func(duration time.Duration) *cdiv1.CDI {
+		return &cdiv1.CDI{
+			ObjectMeta: metav1.ObjectMeta{Name: "cdi"},
+			Spec: cdiv1.CDISpec{CertConfig: &cdiv1.CDICertConfig{
+				Server: &cdiv1.CertConfig{
+					Duration:    &metav1.Duration{Duration: duration},
+					RenewBefore: &metav1.Duration{Duration: duration / 2},
+				},
+			}},
+		}
+	}
+
+	It("should create the secret with the pod OwnerReference and generated cert/key", func() {
+		cl := CreateClient(cdiWithServerDuration(time.Hour))
+
+		cg := &generatortest.CertGenerator{Cert: []byte("the-cert"), Key: []byte("the-key")}
+		err := EnsureWorkerPrometheusCert(context.TODO(), cl, pod, nil, cg)
+		Expect(err).NotTo(HaveOccurred())
+
+		secret := &v1.Secret{}
+		err = cl.Get(context.TODO(), types.NamespacedName{
+			Name:      PrometheusCertSecretName(pod.Name),
+			Namespace: pod.Namespace,
+		}, secret)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(secret.Data).To(HaveKeyWithValue(v1.TLSCertKey, []byte("the-cert")))
+		Expect(secret.Data).To(HaveKeyWithValue(v1.TLSPrivateKeyKey, []byte("the-key")))
+
+		Expect(secret.OwnerReferences).To(HaveLen(1))
+		Expect(secret.OwnerReferences[0].Name).To(Equal(pod.Name))
+		Expect(secret.OwnerReferences[0].UID).To(Equal(pod.UID))
+
+		Expect(cg.ServerCalls).To(Equal(1))
+		Expect(cg.ServerNamespace).To(Equal(pod.Namespace))
+		Expect(cg.ServerService).To(Equal(pod.Name))
+		Expect(cg.ServerDuration).To(Equal(time.Hour))
+	})
+
+	It("should return the generator error and not create a secret", func() {
+		cl := CreateClient(cdiWithServerDuration(time.Hour))
+
+		generatorErr := fmt.Errorf("certificate generation failed")
+		cg := &generatortest.CertGenerator{Err: generatorErr}
+		err := EnsureWorkerPrometheusCert(context.TODO(), cl, pod, nil, cg)
+		Expect(err).To(MatchError(generatorErr))
+
+		secret := &v1.Secret{}
+		err = cl.Get(context.TODO(), types.NamespacedName{
+			Name:      PrometheusCertSecretName(pod.Name),
+			Namespace: pod.Namespace,
+		}, secret)
+		Expect(errors.IsNotFound(err)).To(BeTrue())
+	})
+
+	It("should not error and leave an existing secret unchanged when it already exists", func() {
+		existingSecret := &v1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      PrometheusCertSecretName(pod.Name),
+				Namespace: pod.Namespace,
+			},
+			Data: map[string][]byte{
+				v1.TLSCertKey:       []byte("existing-cert"),
+				v1.TLSPrivateKeyKey: []byte("existing-key"),
+			},
+		}
+		cl := CreateClient(cdiWithServerDuration(time.Hour), existingSecret)
+
+		cg := &generatortest.CertGenerator{Cert: []byte("new-cert"), Key: []byte("new-key")}
+		err := EnsureWorkerPrometheusCert(context.TODO(), cl, pod, nil, cg)
+		Expect(err).NotTo(HaveOccurred())
+
+		secret := &v1.Secret{}
+		err = cl.Get(context.TODO(), types.NamespacedName{
+			Name:      PrometheusCertSecretName(pod.Name),
+			Namespace: pod.Namespace,
+		}, secret)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(secret.Data).To(HaveKeyWithValue(v1.TLSCertKey, []byte("existing-cert")))
+		Expect(secret.Data).To(HaveKeyWithValue(v1.TLSPrivateKeyKey, []byte("existing-key")))
+	})
+
+	It("should apply installer labels when provided", func() {
+		cl := CreateClient(cdiWithServerDuration(time.Hour))
+
+		cg := &generatortest.CertGenerator{Cert: []byte("c"), Key: []byte("k")}
+		labels := map[string]string{
+			"app.kubernetes.io/part-of": "testing",
+			"app.kubernetes.io/version": "v1.0.0",
+		}
+		err := EnsureWorkerPrometheusCert(context.TODO(), cl, pod, labels, cg)
+		Expect(err).NotTo(HaveOccurred())
+
+		secret := &v1.Secret{}
+		err = cl.Get(context.TODO(), types.NamespacedName{
+			Name:      PrometheusCertSecretName(pod.Name),
+			Namespace: pod.Namespace,
+		}, secret)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(secret.Labels).To(HaveKeyWithValue("app.kubernetes.io/part-of", "testing"))
+	})
+
+	It("should return an error, not call the generator, and create no secret when there is no active CDI CR", func() {
+		cl := CreateClient()
+
+		cg := &generatortest.CertGenerator{Cert: []byte("the-cert"), Key: []byte("the-key")}
+		err := EnsureWorkerPrometheusCert(context.TODO(), cl, pod, nil, cg)
+		Expect(err).To(HaveOccurred())
+
+		Expect(cg.ClientCalls).To(Equal(0))
+		Expect(cg.ServerCalls).To(Equal(0))
+
+		secret := &v1.Secret{}
+		err = cl.Get(context.TODO(), types.NamespacedName{
+			Name:      PrometheusCertSecretName(pod.Name),
+			Namespace: pod.Namespace,
+		}, secret)
+		Expect(errors.IsNotFound(err)).To(BeTrue())
+	})
+
+	It("should pass the configured server duration to the generator", func() {
 		customDuration := 30 * time.Hour
 		cdi := &cdiv1.CDI{
 			ObjectMeta: metav1.ObjectMeta{Name: "cdi"},
@@ -879,14 +858,14 @@ var _ = Describe("EnsureWorkerPrometheusCert", func() {
 		}
 		cl := CreateClient(cdi)
 
-		cg := &fakeEnsureCertGenerator{cert: []byte("the-cert"), key: []byte("the-key")}
+		cg := &generatortest.CertGenerator{Cert: []byte("the-cert"), Key: []byte("the-key")}
 		err := EnsureWorkerPrometheusCert(context.TODO(), cl, pod, nil, cg)
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(cg.serverCalls).To(Equal(1))
-		Expect(cg.gotNamespace).To(Equal(pod.Namespace))
-		Expect(cg.gotService).To(Equal(pod.Name))
-		Expect(cg.gotDuration).To(Equal(customDuration))
+		Expect(cg.ServerCalls).To(Equal(1))
+		Expect(cg.ServerNamespace).To(Equal(pod.Namespace))
+		Expect(cg.ServerService).To(Equal(pod.Name))
+		Expect(cg.ServerDuration).To(Equal(customDuration))
 
 		secret := &v1.Secret{}
 		Expect(cl.Get(context.TODO(), types.NamespacedName{
@@ -898,13 +877,6 @@ var _ = Describe("EnsureWorkerPrometheusCert", func() {
 	})
 
 	It("should propagate a client List error without generating a certificate", func() {
-		pod := &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-pod",
-				Namespace: "default",
-				UID:       types.UID("test-uid"),
-			},
-		}
 		cdi := &cdiv1.CDI{
 			ObjectMeta: metav1.ObjectMeta{Name: "cdi"},
 			Spec: cdiv1.CDISpec{CertConfig: &cdiv1.CDICertConfig{
@@ -927,10 +899,10 @@ var _ = Describe("EnsureWorkerPrometheusCert", func() {
 			}).
 			Build()
 
-		cg := &fakeEnsureCertGenerator{cert: []byte("the-cert"), key: []byte("the-key")}
+		cg := &generatortest.CertGenerator{Cert: []byte("the-cert"), Key: []byte("the-key")}
 		err := EnsureWorkerPrometheusCert(context.TODO(), cl, pod, nil, cg)
 		Expect(err).To(MatchError(listErr))
-		Expect(cg.serverCalls).To(Equal(0))
+		Expect(cg.ServerCalls).To(Equal(0))
 
 		secret := &v1.Secret{}
 		err = cl.Get(context.TODO(), types.NamespacedName{
