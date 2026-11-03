@@ -172,18 +172,17 @@ func (m *ManagedTLSWatcher) SetCache(cache runtimecache.Cache) {
 
 // SelectCipherSuitesAndMinTLSVersion returns cipher names and minimal TLS version according to the input profile
 func SelectCipherSuitesAndMinTLSVersion(profile *cdiv1.TLSSecurityProfile) ([]string, cdiv1.TLSProtocolVersion) {
-	if profile == nil {
-		profile = &cdiv1.TLSSecurityProfile{
-			Type:         cdiv1.TLSProfileIntermediateType,
-			Intermediate: &cdiv1.IntermediateTLSProfile{},
+	profileSpec := cdiv1.TLSProfiles[cdiv1.TLSProfileIntermediateType]
+	if profile != nil {
+		if profile.Custom != nil {
+			profileSpec = &profile.Custom.TLSProfileSpec
+		} else if s, ok := cdiv1.TLSProfiles[profile.Type]; ok {
+			profileSpec = s
+		} else {
+			klog.V(1).Infof("invalid TLS security profile %q, falling back to Intermediate", profile.Type)
 		}
 	}
-
-	if profile.Custom != nil {
-		return profile.Custom.TLSProfileSpec.Ciphers, profile.Custom.TLSProfileSpec.MinTLSVersion
-	}
-
-	return cdiv1.TLSProfiles[profile.Type].Ciphers, cdiv1.TLSProfiles[profile.Type].MinTLSVersion
+	return profileSpec.Ciphers, profileSpec.MinTLSVersion
 }
 
 // DefaultCryptoConfig returns a crypto config with legitimate defaults to start with
