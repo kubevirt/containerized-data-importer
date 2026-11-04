@@ -631,6 +631,56 @@ var _ = Describe("Clone controller reconcile loop", func() {
 		Entry("with a source pod without a phase", corev1.PodPhase(""), true),
 		Entry("with a running source pod", corev1.PodRunning, false),
 	)
+
+	It("Should return the cert generator error and not create the prometheus cert Secret when the clone source pod is pending", func() {
+		targetPvc := cc.CreatePvc(
+			"testPvc1",
+			"default",
+			map[string]string{
+				cc.AnnCloneRequest:   "default/source",
+				cc.AnnPodReady:       "true",
+				cc.AnnCloneSourcePod: "default-testPvc1-source-pod",
+				AnnUploadClientName:  "uploadclient",
+			},
+			nil,
+		)
+
+		sourcePod := createSourcePod(targetPvc, "default-testPvc1")
+		sourcePod.Namespace = "default"
+		sourcePod.UID = types.UID("clone-source-pod-uid")
+		sourcePod.Status.Phase = corev1.PodPending
+
+		reconciler = createCloneReconciler(
+			targetPvc,
+			sourcePod,
+		)
+		generatorErr := fmt.Errorf("certificate generation failed")
+		cg := &generatortest.CertGenerator{Err: generatorErr}
+		reconciler.serverCertGenerator = cg
+
+		_, err := reconciler.Reconcile(
+			context.TODO(),
+			reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      targetPvc.Name,
+					Namespace: targetPvc.Namespace,
+				},
+			},
+		)
+		Expect(err).To(MatchError(generatorErr))
+		Expect(cg.ServerCalls).To(Equal(1))
+
+		secret := &corev1.Secret{}
+		err = reconciler.client.Get(
+			context.TODO(),
+			types.NamespacedName{
+				Name:      cc.PrometheusCertSecretName(sourcePod.Name),
+				Namespace: sourcePod.Namespace,
+			},
+			secret,
+		)
+		Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+	})
 })
 
 var _ = Describe("ParseCloneRequestAnnotation", func() {
