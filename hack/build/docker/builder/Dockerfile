@@ -1,4 +1,4 @@
-FROM quay.io/centos/centos:stream9
+FROM quay.io/centos/centos:stream10
 LABEL maintainer="The KubeVirt Project <kubevirt-dev@googlegroups.com>"
 
 ARG ARCH
@@ -25,7 +25,7 @@ RUN 	dnf -y install dnf-plugins-core && \
 	libnbd-devel \
 	nbdkit-devel \
 	unzip \
-	java-11-openjdk-devel \
+	java-21-openjdk-devel \
 	rubygems \
     skopeo \
 	&& dnf clean all
@@ -36,7 +36,7 @@ RUN gem install asciidoctor
 # Generates Asciidoc files from swagger.json
 ADD https://storage.googleapis.com/builddeps/swagger2markup-cli-1.3.3.jar /opt/swagger2markup-cli/swagger2markup-cli-1.3.3.jar
 
-ENV JAVA_HOME=/usr/lib/jvm/java-11
+ENV JAVA_HOME=/usr/lib/jvm/java-21
 
 ENV GIMME_GO_VERSION=1.26.8 GOPATH="/go" GO111MODULE="on"
 
@@ -63,7 +63,7 @@ RUN if test "${ARCH}" != "s390x"; then \
 
 
 RUN if test "$(sh /output-bazel-arch.sh)" = x86_64; then \
-      dnf install -y --setopt=install_weak_deps=False  --installroot /usr/s390x-linux-gnu/sys-root --forcearch s390x --releasever 9 \
+      dnf install -y --setopt=install_weak_deps=False  --installroot /usr/s390x-linux-gnu/sys-root --forcearch s390x --releasever 10 \
           glibc-devel \
           glibc-static && \
       dnf install -y epel-release && \
