@@ -628,7 +628,18 @@ var _ = Describe("Controller", func() {
 				Expect(err).ToNot(HaveOccurred())
 				roleBinding = obj.(*rbacv1.RoleBinding)
 
-				Expect(role.Rules[0].Resources).To(ContainElement("endpoints"))
+				Expect(role.Rules).To(ConsistOf(
+					rbacv1.PolicyRule{
+						APIGroups: []string{""},
+						Resources: []string{"services", "endpoints", "pods"},
+						Verbs:     []string{"get", "list", "watch"},
+					},
+					rbacv1.PolicyRule{
+						APIGroups: []string{"discovery.k8s.io"},
+						Resources: []string{"endpointslices"},
+						Verbs:     []string{"get", "list", "watch"},
+					},
+				))
 				Expect(roleBinding.Subjects[0].Name).To(Equal("prometheus-k8s"))
 				Expect(role.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
 				Expect(roleBinding.Labels[common.AppKubernetesPartOfLabel]).To(Equal("testing"))
