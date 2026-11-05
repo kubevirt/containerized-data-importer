@@ -4,7 +4,7 @@ LABEL maintainer="The KubeVirt Project <kubevirt-dev@googlegroups.com>"
 ARG ARCH
 
 RUN 	dnf -y install dnf-plugins-core && \
-	dnf config-manager --set-enable crb && dnf update -y && \
+	dnf config-manager --set-enable crb && \
 	dnf install -y \
 	cpio \
 	diffutils \
