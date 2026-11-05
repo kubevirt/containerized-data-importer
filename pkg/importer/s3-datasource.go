@@ -225,9 +225,11 @@ func extractRegion(s string) string {
 	}
 
 	var region string
-	r, _ := regexp.Compile(`s3\.(.+)\.amazonaws\.com`)
+	r, _ := regexp.Compile(`s3(?:-fips)?(?:\.dualstack)?[.-]([a-z0-9-]+)\.amazonaws\.com`)
 	if matches := r.FindStringSubmatch(s); matches != nil {
 		region = matches[1]
+	} else if s == "s3.amazonaws.com" {
+		region = defaultRegion
 	} else {
 		region = strings.Split(s, ".")[0]
 	}
