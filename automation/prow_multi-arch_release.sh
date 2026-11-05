@@ -1,6 +1,6 @@
 #!/bin/sh
 set -e
 
-export BUILD_ARCH=s390x,aarch64,x86_64
+export BUILD_ARCH=s390x,aarch64,x86_64,ppc64le
 
 make bazel-push-images
