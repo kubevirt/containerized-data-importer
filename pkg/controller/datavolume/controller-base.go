@@ -551,6 +551,9 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 			return syncState, err
 		}
 		r.handlePrePopulation(syncState.dvMutated, syncState.pvc)
+		if err := r.handleResize(log, &syncState); err != nil {
+			return syncState, err
+		}
 	}
 
 	return syncState, nil
@@ -713,6 +716,31 @@ func (r *ReconcilerBase) handlePrePopulation(dv *cdiv1.DataVolume, pvc *corev1.P
 	if pvc.Status.Phase == corev1.ClaimBound && pvcIsPopulatedForDataVolume(pvc, dv) {
 		cc.AddAnnotation(dv, cc.AnnPrePopulated, pvc.Name)
 	}
+}
+
+// handleResize checks if the DataVolume size has increased and updates the PVC accordingly
+func (r *ReconcilerBase) handleResize(log logr.Logger, syncState *dvSyncState) error {
+	if syncState.pvc == nil || syncState.pvcSpec == nil {
+		return nil
+	}
+
+	pvcSize := syncState.pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+	dvSize := syncState.pvcSpec.Resources.Requests[corev1.ResourceStorage]
+
+	if dvSize.Cmp(pvcSize) > 0 {
+		log.Info("Resizing PVC", "PVC", syncState.pvc.Name, "OldSize", pvcSize.String(), "NewSize", dvSize.String())
+		r.recorder.Eventf(syncState.dv, corev1.EventTypeNormal, ExpansionInProgress, "Resizing PVC %s from %s to %s", syncState.pvc.Name, pvcSize.String(), dvSize.String())
+		pvcCpy := syncState.pvc.DeepCopy()
+		if pvcCpy.Spec.Resources.Requests == nil {
+			pvcCpy.Spec.Resources.Requests = corev1.ResourceList{}
+		}
+		pvcCpy.Spec.Resources.Requests[corev1.ResourceStorage] = dvSize
+		if err := r.updatePVC(pvcCpy); err != nil {
+			return err
+		}
+		syncState.pvc = pvcCpy
+	}
+	return nil
 }
 
 func (r *ReconcilerBase) validatePVC(dv *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error {
