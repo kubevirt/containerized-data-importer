@@ -215,6 +215,15 @@ type DataVolumeSourceRegistry struct {
 	//Platform describes the minimum runtime requirements of the image
 	// +optional
 	Platform *PlatformOptions `json:"platform,omitempty"`
+	//Layer selects a single OCI artifact layer to import as the disk image, not supported with the node pull method
+	// +optional
+	Layer *LayerSelector `json:"layer,omitempty"`
+}
+
+// LayerSelector selects a single layer of an OCI artifact
+type LayerSelector struct {
+	//MatchAnnotations the layer has to carry
+	MatchAnnotations map[string]string `json:"matchAnnotations,omitempty"`
 }
 
 type PlatformOptions struct {
