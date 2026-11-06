@@ -60,7 +60,25 @@ var newVddkDataSource = createVddkDataSource
 var newVddkDataSink = createVddkDataSink
 var newVMwareClient = createVMwareClient
 var newNbdKitWrapper = createNbdKitWrapper
+var newExternalNbdConnection = createExternalNbdConnection
+var newLibnbdHandle = createLibnbdHandle
 var newNbdKitLogWatcher = createNbdKitLogWatcher
+
+// nbdTLSCertificatesDir is where nbds:// client material is mounted; overridable in tests.
+var nbdTLSCertificatesDir = common.ImporterNbdCertDir
+
+// externalNbdHandle is the libnbd surface used while establishing an external NBD connection.
+type externalNbdHandle interface {
+	NbdOperations
+	AddMetaContext(string) error
+	SetTls(libnbd.Tls) error
+	SetTlsCertificates(string) error
+	ConnectUri(string) error
+}
+
+func createLibnbdHandle() (externalNbdHandle, error) {
+	return libnbd.Create()
+}
 
 /* Section: nbdkit */
 
@@ -142,6 +160,47 @@ func createNbdKitWrapper(vmware *VMwareClient, diskFileName, snapshot string) (*
 		Handle: handle,
 	}
 	return source, nil
+}
+
+func createExternalNbdConnection(uri string) (*NbdKitWrapper, error) {
+	handle, err := newLibnbdHandle()
+	if err != nil {
+		return nil, err
+	}
+	u, err := url.Parse(uri)
+	if err != nil {
+		handle.Close()
+		return nil, err
+	}
+	if (u.Scheme != "nbd" && u.Scheme != "nbds") || u.Hostname() == "" {
+		handle.Close()
+		return nil, errors.Errorf("invalid NBD connection URI %q: must be nbd:// or nbds:// with hostname", uri)
+	}
+	if err := handle.AddMetaContext("base:allocation"); err != nil {
+		handle.Close()
+		return nil, errors.Wrapf(err, "error adding base:allocation context")
+	}
+	if u.Scheme == "nbds" {
+		// Leave TLS priority at libnbd's default (@SYSTEM). set_tls_priority needs
+		// libnbd >= 1.24; el9 ships 1.20.3. Downstream RPM installs create
+		// /etc/crypto-policies/back-ends/gnutls.config via crypto-policies %post
+		// so @SYSTEM resolves.
+		// Peer verification stays on: the server cert must carry a SAN matching the
+		// URI host (DNS or IP). el9 has no set_tls_hostname for a fixed logical name.
+		if err := handle.SetTls(libnbd.TLS_REQUIRE); err != nil {
+			handle.Close()
+			return nil, err
+		}
+		if err := handle.SetTlsCertificates(nbdTLSCertificatesDir); err != nil {
+			handle.Close()
+			return nil, err
+		}
+	}
+	if err := handle.ConnectUri(uri); err != nil {
+		handle.Close()
+		return nil, err
+	}
+	return &NbdKitWrapper{Socket: u, Handle: handle}, nil
 }
 
 // createNbdKitLogWatcher creates a channel to use as a log watcher stop signal.
@@ -952,11 +1011,11 @@ func init() {
 }
 
 // NewVDDKDataSource creates a new instance of the vddk data provider.
-func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode) (*VDDKDataSource, error) {
-	return newVddkDataSource(endpoint, accessKey, secKey, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, volumeMode)
+func NewVDDKDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode, nbdConnection string) (*VDDKDataSource, error) {
+	return newVddkDataSource(endpoint, accessKey, secKey, thumbprint, uuid, backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint, volumeMode, nbdConnection)
 }
 
-func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode) (*VDDKDataSource, error) {
+func createVddkDataSource(endpoint string, accessKey string, secKey string, thumbprint string, uuid string, backingFile string, currentCheckpoint string, previousCheckpoint string, finalCheckpoint string, volumeMode v1.PersistentVolumeMode, nbdConnection string) (*VDDKDataSource, error) {
 	klog.Infof("Creating VDDK data source: backingFile [%s], currentCheckpoint [%s], previousCheckpoint [%s], finalCheckpoint [%s]", backingFile, currentCheckpoint, previousCheckpoint, finalCheckpoint)
 
 	if currentCheckpoint == "" && previousCheckpoint != "" {
@@ -988,18 +1047,23 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 		}
 	}
 
-	diskFileName := backingFile // By default, just set the nbdkit file name to the given backingFile path
-	if currentSnapshot != nil {
-		// When copying from a snapshot, set the nbdkit file name to the name of the disk in the snapshot
-		// that matches the ID of the given backing file, like "[iSCSI] vm/vmdisk-000001.vmdk".
-		diskFileName, err = vmware.FindSnapshotDiskName(currentSnapshot, backingFileObject.DiskObjectId)
-		if err != nil {
-			klog.Errorf("Could not find matching disk in current snapshot: %v", err)
-			return nil, err
+	var nbdkit *NbdKitWrapper
+	if nbdConnection != "" {
+		nbdkit, err = newExternalNbdConnection(nbdConnection)
+	} else {
+		diskFileName := backingFile // By default, just set the nbdkit file name to the given backingFile path
+		if currentSnapshot != nil {
+			// When copying from a snapshot, set the nbdkit file name to the name of the disk in the snapshot
+			// that matches the ID of the given backing file, like "[iSCSI] vm/vmdisk-000001.vmdk".
+			diskFileName, err = vmware.FindSnapshotDiskName(currentSnapshot, backingFileObject.DiskObjectId)
+			if err != nil {
+				klog.Errorf("Could not find matching disk in current snapshot: %v", err)
+				return nil, err
+			}
+			klog.Infof("Set disk file name from current snapshot: %s", diskFileName)
 		}
-		klog.Infof("Set disk file name from current snapshot: %s", diskFileName)
+		nbdkit, err = newNbdKitWrapper(vmware, diskFileName, currentCheckpoint)
 	}
-	nbdkit, err := newNbdKitWrapper(vmware, diskFileName, currentCheckpoint)
 	if err != nil {
 		klog.Errorf("Unable to start nbdkit: %v", err)
 		return nil, err
@@ -1011,6 +1075,26 @@ func createVddkDataSource(endpoint string, accessKey string, secKey string, thum
 	if err != nil {
 		klog.Errorf("Unable to get source disk size: %v", err)
 		return nil, err
+	}
+
+	// External NBD skips snapshot disk-name resolution; catch at least wrong-disk URIs.
+	if nbdConnection != "" {
+		// Shouldn't happen as disk capacity whould have to be negative but protect against int-overflow
+		if backingFileObject.CapacityInBytes < 0 {
+			nbdkit.Handle.Close()
+			if nbdkit.n != nil {
+				_ = nbdkit.n.KillNbdkit()
+			}
+			return nil, errors.Errorf("VMware disk capacity %d is negative, cannot validate external NBD export size", backingFileObject.CapacityInBytes)
+		}
+		expected := uint64(backingFileObject.CapacityInBytes)
+		if size != expected {
+			nbdkit.Handle.Close()
+			if nbdkit.n != nil {
+				_ = nbdkit.n.KillNbdkit()
+			}
+			return nil, errors.Errorf("external NBD export size %d does not match VMware disk capacity %d; URI must export the same disk (at CurrentCheckpoint for warm migration)", size, expected)
+		}
 	}
 
 	MaxPreadLength = MaxPreadLengthESX
@@ -1048,7 +1132,10 @@ func (vs *VDDKDataSource) Info() (ProcessingPhase, error) {
 // Close closes any readers or other open resources.
 func (vs *VDDKDataSource) Close() error {
 	vs.NbdKit.Handle.Close()
-	return vs.NbdKit.n.KillNbdkit()
+	if vs.NbdKit.n != nil {
+		return vs.NbdKit.n.KillNbdkit()
+	}
+	return nil
 }
 
 // GetURL returns the url that the data processor can use when converting the data.
