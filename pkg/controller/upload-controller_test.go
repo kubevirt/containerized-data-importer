@@ -44,6 +44,7 @@ import (
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
 	"kubevirt.io/containerized-data-importer/pkg/util/cert/fetcher"
+	generatortest "kubevirt.io/containerized-data-importer/pkg/util/cert/generator/test"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 )
 
@@ -554,7 +555,7 @@ var _ = Describe("reconcilePVC loop", func() {
 		DescribeTable("Should use proper cert duration", func(expectedDuration time.Duration, setCertConfig bool) {
 			testPvc := cc.CreatePvc(testPvcName, "default", map[string]string{cc.AnnUploadRequest: "", AnnUploadPod: uploadResourceName}, nil)
 			reconciler := createUploadReconciler(testPvc)
-			reconciler.serverCertGenerator = &fakeCertGenerator{expectedDuration: expectedDuration}
+			reconciler.serverCertGenerator = &generatortest.CertGenerator{}
 			if setCertConfig {
 				cdi := &cdiv1.CDI{}
 				err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cdi)
@@ -576,8 +577,10 @@ var _ = Describe("reconcilePVC loop", func() {
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: uploadResourceName, Namespace: "default"}, secret)
 			Expect(err).ToNot(HaveOccurred())
 
-			fcg := reconciler.serverCertGenerator.(*fakeCertGenerator)
-			Expect(fcg.calls).To(Equal(1))
+			fcg := reconciler.serverCertGenerator.(*generatortest.CertGenerator)
+			Expect(fcg.ServerCalls).To(Equal(1))
+			Expect(fcg.ClientCalls).To(Equal(0))
+			Expect(fcg.ServerDuration).To(Equal(expectedDuration))
 		},
 			Entry("default cert duration", 24*time.Hour, false),
 			Entry("configured cert duration", 12*time.Hour, true),
@@ -721,7 +724,7 @@ func createUploadReconciler(objects ...runtime.Object) *UploadReconciler {
 		client:              cl,
 		scheme:              s,
 		log:                 uploadLog,
-		serverCertGenerator: &fakeCertGenerator{},
+		serverCertGenerator: &generatortest.CertGenerator{},
 		clientCAFetcher:     &fetcher.MemCertBundleFetcher{Bundle: []byte("baz")},
 		recorder:            rec,
 		featureGates:        featuregates.NewFeatureGates(cl),

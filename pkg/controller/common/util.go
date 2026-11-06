@@ -63,9 +63,10 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/client/clientset/versioned/scheme"
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/operator/resources/cert"
 	"kubevirt.io/containerized-data-importer/pkg/token"
 	"kubevirt.io/containerized-data-importer/pkg/util"
-	"kubevirt.io/containerized-data-importer/pkg/util/cert"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
 
@@ -1287,16 +1288,62 @@ func AppendPrometheusCertVolume(podSpec *corev1.PodSpec, podName string) {
 	}
 }
 
-// EnsurePrometheusCertSecret ensures that the worker Pod has a Prometheus
-// TLS Secret owned by the Pod. The Pod must already exist so its UID can be
-// used in the Secret OwnerReference.
-func EnsurePrometheusCertSecret(
+// GetCertConfigWithDefaults returns the CDI cert config with default values when not set
+func GetCertConfigWithDefaults(ctx context.Context, c client.Client) (*cdiv1.CDICertConfig, error) {
+	cdi, err := GetActiveCDI(ctx, c)
+	if err != nil {
+		return nil, err
+	}
+	if cdi == nil {
+		return nil, fmt.Errorf("no active CDI resource found")
+	}
+
+	certConfig := cdi.Spec.CertConfig
+	if certConfig == nil {
+		certConfig = &cdiv1.CDICertConfig{}
+	}
+
+	if certConfig.CA == nil || certConfig.CA.Duration == nil || certConfig.CA.RenewBefore == nil {
+		certConfig.CA = &cdiv1.CertConfig{
+			Duration:    &metav1.Duration{Duration: cert.SignerLifetime},
+			RenewBefore: &metav1.Duration{Duration: cert.SignerLifetime - cert.SignerRefresh},
+		}
+	}
+
+	if certConfig.Server == nil || certConfig.Server.Duration == nil || certConfig.Server.RenewBefore == nil {
+		certConfig.Server = &cdiv1.CertConfig{
+			Duration:    &metav1.Duration{Duration: cert.ServerLifetime},
+			RenewBefore: &metav1.Duration{Duration: cert.ServerLifetime - cert.ServerRefresh},
+		}
+	}
+
+	if certConfig.Client == nil || certConfig.Client.Duration == nil || certConfig.Client.RenewBefore == nil {
+		certConfig.Client = &cdiv1.CertConfig{
+			Duration:    &metav1.Duration{Duration: cert.ClientLifetime},
+			RenewBefore: &metav1.Duration{Duration: cert.ClientLifetime - cert.ClientRefresh},
+		}
+	}
+
+	return certConfig, nil
+}
+
+// EnsureWorkerPrometheusCert provisions the worker Pod's Prometheus TLS Secret
+// owned by the Pod, using the configured server certificate duration. The Pod
+// must already exist so its UID can be used in the Secret OwnerReference.
+func EnsureWorkerPrometheusCert(
 	ctx context.Context,
 	c client.Client,
 	pod *corev1.Pod,
 	installerLabels map[string]string,
+	certGenerator generator.CertGenerator,
 ) error {
-	certBytes, keyBytes, err := cert.GenerateSelfSignedCertKey(pod.Name, nil, nil)
+	certConfig, err := GetCertConfigWithDefaults(ctx, c)
+	if err != nil {
+		return err
+	}
+	duration := certConfig.Server.Duration.Duration
+
+	certBytes, keyBytes, err := certGenerator.MakeServerCert(pod.Namespace, pod.Name, duration)
 	if err != nil {
 		return fmt.Errorf("generating prometheus cert for pod %s/%s: %w", pod.Namespace, pod.Name, err)
 	}
