@@ -135,6 +135,7 @@ For more information of using datavolumes for population check the [datavolume d
 In some cases, CDI will fall back to legacy population methods, and thus skip using volume populators when:
 * Storage provisioner is non-CSI
 * Annotation `cdi.kubevirt.io/storage.usePopulator` set to `"false"`
+* There is nothing to populate, which is the case for a blank source with `volumeMode: Block` and no preallocation
 
 ### Forklift Populators
 
