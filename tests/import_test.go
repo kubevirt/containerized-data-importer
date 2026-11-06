@@ -2177,8 +2177,8 @@ var _ = Describe("pull image failure", func() {
 		}
 		utils.WaitForConditions(f, dv.Name, f.Namespace.Name, controllerSkipPVCCompleteTimeout, assertionPollInterval, runningCondition)
 	},
-		Entry("pull method = pod", "myregistry/myorg/myimage:wrongtag", cdiv1.RegistryPullPod),
-		Entry("pull method = node", "myregistry/myorg/myimage:wrongtag", cdiv1.RegistryPullNode),
+		Entry("pull method = pod", "my.registry/myorg/myimage:wrongtag", cdiv1.RegistryPullPod),
+		Entry("pull method = node", "my.registry/myorg/myimage:wrongtag", cdiv1.RegistryPullNode),
 	)
 })
 

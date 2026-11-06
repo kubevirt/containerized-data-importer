@@ -43,7 +43,7 @@ if [[ $TARGET =~ openshift-.* ]]; then
   export KUBEVIRT_PROVIDER="os-3.11.0-crio"
 elif [[ $TARGET =~ k8s-.* ]]; then
   export KUBEVIRT_NUM_NODES=2
-  export KUBEVIRT_MEMORY_SIZE=8192
+  export KUBEVIRT_MEMORY_SIZE=8192M
 elif [[ $TARGET =~ kind-.* ]]; then
   export KUBEVIRT_NUM_NODES=1
   export KIND_PORT_MAPPING=30085:30084
@@ -118,10 +118,6 @@ echo "Nil check --PRE-- test run"
 kubectl get pods -n $CDI_NAMESPACE -o'custom-columns=NAME:.metadata.name,NAMESPACE:.metadata.namespace,RESTARTS:status.containerStatuses[*].restartCount' --no-headers
 
 ginko_params="--test-args=--ginkgo.no-color --ginkgo.junit-report=${ARTIFACTS_PATH}/junit.functest.xml"
-
-if [[ -n "$CDI_DV_GC" ]]; then
-    kubectl patch cdi $CDI_NAMESPACE --type merge -p '{"spec": {"config": {"dataVolumeTTLSeconds": '$CDI_DV_GC'}}}'
-fi
 
 # Run functional tests
 TEST_ARGS=$ginko_params make test-functional
