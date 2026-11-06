@@ -303,6 +303,7 @@ func (app *cdiAPIApp) startTLS(stopChan <-chan struct{}) error {
 		Handler:           app.container,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
+	configureIdentityHeaderLimit(server)
 
 	go func() {
 		errChan <- server.ListenAndServeTLS("", "")
