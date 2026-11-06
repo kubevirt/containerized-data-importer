@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/json"
+	"slices"
 	"sync"
 
 	corev1 "k8s.io/api/core/v1"
@@ -68,10 +69,8 @@ type authConfigWatcher struct {
 // ValidateName checks if name is allowed
 func (ac *AuthConfig) ValidateName(name string) bool {
 	klog.V(3).Infof("Validating CN: %s", name)
-	for _, n := range ac.AllowedNames {
-		if n == name {
-			return true
-		}
+	if slices.Contains(ac.AllowedNames, name) {
+		return true
 	}
 	// no allowed names means anyone is allowed
 	// https://kubernetes.io/docs/tasks/extend-kubernetes/configure-aggregation-layer/#kubernetes-apiserver-client-authentication
@@ -97,17 +96,16 @@ func NewAuthConfigWatcher(ctx context.Context, client kubernetes.Interface) (Aut
 	}
 
 	_, err := configMapInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			klog.V(3).Infof("configMapInformer add callback: %+v", obj)
 			acw.updateConfig(obj.(*corev1.ConfigMap))
 		},
-		UpdateFunc: func(_, obj interface{}) {
+		UpdateFunc: func(_, obj any) {
 			klog.V(3).Infof("configMapInformer update callback: %+v", obj)
 			acw.updateConfig(obj.(*corev1.ConfigMap))
 		},
-		DeleteFunc: func(obj interface{}) {
-			cm := obj.(*corev1.ConfigMap)
-			klog.Errorf("Configmap %s deleted", cm.Name)
+		DeleteFunc: func(obj any) {
+			klog.Error("Configmap deleted")
 		},
 	})
 	if err != nil {

@@ -259,11 +259,12 @@ func (app *cdiAPIApp) getTLSConfig() (*tls.Config, error) {
 
 	//nolint: gosec // False positive: cryptoConfig.MinVersion is set by the user
 	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{*cert},
-		CipherSuites: cryptoConfig.CipherSuites,
-		ClientCAs:    authConfig.CertPool,
-		ClientAuth:   tls.VerifyClientCertIfGiven,
-		MinVersion:   cryptoConfig.MinVersion,
+		Certificates:     []tls.Certificate{*cert},
+		CipherSuites:     cryptoConfig.CipherSuites,
+		ClientCAs:        authConfig.CertPool,
+		ClientAuth:       tls.VerifyClientCertIfGiven,
+		CurvePreferences: cryptoConfig.CurvePreferences,
+		MinVersion:       cryptoConfig.MinVersion,
 		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 			if len(verifiedChains) == 0 {
 				return nil

@@ -56,6 +56,15 @@ const (
 
 var (
 	uploadLog = logf.Log.WithName("upload-controller-test")
+	custom    = cdiv1.TLSProfileSpec{
+		Ciphers:       []string{"ECDHE-ECDSA-AES128-GCM-SHA256"},
+		MinTLSVersion: cdiv1.VersionTLS11,
+		Groups:        []string{cdiv1.TLSGroupSecP521r1},
+	}
+	customProfile = &cdiv1.TLSSecurityProfile{
+		Type:   cdiv1.TLSProfileCustomType,
+		Custom: &cdiv1.CustomTLSProfile{TLSProfileSpec: custom},
+	}
 )
 
 var _ = Describe("Upload controller reconcile loop", func() {
@@ -508,15 +517,13 @@ var _ = Describe("reconcilePVC loop", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		DescribeTable("should pass correct crypto config to created pod", func(profile *cdiv1.TLSSecurityProfile) {
+		DescribeTable("should pass correct crypto config to created pod", func(profile *cdiv1.TLSSecurityProfile, expected *cdiv1.TLSProfileSpec) {
 			testPvc := cc.CreatePvc(testPvcName, "default", map[string]string{cc.AnnUploadRequest: "", AnnUploadPod: uploadResourceName}, nil)
 			reconciler := createUploadReconciler(testPvc)
 			cdiConfig := &cdiv1.CDIConfig{}
 			err := reconciler.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, cdiConfig)
 			Expect(err).ToNot(HaveOccurred())
-			profileType := cdiv1.TLSProfileIntermediateType
 			if profile != nil {
-				profileType = profile.Type
 				cdiConfig.Spec.TLSSecurityProfile = profile
 				err = reconciler.client.Update(context.TODO(), cdiConfig)
 				Expect(err).ToNot(HaveOccurred())
@@ -530,25 +537,24 @@ var _ = Describe("reconcilePVC loop", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(uploadPod.Name).To(Equal(uploadResourceName))
 
-			foundMinVersionEnvVar := false
+			env := map[string]string{}
 			for _, envVar := range uploadPod.Spec.Containers[0].Env {
-				if envVar.Name == common.MinVersionTLSVar {
-					Expect(envVar.Value).To(Equal(string(cdiv1.TLSProfiles[profileType].MinTLSVersion)))
-					foundMinVersionEnvVar = true
-				}
+				env[envVar.Name] = envVar.Value
 			}
-			Expect(foundMinVersionEnvVar).To(BeTrue())
-			foundCiphersEnvVar := false
-			for _, envVar := range uploadPod.Spec.Containers[0].Env {
-				if envVar.Name == common.CiphersTLSVar {
-					Expect(envVar.Value).To(Equal(strings.Join(cdiv1.TLSProfiles[profileType].Ciphers, ",")))
-					foundCiphersEnvVar = true
-				}
-			}
-			Expect(foundCiphersEnvVar).To(BeTrue())
+
+			Expect(env).To(HaveKeyWithValue(common.MinVersionTLSVar, string(expected.MinTLSVersion)))
+			Expect(env).To(HaveKeyWithValue(common.CiphersTLSVar, strings.Join(expected.Ciphers, ",")))
+			Expect(env).To(HaveKeyWithValue(common.GroupsTLSVar, strings.Join(expected.Groups, ",")))
+
 		},
-			Entry("no profile set", nil),
-			Entry("'Old' profile set", &cdiv1.TLSSecurityProfile{Type: cdiv1.TLSProfileOldType, Old: &cdiv1.OldTLSProfile{}}),
+			Entry("no profile set", nil, cdiv1.TLSProfiles[cdiv1.TLSProfileIntermediateType]),
+			Entry("'Old' profile set",
+				&cdiv1.TLSSecurityProfile{Type: cdiv1.TLSProfileOldType, Old: &cdiv1.OldTLSProfile{}},
+				cdiv1.TLSProfiles[cdiv1.TLSProfileOldType]),
+			Entry("'Modern' profile set",
+				&cdiv1.TLSSecurityProfile{Type: cdiv1.TLSProfileModernType, Modern: &cdiv1.ModernTLSProfile{}},
+				cdiv1.TLSProfiles[cdiv1.TLSProfileModernType]),
+			Entry("'Custom' profile with PQC groups", customProfile, &customProfile.Custom.TLSProfileSpec),
 		)
 
 		DescribeTable("Should use proper cert duration", func(expectedDuration time.Duration, setCertConfig bool) {

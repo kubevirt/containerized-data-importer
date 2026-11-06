@@ -41,8 +41,9 @@ import (
 
 // CryptoConfig contains TLS crypto configurables
 type CryptoConfig struct {
-	CipherSuites []uint16
-	MinVersion   uint16
+	CipherSuites     []uint16
+	MinVersion       uint16
+	CurvePreferences []tls.CurveID
 }
 
 // CdiConfigTLSWatcher is the interface of cdiConfigTLSWatcher
@@ -77,17 +78,16 @@ func NewCdiConfigTLSWatcher(ctx context.Context, cdiClient cdiclient.Interface) 
 	}
 
 	_, err := cdiConfigInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
+		AddFunc: func(obj any) {
 			klog.V(3).Infof("cdiConfigInformer add callback: %+v", obj)
 			ctw.updateConfig(obj.(*cdiv1.CDIConfig))
 		},
-		UpdateFunc: func(_, obj interface{}) {
+		UpdateFunc: func(_, obj any) {
 			klog.V(3).Infof("cdiConfigInformer update callback: %+v", obj)
 			ctw.updateConfig(obj.(*cdiv1.CDIConfig))
 		},
-		DeleteFunc: func(obj interface{}) {
-			config := obj.(*cdiv1.CDIConfig)
-			klog.Errorf("CDIConfig %s deleted", config.Name)
+		DeleteFunc: func(obj any) {
+			klog.Error("CDIConfig deleted")
 		},
 	})
 
@@ -117,11 +117,13 @@ func (ctw *cdiConfigTLSWatcher) GetInformer() cache.SharedIndexInformer {
 func (ctw *cdiConfigTLSWatcher) updateConfig(config *cdiv1.CDIConfig) {
 	newConfig := &CryptoConfig{}
 
-	cipherNames, minTypedTLSVersion := SelectCipherSuitesAndMinTLSVersion(config.Spec.TLSSecurityProfile)
-	minTLSVersion, _ := ocpcrypto.TLSVersion(string(minTypedTLSVersion))
-	ciphers := CipherSuitesIDs(cipherNames)
+	tlsProfileSpec := GetTLSProfileSpec(config.Spec.TLSSecurityProfile)
+	minTLSVersion, _ := ocpcrypto.TLSVersion(string(tlsProfileSpec.MinTLSVersion))
+	ciphers := CipherSuitesIDs(tlsProfileSpec.Ciphers)
+	curvePreferences := GroupsToCurves(tlsProfileSpec.Groups)
 	newConfig.CipherSuites = ciphers
 	newConfig.MinVersion = minTLSVersion
+	newConfig.CurvePreferences = curvePreferences
 
 	ctw.mutex.Lock()
 	defer ctw.mutex.Unlock()
@@ -171,20 +173,18 @@ func (m *ManagedTLSWatcher) SetCache(cache runtimecache.Cache) {
 	m.cache = cache
 }
 
-// SelectCipherSuitesAndMinTLSVersion returns cipher names and minimal TLS version according to the input profile
-func SelectCipherSuitesAndMinTLSVersion(profile *cdiv1.TLSSecurityProfile) ([]string, cdiv1.TLSProtocolVersion) {
+func GetTLSProfileSpec(profile *cdiv1.TLSSecurityProfile) cdiv1.TLSProfileSpec {
 	if profile == nil {
-		profile = &cdiv1.TLSSecurityProfile{
-			Type:         cdiv1.TLSProfileIntermediateType,
-			Intermediate: &cdiv1.IntermediateTLSProfile{},
-		}
+		return *cdiv1.TLSProfiles[cdiv1.TLSProfileIntermediateType]
 	}
-
 	if profile.Custom != nil {
-		return profile.Custom.TLSProfileSpec.Ciphers, profile.Custom.TLSProfileSpec.MinTLSVersion
+		return profile.Custom.TLSProfileSpec
 	}
-
-	return cdiv1.TLSProfiles[profile.Type].Ciphers, cdiv1.TLSProfiles[profile.Type].MinTLSVersion
+	if spec, ok := cdiv1.TLSProfiles[profile.Type]; ok {
+		return *spec
+	}
+	klog.V(1).Infof("invalid TLS security profile %q, falling back to Intermediate", profile.Type)
+	return *cdiv1.TLSProfiles[cdiv1.TLSProfileIntermediateType]
 }
 
 // DefaultCryptoConfig returns a crypto config with legitimate defaults to start with
@@ -192,14 +192,16 @@ func DefaultCryptoConfig() *CryptoConfig {
 	defaultType := cdiv1.TLSProfileIntermediateType
 	minTLSVersion, _ := ocpcrypto.TLSVersion(string(cdiv1.TLSProfiles[defaultType].MinTLSVersion))
 	ciphers := CipherSuitesIDs(cdiv1.TLSProfiles[defaultType].Ciphers)
+	curvePreferences := GroupsToCurves(cdiv1.TLSProfiles[defaultType].Groups)
 
 	return &CryptoConfig{
-		CipherSuites: ciphers,
-		MinVersion:   minTLSVersion,
+		CipherSuites:     ciphers,
+		MinVersion:       minTLSVersion,
+		CurvePreferences: curvePreferences,
 	}
 }
 
-// CipherSuitesIDs translates cipher names to IDs which can be straight to the tls.Config
+// CipherSuitesIDs translates cipher suites names to IDs which can go straight to the tls.Config
 func CipherSuitesIDs(names []string) []uint16 {
 	// ref: https://www.iana.org/assignments/tls-parameters/tls-parameters.xml
 	var idByName = map[string]uint16{
@@ -232,6 +234,29 @@ func CipherSuitesIDs(names []string) []uint16 {
 	}
 
 	ids := []uint16{}
+	for _, name := range names {
+		if id, ok := idByName[name]; ok {
+			ids = append(ids, id)
+		}
+	}
+
+	return ids
+}
+
+// GroupsToCurves translates groups names to CurveID which can go straight to the tls.Config
+func GroupsToCurves(names []string) []tls.CurveID {
+	// ref: https://www.iana.org/assignments/tls-parameters/tls-parameters.xml#tls-parameters-8
+	var idByName = map[string]tls.CurveID{
+		cdiv1.TLSGroupX25519:             tls.X25519,
+		cdiv1.TLSGroupSecP256r1:          tls.CurveP256,
+		cdiv1.TLSGroupSecP384r1:          tls.CurveP384,
+		cdiv1.TLSGroupSecP521r1:          tls.CurveP521,
+		cdiv1.TLSGroupX25519MLKEM768:     tls.X25519MLKEM768,
+		cdiv1.TLSGroupSecP256r1MLKEM768:  tls.SecP256r1MLKEM768,
+		cdiv1.TLSGroupSecP384r1MLKEM1024: tls.SecP384r1MLKEM1024,
+	}
+
+	ids := []tls.CurveID{}
 	for _, name := range names {
 		if id, ok := idByName[name]; ok {
 			ids = append(ids, id)

@@ -343,9 +343,10 @@ func (app *uploadProxyApp) getTLSConfig() *tls.Config {
 
 	//nolint:gosec // False positive (MinVersion unknown at build time)
 	tlsConfig := &tls.Config{
-		GetCertificate: app.certWatcher.GetCertificate,
-		CipherSuites:   cryptoConfig.CipherSuites,
-		MinVersion:     cryptoConfig.MinVersion,
+		GetCertificate:   app.certWatcher.GetCertificate,
+		CipherSuites:     cryptoConfig.CipherSuites,
+		CurvePreferences: cryptoConfig.CurvePreferences,
+		MinVersion:       cryptoConfig.MinVersion,
 	}
 
 	return tlsConfig

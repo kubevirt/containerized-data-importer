@@ -117,6 +117,7 @@ type UploadPodArgs struct {
 type CryptoEnvVars struct {
 	Ciphers       string
 	MinTLSVersion string
+	Groups        string
 }
 
 // Reconcile the reconcile loop for the CDIConfig object.
@@ -425,10 +426,12 @@ func (r *UploadReconciler) createUploadPodForPvc(pvc *corev1.PersistentVolumeCla
 	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: common.ConfigName}, config); err != nil {
 		return nil, err
 	}
-	ciphers, minTLSVersion := cryptowatch.SelectCipherSuitesAndMinTLSVersion(config.Spec.TLSSecurityProfile)
+	tlsProfileSpec := cryptowatch.GetTLSProfileSpec(config.Spec.TLSSecurityProfile)
+
 	cryptoVars := CryptoEnvVars{
-		Ciphers:       strings.Join(ciphers, ","),
-		MinTLSVersion: string(minTLSVersion),
+		Ciphers:       strings.Join(tlsProfileSpec.Ciphers, ","),
+		MinTLSVersion: string(tlsProfileSpec.MinTLSVersion),
+		Groups:        strings.Join(tlsProfileSpec.Groups, ","),
 	}
 
 	serverRefresh := certConfig.Server.Duration.Duration - certConfig.Server.RenewBefore.Duration
@@ -853,6 +856,10 @@ func (r *UploadReconciler) makeUploadPodContainers(args UploadPodArgs, resourceR
 				{
 					Name:  common.CiphersTLSVar,
 					Value: args.CryptoEnvVars.Ciphers,
+				},
+				{
+					Name:  common.GroupsTLSVar,
+					Value: args.CryptoEnvVars.Groups,
 				},
 				{
 					Name:  common.MinVersionTLSVar,

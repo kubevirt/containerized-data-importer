@@ -255,9 +255,10 @@ func (app *uploadServerApp) getTLSConfig() (*tls.Config, error) {
 
 	//nolint:gosec // False positive: Min version is not known statically
 	config := &tls.Config{
-		CipherSuites: app.config.CryptoConfig.CipherSuites,
-		ClientAuth:   tls.VerifyClientCertIfGiven,
-		MinVersion:   app.config.CryptoConfig.MinVersion,
+		CipherSuites:     app.config.CryptoConfig.CipherSuites,
+		CurvePreferences: app.config.CryptoConfig.CurvePreferences,
+		ClientAuth:       tls.VerifyClientCertIfGiven,
+		MinVersion:       app.config.CryptoConfig.MinVersion,
 	}
 
 	if app.config.ClientCertFile != "" {

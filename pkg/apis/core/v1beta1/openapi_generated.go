@@ -17152,8 +17152,33 @@ func schema_pkg_apis_core_v1beta1_CustomTLSProfile(ref common.ReferenceCallback)
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"ciphers": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
-							Description: "ciphers is used to specify the cipher algorithms that are negotiated during the TLS handshake.  Operators may remove entries their operands do not support.  For example, to use DES-CBC3-SHA  (yaml):\n\n  ciphers:\n    - DES-CBC3-SHA",
+							Description: "ciphers is used to specify the cipher algorithms that are negotiated during the TLS handshake. Operators may remove entries that their operands do not support. For example, to use only ECDHE-RSA-AES128-GCM-SHA256 (yaml):\n\n  ciphers:\n    - ECDHE-RSA-AES128-GCM-SHA256\n\nTLS 1.3 cipher suites (e.g. TLS_AES_128_GCM_SHA256) are not configurable and are always enabled when TLS 1.3 is negotiated.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"groups": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "set",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "groups is an optional, ordered field used to specify the supported groups (formerly known as elliptic curves) that are used during the TLS handshake.  The order of the groups represents a suggested preference, with the most preferred group first. Note that not all platform components honor the ordering: Go-based components use Go's internal preference order and treat this list as a filter of allowed groups rather than an ordered preference. Operators may remove entries their operands do not support.\n\nWhen omitted, this means no opinion and the platform is left to choose reasonable defaults which are subject to change over time and may be different per platform component depending on the underlying TLS libraries they use. If specified each group must be unique.\n\nFor example, to use X25519 and secp256r1 (yaml):\n\n  groups:\n    - X25519\n    - secp256r1",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -17168,7 +17193,7 @@ func schema_pkg_apis_core_v1beta1_CustomTLSProfile(ref common.ReferenceCallback)
 					},
 					"minTLSVersion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "minTLSVersion is used to specify the minimal version of the TLS protocol that is negotiated during the TLS handshake. For example, to use TLS versions 1.1, 1.2 and 1.3 (yaml):\n\n  minTLSVersion: VersionTLS11\n\nNOTE: currently the highest minTLSVersion allowed is VersionTLS12",
+							Description: "minTLSVersion is used to specify the minimal version of the TLS protocol that is negotiated during the TLS handshake. For example, to use TLS versions 1.1, 1.2 and 1.3 (yaml):\n\n  minTLSVersion: VersionTLS11",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -18861,7 +18886,7 @@ func schema_pkg_apis_core_v1beta1_IntermediateTLSProfile(ref common.ReferenceCal
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "IntermediateTLSProfile is a TLS security profile based on: https://wiki.mozilla.org/Security/Server_Side_TLS#Intermediate_compatibility_.28default.29",
+				Description: "IntermediateTLSProfile is a TLS security profile based on the \"intermediate\" configuration of the Mozilla Server Side TLS configuration guidelines.",
 				Type:        []string{"object"},
 			},
 		},
@@ -18872,7 +18897,7 @@ func schema_pkg_apis_core_v1beta1_ModernTLSProfile(ref common.ReferenceCallback)
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "ModernTLSProfile is a TLS security profile based on: https://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility",
+				Description: "ModernTLSProfile is a TLS security profile based on the \"modern\" configuration of the Mozilla Server Side TLS configuration guidelines.",
 				Type:        []string{"object"},
 			},
 		},
@@ -19118,7 +19143,7 @@ func schema_pkg_apis_core_v1beta1_OldTLSProfile(ref common.ReferenceCallback) co
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "OldTLSProfile is a TLS security profile based on: https://wiki.mozilla.org/Security/Server_Side_TLS#Old_backward_compatibility",
+				Description: "OldTLSProfile is a TLS security profile based on the \"old\" configuration of the Mozilla Server Side TLS configuration guidelines.",
 				Type:        []string{"object"},
 			},
 		},
@@ -19508,8 +19533,33 @@ func schema_pkg_apis_core_v1beta1_TLSProfileSpec(ref common.ReferenceCallback) c
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"ciphers": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
-							Description: "ciphers is used to specify the cipher algorithms that are negotiated during the TLS handshake.  Operators may remove entries their operands do not support.  For example, to use DES-CBC3-SHA  (yaml):\n\n  ciphers:\n    - DES-CBC3-SHA",
+							Description: "ciphers is used to specify the cipher algorithms that are negotiated during the TLS handshake. Operators may remove entries that their operands do not support. For example, to use only ECDHE-RSA-AES128-GCM-SHA256 (yaml):\n\n  ciphers:\n    - ECDHE-RSA-AES128-GCM-SHA256\n\nTLS 1.3 cipher suites (e.g. TLS_AES_128_GCM_SHA256) are not configurable and are always enabled when TLS 1.3 is negotiated.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"groups": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "set",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "groups is an optional, ordered field used to specify the supported groups (formerly known as elliptic curves) that are used during the TLS handshake.  The order of the groups represents a suggested preference, with the most preferred group first. Note that not all platform components honor the ordering: Go-based components use Go's internal preference order and treat this list as a filter of allowed groups rather than an ordered preference. Operators may remove entries their operands do not support.\n\nWhen omitted, this means no opinion and the platform is left to choose reasonable defaults which are subject to change over time and may be different per platform component depending on the underlying TLS libraries they use. If specified each group must be unique.\n\nFor example, to use X25519 and secp256r1 (yaml):\n\n  groups:\n    - X25519\n    - secp256r1",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -19524,7 +19574,7 @@ func schema_pkg_apis_core_v1beta1_TLSProfileSpec(ref common.ReferenceCallback) c
 					},
 					"minTLSVersion": {
 						SchemaProps: spec.SchemaProps{
-							Description: "minTLSVersion is used to specify the minimal version of the TLS protocol that is negotiated during the TLS handshake. For example, to use TLS versions 1.1, 1.2 and 1.3 (yaml):\n\n  minTLSVersion: VersionTLS11\n\nNOTE: currently the highest minTLSVersion allowed is VersionTLS12",
+							Description: "minTLSVersion is used to specify the minimal version of the TLS protocol that is negotiated during the TLS handshake. For example, to use TLS versions 1.1, 1.2 and 1.3 (yaml):\n\n  minTLSVersion: VersionTLS11",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -19546,7 +19596,7 @@ func schema_pkg_apis_core_v1beta1_TLSSecurityProfile(ref common.ReferenceCallbac
 				Properties: map[string]spec.Schema{
 					"type": {
 						SchemaProps: spec.SchemaProps{
-							Description: "type is one of Old, Intermediate, Modern or Custom. Custom provides the ability to specify individual TLS security profile parameters. Old, Intermediate and Modern are TLS security profiles based on:\n\nhttps://wiki.mozilla.org/Security/Server_Side_TLS#Recommended_configurations\n\nThe profiles are intent based, so they may change over time as new ciphers are developed and existing ciphers are found to be insecure.  Depending on precisely which ciphers are available to a process, the list may be reduced.\n\nNote that the Modern profile is currently not supported because it is not yet well adopted by common software libraries.",
+							Description: "type is one of Old, Intermediate, Modern or Custom. Custom provides the ability to specify individual TLS security profile parameters.\n\nThe cipher and groups lists in these profiles are based on version 5.8 of the Mozilla Server Side TLS configuration guidelines. See: https://ssl-config.mozilla.org/guidelines/5.8.json\n\nThe groups are listed in suggested preference order, with the most preferred group first. Note that not all platform components honor the ordering: Go-based components use Go's internal preference order and treat this list as a filter of allowed groups rather than an ordered preference. Note that X25519MLKEM768 is a post-quantum hybrid group that is not FIPS-approved and should be ignored by components running in FIPS mode.\n\nThe profiles are intent based, so they may change over time as new ciphers are developed and existing ciphers are found to be insecure. Depending on precisely which ciphers are available to a process, the list may be reduced.",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -19554,25 +19604,25 @@ func schema_pkg_apis_core_v1beta1_TLSSecurityProfile(ref common.ReferenceCallbac
 					},
 					"old": {
 						SchemaProps: spec.SchemaProps{
-							Description: "old is a TLS security profile based on:\n\nhttps://wiki.mozilla.org/Security/Server_Side_TLS#Old_backward_compatibility\n\nand looks like this (yaml):\n\n  ciphers:\n    - TLS_AES_128_GCM_SHA256\n    - TLS_AES_256_GCM_SHA384\n    - TLS_CHACHA20_POLY1305_SHA256\n    - ECDHE-ECDSA-AES128-GCM-SHA256\n    - ECDHE-RSA-AES128-GCM-SHA256\n    - ECDHE-ECDSA-AES256-GCM-SHA384\n    - ECDHE-RSA-AES256-GCM-SHA384\n    - ECDHE-ECDSA-CHACHA20-POLY1305\n    - ECDHE-RSA-CHACHA20-POLY1305\n    - DHE-RSA-AES128-GCM-SHA256\n    - DHE-RSA-AES256-GCM-SHA384\n    - DHE-RSA-CHACHA20-POLY1305\n    - ECDHE-ECDSA-AES128-SHA256\n    - ECDHE-RSA-AES128-SHA256\n    - ECDHE-ECDSA-AES128-SHA\n    - ECDHE-RSA-AES128-SHA\n    - ECDHE-ECDSA-AES256-SHA384\n    - ECDHE-RSA-AES256-SHA384\n    - ECDHE-ECDSA-AES256-SHA\n    - ECDHE-RSA-AES256-SHA\n    - DHE-RSA-AES128-SHA256\n    - DHE-RSA-AES256-SHA256\n    - AES128-GCM-SHA256\n    - AES256-GCM-SHA384\n    - AES128-SHA256\n    - AES256-SHA256\n    - AES128-SHA\n    - AES256-SHA\n    - DES-CBC3-SHA\n  minTLSVersion: VersionTLS10",
+							Description: "old is a TLS profile for use when services need to be accessed by very old clients or libraries and should be used only as a last resort.\n\nThe supported groups list includes by default the following groups in suggested preference order (ordering may not be honored by all implementations): X25519MLKEM768, X25519, secp256r1, secp384r1.\n\nThis profile is equivalent to a Custom profile specified as:\n  minTLSVersion: VersionTLS10\n  ciphers:\n    - TLS_AES_128_GCM_SHA256\n    - TLS_AES_256_GCM_SHA384\n    - TLS_CHACHA20_POLY1305_SHA256\n    - ECDHE-ECDSA-AES128-GCM-SHA256\n    - ECDHE-RSA-AES128-GCM-SHA256\n    - ECDHE-ECDSA-AES256-GCM-SHA384\n    - ECDHE-RSA-AES256-GCM-SHA384\n    - ECDHE-ECDSA-CHACHA20-POLY1305\n    - ECDHE-RSA-CHACHA20-POLY1305\n    - ECDHE-ECDSA-AES128-SHA256\n    - ECDHE-RSA-AES128-SHA256\n    - ECDHE-ECDSA-AES128-SHA\n    - ECDHE-RSA-AES128-SHA\n    - ECDHE-ECDSA-AES256-SHA384\n    - ECDHE-RSA-AES256-SHA384\n    - ECDHE-ECDSA-AES256-SHA\n    - ECDHE-RSA-AES256-SHA\n    - AES128-GCM-SHA256\n    - AES256-GCM-SHA384\n    - AES128-SHA256\n    - AES256-SHA256\n    - AES128-SHA\n    - AES256-SHA\n    - DES-CBC3-SHA",
 							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.OldTLSProfile"),
 						},
 					},
 					"intermediate": {
 						SchemaProps: spec.SchemaProps{
-							Description: "intermediate is a TLS security profile based on:\n\nhttps://wiki.mozilla.org/Security/Server_Side_TLS#Intermediate_compatibility_.28recommended.29\n\nand looks like this (yaml):\n\n  ciphers:\n    - TLS_AES_128_GCM_SHA256\n    - TLS_AES_256_GCM_SHA384\n    - TLS_CHACHA20_POLY1305_SHA256\n    - ECDHE-ECDSA-AES128-GCM-SHA256\n    - ECDHE-RSA-AES128-GCM-SHA256\n    - ECDHE-ECDSA-AES256-GCM-SHA384\n    - ECDHE-RSA-AES256-GCM-SHA384\n    - ECDHE-ECDSA-CHACHA20-POLY1305\n    - ECDHE-RSA-CHACHA20-POLY1305\n    - DHE-RSA-AES128-GCM-SHA256\n    - DHE-RSA-AES256-GCM-SHA384\n  minTLSVersion: VersionTLS12",
+							Description: "intermediate is a TLS profile for use when you do not need compatibility with legacy clients and want to remain highly secure while being compatible with most clients currently in use.\n\nThe supported groups list includes by default the following groups in suggested preference order (ordering may not be honored by all implementations): X25519MLKEM768, X25519, secp256r1, secp384r1.\n\nThis profile is equivalent to a Custom profile specified as:\n  minTLSVersion: VersionTLS12\n  ciphers:\n    - TLS_AES_128_GCM_SHA256\n    - TLS_AES_256_GCM_SHA384\n    - TLS_CHACHA20_POLY1305_SHA256\n    - ECDHE-ECDSA-AES128-GCM-SHA256\n    - ECDHE-RSA-AES128-GCM-SHA256\n    - ECDHE-ECDSA-AES256-GCM-SHA384\n    - ECDHE-RSA-AES256-GCM-SHA384\n    - ECDHE-ECDSA-CHACHA20-POLY1305\n    - ECDHE-RSA-CHACHA20-POLY1305",
 							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.IntermediateTLSProfile"),
 						},
 					},
 					"modern": {
 						SchemaProps: spec.SchemaProps{
-							Description: "modern is a TLS security profile based on:\n\nhttps://wiki.mozilla.org/Security/Server_Side_TLS#Modern_compatibility\n\nand looks like this (yaml):\n\n  ciphers:\n    - TLS_AES_128_GCM_SHA256\n    - TLS_AES_256_GCM_SHA384\n    - TLS_CHACHA20_POLY1305_SHA256\n  minTLSVersion: VersionTLS13\n\nNOTE: Currently unsupported.",
+							Description: "modern is a TLS security profile for use with clients that support TLS 1.3 and do not need backward compatibility for older clients. The supported groups list includes by default the following groups in suggested preference order (ordering may not be honored by all implementations): X25519MLKEM768, X25519, secp256r1, secp384r1. This profile is equivalent to a Custom profile specified as:\n  minTLSVersion: VersionTLS13\n  ciphers:\n    - TLS_AES_128_GCM_SHA256\n    - TLS_AES_256_GCM_SHA384\n    - TLS_CHACHA20_POLY1305_SHA256",
 							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ModernTLSProfile"),
 						},
 					},
 					"custom": {
 						SchemaProps: spec.SchemaProps{
-							Description: "custom is a user-defined TLS security profile. Be extremely careful using a custom profile as invalid configurations can be catastrophic. An example custom profile looks like this:\n\n  ciphers:\n    - ECDHE-ECDSA-CHACHA20-POLY1305\n    - ECDHE-RSA-CHACHA20-POLY1305\n    - ECDHE-RSA-AES128-GCM-SHA256\n    - ECDHE-ECDSA-AES128-GCM-SHA256\n  minTLSVersion: VersionTLS11",
+							Description: "custom is a user-defined TLS security profile. Be extremely careful using a custom profile as invalid configurations can be catastrophic.\n\nThe supported groups list for this profile is empty by default.\n\nAn example custom profile looks like this:\n\n  minTLSVersion: VersionTLS11\n  ciphers:\n    - ECDHE-ECDSA-CHACHA20-POLY1305\n    - ECDHE-RSA-CHACHA20-POLY1305\n    - ECDHE-RSA-AES128-GCM-SHA256\n    - ECDHE-ECDSA-AES128-GCM-SHA256",
 							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.CustomTLSProfile"),
 						},
 					},
