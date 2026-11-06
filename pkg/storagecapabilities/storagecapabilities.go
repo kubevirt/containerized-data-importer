@@ -158,6 +158,9 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	// OpenEBS Replicated PV Mayastor
 	"io.openebs.csi-mayastor":           {{rwo, block}, {rwo, file}},
 	"io.openebs.csi-mayastor/rwx-block": {{rwx, block}, {rwo, block}, {rwo, file}},
+	// KubeVirt CSI driver (tenant clusters running on KubeVirt VMs)
+	ProvisionerKubeVirtCSI:         {{rwo, block}, {rwo, file}},
+	ProvisionerKubeVirtCSIRWXBlock: {{rwx, block}, {rwo, block}, {rwo, file}},
 }
 
 // SourceFormatsByProvisionerKey defines the advised data import cron source format
@@ -295,6 +298,10 @@ const (
 	ProvisionerHitachiHSPC = "hspc.csi.hitachi.com"
 	// ProvisionerHPEXP is the HPE XP8 CSI provisioner (OEM of Hitachi VSP)
 	ProvisionerHPEXP = "xspc.csi.hpe.com"
+	// ProvisionerKubeVirtCSI is the KubeVirt CSI driver, used by clusters that run on KubeVirt VMs
+	ProvisionerKubeVirtCSI = "csi.kubevirt.io"
+	// ProvisionerKubeVirtCSIRWXBlock is the KubeVirt CSI provisioner key derived for StorageClasses with parameter rwxBlock=true
+	ProvisionerKubeVirtCSIRWXBlock = "csi.kubevirt.io/rwx-block"
 )
 
 // UnsupportedProvisioners is a hash of provisioners which are known not to work with CDI
@@ -531,6 +538,18 @@ var storageClassToProvisionerKeyMapper = map[string]func(sc *storagev1.StorageCl
 		default:
 			return "csi.huawei.com"
 		}
+	},
+	ProvisionerKubeVirtCSI: func(sc *storagev1.StorageClass) string {
+		// The driver hotplugs an infra-cluster DataVolume as a disk and never
+		// sets its volume mode, so tenant RWO block and filesystem work with
+		// any infra StorageClass. Tenant RWX block (VM live migration) needs
+		// an infra class that supports RWX block, which the tenant cannot
+		// see; whoever creates the tenant StorageClass opts in with rwxBlock.
+		// The driver rejects RWX filesystem.
+		if sc.Parameters["rwxBlock"] == "true" {
+			return ProvisionerKubeVirtCSIRWXBlock
+		}
+		return ProvisionerKubeVirtCSI
 	},
 	"io.openebs.csi-mayastor": func(sc *storagev1.StorageClass) string {
 		// RWX block volumes are opt-in per StorageClass; the driver rejects
