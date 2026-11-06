@@ -3,7 +3,15 @@ LABEL maintainer="The KubeVirt Project <kubevirt-dev@googlegroups.com>"
 
 ARG ARCH
 
-RUN 	dnf -y install dnf-plugins-core && \
+RUN set -ex; \
+	echo "Starting builder package installation"; \
+	uname -m; \
+	dnf --version; \
+	set --; \
+	if [ "$(uname -m)" = "x86_64" ]; then \
+		set -- libnbd-devel; \
+	fi; \
+	dnf -y install dnf-plugins-core && \
 	dnf config-manager --set-enable crb && dnf update -y && \
 	dnf install -y \
 	cpio \
@@ -22,12 +30,12 @@ RUN 	dnf -y install dnf-plugins-core && \
 	rsync-daemon \
 	rsync \
 	patch \
-	libnbd-devel \
+	"$@" \
 	nbdkit-devel \
 	unzip \
 	java-21-openjdk-devel \
 	rubygems \
-    skopeo \
+	skopeo \
 	&& dnf clean all
 
 # Necessary for generation of HTML-formatted API docs (.adoc)

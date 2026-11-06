@@ -30,7 +30,20 @@ if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
         BUILDAH_PLATFORM_FLAG="${BUILDAH_PLATFORM_FLAG},linux/s390x"
     fi
 
+    uname -a
+    rpm -q qemu-user-static-aarch64 qemu-user-static-s390x buildah podman crun runc || true
+
     echo "Building with $BUILDAH_PLATFORM_FLAG"
+    for binfmt_entry in /proc/sys/fs/binfmt_misc/*; do
+        case "${binfmt_entry}" in
+            */register|*/status) continue ;;
+            *) ;;
+        esac
+        if [[ -f "${binfmt_entry}" ]]; then
+            echo "binfmt registration: ${binfmt_entry}"
+            cat "${binfmt_entry}" || echo "Unable to read binfmt registration: ${binfmt_entry}" >&2
+        fi
+    done
 fi
 
 # Instead of hard-coding the UNTAGGED_BUILDER_IMAGE, we're going
