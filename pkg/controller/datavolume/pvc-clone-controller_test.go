@@ -889,7 +889,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				{AccessModes: accessMode, VolumeMode: &BlockMode}}, &cloneStrategy)
 
 			reconciler := createCloneReconciler(dv, storageProfile, sc)
-			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
+			pvcSpec, _, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			targetPvc := createTargetPvc(pvcSpec)
@@ -924,7 +924,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			}
 			reconciler := createCloneReconciler(dv, sourceDV, pvc, storageProfile, sc)
 
-			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
+			pvcSpec, _, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			targetPvc := createTargetPvc(pvcSpec)
@@ -952,7 +952,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			pvc := CreatePvcInStorageClass("test", metav1.NamespaceDefault, &scName, annKubevirt, nil, corev1.ClaimBound)
 			reconciler := createCloneReconciler(dv, pvc, storageProfile, sc)
 
-			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
+			pvcSpec, _, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			targetPvc := createTargetPvc(pvcSpec)
@@ -988,7 +988,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// Checks
-			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
+			pvcSpec, _, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			targetPvc := createTargetPvc(pvcSpec)
@@ -1028,7 +1028,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// Get the expected value
-			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
+			pvcSpec, _, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			targetPvc := createTargetPvc(pvcSpec)
@@ -1061,7 +1061,7 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler := createCloneReconciler(dv, pvc, storageProfile, sc)
 
 			// Get the expected value
-			pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
+			pvcSpec, _, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			targetPvc := createTargetPvc(pvcSpec)
@@ -1090,7 +1090,7 @@ var _ = Describe("All DataVolume Tests", func() {
 				pvc.Spec.VolumeMode = &volumeMode
 				reconciler := createCloneReconciler(dv, pvc, storageProfile, sc)
 
-				pvcSpec, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
+				pvcSpec, _, err := renderPvcSpec(reconciler.client, reconciler.recorder, reconciler.log, dv, nil)
 				Expect(err).ToNot(HaveOccurred())
 
 				targetPvc := createTargetPvc(pvcSpec)
