@@ -427,6 +427,11 @@ spec:
                         - Custom
                         type: string
                     type: object
+                  trustedCA:
+                    description: TrustedCA is the name of a ConfigMap in the cdi namespace
+                      that contains a user-provided trusted certificate authority
+                      (CA) bundle.
+                    type: string
                   uploadProxyURLOverride:
                     description: Override the URL used when uploading to a DataVolume
                     type: string
@@ -2944,6 +2949,11 @@ spec:
                         - Custom
                         type: string
                     type: object
+                  trustedCA:
+                    description: TrustedCA is the name of a ConfigMap in the cdi namespace
+                      that contains a user-provided trusted certificate authority
+                      (CA) bundle.
+                    type: string
                   uploadProxyURLOverride:
                     description: Override the URL used when uploading to a DataVolume
                     type: string
@@ -5415,6 +5425,11 @@ spec:
                     - Custom
                     type: string
                 type: object
+              trustedCA:
+                description: TrustedCA is the name of a ConfigMap in the cdi namespace
+                  that contains a user-provided trusted certificate authority (CA)
+                  bundle.
+                type: string
               uploadProxyURLOverride:
                 description: Override the URL used when uploading to a DataVolume
                 type: string
@@ -5429,6 +5444,35 @@ spec:
             description: CDIConfigStatus provides the most recently observed status
               of the CDI Config resource
             properties:
+              conditions:
+                description: Conditions contains the current conditions observed for
+                  CDIConfig.
+                items:
+                  description: |-
+                    Condition represents the state of the operator's
+                    reconciliation functionality.
+                  properties:
+                    lastHeartbeatTime:
+                      format: date-time
+                      type: string
+                    lastTransitionTime:
+                      format: date-time
+                      type: string
+                    message:
+                      type: string
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      description: ConditionType is the state of the operator's reconciliation
+                        functionality.
+                      type: string
+                  required:
+                  - status
+                  - type
+                  type: object
+                type: array
               defaultPodResourceRequirements:
                 description: ResourceRequirements describes the compute resource requirements.
                 properties:
@@ -5568,6 +5612,11 @@ spec:
                 type: boolean
               scratchSpaceStorageClass:
                 description: The calculated storage class to be used for scratch space
+                type: string
+              trustedCA:
+                description: TrustedCA is the name of a ConfigMap in the cdi namespace
+                  that contains a user-provided trusted certificate authority (CA)
+                  bundle.
                 type: string
               uploadProxyCA:
                 description: UploadProxyCA is the certificate authority of the upload

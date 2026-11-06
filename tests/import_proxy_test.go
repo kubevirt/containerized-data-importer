@@ -15,6 +15,7 @@ import (
 
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	configclient "github.com/openshift/client-go/config/clientset/versioned"
+	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -161,6 +162,135 @@ var _ = Describe("Import Proxy tests", func() {
 	}
 
 	Context("[Destructive]", Serial, func() {
+		Describe("CA conditions", func() {
+			waitForCondition := func(conditionType conditions.ConditionType, status corev1.ConditionStatus, reason, message string) {
+				Eventually(func(g Gomega) {
+					config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+					g.Expect(err).NotTo(HaveOccurred())
+					condition := conditions.FindStatusCondition(config.Status.Conditions, conditionType)
+					g.Expect(condition).NotTo(BeNil())
+					g.Expect(condition.Status).To(Equal(status))
+					g.Expect(condition.Reason).To(Equal(reason))
+					g.Expect(condition.Message).To(Equal(message))
+					count := 0
+					for _, c := range config.Status.Conditions {
+						if c.Type == conditionType {
+							count++
+						}
+					}
+					g.Expect(count).To(Equal(1))
+				}, 120*time.Second, time.Second).Should(Succeed())
+			}
+
+			cleanupConfigMap := func(namespace, name string) {
+				DeferCleanup(func() {
+					err := f.K8sClient.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
+					Expect(err == nil || k8serrors.IsNotFound(err)).To(BeTrue(), "failed to delete ConfigMap %s/%s: %v", namespace, name, err)
+				})
+			}
+
+			It("should persist TrustedCAReady failures and recover when the ConfigMap is fixed", func() {
+				const conditionType conditions.ConditionType = "TrustedCAReady"
+				caName := f.Namespace.Name + "-ca"
+				cleanupConfigMap(f.CdiInstallNs, caName)
+
+				By("referencing a missing trusted CA ConfigMap")
+				Expect(utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+					// Isolate trusted CA reconciliation from cluster-wide proxy CA errors.
+					config.ImportProxy = &cdiv1.ImportProxy{}
+					config.TrustedCA = &caName
+				})).To(Succeed())
+				waitForCondition(conditionType, corev1.ConditionFalse, "ErrResourceDoesntExist",
+					fmt.Sprintf("Resource managed by %q doesn't exist", caName))
+
+				By("creating an empty CA ConfigMap and checking the failure reason changes")
+				cm, err := f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Create(context.TODO(), &corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{Name: caName},
+				}, metav1.CreateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				waitForCondition(conditionType, corev1.ConditionFalse, "ErrTrustedCAConfigMapEmpty",
+					fmt.Sprintf("ConfigMap %q has no certificate data", caName))
+
+				By("adding a real CA certificate and checking recovery through the ConfigMap watch")
+				certs, err := f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Get(context.TODO(), utils.FileHostCertConfigMap, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				cm.Data = certs.Data
+				_, err = f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Update(context.TODO(), cm, metav1.UpdateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				waitForCondition(conditionType, corev1.ConditionTrue, "TrustedCAConfigMapReady", "")
+				Eventually(func(g Gomega) {
+					config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(config.Status.TrustedCA).To(HaveValue(Equal(caName)))
+				}, 120*time.Second, time.Second).Should(Succeed())
+
+				By("removing the trusted CA setting and checking the condition is cleared")
+				Expect(utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+					config.TrustedCA = nil
+				})).To(Succeed())
+				Eventually(func(g Gomega) {
+					config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(conditions.FindStatusCondition(config.Status.Conditions, conditionType)).To(BeNil())
+					g.Expect(config.Status.TrustedCA).To(BeNil())
+				}, 120*time.Second, time.Second).Should(Succeed())
+			})
+
+			It("should persist ImportProxyCAReady failures and recover when the cluster-wide CA ConfigMap is fixed", func() {
+				if !utils.IsOpenshift(f.K8sClient) {
+					Skip("cluster-wide proxy CA conditions require OpenShift")
+				}
+				const conditionType conditions.ConditionType = "ImportProxyCAReady"
+				caName := f.Namespace.Name + "-proxy-ca"
+				cleanupConfigMap(cont.ClusterWideProxyConfigMapNameSpace, caName)
+				cleanupConfigMap(f.CdiInstallNs, caName)
+
+				By("configuring a valid cluster-wide CA without changing proxy URLs")
+				_, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, utils.FileHostCertConfigMap,
+					cont.ClusterWideProxyConfigMapNameSpace, caName, cont.ClusterWideProxyConfigMapKey)
+				Expect(err).NotTo(HaveOccurred())
+				cm, err := f.K8sClient.CoreV1().ConfigMaps(cont.ClusterWideProxyConfigMapNameSpace).Get(context.TODO(), caName, metav1.GetOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				certData := cm.Data
+				Expect(utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+					config.ImportProxy = nil
+				})).To(Succeed())
+				updateClusterWideProxyObj(ocpClient, clusterWideProxySpec.HTTPProxy, clusterWideProxySpec.HTTPSProxy, clusterWideProxySpec.NoProxy, caName)
+				waitForCondition(conditionType, corev1.ConditionTrue, "ImportProxyCAConfigMapReady", "")
+
+				By("deleting the source CA ConfigMap and checking the failure is persisted despite the reconciliation error")
+				Expect(f.K8sClient.CoreV1().ConfigMaps(cont.ClusterWideProxyConfigMapNameSpace).Delete(context.TODO(), caName, metav1.DeleteOptions{})).To(Succeed())
+				// Deleting the local copy triggers the CDI namespace ConfigMap watch,
+				// prompting CDI to try copying the now-missing source again.
+				Expect(f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Delete(context.TODO(), caName, metav1.DeleteOptions{})).To(Succeed())
+				waitForCondition(conditionType, corev1.ConditionFalse, "ErrResourceDoesntExist",
+					fmt.Sprintf("Resource managed by %q doesn't exist", caName))
+
+				By("recreating an empty source ConfigMap and checking the failure reason changes")
+				cm, err = f.K8sClient.CoreV1().ConfigMaps(cont.ClusterWideProxyConfigMapNameSpace).Create(context.TODO(), &corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{Name: caName},
+				}, metav1.CreateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				waitForCondition(conditionType, corev1.ConditionFalse, "ErrTrustedCAConfigMapEmpty",
+					fmt.Sprintf("ConfigMap %q has no certificate data", caName))
+
+				By("restoring the CA data and checking recovery and the copied bundle")
+				cm.Data = certData
+				_, err = f.K8sClient.CoreV1().ConfigMaps(cont.ClusterWideProxyConfigMapNameSpace).Update(context.TODO(), cm, metav1.UpdateOptions{})
+				Expect(err).NotTo(HaveOccurred())
+				waitForCondition(conditionType, corev1.ConditionTrue, "ImportProxyCAConfigMapReady", "")
+				Eventually(func(g Gomega) {
+					cm, err := f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Get(context.TODO(), caName, metav1.GetOptions{})
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(cm.Data[common.ImportProxyConfigMapKey]).To(Equal(certData[cont.ClusterWideProxyConfigMapKey]))
+					config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
+					g.Expect(err).NotTo(HaveOccurred())
+					g.Expect(config.Status.ImportProxy).NotTo(BeNil())
+					g.Expect(config.Status.ImportProxy.TrustedCAProxy).To(HaveValue(Equal(caName)))
+				}, 120*time.Second, time.Second).Should(Succeed())
+			})
+		})
+
 		DescribeTable("should", func(args importProxyTestArguments) {
 
 			now := time.Now()
@@ -365,6 +495,87 @@ var _ = Describe("Import Proxy tests", func() {
 			By("Waiting for DataVolume to succeed")
 			err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
 			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Describe("Global TrustedCA tests", func() {
+			AfterEach(func() {
+				_ = f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Delete(
+					context.TODO(), "test-invalid-trusted-ca", metav1.DeleteOptions{})
+				_ = f.K8sClient.CoreV1().ConfigMaps(f.CdiInstallNs).Delete(
+					context.TODO(), "test-global-trusted-ca", metav1.DeleteOptions{})
+			})
+
+			It("should succeed after trustedCA is updated from nonexistent to valid ConfigMap", func() {
+				// phase 1: set trustedCA to a ConfigMap that doesn't exist
+				By("setting CDIConfig.Spec.TrustedCA to a nonexistent ConfigMap")
+				nonExistent := "non-existent-cm"
+				err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+					config.TrustedCA = &nonExistent
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("waiting for Status.TrustedCA to remain empty")
+				Eventually(func() string {
+					config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(
+						context.TODO(), common.ConfigName, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					ca, _ := cont.GetTrustedCA(config)
+					return ca
+				}, time.Second*120, time.Second).Should(BeEmpty())
+
+				By("creating a DataVolume targeting the HTTPS endpoint")
+				imgURL := fmt.Sprintf("https://%s.%s:%d/%s",
+					fileHostName, f.CdiInstallNs, utils.HTTPSNoAuthPort, tinyCoreIso)
+				dvName = "test-global-trusted-ca"
+				dv := utils.NewDataVolumeWithHTTPImport(dvName, "400Mi", imgURL)
+				dataVolume, err := utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verifying pvc was created")
+				pvc, err := utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dvName)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindIfWaitForFirstConsumer(pvc)
+
+				By("verifying the import fails without trustedCA")
+				err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.ImportInProgress, dv.Name)
+				Expect(err).ToNot(HaveOccurred())
+
+				// phase 2: now create the real CM and update trustedCA
+				By("copying the real cert ConfigMap into CDI namespace")
+				caConfigMapName, err := utils.CopyConfigMap(f.K8sClient, f.CdiInstallNs, utils.FileHostCertConfigMap,
+					f.CdiInstallNs, "test-global-trusted-ca", "ca-bundle.crt")
+				Expect(err).ToNot(HaveOccurred())
+
+				By("updating CDIConfig.Spec.TrustedCA to the valid ConfigMap")
+				err = utils.UpdateCDIConfig(f.CrClient, func(config *cdiv1.CDIConfigSpec) {
+					config.TrustedCA = &caConfigMapName
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				By("waiting for Status.TrustedCA to reconcile")
+				Eventually(func() string {
+					config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(
+						context.TODO(), common.ConfigName, metav1.GetOptions{})
+					Expect(err).ToNot(HaveOccurred())
+					ca, _ := cont.GetTrustedCA(config)
+					return ca
+				}, time.Second*120, time.Second).Should(Equal(caConfigMapName))
+
+				By("creating a new DataVolume to retry the import using the same image URL")
+				dvName = "test-global-trusted-ca-new"
+				dv = utils.NewDataVolumeWithHTTPImport(dvName, "400Mi", imgURL)
+				dataVolume, err = utils.CreateDataVolumeFromDefinition(f.CdiClient, f.Namespace.Name, dv)
+				Expect(err).ToNot(HaveOccurred())
+
+				By("Verifying pvc was created")
+				pvc, err = utils.WaitForPVC(f.K8sClient, dataVolume.Namespace, dvName)
+				Expect(err).ToNot(HaveOccurred())
+				f.ForceBindIfWaitForFirstConsumer(pvc)
+
+				By("verifying the import succeeds this time")
+				err = utils.WaitForDataVolumePhase(f, f.Namespace.Name, cdiv1.Succeeded, dv.Name)
+				Expect(err).ToNot(HaveOccurred())
+			})
 		})
 
 		DescribeTable("should proxy registry imports", func(isHTTPS, hasAuth bool) {

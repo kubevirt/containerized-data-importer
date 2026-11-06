@@ -16607,6 +16607,13 @@ func schema_pkg_apis_core_v1beta1_CDIConfigSpec(ref common.ReferenceCallback) co
 							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportProxy"),
 						},
 					},
+					"trustedCA": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TrustedCA is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"scratchSpaceStorageClass": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Override the storage class to used for scratch space during transfer operations. The scratch space storage class is determined in the following order: 1. value of scratchSpaceStorageClass, if that doesn't exist, use the default storage class, if there is no default storage class, use the storage class of the DataVolume, if no storage class specified, use no storage class for scratch space",
@@ -16732,6 +16739,13 @@ func schema_pkg_apis_core_v1beta1_CDIConfigStatus(ref common.ReferenceCallback) 
 							Ref:         ref("kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportProxy"),
 						},
 					},
+					"trustedCA": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TrustedCA is the name of a ConfigMap in the cdi namespace that contains a user-provided trusted certificate authority (CA) bundle.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"scratchSpaceStorageClass": {
 						SchemaProps: spec.SchemaProps{
 							Description: "The calculated storage class to be used for scratch space",
@@ -16772,11 +16786,25 @@ func schema_pkg_apis_core_v1beta1_CDIConfigStatus(ref common.ReferenceCallback) 
 							},
 						},
 					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Conditions contains the current conditions observed for CDIConfig.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/openshift/custom-resource-status/conditions/v1.Condition"),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"k8s.io/api/core/v1.LocalObjectReference", "k8s.io/api/core/v1.ResourceRequirements", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.FilesystemOverhead", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportProxy"},
+			"github.com/openshift/custom-resource-status/conditions/v1.Condition", "k8s.io/api/core/v1.LocalObjectReference", "k8s.io/api/core/v1.ResourceRequirements", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.FilesystemOverhead", "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1.ImportProxy"},
 	}
 }
 
