@@ -18,6 +18,9 @@
 | kubevirt_cdi_import_pods_high_restart | Recording rule | Gauge | [Deprecated] The number of CDI import pods with high restart count |
 | kubevirt_cdi_operator_up | Recording rule | Gauge | [Deprecated] CDI operator status |
 | kubevirt_cdi_upload_pods_high_restart | Recording rule | Gauge | [Deprecated] The number of CDI upload server pods with high restart count |
+| namespace:kubevirt_cdi_clone_pods_high_restart:count | Recording rule | Gauge | The number of CDI clone pods with high restart count, per namespace |
+| namespace:kubevirt_cdi_import_pods_high_restart:count | Recording rule | Gauge | The number of CDI import pods with high restart count, per namespace |
+| namespace:kubevirt_cdi_upload_pods_high_restart:count | Recording rule | Gauge | The number of CDI upload server pods with high restart count, per namespace |
 
 ## Developing new metrics
 
