@@ -279,15 +279,17 @@ var _ = Describe("renderPvcSpec", func() {
 		}
 		dv := createDataVolumeWithStorageAPI("testDV", metav1.NamespaceDefault, &cdiv1.DataVolumeSource{}, storageSpec)
 
-		pvcSpec, err := renderPvcSpec(client, nil, logr.Logger{}, dv, nil)
+		renderedPVC, err := renderPvcForDataVolume(client, nil, logr.Logger{}, dv, nil)
 		if expectedError != nil {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(*expectedError))
-			Expect(pvcSpec).To(BeNil())
+			Expect(renderedPVC).To(BeNil())
 			return
 		}
 
 		Expect(err).ToNot(HaveOccurred())
+		Expect(renderedPVC).ToNot(BeNil())
+		pvcSpec := &renderedPVC.Spec
 		if expectedVolumeMode != nil {
 			Expect(pvcSpec.VolumeMode).ToNot(BeNil())
 			Expect(*pvcSpec.VolumeMode).To(Equal(*expectedVolumeMode))

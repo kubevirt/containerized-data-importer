@@ -108,11 +108,11 @@ type dvSyncResult struct {
 }
 
 type dvSyncState struct {
-	dv        *cdiv1.DataVolume
-	dvMutated *cdiv1.DataVolume
-	pvc       *corev1.PersistentVolumeClaim
-	pvcSpec   *corev1.PersistentVolumeClaimSpec
-	snapshot  *snapshotv1.VolumeSnapshot
+	dv          *cdiv1.DataVolume
+	dvMutated   *cdiv1.DataVolume
+	pvc         *corev1.PersistentVolumeClaim
+	renderedPVC *corev1.PersistentVolumeClaim
+	snapshot    *snapshotv1.VolumeSnapshot
 	dvSyncResult
 	usePopulator bool
 }
@@ -515,7 +515,7 @@ func (r *ReconcilerBase) syncDvPvcState(log logr.Logger, req reconcile.Request, 
 		}
 	}
 
-	syncState.pvcSpec, err = renderPvcSpec(r.client, r.recorder, log, syncState.dvMutated, syncState.pvc)
+	syncState.renderedPVC, err = renderPvcForDataVolume(r.client, r.recorder, log, syncState.dvMutated, syncState.pvc)
 	if err != nil {
 		if syncErr := r.syncDataVolumeStatusPhaseWithEvent(&syncState, cdiv1.PhaseUnset, nil,
 			Event{corev1.EventTypeWarning, cc.ErrClaimNotValid, err.Error()}); syncErr != nil {
@@ -690,14 +690,14 @@ func (r *ReconcilerBase) getAvailableVolumesForDV(syncState *dvSyncState, log lo
 	if err := r.client.List(context.TODO(), pvList, fields); err != nil {
 		return nil, err
 	}
-	if syncState.pvcSpec == nil {
+	if syncState.renderedPVC == nil {
 		return nil, fmt.Errorf("missing pvc spec")
 	}
 	var pvNames []string
 	for _, pv := range pvList.Items {
 		if pv.Status.Phase == corev1.VolumeAvailable {
 			pvc := &corev1.PersistentVolumeClaim{
-				Spec: *syncState.pvcSpec,
+				Spec: syncState.renderedPVC.Spec,
 			}
 			if err := CheckVolumeSatisfyClaim(&pv, pvc); err != nil {
 				continue
@@ -767,9 +767,9 @@ func (r *ReconcilerBase) getDataVolume(key types.NamespacedName) (*cdiv1.DataVol
 
 type pvcModifierFunc func(datavolume *cdiv1.DataVolume, pvc *corev1.PersistentVolumeClaim) error
 
-func (r *ReconcilerBase) createPvcForDatavolume(datavolume *cdiv1.DataVolume, pvcSpec *corev1.PersistentVolumeClaimSpec,
+func (r *ReconcilerBase) createPvcForDatavolume(datavolume *cdiv1.DataVolume, renderedPVC *corev1.PersistentVolumeClaim,
 	pvcModifier pvcModifierFunc) (*corev1.PersistentVolumeClaim, error) {
-	newPvc, err := r.newPersistentVolumeClaim(datavolume, pvcSpec, datavolume.Namespace, datavolume.Name, pvcModifier)
+	newPvc, err := r.newPersistentVolumeClaim(datavolume, renderedPVC, datavolume.Namespace, datavolume.Name, pvcModifier)
 	if err != nil {
 		return nil, err
 	}
@@ -1135,7 +1135,9 @@ func updateProgressUsingPod(dataVolumeCopy *cdiv1.DataVolume, pod *corev1.Pod) e
 // It also sets the appropriate OwnerReferences on the resource
 // which allows handleObject to discover the DataVolume resource
 // that 'owns' it.
-func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, targetPvcSpec *corev1.PersistentVolumeClaimSpec, namespace, name string, pvcModifier pvcModifierFunc) (*corev1.PersistentVolumeClaim, error) {
+func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, renderedPVC *corev1.PersistentVolumeClaim, namespace, name string, pvcModifier pvcModifierFunc) (*corev1.PersistentVolumeClaim, error) {
+	targetPvcSpec := renderedPVC.Spec.DeepCopy()
+
 	labels := map[string]string{
 		common.CDILabelKey: common.CDILabelValue,
 	}
@@ -1143,6 +1145,9 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 		labels[common.KubePersistentVolumeFillingUpSuppressLabelKey] = common.KubePersistentVolumeFillingUpSuppressLabelValue
 	}
 	for k, v := range dataVolume.Labels {
+		labels[k] = v
+	}
+	for k, v := range renderedPVC.Labels {
 		labels[k] = v
 	}
 
@@ -1160,6 +1165,9 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 	}
 	annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, dataVolume.Spec.Preallocation))
 	annotations[cc.AnnCreatedForDataVolume] = string(dataVolume.UID)
+	for k, v := range renderedPVC.Annotations {
+		annotations[k] = v
+	}
 
 	if dataVolume.Spec.Storage != nil && labels[common.PvcApplyStorageProfileLabel] == "true" {
 		isWebhookPvcRenderingEnabled, err := cc.IsWebhookPvcRenderingEnabled(r.client)
@@ -1293,7 +1301,7 @@ func (r *ReconcilerBase) handlePvcCreation(log logr.Logger, syncState *dvSyncSta
 		return nil
 	}
 	// Creating the PVC
-	newPvc, err := r.createPvcForDatavolume(syncState.dvMutated, syncState.pvcSpec, pvcModifier)
+	newPvc, err := r.createPvcForDatavolume(syncState.dvMutated, syncState.renderedPVC, pvcModifier)
 	if err != nil {
 		if cc.ErrQuotaExceeded(err) {
 			syncErr := r.syncDataVolumeStatusPhaseWithEvent(syncState, cdiv1.Pending, nil, Event{corev1.EventTypeWarning, cc.ErrExceededQuota, err.Error()})
@@ -1323,13 +1331,13 @@ func (r *ReconcilerBase) shouldUseCDIPopulator(syncState *dvSyncState) (bool, er
 		return boolUsePopulator, nil
 	}
 	log := r.log.WithValues("DataVolume", dv.Name, "Namespace", dv.Namespace)
-	usePopulator, err := storageClassCSIDriverExists(r.client, r.log, syncState.pvcSpec.StorageClassName)
+	usePopulator, err := storageClassCSIDriverExists(r.client, r.log, syncState.renderedPVC.Spec.StorageClassName)
 	if err != nil {
 		return false, err
 	}
 	if !usePopulator {
-		if syncState.pvcSpec.StorageClassName != nil {
-			log.Info("Not using CDI populators, storage class is not a CSI storage", "storageClass", *syncState.pvcSpec.StorageClassName)
+		if syncState.renderedPVC.Spec.StorageClassName != nil {
+			log.Info("Not using CDI populators, storage class is not a CSI storage", "storageClass", *syncState.renderedPVC.Spec.StorageClassName)
 		}
 	}
 

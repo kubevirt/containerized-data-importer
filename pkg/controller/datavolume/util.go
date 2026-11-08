@@ -119,10 +119,12 @@ func hasVolumeSnapshotDataSource(pvc *v1.PersistentVolumeClaim) bool {
 	return false
 }
 
-// renderPvcSpec creates a new PVC Spec based on either the dv.spec.pvc or dv.spec.storage section
-func renderPvcSpec(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaimSpec, error) {
+// renderPvcForDataVolume prepares a draft PVC. Final DV metadata is added during creation.
+func renderPvcForDataVolume(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {
 	if dv.Spec.PVC != nil {
-		return dv.Spec.PVC.DeepCopy(), nil
+		return &v1.PersistentVolumeClaim{
+			Spec: *dv.Spec.PVC.DeepCopy(),
+		}, nil
 	} else if dv.Spec.Storage != nil {
 		return pvcFromStorage(client, recorder, log, dv, pvc)
 	}
@@ -130,8 +132,8 @@ func renderPvcSpec(client client.Client, recorder record.EventRecorder, log logr
 	return nil, errors.Errorf("datavolume one of {pvc, storage} field is required")
 }
 
-func pvcFromStorage(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaimSpec, error) {
-	var pvcSpec *v1.PersistentVolumeClaimSpec
+func pvcFromStorage(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {
+	renderedPVC := &v1.PersistentVolumeClaim{}
 
 	isWebhookRenderingEnabled, err := cc.IsWebhookPvcRenderingEnabled(client)
 	if err != nil {
@@ -141,31 +143,31 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 	shouldRender := !isWebhookRenderingEnabled || dv.Labels[common.PvcApplyStorageProfileLabel] != "true"
 
 	if pvc == nil {
-		pvcSpec = copyStorageAsPvc(dv.Spec.Storage)
+		renderedPVC.Spec = *copyStorageAsPvc(dv.Spec.Storage)
 		if shouldRender {
-			if err := renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client, recorder, &log, dv, pvcSpec, dv.Spec.ContentType); err != nil {
+			if err := renderPvcSpecVolumeModeAndAccessModesAndStorageClass(client, recorder, &log, dv, &renderedPVC.Spec, dv.Spec.ContentType); err != nil {
 				return nil, err
 			}
 		}
 	} else {
-		pvcSpec = pvc.Spec.DeepCopy()
+		renderedPVC.Spec = *pvc.Spec.DeepCopy()
 	}
 
 	if shouldRender {
 		isClone := dv.Spec.Source.PVC != nil || dv.Spec.Source.Snapshot != nil
-		requested := pvcSpec.Resources.Requests[v1.ResourceStorage]
-		result, err := renderPvcSpecVolumeSize(client, pvcSpec, isClone, &log)
+		requested := renderedPVC.Spec.Resources.Requests[v1.ResourceStorage]
+		result, err := renderPvcSpecVolumeSize(client, &renderedPVC.Spec, isClone, &log)
 		if err != nil {
 			return nil, err
 		}
-		if result.minSizeApplied && recorder != nil && !requested.IsZero() && pvcSpec.StorageClassName != nil {
-			effective := pvcSpec.Resources.Requests[v1.ResourceStorage]
+		if result.minSizeApplied && recorder != nil && !requested.IsZero() && renderedPVC.Spec.StorageClassName != nil {
+			effective := renderedPVC.Spec.Resources.Requests[v1.ResourceStorage]
 			recorder.Eventf(dv, v1.EventTypeNormal, MinimumPVCSizeApplied,
-				MessageMinimumPVCSizeApplied, requested.String(), *pvcSpec.StorageClassName, effective.String())
+				MessageMinimumPVCSizeApplied, requested.String(), *renderedPVC.Spec.StorageClassName, effective.String())
 		}
 	}
 
-	return pvcSpec, nil
+	return renderedPVC, nil
 }
 
 // func is called from both DV controller (with recorder and log) and PVC mutating webhook (without recorder and log)

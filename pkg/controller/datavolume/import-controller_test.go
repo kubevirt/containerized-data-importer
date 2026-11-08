@@ -1817,8 +1817,10 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler = createImportReconciler(sc, csiDriver)
 			syncState := dvSyncState{
 				dvMutated: dv,
-				pvcSpec: &corev1.PersistentVolumeClaimSpec{
-					StorageClassName: &scName,
+				renderedPVC: &corev1.PersistentVolumeClaim{
+					Spec: corev1.PersistentVolumeClaimSpec{
+						StorageClassName: &scName,
+					},
 				},
 			}
 			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
@@ -1846,8 +1848,10 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler = createImportReconcilerWFFCDisabled(sc, csiDriver)
 			syncState := dvSyncState{
 				dvMutated: dv,
-				pvcSpec: &corev1.PersistentVolumeClaimSpec{
-					StorageClassName: &scName,
+				renderedPVC: &corev1.PersistentVolumeClaim{
+					Spec: corev1.PersistentVolumeClaimSpec{
+						StorageClassName: &scName,
+					},
 				},
 			}
 			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
@@ -1865,8 +1869,10 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler = createImportReconciler()
 			syncState := dvSyncState{
 				dvMutated: dv,
-				pvcSpec: &corev1.PersistentVolumeClaimSpec{
-					StorageClassName: &scName,
+				renderedPVC: &corev1.PersistentVolumeClaim{
+					Spec: corev1.PersistentVolumeClaimSpec{
+						StorageClassName: &scName,
+					},
 				},
 			}
 			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
@@ -1884,8 +1890,10 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler = createImportReconciler(sc)
 			syncState := dvSyncState{
 				dvMutated: dv,
-				pvcSpec: &corev1.PersistentVolumeClaimSpec{
-					StorageClassName: &scName,
+				renderedPVC: &corev1.PersistentVolumeClaim{
+					Spec: corev1.PersistentVolumeClaimSpec{
+						StorageClassName: &scName,
+					},
 				},
 			}
 			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
@@ -1903,8 +1911,10 @@ var _ = Describe("All DataVolume Tests", func() {
 			reconciler = createImportReconciler(sc, csiDriver)
 			syncState := dvSyncState{
 				dvMutated: dv,
-				pvcSpec: &corev1.PersistentVolumeClaimSpec{
-					StorageClassName: &scName,
+				renderedPVC: &corev1.PersistentVolumeClaim{
+					Spec: corev1.PersistentVolumeClaimSpec{
+						StorageClassName: &scName,
+					},
 				},
 			}
 			usePopulator, err := reconciler.shouldUseCDIPopulator(&syncState)
