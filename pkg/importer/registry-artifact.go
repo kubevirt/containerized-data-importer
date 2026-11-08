@@ -44,7 +44,7 @@ var (
 	errEmptyLayerSelector = errors.New("The layer selector has no annotations to match")
 	errLayerNotFound      = errors.New("No layer of the manifest carries the selected annotations")
 	errLayerAmbiguous     = errors.New("The selected annotations have to match a single layer of the manifest")
-	errPlatformUndeclared = errors.New("A plain manifest declares no platform to check the requested architecture against")
+	errPlatformUndeclared = errors.New("The manifest declares no platform to check the requested architecture against")
 	errArtifactType       = errors.New("Layer selection requires a valid artifact type")
 	errLayerTar           = errors.New("The selected layer is a tar archive rather than a disk image")
 )
@@ -147,9 +147,9 @@ func resolveArtifactManifest(ctx context.Context, sys *types.SystemContext, src 
 		if err != nil {
 			return nil, fmt.Errorf("Error parsing image index: %w", err)
 		}
-		instance, err := list.ChooseInstance(sys)
+		instance, err := chooseArtifactInstance(sys, list)
 		if err != nil {
-			return nil, fmt.Errorf("Error selecting a manifest from the image index: %w", err)
+			return nil, err
 		}
 		if manBlob, mimeType, err = getManifest(ctx, src, &instance); err != nil {
 			return nil, err
@@ -159,6 +159,25 @@ func resolveArtifactManifest(ctx context.Context, sys *types.SystemContext, src 
 	}
 
 	return parseOCIManifest(manBlob, mimeType)
+}
+
+func chooseArtifactInstance(sys *types.SystemContext, list manifest.List) (digest.Digest, error) {
+	instance, err := list.ChooseInstance(sys)
+	if err != nil {
+		return "", fmt.Errorf("Error selecting a manifest from the image index: %w", err)
+	}
+	if sys.ArchitectureChoice == "" {
+		return instance, nil
+	}
+	// ChooseInstance falls back to an entry declaring no platform when no entry matches the requested architecture
+	entry, err := list.Instance(instance)
+	if err != nil {
+		return "", fmt.Errorf("Error reading the image index entry: %w", err)
+	}
+	if entry.ReadOnly.Platform == nil {
+		return "", fmt.Errorf("%w: %s", errPlatformUndeclared, sys.ArchitectureChoice)
+	}
+	return instance, nil
 }
 
 func getManifest(ctx context.Context, src types.ImageSource, instanceDigest *digest.Digest) ([]byte, string, error) {

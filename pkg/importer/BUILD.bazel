@@ -109,6 +109,7 @@ go_test(
         "//vendor/cloud.google.com/go/storage:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go-v2/aws:go_default_library",
         "//vendor/github.com/aws/aws-sdk-go-v2/service/s3:go_default_library",
+        "//vendor/github.com/containers/image/v5/manifest:go_default_library",
         "//vendor/github.com/containers/image/v5/types:go_default_library",
         "//vendor/github.com/onsi/ginkgo/v2:go_default_library",
         "//vendor/github.com/onsi/gomega:go_default_library",

@@ -13,6 +13,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/containers/image/v5/manifest"
 	"github.com/containers/image/v5/types"
 	"github.com/opencontainers/go-digest"
 	"github.com/opencontainers/image-spec/specs-go"
@@ -96,6 +97,30 @@ var _ = Describe("Registry artifact import", func() {
 			Entry("a container image, declaring no artifact type", ""),
 			Entry("an artifact of another type", "application/vnd.example.disk.v1"),
 			Entry("an artifact of an unknown version", "application/vnd.kubevirt.virtualmachine.v2"),
+		)
+	})
+
+	Context("choosing the manifest of an image index", func() {
+		var (
+			amd64Entry = imgspecv1.Descriptor{Digest: digest.FromString("amd64"), Platform: &imgspecv1.Platform{OS: "linux", Architecture: "amd64"}}
+			bareEntry  = imgspecv1.Descriptor{Digest: digest.FromString("no platform")}
+		)
+
+		DescribeTable("should choose the entry", func(architecture string, entries []imgspecv1.Descriptor, expected imgspecv1.Descriptor) {
+			index := manifest.OCI1IndexFromComponents(entries, nil)
+			Expect(chooseArtifactInstance(&types.SystemContext{ArchitectureChoice: architecture}, index)).To(Equal(expected.Digest))
+		},
+			Entry("declaring no platform when no architecture is requested", "", []imgspecv1.Descriptor{bareEntry}, bareEntry),
+			Entry("declaring the requested architecture over one declaring no platform", "amd64", []imgspecv1.Descriptor{bareEntry, amd64Entry}, amd64Entry),
+		)
+
+		DescribeTable("should refuse an entry declaring no platform when an architecture is requested", func(entries []imgspecv1.Descriptor) {
+			index := manifest.OCI1IndexFromComponents(entries, nil)
+			_, err := chooseArtifactInstance(&types.SystemContext{ArchitectureChoice: "arm64"}, index)
+			Expect(err).To(MatchError(errPlatformUndeclared))
+		},
+			Entry("when it is the only entry", []imgspecv1.Descriptor{bareEntry}),
+			Entry("when no other entry matches the architecture", []imgspecv1.Descriptor{amd64Entry, bareEntry}),
 		)
 	})
 
