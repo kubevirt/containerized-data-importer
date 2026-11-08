@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -42,6 +43,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
 var _ = Describe("Mutating PVC Webhook", func() {
@@ -173,6 +175,87 @@ var _ = Describe("Mutating PVC Webhook", func() {
 				fmt.Sprintf("no accessMode specified in StorageProfile %s", testStorageClassName), testStorageClassName, &defaultStorageClass, &partialStorageProfile),
 			Entry("succeed with default storage classes and complete storage profile", true, "", testStorageClassName, &defaultStorageClass, &storageProfile),
 			Entry("choose virt default storage class over default", true, "", virtDefaultStorageClassName, &defaultStorageClass, &virtDefaultStorageClass, &storageProfile, &virtDefaultStorageProfile),
+		)
+
+		DescribeTable("should handle minimum size labels for", func(kind, source string, optIn bool) {
+			pvc := newPvc()
+			originalSize := resource.MustParse("1Gi")
+			pvc.Spec.Resources.Requests[corev1.ResourceStorage] = originalSize
+			pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
+				APIGroup: ptr.To(cdiv1.SchemeGroupVersion.Group),
+				Kind:     kind,
+				Name:     "source",
+			}
+			if source == "datavolume" {
+				cc.AddAnnotation(pvc, cc.AnnCreatedForDataVolume, "test-dv-uid")
+			}
+			if !optIn {
+				delete(pvc.Labels, common.PvcApplyStorageProfileLabel)
+			}
+
+			raw, err := json.Marshal(pvc)
+			Expect(err).ToNot(HaveOccurred())
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource: metav1.GroupVersionResource{
+						Group:    corev1.SchemeGroupVersion.Group,
+						Version:  corev1.SchemeGroupVersion.Version,
+						Resource: "persistentvolumeclaims",
+					},
+					Object: runtime.RawExtension{Raw: raw},
+				},
+			}
+
+			profile := storageProfile.DeepCopy()
+			profile.Annotations = map[string]string{cc.AnnMinimumSupportedPVCSize: "4Gi"}
+			resp := mutatePvc(ar, defaultStorageClass.DeepCopy(), profile)
+			Expect(resp.Allowed).To(BeTrue())
+			Expect(resp.Result).To(BeNil())
+			if !optIn {
+				Expect(resp.Patch).To(BeEmpty())
+				return
+			}
+
+			var patches []jsonpatch.Operation
+			Expect(json.Unmarshal(resp.Patch, &patches)).To(Succeed())
+			sizePath := "/spec/resources/requests/storage"
+			originalPath := "/metadata/labels/" + strings.ReplaceAll(cc.LabelOriginalRequestedSizeBytes, "/", "~1")
+			sourcePath := "/metadata/labels/" + strings.ReplaceAll(cc.LabelMinSupportedSizeSource, "/", "~1")
+
+			if source == "" {
+				// Clone PVCs with a requested size skip minimum-size inflation.
+				for _, path := range []string{sizePath, originalPath, sourcePath} {
+					Expect(patches).ToNot(ContainElement(HaveField("Path", path)))
+				}
+				return
+			}
+
+			Expect(patches).To(ContainElements(
+				jsonpatch.Operation{
+					Operation: "replace",
+					Path:      sizePath,
+					Value:     "4Gi",
+				},
+				jsonpatch.Operation{
+					Operation: "add",
+					Path:      originalPath,
+					Value:     fmt.Sprint(originalSize.Value()),
+				},
+				jsonpatch.Operation{
+					Operation: "add",
+					Path:      sourcePath,
+					Value:     source,
+				},
+			))
+		},
+			Entry("direct import PVC without a DV", cdiv1.VolumeImportSourceRef, "external", true),
+			Entry("direct upload PVC without a DV", cdiv1.VolumeUploadSourceRef, "external", true),
+			Entry("DV-created import PVC", cdiv1.VolumeImportSourceRef, "datavolume", true),
+			Entry("DV-created upload PVC", cdiv1.VolumeUploadSourceRef, "datavolume", true),
+			Entry("clone PVC with a requested size", cdiv1.VolumeCloneSourceRef, "", true),
+			Entry("import PVC without opt-in", cdiv1.VolumeImportSourceRef, "", false),
+			Entry("upload PVC without opt-in", cdiv1.VolumeUploadSourceRef, "", false),
 		)
 	})
 })

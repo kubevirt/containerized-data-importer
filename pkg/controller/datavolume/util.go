@@ -97,8 +97,23 @@ func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolu
 		return nil
 	}
 
-	_, err := renderPvcSpecVolumeSize(client, &pvc.Spec, false, nil)
+	_, err := renderPvcVolumeSize(client, pvc, false, nil)
 	return err
+}
+
+func renderPvcVolumeSize(client client.Client, pvc *v1.PersistentVolumeClaim, isClone bool, log *logr.Logger) (renderResult, error) {
+	originalRequestedSize := pvc.Spec.Resources.Requests[v1.ResourceStorage].DeepCopy()
+	result, err := renderPvcSpecVolumeSize(client, &pvc.Spec, isClone, log)
+	if err != nil || !result.minSizeApplied {
+		return result, err
+	}
+	cc.AddLabel(pvc, cc.LabelOriginalRequestedSizeBytes, strconv.FormatInt(originalRequestedSize.Value(), 10))
+	source := "external"
+	if _, fromDV := pvc.Annotations[cc.AnnCreatedForDataVolume]; fromDV {
+		source = "datavolume"
+	}
+	cc.AddLabel(pvc, cc.LabelMinSupportedSizeSource, source)
+	return result, nil
 }
 
 // hasVolumeSnapshotDataSource returns true if the PVC's DataSource or DataSourceRef
@@ -134,6 +149,7 @@ func renderPvcForDataVolume(client client.Client, recorder record.EventRecorder,
 
 func pvcFromStorage(client client.Client, recorder record.EventRecorder, log logr.Logger, dv *cdiv1.DataVolume, pvc *v1.PersistentVolumeClaim) (*v1.PersistentVolumeClaim, error) {
 	renderedPVC := &v1.PersistentVolumeClaim{}
+	cc.AddAnnotation(renderedPVC, cc.AnnCreatedForDataVolume, string(dv.UID))
 
 	isWebhookRenderingEnabled, err := cc.IsWebhookPvcRenderingEnabled(client)
 	if err != nil {
@@ -156,7 +172,7 @@ func pvcFromStorage(client client.Client, recorder record.EventRecorder, log log
 	if shouldRender {
 		isClone := dv.Spec.Source.PVC != nil || dv.Spec.Source.Snapshot != nil
 		requested := renderedPVC.Spec.Resources.Requests[v1.ResourceStorage]
-		result, err := renderPvcSpecVolumeSize(client, &renderedPVC.Spec, isClone, &log)
+		result, err := renderPvcVolumeSize(client, renderedPVC, isClone, &log)
 		if err != nil {
 			return nil, err
 		}

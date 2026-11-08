@@ -219,34 +219,56 @@ var _ = Describe("All DataVolume Tests", func() {
 			Expect(val).To(Equal(string(dv.UID)))
 		})
 
-		It("Should record a MinimumPVCSizeApplied event and grow the PVC when the requested size is below the storage profile minimum", func() {
+		DescribeTable("Should apply minimum size labels through", func(policy cdiv1.WebhookPvcRenderingPolicy, applyProfile bool) {
 			scName := "testSC"
 			sc := CreateStorageClass(scName, nil)
-			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, corev1.PersistentVolumeBlock)
+			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, corev1.PersistentVolumeFilesystem)
 			sp.Annotations = map[string]string{AnnMinimumSupportedPVCSize: "4Gi"}
+			requestedSize := resource.MustParse("1Gi")
 
 			storageSpec := &cdiv1.StorageSpec{
 				StorageClassName: &scName,
 				Resources: corev1.VolumeResourceRequirements{
 					Requests: corev1.ResourceList{
-						corev1.ResourceStorage: resource.MustParse("1Gi"),
+						corev1.ResourceStorage: requestedSize,
 					},
 				},
 			}
 			dv := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault,
 				&cdiv1.DataVolumeSource{HTTP: &cdiv1.DataVolumeSourceHTTP{}}, storageSpec)
+			if applyProfile {
+				AddLabel(dv, common.PvcApplyStorageProfileLabel, "true")
+			}
 
-			reconciler = createImportReconciler(dv, sc, sp)
+			config := MakeEmptyCDIConfigSpec(common.ConfigName)
+			config.Spec.WebhookPvcRendering = policy
+			config.Status.FilesystemOverhead = &cdiv1.FilesystemOverhead{Global: "1.0"}
+			reconciler = createImportReconcilerWithoutConfig(dv, sc, sp, config)
 			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
 			Expect(err).ToNot(HaveOccurred())
 
 			pvc := &corev1.PersistentVolumeClaim{}
 			err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)
 			Expect(err).ToNot(HaveOccurred())
+			webhookRenders := applyProfile && policy != cdiv1.WebhookPvcRenderingDisabled
+			if webhookRenders {
+				// The fake client does not run admission webhooks.
+				Expect(pvc.Spec.Resources.Requests.Storage().Cmp(requestedSize)).To(Equal(0))
+				Expect(pvc.Labels).ToNot(HaveKey(LabelOriginalRequestedSizeBytes))
+				Expect(RenderPvc(context.TODO(), reconciler.client, pvc)).To(Succeed())
+			}
 			Expect(pvc.Spec.Resources.Requests.Storage().Cmp(resource.MustParse("4Gi"))).To(Equal(0))
+			Expect(pvc.Labels).To(HaveKeyWithValue(LabelOriginalRequestedSizeBytes, strconv.FormatInt(requestedSize.Value(), 10)))
+			Expect(pvc.Labels).To(HaveKeyWithValue(LabelMinSupportedSizeSource, "datavolume"))
 
-			Eventually(reconciler.recorder.(*record.FakeRecorder).Events).Should(Receive(ContainSubstring(MinimumPVCSizeApplied)))
-		})
+			if !webhookRenders {
+				Eventually(reconciler.recorder.(*record.FakeRecorder).Events).Should(Receive(ContainSubstring(MinimumPVCSizeApplied)))
+			}
+		},
+			Entry("controller rendering", cdiv1.WebhookPvcRenderingEnabled, false),
+			Entry("webhook rendering", cdiv1.WebhookPvcRenderingEnabled, true),
+			Entry("controller fallback when the webhook is disabled", cdiv1.WebhookPvcRenderingDisabled, true),
+		)
 
 		It("Should create a PVC on a valid import DV without delayed annotation then add on success", func() {
 			dv := NewImportDataVolume("test-dv")

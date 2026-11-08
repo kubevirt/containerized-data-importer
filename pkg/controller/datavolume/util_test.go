@@ -217,12 +217,16 @@ var _ = Describe("RenderPvc", func() {
 			Name:     "source-snapshot",
 		})
 
-		cl := createClient(sc, sp)
+		spWithMin := sp.DeepCopy()
+		spWithMin.Annotations = map[string]string{AnnMinimumSupportedPVCSize: "4Gi"}
+		cl := createClient(sc, spWithMin)
 		Expect(RenderPvc(context.Background(), cl, pvc)).To(Succeed())
 
 		assertStorageProfileApplied(pvc)
 		requestedSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 		Expect(requestedSize.Value()).To(Equal(originalSize.Value()))
+		Expect(pvc.Labels).ToNot(HaveKey(LabelOriginalRequestedSizeBytes))
+		Expect(pvc.Labels).ToNot(HaveKey(LabelMinSupportedSizeSource))
 	})
 
 	It("Should inflate size for regular filesystem PVC without VolumeSnapshot DataSource", func() {
@@ -244,14 +248,110 @@ var _ = Describe("RenderPvc", func() {
 		requestedSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
 		expectedSize := resource.MustParse("2Gi")
 		Expect(requestedSize.Value()).To(Equal(expectedSize.Value()))
+		Expect(pvc.Labels).ToNot(HaveKey(LabelOriginalRequestedSizeBytes))
+		Expect(pvc.Labels).ToNot(HaveKey(LabelMinSupportedSizeSource))
 	})
+
+	DescribeTable("Should label a PVC when the size is bumped to the minimum", func(fromDV bool, source string) {
+		spWithMin := sp.DeepCopy()
+		spWithMin.Annotations = map[string]string{AnnMinimumSupportedPVCSize: "4Gi"}
+		cdiConfig := &cdiv1.CDIConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "config"},
+			Status: cdiv1.CDIConfigStatus{
+				FilesystemOverhead: &cdiv1.FilesystemOverhead{Global: "1.0"},
+			},
+		}
+
+		pvc := createTestPvc(nil)
+		if fromDV {
+			AddAnnotation(pvc, AnnCreatedForDataVolume, "test-dv-uid")
+		}
+
+		cl := createClient(sc, spWithMin, cdiConfig)
+		Expect(RenderPvc(context.Background(), cl, pvc)).To(Succeed())
+
+		Expect(pvc.Spec.Resources.Requests.Storage().Cmp(resource.MustParse("4Gi"))).To(Equal(0))
+		Expect(pvc.Labels).To(HaveKeyWithValue(LabelOriginalRequestedSizeBytes, strconv.FormatInt(originalSize.Value(), 10)))
+		Expect(pvc.Labels).To(HaveKeyWithValue(LabelMinSupportedSizeSource, source))
+	},
+		Entry("without a DataVolume", false, "external"),
+		Entry("created for a DataVolume", true, "datavolume"),
+	)
+
+	DescribeTable("Should not add bump labels when the minimum does not increase the size", func(requested, minimum, overhead, expected string) {
+		spWithMin := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, corev1.PersistentVolumeFilesystem)
+		spWithMin.Annotations = map[string]string{AnnMinimumSupportedPVCSize: minimum}
+		cdiConfig := &cdiv1.CDIConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "config"},
+			Status: cdiv1.CDIConfigStatus{
+				FilesystemOverhead: &cdiv1.FilesystemOverhead{Global: cdiv1.Percent(overhead)},
+			},
+		}
+
+		pvc := createTestPvc(nil)
+		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = resource.MustParse(requested)
+
+		cl := createClient(sc, spWithMin, cdiConfig)
+		Expect(RenderPvc(context.Background(), cl, pvc)).To(Succeed())
+
+		requestedSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+		expectedSize := resource.MustParse(expected)
+		Expect(requestedSize.Value()).To(Equal(expectedSize.Value()))
+		Expect(pvc.Labels).ToNot(HaveKey(LabelOriginalRequestedSizeBytes))
+		Expect(pvc.Labels).ToNot(HaveKey(LabelMinSupportedSizeSource))
+	},
+		Entry("request equals the minimum", "4Gi", "4Gi", "0", "4Gi"),
+		Entry("request exceeds the minimum", "5Gi", "4Gi", "0", "5Gi"),
+		Entry("overhead alone reaches the minimum", "1Gi", "2Gi", "1.0", "2Gi"),
+		Entry("overhead alone exceeds the minimum", "1Gi", "1536Mi", "1.0", "2Gi"),
+	)
 })
 
-var _ = Describe("renderPvcSpec", func() {
+var _ = Describe("renderPvcForDataVolume", func() {
 	block := corev1.PersistentVolumeBlock
 	filesystem := corev1.PersistentVolumeFilesystem
 	rwo := corev1.ReadWriteOnce
 	rwx := corev1.ReadWriteMany
+
+	It("preserves rendering metadata and later DV metadata during PVC creation", func() {
+		r := createImportReconciler()
+		dv := NewImportDataVolume("test-dv")
+		dv.Spec.PVC.Resources.Requests = corev1.ResourceList{
+			corev1.ResourceStorage: resource.MustParse("1Gi"),
+		}
+
+		renderedPVC, err := renderPvcForDataVolume(
+			r.client, r.recorder, r.log, dv, nil,
+		)
+		Expect(err).ToNot(HaveOccurred())
+
+		renderedPVC.Labels = map[string]string{
+			"example.com/rendered": "label",
+		}
+		renderedPVC.Annotations = map[string]string{
+			"example.com/rendered": "annotation",
+		}
+
+		AddAnnotation(dv, AnnUsePopulator, "true")
+		AddLabel(dv, "example.com/latest-dv", "value")
+		draftBeforeCreation := renderedPVC.DeepCopy()
+
+		pvc, err := r.newPersistentVolumeClaim(
+			dv, renderedPVC, dv.Namespace, dv.Name, nil,
+		)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(pvc.Labels).To(HaveKeyWithValue("example.com/rendered", "label"))
+		Expect(pvc.Labels).To(HaveKeyWithValue("example.com/latest-dv", "value"))
+		Expect(pvc.Annotations).To(HaveKeyWithValue("example.com/rendered", "annotation"))
+		Expect(pvc.Annotations).To(HaveKeyWithValue(AnnUsePopulator, "true"))
+		Expect(pvc.Annotations).To(HaveKeyWithValue(AnnCreatedForDataVolume, string(dv.UID)))
+		Expect(pvc.OwnerReferences).To(HaveLen(1))
+
+		pvc.Labels["example.com/rendered"] = "changed"
+		pvc.Annotations["example.com/rendered"] = "changed"
+		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = resource.MustParse("2Gi")
+		Expect(renderedPVC).To(Equal(draftBeforeCreation))
+	})
 
 	DescribeTable("Rendering pvcSpec based on storageProfile should", func(
 		storageVolumeMode *corev1.PersistentVolumeMode, storageAccessMode *corev1.PersistentVolumeAccessMode,
