@@ -1,4 +1,5 @@
-FROM quay.io/centos/centos:stream10
+ARG BUILDER_BASE=quay.io/centos/centos:stream10
+FROM ${BUILDER_BASE}
 LABEL maintainer="The KubeVirt Project <kubevirt-dev@googlegroups.com>"
 
 ARG ARCH
