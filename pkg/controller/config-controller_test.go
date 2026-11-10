@@ -26,6 +26,7 @@ import (
 
 	ocpconfigv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	conditions "github.com/openshift/custom-resource-status/conditions/v1"
 
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -38,6 +39,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -950,6 +952,259 @@ var _ = Describe("GetImportProxyConfig", func() {
 		cdiConfig.Status.ImportProxy = nil
 		_, err := GetImportProxyConfig(cdiConfig, common.ImportProxyHTTP)
 		Expect(err.Error()).To(ContainSubstring("failed to get field, the CDIConfig ImportProxy is nil"))
+	})
+})
+
+var _ = DescribeTable("Config Controller TrustedCA Reconcile Loop", func(
+	trustedCA *string,
+	existingStatus *string,
+	configMapName string,
+	cmData map[string]string,
+	expectedTrustedCA OmegaMatcher,
+) {
+	var objects []runtime.Object
+	if configMapName != "" {
+		cm := createConfigMap(configMapName, testNamespace)
+		cm.Data = cmData
+		objects = append(objects, cm)
+	}
+	reconciler, cdiConfig := createConfigReconciler(objects...)
+	cdiConfig.Spec.TrustedCA = trustedCA
+	cdiConfig.Status.TrustedCA = existingStatus
+
+	err := reconciler.reconcileTrustedCA(cdiConfig)
+	Expect(err).ToNot(HaveOccurred())
+	Expect(cdiConfig.Status.TrustedCA).To(expectedTrustedCA)
+},
+	Entry("should reconcile TrustedCA from Spec to Status",
+		ptr.To("my-ca-bundle"), nil, "my-ca-bundle",
+		map[string]string{"my-custom-ca.crt": "some-cert-data"},
+		HaveValue(Equal("my-ca-bundle"))),
+	Entry("should set Status.TrustedCA when Spec.TrustedCA is changed to a valid value",
+		ptr.To("my-ca-bundle"), ptr.To("does-not-exist-or-invalid"), "my-ca-bundle",
+		map[string]string{"my-custom-ca.crt": "some-cert-data"},
+		HaveValue(Equal("my-ca-bundle"))),
+	Entry("should set Status.TrustedCA to nil when Spec.TrustedCA is nil",
+		nil, nil, "", nil, BeNil()),
+	Entry("should set Status.TrustedCA to nil when ConfigMap in Spec.TrustedCA does not exist",
+		ptr.To("does-not-exist"), nil, "", nil, BeNil()),
+	Entry("should set Status.TrustedCA to nil when ConfigMap has empty certificate data",
+		ptr.To("my-ca-bundle"), nil, "my-ca-bundle",
+		map[string]string{"my-custom-ca.crt": ""}, BeNil()),
+	Entry("should set Status.TrustedCA to nil when ConfigMap has no data keys",
+		ptr.To("my-ca-bundle"), nil, "my-ca-bundle",
+		map[string]string{}, BeNil()),
+	Entry("should clear Status.TrustedCA when Spec.TrustedCA changes to nil",
+		nil, ptr.To("old-ca-bundle"), "", nil, BeNil()),
+	Entry("should clear Status.TrustedCA when Spec.TrustedCA changes to nonexistent ConfigMap",
+		ptr.To("does-not-exist"), ptr.To("old-ca-bundle"), "", nil, BeNil()),
+)
+
+var _ = Describe("CDIConfig TrustedCA conditions", func() {
+	var reconciler *CDIConfigReconciler
+	var config *cdiv1.CDIConfig
+	const caName = "my-ca-bundle"
+	const conditionType conditions.ConditionType = "TrustedCAReady"
+
+	BeforeEach(func() {
+		reconciler, config = createConfigReconciler()
+		reconciler.recorder = record.NewFakeRecorder(10)
+		// Let these tests configure CDIConfig directly instead of copying the CDI spec.
+		cdi := &cdiv1.CDI{}
+		Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cdi)).To(Succeed())
+		delete(cdi.Annotations, AnnConfigAuthority)
+		Expect(reconciler.client.Update(context.TODO(), cdi)).To(Succeed())
+		config.Spec.TrustedCA = ptr.To(caName)
+		Expect(reconciler.client.Update(context.TODO(), config)).To(Succeed())
+	})
+
+	reconcileAndGet := func() *conditions.Condition {
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: config.Name}, config)).To(Succeed())
+		return conditions.FindStatusCondition(config.Status.Conditions, conditionType)
+	}
+
+	DescribeTable("persists the condition and warning event", func(createCM bool, data map[string]string, reason, message string) {
+		if createCM {
+			cm := createConfigMap(caName, testNamespace)
+			cm.Data = data
+			Expect(reconciler.client.Create(context.TODO(), cm)).To(Succeed())
+		}
+		condition := reconcileAndGet()
+		Expect(condition).NotTo(BeNil())
+		Expect(condition.Status).To(Equal(v1.ConditionFalse))
+		Expect(condition.Reason).To(Equal(reason))
+		Expect(condition.Message).To(Equal(message))
+		Expect(condition.LastTransitionTime.IsZero()).To(BeFalse())
+		Expect(config.Status.TrustedCA).To(BeNil())
+		Expect(reconciler.recorder.(*record.FakeRecorder).Events).To(Receive(Equal(
+			fmt.Sprintf("Warning %s %s", reason, message))))
+	},
+		Entry("for a missing ConfigMap", false, nil, errResourceDoesntExist, fmt.Sprintf(messageResourceDoesntExist, caName)),
+		Entry("for empty certificate data", true, map[string]string{"ca.crt": ""}, errTrustedCAConfigMapEmpty, fmt.Sprintf(messageTrustedCAConfigMapEmpty, caName)),
+		Entry("for no data keys", true, map[string]string{}, errTrustedCAConfigMapEmpty, fmt.Sprintf(messageTrustedCAConfigMapEmpty, caName)),
+	)
+
+	It("updates the condition when the missing ConfigMap is created and when its data is fixed", func() {
+		Expect(reconcileAndGet().Status).To(Equal(v1.ConditionFalse))
+		cm := createConfigMap(caName, testNamespace)
+		cm.Data = map[string]string{"ca.crt": ""}
+		Expect(reconciler.client.Create(context.TODO(), cm)).To(Succeed())
+		condition := reconcileAndGet()
+		Expect(condition.Reason).To(Equal(errTrustedCAConfigMapEmpty))
+		cm.Data["ca.crt"] = "certificate-data"
+		Expect(reconciler.client.Update(context.TODO(), cm)).To(Succeed())
+		condition = reconcileAndGet()
+		Expect(condition.Status).To(Equal(v1.ConditionTrue))
+		Expect(condition.Reason).To(Equal("TrustedCAConfigMapReady"))
+		Expect(condition.Message).To(BeEmpty())
+		Expect(config.Status.TrustedCA).To(HaveValue(Equal(caName)))
+		Expect(config.Status.Conditions).To(HaveLen(1))
+	})
+
+	It("keeps one unchanged condition across repeated reconciliations", func() {
+		first := *reconcileAndGet()
+		second := *reconcileAndGet()
+		Expect(config.Status.Conditions).To(HaveLen(1))
+		Expect(second).To(Equal(first))
+	})
+
+	It("removes the condition when trusted CA configuration is removed and preserves other conditions", func() {
+		Expect(reconcileAndGet()).NotTo(BeNil())
+		other := conditions.Condition{Type: "OtherCondition", Status: v1.ConditionTrue}
+		config.Status.Conditions = append(config.Status.Conditions, other)
+		config.Spec.TrustedCA = nil
+		Expect(reconciler.client.Update(context.TODO(), config)).To(Succeed())
+		Expect(reconcileAndGet()).To(BeNil())
+		Expect(config.Status.TrustedCA).To(BeNil())
+		Expect(config.Status.Conditions).To(ConsistOf(other))
+	})
+})
+
+var _ = Describe("CDIConfig ImportProxyCA conditions", func() {
+	var reconciler *CDIConfigReconciler
+	var config *cdiv1.CDIConfig
+	var proxy *ocpconfigv1.Proxy
+	const caName = "proxy-ca-bundle"
+	const conditionType conditions.ConditionType = "ImportProxyCAReady"
+
+	BeforeEach(func() {
+		proxy = createClusterWideProxy("http://proxy", "", "", caName)
+		reconciler, config = createConfigReconciler(proxy)
+		reconciler.recorder = record.NewFakeRecorder(10)
+	})
+
+	reconcileAndGet := func(expectError bool) *conditions.Condition {
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{})
+		if expectError {
+			Expect(err).To(HaveOccurred())
+		} else {
+			Expect(err).NotTo(HaveOccurred())
+		}
+		Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: config.Name}, config)).To(Succeed())
+		return conditions.FindStatusCondition(config.Status.Conditions, conditionType)
+	}
+
+	DescribeTable("persists failures before returning the reconciliation error", func(createCM bool, data map[string]string, reason, message string) {
+		if createCM {
+			cm := createConfigMap(caName, ClusterWideProxyConfigMapNameSpace)
+			cm.Data = data
+			Expect(reconciler.client.Create(context.TODO(), cm)).To(Succeed())
+		}
+		// A failed copy must not publish the partially calculated proxy settings
+		// or replace the independent trusted CA condition.
+		previousProxy := createImportProxy("http://previous-proxy", "", "", "previous-ca")
+		config.Status.ImportProxy = previousProxy.DeepCopy()
+		other := conditions.Condition{Type: "TrustedCAReady", Status: v1.ConditionTrue}
+		config.Status.Conditions = []conditions.Condition{other}
+		Expect(reconciler.client.Update(context.TODO(), config)).To(Succeed())
+		condition := reconcileAndGet(true)
+		Expect(condition).NotTo(BeNil())
+		Expect(condition.Status).To(Equal(v1.ConditionFalse))
+		Expect(condition.Reason).To(Equal(reason))
+		Expect(condition.Message).To(Equal(message))
+		Expect(condition.LastTransitionTime.IsZero()).To(BeFalse())
+		Expect(config.Status.ImportProxy).To(Equal(previousProxy))
+		Expect(conditions.FindStatusCondition(config.Status.Conditions, "TrustedCAReady")).To(HaveValue(Equal(other)))
+		Expect(reconciler.recorder.(*record.FakeRecorder).Events).To(Receive(Equal(
+			fmt.Sprintf("Warning %s %s", reason, message))))
+		first := *condition
+		Expect(reconcileAndGet(true)).To(HaveValue(Equal(first)))
+		Expect(config.Status.Conditions).To(HaveLen(2))
+	},
+		Entry("for a missing ConfigMap", false, nil, errResourceDoesntExist, fmt.Sprintf(messageResourceDoesntExist, caName)),
+		Entry("for a missing CA key", true, map[string]string{"other.crt": "certificate"}, errTrustedCAConfigMapEmpty, fmt.Sprintf(messageTrustedCAConfigMapEmpty, caName)),
+		Entry("for an empty CA value", true, map[string]string{ClusterWideProxyConfigMapKey: ""}, errTrustedCAConfigMapEmpty, fmt.Sprintf(messageTrustedCAConfigMapEmpty, caName)),
+	)
+
+	It("recovers when the source is created, reports later failures, and recovers when data is fixed", func() {
+		Expect(reconcileAndGet(true)).NotTo(BeNil())
+		cm := createConfigMap(caName, ClusterWideProxyConfigMapNameSpace)
+		cm.Data = map[string]string{ClusterWideProxyConfigMapKey: "certificate"}
+		Expect(reconciler.client.Create(context.TODO(), cm)).To(Succeed())
+		condition := reconcileAndGet(false)
+		Expect(condition).NotTo(BeNil())
+		Expect(condition.Status).To(Equal(v1.ConditionTrue))
+		Expect(condition.Reason).To(Equal("ImportProxyCAConfigMapReady"))
+		Expect(condition.Message).To(BeEmpty())
+		copied := &v1.ConfigMap{}
+		Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: caName, Namespace: testNamespace}, copied)).To(Succeed())
+		Expect(copied.Data[common.ImportProxyConfigMapKey]).To(Equal("certificate"))
+		first := *condition
+		Expect(reconcileAndGet(false)).To(HaveValue(Equal(first)))
+
+		cm.Data[ClusterWideProxyConfigMapKey] = ""
+		Expect(reconciler.client.Update(context.TODO(), cm)).To(Succeed())
+		Expect(reconcileAndGet(true).Status).To(Equal(v1.ConditionFalse))
+		cm.Data[ClusterWideProxyConfigMapKey] = "updated-certificate"
+		Expect(reconciler.client.Update(context.TODO(), cm)).To(Succeed())
+		Expect(reconcileAndGet(false).Status).To(Equal(v1.ConditionTrue))
+		Expect(config.Status.Conditions).To(HaveLen(1))
+		Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: caName, Namespace: testNamespace}, copied)).To(Succeed())
+		Expect(copied.Data[common.ImportProxyConfigMapKey]).To(Equal("updated-certificate"))
+	})
+
+	DescribeTable("clears the condition when the cluster-wide CA is no longer used", func(explicitProxy bool) {
+		Expect(reconcileAndGet(true)).NotTo(BeNil())
+		if explicitProxy {
+			cdi := &cdiv1.CDI{}
+			Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "cdi"}, cdi)).To(Succeed())
+			cdi.Spec.Config = &cdiv1.CDIConfigSpec{ImportProxy: createImportProxy("http://explicit-proxy", "", "", "explicit-ca")}
+			Expect(reconciler.client.Update(context.TODO(), cdi)).To(Succeed())
+		} else {
+			proxy.Spec.TrustedCA.Name = ""
+			Expect(reconciler.client.Update(context.TODO(), proxy)).To(Succeed())
+		}
+		Expect(reconcileAndGet(false)).To(BeNil())
+	},
+		Entry("when the CA reference is removed", false),
+		Entry("when explicit proxy settings take over", true),
+	)
+})
+
+var _ = Describe("GetTrustedCA", func() {
+	It("should return the trustedCA name when configured", func() {
+		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
+		trustedCA := "my-ca-bundle"
+		cdiConfig.Status.TrustedCA = &trustedCA
+		result, err := GetTrustedCA(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).To(Equal("my-ca-bundle"))
+	})
+
+	It("should return empty string when TrustedCA is nil", func() {
+		cdiConfig := MakeEmptyCDIConfigSpec("cdiconfig")
+		cdiConfig.Status.TrustedCA = nil
+		result, err := GetTrustedCA(cdiConfig)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(result).To(BeEmpty())
+	})
+
+	It("should return error when CDIConfig is nil", func() {
+		_, err := GetTrustedCA(nil)
+		Expect(err).To(HaveOccurred())
+		Expect(err).To(MatchError(ContainSubstring("failed to get field, the CDIConfig is nil")))
 	})
 })
 
