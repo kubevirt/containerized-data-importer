@@ -84,12 +84,14 @@ if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
         }
 
         pull_base() {
-            buildah pull --platform "$1" "${BUILDER_BASE_REF}"
+            local platform="$1"
+            buildah pull --platform "${platform}" "${BUILDER_BASE_REF}"
         }
 
         probe_platform() {
-            buildah build --platform "$1" --pull=never --no-cache --build-arg BUILDER_BASE="${BUILDER_BASE_REF}" \
-                -t "localhost/${PROBE_ID}-${1#linux/}:probe" -f "${PROBE_DIR}/Containerfile" "${PROBE_DIR}"
+            local platform="$1"
+            buildah build --platform "${platform}" --pull=never --no-cache --build-arg BUILDER_BASE="${BUILDER_BASE_REF}" \
+                -t "localhost/${PROBE_ID}-${platform#linux/}:probe" -f "${PROBE_DIR}/Containerfile" "${PROBE_DIR}"
         }
 
         dump_binfmt() {
