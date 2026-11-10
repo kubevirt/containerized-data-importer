@@ -121,7 +121,7 @@ spec:
 ## Source 
 
 ### HTTP/S3/GCS/Registry source
-DataVolumes are an abstraction on top of the annotations one can put on PVCs to trigger CDI. As such DVs have the notion of a 'source' that allows one to specify the source of the data. To import data from an external source, the source has to be either 'http' ,'S3', 'GCS' or 'registry'. If your source requires authentication, you can also pass in a `secretRef` to a Kubernetes [Secret](../manifests/example/endpoint-secret.yaml) containing the authentication information.  TLS certificates for https/registry sources may be specified in a [ConfigMap](../manifests/example/cert-configmap.yaml) and referenced by `certConfigMap`.  `secretRef` and `certConfigMap` must be in the same namespace as the DataVolume.
+DataVolumes are an abstraction on top of the annotations one can put on PVCs to trigger CDI. As such DVs have the notion of a 'source' that allows one to specify the source of the data. To import data from an external source, the source has to be either 'http' ,'S3', 'GCS' or 'registry'. If your source requires authentication, you can also pass in a `secretRef` to a Kubernetes [Secret](../manifests/example/endpoint-secret.yaml) containing the authentication information.  TLS certificates for https/registry sources may be specified in a [ConfigMap](../manifests/example/cert-configmap.yaml) and referenced by `certConfigMap`.  `secretRef` and `certConfigMap` must be in the same namespace as the DataVolume. TLS verification can also be bypassed by applying `insecureSkipVerify: true` to the http source.
 
 ```yaml
 apiVersion: cdi.kubevirt.io/v1beta1
@@ -143,6 +143,7 @@ spec:
 [Get GCS example](../manifests/example/import-kubevirt-datavolume-gcs.yaml)
 [Get secret example](../manifests/example/endpoint-secret.yaml)
 [Get certificate example](../manifests/example/cert-configmap.yaml)
+[Get insecureSkipVerify example](../manifests/example/import-kubevirt-datavolume-skip-tls.yaml)
 
 #### Checksum Validation
 For HTTP/HTTPS sources, you can specify a checksum to verify the integrity of the downloaded data. This helps ensure that the image has not been tampered with during transmission. The checksum field is optional but recommended for production environments.

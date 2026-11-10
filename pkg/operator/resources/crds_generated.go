@@ -5977,6 +5977,10 @@ spec:
                                 items:
                                   type: string
                                 type: array
+                              insecureSkipVerify:
+                                description: InsecureSkipVerify is a flag to skip
+                                  certificate verification for the HTTP endpoint
+                                type: boolean
                               secretExtraHeaders:
                                 description: SecretExtraHeaders is a list of Secret
                                   references, each containing an extra HTTP header
@@ -6992,6 +6996,10 @@ spec:
                         items:
                           type: string
                         type: array
+                      insecureSkipVerify:
+                        description: InsecureSkipVerify is a flag to skip certificate
+                          verification for the HTTP endpoint
+                        type: boolean
                       secretExtraHeaders:
                         description: SecretExtraHeaders is a list of Secret references,
                           each containing an extra HTTP header that may include sensitive
@@ -8082,6 +8090,10 @@ spec:
                         items:
                           type: string
                         type: array
+                      insecureSkipVerify:
+                        description: InsecureSkipVerify is a flag to skip certificate
+                          verification for the HTTP endpoint
+                        type: boolean
                       secretExtraHeaders:
                         description: SecretExtraHeaders is a list of Secret references,
                           each containing an extra HTTP header that may include sensitive
