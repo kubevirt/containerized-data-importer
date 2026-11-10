@@ -137,11 +137,16 @@ func getListenAddressAndPort() (string, int) {
 func getCryptoConfig() cryptowatch.CryptoConfig {
 	ciphersNames := strings.Split(os.Getenv(common.CiphersTLSVar), ",")
 	ciphers := cryptowatch.CipherSuitesIDs(ciphersNames)
+
+	groups := strings.Split(os.Getenv(common.GroupsTLSVar), ",")
+	curves := cryptowatch.GroupsToCurves(groups)
+
 	minTLSVersion, _ := ocpcrypto.TLSVersion(os.Getenv(common.MinVersionTLSVar))
 
 	return cryptowatch.CryptoConfig{
-		CipherSuites: ciphers,
-		MinVersion:   minTLSVersion,
+		CipherSuites:     ciphers,
+		MinVersion:       minTLSVersion,
+		CurvePreferences: curves,
 	}
 }
 

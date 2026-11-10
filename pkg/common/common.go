@@ -144,6 +144,8 @@ const (
 	CiphersTLSVar = "TLS_CIPHERS"
 	// MinVersionTLSVar provides a constant to capture our env variable "TLS_MIN_VERSION"
 	MinVersionTLSVar = "TLS_MIN_VERSION"
+	// GroupsTLSVar provides a constant to capture our env variable "TLS_GROUPS"
+	GroupsTLSVar = "TLS_GROUPS"
 	// ImporterDiskID provides a constant to capture our env variable "IMPORTER_DISK_ID"
 	ImporterDiskID = "IMPORTER_DISK_ID"
 	// ImporterUUID provides a constant to capture our env variable "IMPORTER_UUID"
