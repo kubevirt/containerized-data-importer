@@ -22,6 +22,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	conditionsv1 "github.com/openshift/custom-resource-status/conditions/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -160,6 +161,11 @@ func (in *CDIConfigSpec) DeepCopyInto(out *CDIConfigSpec) {
 		*out = new(ImportProxy)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.TrustedCA != nil {
+		in, out := &in.TrustedCA, &out.TrustedCA
+		*out = new(string)
+		**out = **in
+	}
 	if in.ScratchSpaceStorageClass != nil {
 		in, out := &in.ScratchSpaceStorageClass, &out.ScratchSpaceStorageClass
 		*out = new(string)
@@ -241,6 +247,11 @@ func (in *CDIConfigStatus) DeepCopyInto(out *CDIConfigStatus) {
 		*out = new(ImportProxy)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.TrustedCA != nil {
+		in, out := &in.TrustedCA, &out.TrustedCA
+		*out = new(string)
+		**out = **in
+	}
 	if in.DefaultPodResourceRequirements != nil {
 		in, out := &in.DefaultPodResourceRequirements, &out.DefaultPodResourceRequirements
 		*out = new(v1.ResourceRequirements)
@@ -255,6 +266,13 @@ func (in *CDIConfigStatus) DeepCopyInto(out *CDIConfigStatus) {
 		in, out := &in.ImagePullSecrets, &out.ImagePullSecrets
 		*out = make([]v1.LocalObjectReference, len(*in))
 		copy(*out, *in)
+	}
+	if in.Conditions != nil {
+		in, out := &in.Conditions, &out.Conditions
+		*out = make([]conditionsv1.Condition, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	return
 }
