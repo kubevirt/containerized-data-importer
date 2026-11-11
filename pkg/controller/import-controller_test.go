@@ -1327,6 +1327,43 @@ var _ = Describe("Update PVC from POD", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(resPvc.GetAnnotations()[cc.AnnRequiresDirectIO]).To(Equal("false"))
 	})
+
+	It("Should not delete a running cache=trynone pod that was OOM killed and restarted in place", func() {
+		pvc := cc.CreatePvcInStorageClass("testPvc1", "default", &testStorageClass, map[string]string{
+			cc.AnnEndpoint:         testEndPoint,
+			cc.AnnRequiresDirectIO: "true",
+		}, nil, corev1.ClaimPending)
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, corev1.EnvVar{
+			Name:  common.CacheMode,
+			Value: common.CacheModeTryNone,
+		})
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodRunning,
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Running: &v1.ContainerStateRunning{},
+					},
+					LastTerminationState: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Reason: cc.OOMKilledReason,
+						},
+					},
+				},
+			},
+		}
+		reconciler = createImportReconciler(pvc, pod)
+		err := reconciler.updatePvcFromPod(pvc, pod, reconciler.log)
+		Expect(err).ToNot(HaveOccurred())
+		resPod := &corev1.Pod{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, resPod)
+		Expect(err).ToNot(HaveOccurred())
+		resPvc := &corev1.PersistentVolumeClaim{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "testPvc1", Namespace: "default"}, resPvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(resPvc.GetAnnotations()[cc.AnnRequiresDirectIO]).To(Equal("true"))
+	})
 })
 
 var _ = Describe("Create Importer Pod", func() {
