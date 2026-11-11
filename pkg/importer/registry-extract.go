@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/containers/image/v5/types"
+	"github.com/opencontainers/go-digest"
 
 	"k8s.io/klog/v2"
 )
@@ -70,11 +71,30 @@ func extractDisk(ctx context.Context, disk layerDisk, candidates []types.BlobInf
 }
 
 func decompressLayer(ctx context.Context, layer types.BlobInfo, open blobOpener) (*FormatReaders, error) {
+	if err := layer.Digest.Validate(); err != nil {
+		return nil, err
+	}
 	blob, err := open(ctx, layer)
 	if err != nil {
 		return nil, err
 	}
-	return NewFormatReaders(blob, 0, nil)
+	return NewFormatReaders(blob, 0, digestValidator{digest: layer.Digest, verifier: layer.Digest.Verifier()})
+}
+
+type digestValidator struct {
+	digest   digest.Digest
+	verifier digest.Verifier
+}
+
+func (v digestValidator) GetReader(r io.Reader) io.Reader {
+	return io.TeeReader(r, v.verifier)
+}
+
+func (v digestValidator) Validate() error {
+	if !v.verifier.Verified() {
+		return fmt.Errorf("%w: expected %v", ErrChecksumMismatch, v.digest)
+	}
+	return nil
 }
 
 type diskWriter struct {

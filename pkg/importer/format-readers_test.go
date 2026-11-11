@@ -177,7 +177,7 @@ var _ = Describe("Format Readers", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Validate checksum
-			err = fr.ValidateChecksum()
+			err = fr.ValidateStream()
 			if wantValidationErr {
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("checksum mismatch"))
@@ -188,6 +188,20 @@ var _ = Describe("Format Readers", func() {
 			Entry("should succeed with valid SHA256 for ISO file", tinyCoreFilePath, true, false),
 			Entry("should fail with invalid checksum", tinyCoreFilePath, false, true),
 		)
+
+		It("should release the stream on close", func() {
+			f, err := os.Open(tinyCoreFilePath)
+			Expect(err).ToNot(HaveOccurred())
+
+			validator, err := NewChecksumValidator(fmt.Sprintf("sha256:%s", testDataSHA256))
+			Expect(err).NotTo(HaveOccurred())
+
+			fr, err = NewFormatReaders(f, uint64(0), validator)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(fr.Close()).To(Succeed())
+			// Closing again only fails if the readers already closed it.
+			Expect(f.Close()).To(MatchError(os.ErrClosed))
+		})
 
 		It("should calculate and validate checksum for ISO file", func() {
 			f, err := os.Open(tinyCoreFilePath)
@@ -202,15 +216,14 @@ var _ = Describe("Format Readers", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// Verify checksum validator is in the reader stack
-			Expect(fr.checksumValidator).NotTo(BeNil())
-			Expect(fr.checksumValidator.Algorithm()).To(Equal("sha256"))
+			Expect(fr.streamValidator).To(BeIdenticalTo(validator))
 
 			// Read all data
 			_, err = io.Copy(io.Discard, fr.TopReader())
 			Expect(err).NotTo(HaveOccurred())
 
 			// Validate checksum should succeed
-			err = fr.ValidateChecksum()
+			err = fr.ValidateStream()
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -232,7 +245,7 @@ var _ = Describe("Format Readers", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Validate checksum should fail
-			err = fr.ValidateChecksum()
+			err = fr.ValidateStream()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("checksum mismatch"))
 		})
@@ -260,7 +273,7 @@ var _ = Describe("Format Readers", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Validate checksum should succeed (validates the compressed data)
-			err = fr.ValidateChecksum()
+			err = fr.ValidateStream()
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -287,7 +300,7 @@ var _ = Describe("Format Readers", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Validate checksum should succeed
-			err = fr.ValidateChecksum()
+			err = fr.ValidateStream()
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -298,14 +311,14 @@ var _ = Describe("Format Readers", func() {
 
 			fr, err = NewFormatReaders(f, uint64(0), nil)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(fr.checksumValidator).To(BeNil())
+			Expect(fr.streamValidator).To(BeNil())
 
 			// Read all data
 			_, err = io.Copy(io.Discard, fr.TopReader())
 			Expect(err).NotTo(HaveOccurred())
 
 			// Validate checksum should not error when validator is nil
-			err = fr.ValidateChecksum()
+			err = fr.ValidateStream()
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})

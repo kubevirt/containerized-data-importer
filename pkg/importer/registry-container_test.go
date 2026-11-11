@@ -9,6 +9,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/opencontainers/go-digest"
 )
 
 // tarEntry is one file to place in a synthetic image layer.
@@ -102,6 +104,18 @@ var _ = Describe("Container disk extraction", func() {
 
 		err := extractDisk(context.Background(), disk, layers, open)
 		Expect(err).To(MatchError("Failed to find VM disk image file in the container image"))
+	})
+
+	It("should fail on a layer not matching its digest rather than move on to a later layer", func() {
+		layers, open := openLayers(
+			tarLayer(tarEntry{name: "disk/disk.img", content: "the disk image"}),
+			tarLayer(tarEntry{name: "disk/disk.img", content: "from the upper layer"}),
+		)
+		layers[0].Digest = digest.FromString("another layer")
+
+		err := extractDisk(context.Background(), disk, layers, open)
+		Expect(err).To(MatchError(ErrChecksumMismatch))
+		Expect(err).ToNot(MatchError(errDiskImageNotFound))
 	})
 
 	It("should refuse a file path escaping the destination directory", func() {

@@ -91,6 +91,13 @@ func (c containerDisk) read(ctx context.Context, layer types.BlobInfo, open blob
 		if err := c.disk.write(tarReader, hdr.Name); err != nil {
 			return false, err
 		}
+		// the digest covers the rest of the layer too
+		if _, err := io.Copy(io.Discard, readers.TopReader()); err != nil {
+			return false, err
+		}
+		if err := readers.ValidateStream(); err != nil {
+			return false, err
+		}
 		return true, nil
 	}
 }

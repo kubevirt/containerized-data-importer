@@ -13,9 +13,14 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/containers/image/v5/types"
+	"github.com/opencontainers/go-digest"
 )
 
 func openLayers(bodies ...[]byte) ([]types.BlobInfo, blobOpener) {
+	layers := make([]types.BlobInfo, len(bodies))
+	for i, body := range bodies {
+		layers[i].Digest = digest.FromBytes(body)
+	}
 	next := 0
 	open := func(context.Context, types.BlobInfo) (io.ReadCloser, error) {
 		body := bodies[next]
@@ -25,7 +30,7 @@ func openLayers(bodies ...[]byte) ([]types.BlobInfo, blobOpener) {
 		}
 		return io.NopCloser(bytes.NewReader(body)), nil
 	}
-	return make([]types.BlobInfo, len(bodies)), open
+	return layers, open
 }
 
 type scriptedDisk struct {
