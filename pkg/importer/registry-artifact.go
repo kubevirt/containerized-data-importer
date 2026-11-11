@@ -82,6 +82,9 @@ func (a artifactDisk) read(ctx context.Context, layer types.BlobInfo, open blobO
 	if err := a.disk.write(readers.TopReader(), filepath.Join(a.pathPrefix, artifactDiskImageName)); err != nil {
 		return false, err
 	}
+	if err := readers.ValidateStream(); err != nil {
+		return false, err
+	}
 	return true, nil
 }
 

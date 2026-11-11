@@ -175,6 +175,14 @@ var _ = Describe("Registry artifact import", func() {
 			}),
 		)
 
+		It("should fail on the layer not matching its digest", func() {
+			layers, open := openLayers(rawDisk("root"))
+			layers[0].Digest = digest.FromBytes(rawDisk("another layer"))
+
+			err := extractDisk(context.Background(), artifact(), layers, open)
+			Expect(err).To(MatchError(ErrChecksumMismatch))
+		})
+
 		It("should fail on the layer being unreadable rather than report it holds no disk", func() {
 			layers, open := openLayers(nil)
 
