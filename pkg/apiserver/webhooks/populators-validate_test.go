@@ -353,6 +353,20 @@ var _ = Describe("Validating Webhook", func() {
 		resp := validateVolumeUploadSourceCreate(uploadCR)
 		Expect(resp.Allowed).To(BeTrue())
 	})
+
+	It("should accept VolumeUploadSource with valid checksum", func() {
+		uploadCR := newVolumeUploadSource(cdiv1.DataVolumeKubeVirt)
+		uploadCR.Spec.Checksum = "sha256:2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+		resp := validateVolumeUploadSourceCreate(uploadCR)
+		Expect(resp.Allowed).To(BeTrue())
+	})
+
+	It("should reject VolumeUploadSource with invalid checksum format", func() {
+		uploadCR := newVolumeUploadSource(cdiv1.DataVolumeKubeVirt)
+		uploadCR.Spec.Checksum = "sha256abc123"
+		resp := validateVolumeUploadSourceCreate(uploadCR)
+		Expect(resp.Allowed).To(BeFalse())
+	})
 })
 
 func newVolumeUploadSource(contentType cdiv1.DataVolumeContentType) *cdiv1.VolumeUploadSource {

@@ -74,6 +74,7 @@ func main() {
 		Preallocation:      preallocation,
 		CryptoConfig:       cryptoConfig,
 		Deadline:           deadline,
+		ExpectedChecksum:   os.Getenv(common.UploadChecksum),
 	}
 
 	server := uploadserver.NewUploadServer(config)

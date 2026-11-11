@@ -1,6 +1,7 @@
 package importer
 
 import (
+	"fmt"
 	"io"
 	"net/url"
 	"path/filepath"
@@ -29,21 +30,31 @@ type UploadDataSource struct {
 	url *url.URL
 	// contentType expected from the upload content
 	contentType cdiv1.DataVolumeContentType
+	// checksum validator
+	checksumValidator *ChecksumValidator
 }
 
 // NewUploadDataSource creates a new instance of an UploadDataSource
-func NewUploadDataSource(stream io.ReadCloser, contentType cdiv1.DataVolumeContentType) *UploadDataSource {
-	return &UploadDataSource{
-		stream:      stream,
-		contentType: contentType,
+func NewUploadDataSource(stream io.ReadCloser, contentType cdiv1.DataVolumeContentType, checksum string) (*UploadDataSource, error) {
+	checksumValidator, err := NewChecksumValidator(checksum)
+	if err != nil {
+		return nil, errors.Wrap(err, "invalid checksum")
 	}
+	if checksumValidator != nil {
+		klog.Infof("Upload checksum validation enabled: %s", checksum)
+	}
+	return &UploadDataSource{
+		stream:            stream,
+		contentType:       contentType,
+		checksumValidator: checksumValidator,
+	}, nil
 }
 
 // Info is called to get initial information about the data.
 func (ud *UploadDataSource) Info() (ProcessingPhase, error) {
 	var err error
-	// Hardcoded to only accept kubevirt content type.
-	ud.readers, err = NewFormatReaders(ud.stream, uint64(0), nil)
+	// Pass checksumValidator to format readers so the raw stream is hashed
+	ud.readers, err = NewFormatReaders(ud.stream, uint64(0), ud.checksumValidator)
 	if err != nil {
 		klog.Errorf("Error creating readers: %v", err)
 		return ProcessingPhaseError, err
@@ -77,12 +88,20 @@ func (ud *UploadDataSource) Transfer(path string, preallocation bool) (Processin
 		if err != nil {
 			return ProcessingPhaseError, err
 		}
+		// Verify checksum if specified
+		if err := ud.readers.ValidateChecksum(); err != nil {
+			return ProcessingPhaseError, fmt.Errorf("checksum validation failed: %w", err)
+		}
 		// If we successfully wrote to the file, then the parse will succeed.
 		ud.url, _ = url.Parse(file)
 		return ProcessingPhaseConvert, nil
 	} else if ud.contentType == cdiv1.DataVolumeArchive {
 		if err := util.UnArchiveTar(ud.readers.TopReader(), path); err != nil {
 			return ProcessingPhaseError, errors.Wrap(err, "unable to untar files from endpoint")
+		}
+		// Verify checksum if specified
+		if err := ud.readers.ValidateChecksum(); err != nil {
+			return ProcessingPhaseError, fmt.Errorf("checksum validation failed: %w", err)
 		}
 		ud.url = nil
 		return ProcessingPhaseComplete, nil
@@ -98,6 +117,10 @@ func (ud *UploadDataSource) TransferFile(fileName string, preallocation bool) (P
 	_, _, err := StreamDataToFile(ud.readers.TopReader(), fileName, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, err
+	}
+	// Verify checksum if specified
+	if err := ud.readers.ValidateChecksum(); err != nil {
+		return ProcessingPhaseError, fmt.Errorf("checksum validation failed: %w", err)
 	}
 	// If we successfully wrote to the file, then the parse will succeed.
 	ud.url, _ = url.Parse(fileName)
@@ -131,13 +154,15 @@ type AsyncUploadDataSource struct {
 }
 
 // NewAsyncUploadDataSource creates a new instance of an UploadDataSource
-func NewAsyncUploadDataSource(stream io.ReadCloser) *AsyncUploadDataSource {
-	return &AsyncUploadDataSource{
-		uploadDataSource: UploadDataSource{
-			stream: stream,
-		},
-		ResumePhase: ProcessingPhaseInfo,
+func NewAsyncUploadDataSource(stream io.ReadCloser, checksum string) (*AsyncUploadDataSource, error) {
+	uds, err := NewUploadDataSource(stream, cdiv1.DataVolumeKubeVirt, checksum)
+	if err != nil {
+		return nil, err
 	}
+	return &AsyncUploadDataSource{
+		uploadDataSource: *uds,
+		ResumePhase:      ProcessingPhaseInfo,
+	}, nil
 }
 
 // Info is called to get initial information about the data.
@@ -163,6 +188,10 @@ func (aud *AsyncUploadDataSource) Transfer(path string, preallocation bool) (Pro
 	if err != nil {
 		return ProcessingPhaseError, err
 	}
+	// Verify checksum if specified
+	if err := aud.uploadDataSource.readers.ValidateChecksum(); err != nil {
+		return ProcessingPhaseError, fmt.Errorf("checksum validation failed: %w", err)
+	}
 	// If we successfully wrote to the file, then the parse will succeed.
 	aud.uploadDataSource.url, _ = url.Parse(file)
 	aud.ResumePhase = ProcessingPhaseConvert
@@ -177,6 +206,10 @@ func (aud *AsyncUploadDataSource) TransferFile(fileName string, preallocation bo
 	_, _, err := StreamDataToFile(aud.uploadDataSource.readers.TopReader(), fileName, preallocation)
 	if err != nil {
 		return ProcessingPhaseError, err
+	}
+	// Verify checksum if specified
+	if err := aud.uploadDataSource.readers.ValidateChecksum(); err != nil {
+		return ProcessingPhaseError, fmt.Errorf("checksum validation failed: %w", err)
 	}
 	// If we successfully wrote to the file, then the parse will succeed.
 	aud.uploadDataSource.url, _ = url.Parse(fileName)

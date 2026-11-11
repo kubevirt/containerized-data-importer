@@ -865,6 +865,10 @@ func (r *UploadReconciler) makeUploadPodContainers(args UploadPodArgs, resourceR
 					Name:  common.MinVersionTLSVar,
 					Value: args.CryptoEnvVars.MinTLSVersion,
 				},
+				{
+					Name:  common.UploadChecksum,
+					Value: args.PVC.GetAnnotations()[cc.AnnUploadChecksum],
+				},
 			},
 			Args: []string{"-v=" + r.verbose},
 			ReadinessProbe: &corev1.Probe{

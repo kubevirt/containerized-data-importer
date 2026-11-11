@@ -4976,7 +4976,13 @@
    },
    "v1beta1.DataVolumeSourceUpload": {
     "description": "DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source",
-    "type": "object"
+    "type": "object",
+    "properties": {
+     "checksum": {
+      "description": "Checksum is the expected checksum of the file. Format: \"algorithm:hash\", e.g., \"sha256:1234abcd...\" or \"md5:5678efgh...\" Supported algorithms: md5, sha1, sha256, sha512 If specified, the upload server will verify the uploaded content matches this checksum",
+      "type": "string"
+     }
+    }
    },
    "v1beta1.DataVolumeSourceVDDK": {
     "description": "DataVolumeSourceVDDK provides the parameters to create a Data Volume from a Vmware source",
