@@ -3,6 +3,7 @@ LABEL maintainer="The KubeVirt Project <kubevirt-dev@googlegroups.com>"
 
 ARG ARCH
 
+# Print each command to help diagnose package installation failures.
 RUN set -ex; \
 	echo "Starting builder package installation"; \
 	uname -m; \
