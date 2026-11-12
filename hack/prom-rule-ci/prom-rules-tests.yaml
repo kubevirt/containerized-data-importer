@@ -89,22 +89,36 @@ tests:
               summary: CDI operator is down
               runbook_url: https://kubevirt.io/monitoring/runbooks/CDIOperatorDown
 
-  # CDIDataVolumeUnusualRestartCount should fire when any population restart metric > 0 for 5m
+  # CDIDataVolumeUnusualRestartCount should fire once per namespace with population pods over the restart threshold for 5m
   - interval: 1m
     input_series:
-      - series: 'kube_pod_container_status_restarts_total{pod="importer-1",container="importer"}'
+      - series: 'kube_pod_container_status_restarts_total{namespace="tenant-a",pod="importer-1",container="importer"}'
         values: "4 4 4 4 4 4"
+      - series: 'kube_pod_container_status_restarts_total{namespace="tenant-b",pod="cdi-upload-1",container="cdi-upload-server"}'
+        values: "4 4 4 4 4 4"
+      - series: 'kube_pod_container_status_restarts_total{namespace="tenant-c",pod="importer-2",container="importer"}'
+        values: "1 1 1 1 1 1"
     alert_rule_test:
       - eval_time: 6m
         alertname: CDIDataVolumeUnusualRestartCount
         exp_alerts:
           - exp_labels:
+              namespace: tenant-a
               severity: warning
               operator_health_impact: none
               kubernetes_operator_part_of: kubevirt
               kubernetes_operator_component: containerized-data-importer
             exp_annotations:
-              summary: Some CDI population workloads have an unusual restart count, meaning they are probably failing and need to be investigated
+              summary: Some CDI population workloads in namespace tenant-a have an unusual restart count, meaning they are probably failing and need to be investigated
+              runbook_url: https://kubevirt.io/monitoring/runbooks/CDIDataVolumeUnusualRestartCount
+          - exp_labels:
+              namespace: tenant-b
+              severity: warning
+              operator_health_impact: none
+              kubernetes_operator_part_of: kubevirt
+              kubernetes_operator_component: containerized-data-importer
+            exp_annotations:
+              summary: Some CDI population workloads in namespace tenant-b have an unusual restart count, meaning they are probably failing and need to be investigated
               runbook_url: https://kubevirt.io/monitoring/runbooks/CDIDataVolumeUnusualRestartCount
 
   # CDIStorageProfilesIncomplete should fire when any storageprofile is incomplete for 5m

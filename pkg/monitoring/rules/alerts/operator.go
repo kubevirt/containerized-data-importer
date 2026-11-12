@@ -34,10 +34,10 @@ var operatorAlerts = []promv1.Rule{
 	},
 	{
 		Alert: "CDIDataVolumeUnusualRestartCount",
-		Expr:  intstr.FromString("cluster:kubevirt_cdi_import_pods_high_restart:count > 0 or cluster:kubevirt_cdi_upload_pods_high_restart:count > 0 or cluster:kubevirt_cdi_clone_pods_high_restart:count > 0"),
+		Expr:  intstr.FromString("namespace:kubevirt_cdi_import_pods_high_restart:count > 0 or namespace:kubevirt_cdi_upload_pods_high_restart:count > 0 or namespace:kubevirt_cdi_clone_pods_high_restart:count > 0"),
 		For:   (*promv1.Duration)(ptr.To("5m")),
 		Annotations: map[string]string{
-			"summary": "Some CDI population workloads have an unusual restart count, meaning they are probably failing and need to be investigated",
+			"summary": "Some CDI population workloads in namespace {{ $labels.namespace }} have an unusual restart count, meaning they are probably failing and need to be investigated",
 		},
 		Labels: map[string]string{
 			severityAlertLabelKey:        "warning",
