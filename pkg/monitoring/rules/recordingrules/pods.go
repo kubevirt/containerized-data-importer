@@ -30,7 +30,7 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 	),
 	gaugeRule(
 		"cluster:kubevirt_cdi_import_pods_high_restart:count",
-		"The number of CDI import pods with high restart count",
+		"[Deprecated] The number of CDI import pods with high restart count",
 		"count("+importPodsHighRestart+") or on() vector(0)",
 	),
 	gaugeRule(
@@ -40,7 +40,7 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 	),
 	gaugeRule(
 		"cluster:kubevirt_cdi_upload_pods_high_restart:count",
-		"The number of CDI upload server pods with high restart count",
+		"[Deprecated] The number of CDI upload server pods with high restart count",
 		"count("+uploadPodsHighRestart+") or on() vector(0)",
 	),
 	gaugeRule(
@@ -50,7 +50,7 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 	),
 	gaugeRule(
 		"cluster:kubevirt_cdi_clone_pods_high_restart:count",
-		"The number of CDI clone pods with high restart count",
+		"[Deprecated] The number of CDI clone pods with high restart count",
 		"count("+clonePodsHighRestart+") or on() vector(0)",
 	),
 	gaugeRule(

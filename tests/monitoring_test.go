@@ -562,7 +562,7 @@ var _ = Describe("[Destructive] Monitoring Tests", Serial, func() {
 func dataVolumeUnusualRestartTest(f *framework.Framework) {
 	By("Test metric for unusual restart count")
 	Eventually(func() bool {
-		return getMetricValue(f, "cluster:kubevirt_cdi_import_pods_high_restart:count") == 1
+		return countMetricLabelValue(f, "namespace:kubevirt_cdi_import_pods_high_restart:count", "namespace", f.Namespace.Name) == 1
 	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 
 	waitForPrometheusAlert(f, "CDIDataVolumeUnusualRestartCount")
@@ -571,7 +571,7 @@ func dataVolumeUnusualRestartTest(f *framework.Framework) {
 func dataVolumeNoUnusualRestartTest(f *framework.Framework) {
 	By("Test metric for no unusual restart count")
 	Eventually(func() bool {
-		return getMetricValue(f, "cluster:kubevirt_cdi_import_pods_high_restart:count") == 0
+		return getMetricValueWithDefault(f, "namespace:kubevirt_cdi_import_pods_high_restart:count", true) == 0
 	}, 2*time.Minute, 1*time.Second).Should(BeTrue())
 
 	waitForNoPrometheusAlert(f, "CDIDataVolumeUnusualRestartCount")
