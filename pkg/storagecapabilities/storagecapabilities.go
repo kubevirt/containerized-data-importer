@@ -80,7 +80,7 @@ var CapabilitiesByProvisionerKey = map[string][]StorageCapabilities{
 	"ebs.csi.aws.com":       {{rwo, block}},
 	"ebs.csi.aws.com/io1":   {{rwo, block}},
 	"ebs.csi.aws.com/io2":   {{rwx, block}, {rwo, block}, {rwo, file}},
-	"ebs.csi.aws.com/gp":    {{rwo, block}},
+	"ebs.csi.aws.com/gp":    {{rwo, block}, {rwo, file}},
 	// AWSElasticFileSystem
 	"efs.csi.aws.com": {{rwx, file}, {rwo, file}},
 	// Azure disk
