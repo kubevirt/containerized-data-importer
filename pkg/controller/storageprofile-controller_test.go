@@ -58,6 +58,7 @@ const (
 	provisionerName         = "testProvisioner"
 	cephProvisioner         = "rook-ceph.rbd.csi.ceph.com"
 	mayastorProvisioner     = "io.openebs.csi-mayastor"
+	kubevirtCSIProvisioner  = "csi.kubevirt.io"
 )
 
 var (
@@ -633,6 +634,26 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 		Entry("rwxBlock parameter set to true", map[string]string{"rwxBlock": "true"}, mayastorRwxBlockClaimPropertySets()),
 	)
 
+	DescribeTable("should set claimPropertySets for csi.kubevirt.io according to rwxBlock parameter", func(scParameters map[string]string, expectedClaimPropertySets []cdiv1.ClaimPropertySet) {
+		storageClass := CreateStorageClassWithProvisioner(storageClassName, nil, nil, kubevirtCSIProvisioner)
+		storageClass.Parameters = scParameters
+		reconciler = createStorageProfileReconciler(storageClass)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: storageClassName}})
+		Expect(err).ToNot(HaveOccurred())
+
+		sp := &cdiv1.StorageProfile{}
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: storageClassName}, sp, &client.GetOptions{})
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(*sp.Status.Provisioner).To(Equal(kubevirtCSIProvisioner))
+		Expect(sp.Status.ClaimPropertySets).To(Equal(expectedClaimPropertySets))
+	},
+		Entry("no parameters", nil, rwoBlockFileClaimPropertySets()),
+		Entry("only the driver's own parameters", map[string]string{"infraStorageClassName": "infra-sc", "bus": "scsi"}, rwoBlockFileClaimPropertySets()),
+		Entry("rwxBlock parameter set to false", map[string]string{"rwxBlock": "false"}, rwoBlockFileClaimPropertySets()),
+		Entry("rwxBlock parameter set to true", map[string]string{"infraStorageClassName": "infra-sc", "rwxBlock": "true"}, rwxBlockClaimPropertySets()),
+	)
+
 	DescribeTable("Should set the StorageProfileStatus metric correctly", func(provisioner string, isComplete bool) {
 		storageClass := CreateStorageClassWithProvisioner(storageClassName, map[string]string{AnnDefaultStorageClass: "true"}, map[string]string{}, provisioner)
 		reconciler = createStorageProfileReconciler(storageClass)
@@ -732,6 +753,12 @@ var _ = Describe("Storage profile controller reconcile loop", func() {
 			v1.ConditionTrue, string(storagecapabilities.RecognizedProvisioner), recognizedProvisionerMessage),
 		Entry("recognized provisioner with rwxBlock parameter",
 			mayastorProvisioner, map[string]string{"rwxBlock": "true"},
+			v1.ConditionTrue, string(storagecapabilities.RecognizedProvisioner), recognizedProvisionerMessage),
+		Entry("csi.kubevirt.io without rwxBlock parameter",
+			kubevirtCSIProvisioner, nil,
+			v1.ConditionTrue, string(storagecapabilities.RecognizedProvisioner), recognizedProvisionerMessage),
+		Entry("csi.kubevirt.io with rwxBlock parameter",
+			kubevirtCSIProvisioner, map[string]string{"rwxBlock": "true"},
 			v1.ConditionTrue, string(storagecapabilities.RecognizedProvisioner), recognizedProvisionerMessage),
 	)
 
@@ -903,4 +930,21 @@ func createVolumeSnapshotCrd() *extv1.CustomResourceDefinition {
 			},
 		},
 	}
+}
+
+// rwoBlockFileClaimPropertySets are the property sets expected for a
+// csi.kubevirt.io StorageClass that did not opt in to RWX block volumes
+func rwoBlockFileClaimPropertySets() []cdiv1.ClaimPropertySet {
+	return []cdiv1.ClaimPropertySet{
+		{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: ptr.To(v1.PersistentVolumeBlock)},
+		{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce}, VolumeMode: ptr.To(v1.PersistentVolumeFilesystem)},
+	}
+}
+
+// rwxBlockClaimPropertySets are the property sets expected for a
+// csi.kubevirt.io StorageClass with rwxBlock enabled
+func rwxBlockClaimPropertySets() []cdiv1.ClaimPropertySet {
+	return append([]cdiv1.ClaimPropertySet{
+		{AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteMany}, VolumeMode: ptr.To(v1.PersistentVolumeBlock)},
+	}, rwoBlockFileClaimPropertySets()...)
 }
