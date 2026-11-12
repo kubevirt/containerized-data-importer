@@ -204,6 +204,13 @@ func CreateCertificateDir(registryCertDir string) (string, error) {
 		}
 	}
 
+	if _, err := os.Stat(common.ImportTrustedCACertDir); err == nil {
+		klog.Info("Copying trusted CA certs")
+		if err := collectCerts(common.ImportTrustedCACertDir, allCerts, "trusted-ca-"); err != nil {
+			return allCerts, err
+		}
+	}
+
 	if registryCertDir == "" {
 		klog.Info("Registry certs directory not configured")
 		return allCerts, nil
@@ -217,31 +224,53 @@ func CreateCertificateDir(registryCertDir string) (string, error) {
 }
 
 func collectCerts(certDir, targetDir, targetPrefix string) error {
-	directory, err := os.Open(certDir)
+	objects, err := os.ReadDir(certDir)
 	if err != nil {
 		return err
 	}
-	objects, err := directory.Readdir(-1)
-	if err != nil {
-		return err
-	}
+
 	for _, obj := range objects {
+		if obj.IsDir() || strings.HasPrefix(obj.Name(), ".") {
+			continue
+		}
+
 		if !strings.HasSuffix(obj.Name(), ".crt") && !strings.HasSuffix(obj.Name(), ".pem") {
 			klog.Warningf("Unable to collect cert: %s Must have file extension .crt or .pem", obj.Name())
 			continue
 		}
 
 		targetName := targetPrefix + obj.Name()
-		if strings.HasSuffix(obj.Name(), ".pem") {
-			// the containers library is currently filtering out any certs that don't have .crt file extension
-			// https://github.com/containers/image/blob/df7e80d2d19872b61f352a8a182ec934dc0c2346/pkg/tlsclientconfig/tlsclientconfig.go#L36
-			//
-			// append .crt extension here so .pem certs can be accepted
-			targetName = strings.TrimSuffix(targetName, ".pem") + ".crt"
+		ext := filepath.Ext(targetName)
+
+		// the containers library is currently filtering out any certs that don't have .crt file extension
+		// https://github.com/containers/image/blob/df7e80d2d19872b61f352a8a182ec934dc0c2346/pkg/tlsclientconfig/tlsclientconfig.go#L36
+		//
+		// Normalize the extension so .pem certs can be accepted.
+		switch ext {
+		case ".crt":
+			// has required extension
+		case "":
+			targetName += ".crt"
+		default:
+			targetName = strings.TrimSuffix(targetName, ext) + ".crt"
 		}
 
-		if err := LinkFile(filepath.Join(certDir, obj.Name()), filepath.Join(targetDir, targetName)); err != nil {
-			return err
+		// Different source names can normalize to the same name, e.g. bundle.pem
+		// and bundle.crt. Add a numbered suffix rather than overwrite an existing entry.
+		stem := strings.TrimSuffix(targetName, ".crt")
+		for suffix := 0; ; suffix++ {
+			name := targetName
+			if suffix > 0 {
+				name = fmt.Sprintf("%s-%d.crt", stem, suffix)
+			}
+			err := os.Symlink(filepath.Join(certDir, obj.Name()), filepath.Join(targetDir, name))
+			if os.IsExist(err) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			break
 		}
 	}
 	return nil

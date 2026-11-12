@@ -18,6 +18,7 @@ require (
 	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/go-logr/logr v1.4.3
 	github.com/golang/snappy v0.0.4
+	github.com/google/martian v2.1.0+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/gophercloud/gophercloud/v2 v2.0.0-rc.1
 	github.com/gophercloud/utils/v2 v2.0.0-20240529145014-bdd9ea767dd2
