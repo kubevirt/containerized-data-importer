@@ -1,5 +1,6 @@
-ARG BUILDER_BASE=quay.io/centos/centos:stream10
-FROM ${BUILDER_BASE}
+# hack/build/bazel-build-builder.sh registers QEMU interpreters when building
+# for architectures other than the host architecture.
+FROM quay.io/centos/centos:stream10
 LABEL maintainer="The KubeVirt Project <kubevirt-dev@googlegroups.com>"
 
 ARG ARCH

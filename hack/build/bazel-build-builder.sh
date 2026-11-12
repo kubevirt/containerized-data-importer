@@ -58,171 +58,44 @@ echo "export BUILDER_IMAGE=$BUILDER_MANIFEST"
 
 #Build the encapsulated compile and test container
 if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
-    BUILD_BASE_ARGS=()
-    PREFLIGHT=0
-    case "${BUILDAH_PLATFORM_FLAG}," in
-        *linux/s390x,*) [[ "${HOST_ARCHITECTURE}" = "s390x" ]] || PREFLIGHT=1 ;;
-        *) ;;
+    case "${HOST_ARCHITECTURE}" in
+        x86_64) host_platform=linux/amd64 ;;
+        aarch64|arm64) host_platform=linux/arm64 ;;
+        *) host_platform=linux/${HOST_ARCHITECTURE} ;;
     esac
+    needs_emulation=0
+    IFS=, read -r -a platforms <<< "${BUILDAH_PLATFORM_FLAG#--platform }"
+    for platform in "${platforms[@]}"; do
+        [[ "${platform}" = "${host_platform}" ]] || needs_emulation=1
+    done
 
-    # Check s390x emulation before building the full image.
-    if [[ "${PREFLIGHT}" = "1" ]]; then
+    if [[ "${needs_emulation}" = "1" ]]; then
+        # Set up QEMU for foreign architectures using KubeVirt's registration command.
+        # This replaces all visible qemu-* handlers.
         QEMU_STATIC_IMAGE="quay.io/linuxserver.io/qemu-static"
-        BINFMT_DIR="/proc/sys/fs/binfmt_misc"
-        PROBE_DIR=""
-        PROBE_ID=""
-        BUILDER_BASE_REF=""
-
-        cleanup_probe() {
-            local arch
-            if [[ -n "${PROBE_ID}" ]]; then
-                for arch in s390x arm64; do
-                    buildah rmi "localhost/${PROBE_ID}-${arch}:probe" >/dev/null 2>&1 || true
-                done
-            fi
-            rm -rf -- "${PROBE_DIR}" || true
-        }
-
-        pull_base() {
-            local platform="$1"
-            buildah pull --platform "${platform}" "${BUILDER_BASE_REF}"
-        }
-
-        probe_platform() {
-            local platform="$1"
-            buildah build --platform "${platform}" --pull=never --no-cache --build-arg BUILDER_BASE="${BUILDER_BASE_REF}" \
-                -t "localhost/${PROBE_ID}-${platform#linux/}:probe" -f "${PROBE_DIR}/Containerfile" "${PROBE_DIR}"
-        }
-
-        dump_binfmt() {
-            local entry
-            echo "binfmt_misc dump ($1):"
-            for entry in "${BINFMT_DIR}/status" "${BINFMT_DIR}"/qemu-*; do
-                if [[ -f "${entry}" ]]; then
-                    echo "binfmt registration: ${entry}"
-                    cat "${entry}" || true
-                fi
-            done
-        }
-
-        print_diagnostics() {
-            local dmesg_out
-            if [[ ! -f "${BINFMT_DIR}/register" ]]; then
-                mount -t binfmt_misc binfmt_misc "${BINFMT_DIR}" \
-                    || echo "WARNING: unable to mount binfmt_misc; handler dump will be empty" >&2
-            fi
-            uname -a || true
-            rpm -q qemu-user-static-aarch64 qemu-user-static-s390x buildah podman crun runc || true
-            dump_binfmt "before reset"
-            if dmesg_out=$(dmesg 2>&1); then
-                printf '%s\n' "${dmesg_out}" | grep -iE 'segfault|qemu' | tail -n 50 || true
-            else
-                echo "dmesg is not readable; kernel segfault messages are unavailable"
-            fi
-        }
-
-        prepare_preflight() {
-            local base_tag
-            local digest
-            PROBE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/cdi-builder-probe-XXXXXX") \
-                || { echo "WARNING: cannot create a temporary directory" >&2; return 1; }
-            trap cleanup_probe EXIT
-            PROBE_ID="${PROBE_DIR##*/}"
-            PROBE_ID="${PROBE_ID,,}"
-            base_tag=$(sed -n 's/^ARG BUILDER_BASE=//p' "${BUILDER_SPEC}/Dockerfile" | head -n 1 | tr -d '[:space:]') \
-                || { echo "WARNING: cannot read ${BUILDER_SPEC}/Dockerfile" >&2; return 1; }
-            if [[ "${base_tag##*/}" != *:* ]]; then
-                echo "WARNING: no tagged 'ARG BUILDER_BASE=' in ${BUILDER_SPEC}/Dockerfile" >&2
-                return 1
-            fi
-            skopeo inspect --raw "docker://${base_tag}" > "${PROBE_DIR}/base.json" \
-                || { echo "WARNING: cannot read the manifest of ${base_tag}" >&2; return 1; }
-            jq -e '.manifests | length > 0' "${PROBE_DIR}/base.json" >/dev/null \
-                || { echo "WARNING: ${base_tag} is not a multi-arch manifest list" >&2; return 1; }
-            digest=$(sha256sum "${PROBE_DIR}/base.json" | cut -d' ' -f1) \
-                || { echo "WARNING: cannot compute the digest of ${base_tag}" >&2; return 1; }
-            if [[ ! "${digest}" =~ ^[0-9a-f]{64}$ ]]; then
-                echo "WARNING: cannot compute the digest of ${base_tag}" >&2
-                return 1
-            fi
-            BUILDER_BASE_REF="${base_tag%:*}@sha256:${digest}"
-            echo "Builder base: ${BUILDER_BASE_REF}"
-            # shellcheck disable=SC2016
-            printf '%s\n' 'ARG BUILDER_BASE' 'FROM ${BUILDER_BASE}' 'RUN uname -m && dnf --version' > "${PROBE_DIR}/Containerfile" \
-                || { echo "WARNING: cannot write the probe Containerfile" >&2; return 1; }
-            pull_base linux/s390x \
-                || { echo "WARNING: unable to pull ${BUILDER_BASE_REF} for linux/s390x" >&2; return 1; }
-        }
-
-        run_preflight() {
-            local rc=0
-            local first_rc=0
-            local t0
-            local t1
-            local plat
-            local post_plats=(linux/s390x)
-
-            t0=$(date -u +%Y-%m-%dT%H:%M:%SZ) || true
-            probe_platform linux/s390x || first_rc=$?
-            t1=$(date -u +%Y-%m-%dT%H:%M:%SZ) || true
-            if [[ "${first_rc}" -eq 0 ]]; then
-                echo "Preflight: linux/s390x probe passed"
-                return 0
-            fi
-            echo "ERROR: preflight probe failed: platform=linux/s390x start=${t0} end=${t1} exit=${first_rc}" >&2
-            print_diagnostics
-
-            if [[ -z "${CDI_CRI}" ]]; then
-                echo "ERROR: no container runtime to re-register QEMU" >&2
-                return "${first_rc}"
-            fi
-            "${CDI_CRI}" run --rm --entrypoint /qemu/qemu-s390x "${QEMU_STATIC_IMAGE}" --version \
-                || echo "WARNING: cannot print the QEMU version; trying the registration anyway" >&2
-            # Reset replaces all visible qemu-* binfmt handlers, including arm64.
-            "${CDI_CRI}" run --rm --privileged "${QEMU_STATIC_IMAGE}" --reset -p yes || rc=$?
-            if [[ "${rc}" -ne 0 ]]; then
-                echo "ERROR: QEMU registration failed (exit ${rc}); handlers may be partially modified" >&2
-                return "${rc}"
-            fi
-            dump_binfmt "after reset"
-
-            case "${BUILDAH_PLATFORM_FLAG}," in
-                *linux/arm64,*)
-                    case "${HOST_ARCHITECTURE}" in
-                        aarch64|arm64) ;;
-                        *) post_plats+=(linux/arm64) ;;
-                    esac ;;
-                *) ;;
-            esac
-            for plat in "${post_plats[@]}"; do
-                rc=0
-                pull_base "${plat}" || rc=$?
-                if [[ "${rc}" -ne 0 ]]; then
-                    echo "ERROR: unable to pull ${BUILDER_BASE_REF} for ${plat} after re-registration (exit ${rc})" >&2
-                    return "${rc}"
-                fi
-                probe_platform "${plat}" || rc=$?
-                if [[ "${rc}" -ne 0 ]]; then
-                    echo "ERROR: probe after QEMU re-registration failed: ${plat} exit=${rc}" >&2
-                    return "${rc}"
-                fi
-            done
-            echo "Preflight: QEMU recovery succeeded (original linux/s390x probe exit=${first_rc}, ${t0}..${t1}); probes passed: ${post_plats[*]}"
-        }
-
-        if prepare_preflight; then
-            preflight_rc=0
-            run_preflight || preflight_rc=$?
-            if [[ "${preflight_rc}" -ne 0 ]]; then
-                exit "${preflight_rc}"
-            fi
-            BUILD_BASE_ARGS=(--build-arg "BUILDER_BASE=${BUILDER_BASE_REF}")
-        else
-            echo "WARNING: preflight skipped; building with the default base" >&2
+        if [[ -z "${CDI_CRI}" ]]; then
+            echo "ERROR: no container runtime available to register QEMU interpreters" >&2
+            exit 1
         fi
+        qemu_rc=0
+        "${CDI_CRI}" run --rm --privileged "${QEMU_STATIC_IMAGE}" --reset -p yes || qemu_rc=$?
+        if [[ "${qemu_rc}" -ne 0 ]]; then
+            echo "ERROR: QEMU registration failed (exit ${qemu_rc}); qemu-* handlers may be partially modified" >&2
+            exit "${qemu_rc}"
+        fi
+        if [[ ! -f /proc/sys/fs/binfmt_misc/register ]]; then
+            mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc \
+                || echo "WARNING: unable to mount binfmt_misc; cannot show the registered handlers" >&2
+        fi
+        for handler in /proc/sys/fs/binfmt_misc/qemu-s390x /proc/sys/fs/binfmt_misc/qemu-aarch64; do
+            if [[ -f "${handler}" ]]; then
+                echo "binfmt registration after QEMU setup: ${handler}"
+                cat "${handler}" || true
+            fi
+        done
     fi
 
-    (cd ${BUILDER_SPEC} && buildah build ${BUILDAH_PLATFORM_FLAG} --build-arg ARCH=${ARCH} "${BUILD_BASE_ARGS[@]}" --manifest ${BUILDER_MANIFEST} .)
+    (cd ${BUILDER_SPEC} && buildah build ${BUILDAH_PLATFORM_FLAG} --build-arg ARCH=${ARCH} --manifest ${BUILDER_MANIFEST} .)
     buildah manifest push --all ${BUILDER_MANIFEST} docker://${BUILDER_MANIFEST}
     DIGEST=$(podman inspect $(podman images | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $3 }') | jq '.[]["Digest"]')
 else
