@@ -219,3 +219,67 @@ spec:
 
 > [!NOTE]  
 > When `platform.architecture` is used together with `pullMethod: node`, a node selector will be added to the resulting importer Pod to ensure it schedules onto a node matching the specified architecture.
+
+# Import a disk layer of an OCI artifact
+
+Besides container images, CDI can import a disk image stored as a layer of an [OCI artifact](https://github.com/opencontainers/image-spec/blob/main/artifacts-guidance.md), where the whole layer blob is the disk image rather than a tar archive holding it. Such an artifact may hold several disks, one per layer, so the `layer` field selects the layer to import by the annotations it carries.
+
+> [!IMPORTANT]
+> Currently, only KubeVirt artifacts are supported, of artifact type `application/vnd.kubevirt.virtualmachine.v1` or `application/vnd.kubevirt.virtualmachinetemplate.v1`. A container image, or an artifact of any other type, is refused.
+
+```yaml
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: registry-artifact-datavolume
+spec:
+  source:
+    registry:
+      url: "docker://quay.io/my-org/my-vm:latest"
+      layer:
+        matchAnnotations:
+          io.kubevirt.disk.name: rootdisk
+  storage:
+    resources:
+      requests:
+        storage: 10Gi
+```
+
+With the example above, CDI imports the layer annotated with `io.kubevirt.disk.name: rootdisk` from an artifact manifest such as:
+
+```json
+{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+  "artifactType": "application/vnd.kubevirt.virtualmachine.v1",
+  "config": { ... },
+  "layers": [
+    {
+      "mediaType": "application/vnd.kubevirt.disk.raw+zstd",
+      "digest": "sha256:...",
+      "size": 4121,
+      "annotations": {
+        "io.kubevirt.disk.name": "rootdisk"
+      }
+    }
+  ]
+}
+```
+
+The layer is selected as follows:
+- The layer has to carry every annotation in `matchAnnotations`, with the same value. Annotations it carries beyond those are ignored.
+- Exactly one layer of the manifest has to match. The import fails when no layer or more than one layer matches.
+- `matchAnnotations` has to contain at least one annotation.
+
+The layer blob is imported like any other disk image: it can be in any of the supported formats (qcow2, raw, etc.), optionally compressed with gzip, xz or zstd. The layer's media type is not relied upon, its format is detected from its content. A layer holding a tar archive, such as a container image layer, is refused.
+
+## Artifacts for several platforms
+
+When the artifact is an [OCI Image Index](https://specs.opencontainers.org/image-spec/image-index/), the [`platform`](#import-registry-image-by-platform-specification) field selects its manifest as it does for container images, and the layer is then selected from that manifest. When `platform.architecture` is specified, the artifact has to declare the architecture, so the import fails for:
+- A single artifact manifest, as it declares no platform.
+- An index whose manifest for the architecture is missing, even when the index holds a manifest declaring no platform.
+
+## Limitations
+
+- `layer` is not supported with `pullMethod: node`, since that method runs the image as a container, which an artifact cannot be.
+- An artifact carries no image environment variables, so the PVC is not decorated with labels as it is for a [containerdisk](#decorate-the-pvc-of-the-imported-containerdisk-with-additional-labels).

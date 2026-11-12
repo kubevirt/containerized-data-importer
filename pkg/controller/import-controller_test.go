@@ -1493,6 +1493,7 @@ var _ = Describe("Import test env", func() {
 			finalCheckpoint:           "",
 			preallocation:             false,
 			registryImageArchitecture: "",
+			layerMatchAnnotations:     "",
 			checksum:                  "",
 		}
 		Expect(reflect.DeepEqual(makeImportEnv(testEnvVar, mockUID), createImportTestEnv(testEnvVar, mockUID))).To(BeTrue())
@@ -1808,6 +1809,10 @@ func createImportTestEnv(podEnvVar *importPodEnvVar, uid string) []corev1.EnvVar
 		{
 			Name:  common.ImporterRegistryImageArchitecture,
 			Value: podEnvVar.registryImageArchitecture,
+		},
+		{
+			Name:  common.ImporterRegistryImageLayerMatchAnnotations,
+			Value: podEnvVar.layerMatchAnnotations,
 		},
 		{
 			Name:  common.ImporterChecksum,

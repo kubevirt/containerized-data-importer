@@ -54,15 +54,21 @@ type reader struct {
 
 // FormatReaders contains the stack of readers needed to get information from the input stream (io.ReadCloser)
 type FormatReaders struct {
-	readers           []reader
-	buf               []byte // holds file headers
-	Convert           bool
-	Archived          bool
-	ArchiveXz         bool
-	ArchiveGz         bool
-	ArchiveZstd       bool
-	progressReader    *prometheusutil.ProgressReader
-	checksumValidator *ChecksumValidator
+	readers         []reader
+	buf             []byte // holds file headers
+	Convert         bool
+	Archived        bool
+	ArchiveXz       bool
+	ArchiveGz       bool
+	ArchiveZstd     bool
+	Tar             bool
+	progressReader  *prometheusutil.ProgressReader
+	streamValidator streamValidator
+}
+
+type streamValidator interface {
+	GetReader(r io.Reader) io.Reader
+	Validate() error
 }
 
 const (
@@ -70,7 +76,7 @@ const (
 	rdrMulti
 	rdrXz
 	rdrStream
-	rdrChecksum
+	rdrValidator
 	rdrZstd
 )
 
@@ -83,12 +89,12 @@ var rdrTypM = map[string]int{
 }
 
 // NewFormatReaders creates a new instance of FormatReaders using the input stream and content type passed in.
-// If checksumValidator is provided, it will be added to the reader stack to validate data integrity.
-func NewFormatReaders(stream io.ReadCloser, total uint64, checksumValidator *ChecksumValidator) (*FormatReaders, error) {
+// If validator is provided, it will be added to the reader stack to validate data integrity.
+func NewFormatReaders(stream io.ReadCloser, total uint64, validator streamValidator) (*FormatReaders, error) {
 	var err error
 	readers := &FormatReaders{
-		buf:               make([]byte, image.MaxExpectedHdrSize),
-		checksumValidator: checksumValidator,
+		buf:             make([]byte, image.MaxExpectedHdrSize),
+		streamValidator: validator,
 	}
 	if total > uint64(0) {
 		readers.progressReader = prometheusutil.NewProgressReader(stream, metrics.Progress(ownerUID), total)
@@ -104,11 +110,11 @@ func NewFormatReaders(stream io.ReadCloser, total uint64, checksumValidator *Che
 }
 
 func (fr *FormatReaders) constructReaders(r io.ReadCloser) error {
-	// Add checksum validator at the bottom of the reader stack if provided.
-	// This ensures checksum validation happens on the raw data stream before
+	// Add the validator at the bottom of the reader stack if provided.
+	// This ensures validation happens on the raw data stream before
 	// any decompression or format conversion.
-	if fr.checksumValidator != nil {
-		fr.appendReader(rdrChecksum, fr.checksumValidator.GetReader(r))
+	if fr.streamValidator != nil {
+		fr.appendReader(rdrValidator, fr.streamValidator.GetReader(r))
 		r = fr.TopReader()
 	}
 	fr.appendReader(rdrTypM["stream"], r)
@@ -185,6 +191,9 @@ func (fr *FormatReaders) fileFormatSelector(hdr *image.Header) {
 			fr.Archived = true
 			fr.ArchiveXz = true
 		}
+	case "tar":
+		r = nil
+		fr.Tar = true
 	case "qcow2":
 		r, err = fr.qcow2NopReader(hdr)
 		fr.Convert = true
@@ -307,11 +316,11 @@ func (fr *FormatReaders) StartProgressUpdate() {
 	}
 }
 
-// ValidateChecksum validates the checksum if a checksum validator was provided.
+// ValidateStream validates the stream if a validator was provided.
 // This should be called after all data has been read from the reader stack.
-func (fr *FormatReaders) ValidateChecksum() error {
-	if fr.checksumValidator == nil {
+func (fr *FormatReaders) ValidateStream() error {
+	if fr.streamValidator == nil {
 		return nil
 	}
-	return fr.checksumValidator.Validate()
+	return fr.streamValidator.Validate()
 }

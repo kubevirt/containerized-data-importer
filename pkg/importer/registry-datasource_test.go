@@ -9,6 +9,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/containers/image/v5/types"
+
+	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 )
 
 var (
@@ -36,7 +38,8 @@ var _ = Describe("Registry data source", func() {
 	})
 
 	It("should return transfer after info is called", func() {
-		ds = NewRegistryDataSource("", "", "", "", "", true)
+		ds, err = NewRegistryDataSource("", "", "", "", "", "", true)
+		Expect(err).ToNot(HaveOccurred())
 		result, err := ds.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
@@ -46,7 +49,8 @@ var _ = Describe("Registry data source", func() {
 		if scratchPath == "" {
 			scratchPath = tmpDir
 		}
-		ds = NewRegistryDataSource(ep, accKey, secKey, "", certDir, insecureRegistry)
+		ds, err = NewRegistryDataSource(ep, accKey, secKey, "", "", certDir, insecureRegistry)
+		Expect(err).ToNot(HaveOccurred())
 
 		// Need to pass in a real path if we don't want scratch space needed error.
 		result, err := ds.Transfer(scratchPath, false)
@@ -66,14 +70,16 @@ var _ = Describe("Registry data source", func() {
 	)
 
 	It("TransferFile should not be called", func() {
-		ds = NewRegistryDataSource("", "", "", "", "", true)
+		ds, err = NewRegistryDataSource("", "", "", "", "", "", true)
+		Expect(err).ToNot(HaveOccurred())
 		result, err := ds.TransferFile("file", false)
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
 	})
 
 	It("GetTerminationMessage should contain labels collected from the image", func() {
-		ds = NewRegistryDataSource("", "", "", "", "", true)
+		ds, err = NewRegistryDataSource("", "", "", "", "", "", true)
+		Expect(err).ToNot(HaveOccurred())
 		ds.info = &types.ImageInspectInfo{
 			Env: []string{
 				"INSTANCETYPE_KUBEVIRT_IO_DEFAULT_INSTANCETYPE=u1.small",
@@ -89,7 +95,8 @@ var _ = Describe("Registry data source", func() {
 	})
 
 	It("Transfer should return error for bootc image", func() {
-		ds = NewRegistryDataSource("oci-archive:"+filepath.Join(imageDir, "bootc-registry-image.tar"), "", "", "", "", true)
+		ds, err = NewRegistryDataSource("oci-archive:"+filepath.Join(imageDir, "bootc-registry-image.tar"), "", "", "", "", "", true)
+		Expect(err).ToNot(HaveOccurred())
 		result, err := ds.Transfer(tmpDir, false)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("bootc image detected"))
@@ -171,7 +178,7 @@ var _ = Describe("Registry Importer", func() {
 	})
 
 	DescribeTable("Should extract a single file", func(source string) {
-		info, err := copyRegistryImage(source, tmpDir, "disk/cirros-0.3.4-x86_64-disk.img", "", "", "", "", false, false)
+		info, err := (&RegistryDataSource{endpoint: source}).copyImage(tmpDir, "disk/cirros-0.3.4-x86_64-disk.img", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(info).ToNot(BeNil())
 
@@ -182,7 +189,7 @@ var _ = Describe("Registry Importer", func() {
 		Entry("when one of the image layers is malformed", malformedSource),
 	)
 	It("Should return an error if a single file is not found", func() {
-		info, err := copyRegistryImage(source, tmpDir, "disk/invalid.img", "", "", "", "", false, false)
+		info, err := (&RegistryDataSource{endpoint: source}).copyImage(tmpDir, "disk/invalid.img", false)
 		Expect(err).To(HaveOccurred())
 		Expect(info).To(BeNil())
 
@@ -191,7 +198,7 @@ var _ = Describe("Registry Importer", func() {
 		Expect(err).To(HaveOccurred())
 	})
 	DescribeTable("Should correctly assert image architecture", func(source string, architecture string, wantErr bool) {
-		info, err := copyRegistryImage(source, tmpDir, "disk/", "", "", architecture, "", false, false)
+		info, err := (&RegistryDataSource{endpoint: source, imageArchitecture: architecture}).copyImage(tmpDir, "disk/", false)
 		if wantErr {
 			Expect(err).To(HaveOccurred())
 			Expect(info).To(BeNil())
@@ -207,15 +214,43 @@ var _ = Describe("Registry Importer", func() {
 	)
 
 	It("Should detect a bootc image and return ErrBootcImageDetected", func() {
-		info, err := copyRegistryImage(bootcSource, tmpDir, "disk/", "", "", "", "", false, false)
+		info, err := (&RegistryDataSource{endpoint: bootcSource}).copyImage(tmpDir, "disk/", false)
 		Expect(err).To(HaveOccurred())
 		Expect(err).To(MatchError(ErrBootcImageDetected))
 		Expect(info).To(BeNil())
 	})
 
 	It("Should not detect a non-bootc image as bootc", func() {
-		info, err := copyRegistryImage(source, tmpDir, "disk/cirros-0.3.4-x86_64-disk.img", "", "", "", "", false, false)
+		info, err := (&RegistryDataSource{endpoint: source}).copyImage(tmpDir, "disk/cirros-0.3.4-x86_64-disk.img", false)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(info).ToNot(BeNil())
 	})
+})
+
+var _ = Describe("Layer selector parsing", func() {
+	DescribeTable("should select no layer", func(matchAnnotationsJSON string) {
+		Expect(parseLayerSelector(matchAnnotationsJSON)).To(BeNil())
+	},
+		Entry("when the importer pod receives no annotations", ""),
+		Entry("when the annotations are empty", "{}"),
+		Entry("when the annotations are null", "null"),
+	)
+
+	It("should select the layer by every annotation", func() {
+		selector, err := parseLayerSelector(`{"org.example.disk.name":"rootdisk","org.example.disk.size":"10Gi"}`)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(selector).To(Equal(&cdiv1.LayerSelector{MatchAnnotations: map[string]string{
+			"org.example.disk.name": "rootdisk",
+			"org.example.disk.size": "10Gi",
+		}}))
+	})
+
+	DescribeTable("should refuse annotations that are not a string map", func(matchAnnotationsJSON string) {
+		_, err := parseLayerSelector(matchAnnotationsJSON)
+		Expect(err).To(MatchError(ContainSubstring("invalid layer match annotations")))
+	},
+		Entry("when the JSON is malformed", `{"org.example.disk.name":`),
+		Entry("when an annotation value is not a string", `{"org.example.disk.name":1}`),
+		Entry("when the annotations are a list", `["rootdisk"]`),
+	)
 })

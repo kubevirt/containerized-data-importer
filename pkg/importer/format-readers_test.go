@@ -177,7 +177,7 @@ var _ = Describe("Format Readers", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Validate checksum
-			err = fr.ValidateChecksum()
+			err = fr.ValidateStream()
 			if wantValidationErr {
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("checksum mismatch"))
@@ -202,15 +202,14 @@ var _ = Describe("Format Readers", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// Verify checksum validator is in the reader stack
-			Expect(fr.checksumValidator).NotTo(BeNil())
-			Expect(fr.checksumValidator.Algorithm()).To(Equal("sha256"))
+			Expect(fr.streamValidator).To(BeIdenticalTo(validator))
 
 			// Read all data
 			_, err = io.Copy(io.Discard, fr.TopReader())
 			Expect(err).NotTo(HaveOccurred())
 
 			// Validate checksum should succeed
-			err = fr.ValidateChecksum()
+			err = fr.ValidateStream()
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -232,7 +231,7 @@ var _ = Describe("Format Readers", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Validate checksum should fail
-			err = fr.ValidateChecksum()
+			err = fr.ValidateStream()
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("checksum mismatch"))
 		})
@@ -260,7 +259,7 @@ var _ = Describe("Format Readers", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Validate checksum should succeed (validates the compressed data)
-			err = fr.ValidateChecksum()
+			err = fr.ValidateStream()
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -287,7 +286,7 @@ var _ = Describe("Format Readers", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Validate checksum should succeed
-			err = fr.ValidateChecksum()
+			err = fr.ValidateStream()
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -298,14 +297,14 @@ var _ = Describe("Format Readers", func() {
 
 			fr, err = NewFormatReaders(f, uint64(0), nil)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(fr.checksumValidator).To(BeNil())
+			Expect(fr.streamValidator).To(BeNil())
 
 			// Read all data
 			_, err = io.Copy(io.Discard, fr.TopReader())
 			Expect(err).NotTo(HaveOccurred())
 
 			// Validate checksum should not error when validator is nil
-			err = fr.ValidateChecksum()
+			err = fr.ValidateStream()
 			Expect(err).NotTo(HaveOccurred())
 		})
 	})
