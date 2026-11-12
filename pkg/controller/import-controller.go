@@ -461,7 +461,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 	}
 
 	for _, ev := range pod.Spec.Containers[0].Env {
-		if ev.Name == common.CacheMode && ev.Value == common.CacheModeTryNone {
+		if ev.Name == common.CacheMode && ev.Value == common.CacheModeTryNone && pod.Status.Phase == corev1.PodSucceeded && !podModificationsNeeded {
 			anno[cc.AnnRequiresDirectIO] = "false"
 		}
 	}
@@ -511,7 +511,7 @@ func (r *ImportReconciler) updatePvcFromPod(pvc *corev1.PersistentVolumeClaim, p
 			r.recorder.Event(pvc, corev1.EventTypeNormal, ImportSucceededPVC, "Import Successful")
 			log.V(1).Info("Import completed successfully")
 		}
-		if cc.ShouldDeletePod(pvc) {
+		if !isTryNoneInProgress(pod) && cc.ShouldDeletePod(pvc) {
 			log.V(1).Info("Deleting pod", "pod.Name", pod.Name)
 			if err := r.cleanup(pvc, pod, log); err != nil {
 				return err
@@ -1562,6 +1562,21 @@ func makeImportEnv(podEnvVar *importPodEnvVar, uid types.UID) []corev1.EnvVar {
 		})
 	}
 	return env
+}
+
+// isTryNoneInProgress reports whether the import pod runs with cache=trynone and has not finished yet.
+// Such a pod is still working towards the import, so it must not be deleted, and the requiresDirectIo
+// annotation must be kept until it completes.
+func isTryNoneInProgress(pod *corev1.Pod) bool {
+	if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+		return false
+	}
+	for _, ev := range pod.Spec.Containers[0].Env {
+		if ev.Name == common.CacheMode && ev.Value == common.CacheModeTryNone {
+			return true
+		}
+	}
+	return false
 }
 
 func isOOMKilled(status v1.ContainerStatus) bool {
