@@ -58,6 +58,43 @@ echo "export BUILDER_IMAGE=$BUILDER_MANIFEST"
 
 #Build the encapsulated compile and test container
 if [ "${CDI_CONTAINER_BUILDCMD}" = "buildah" ]; then
+    case "${HOST_ARCHITECTURE}" in
+        x86_64) host_platform=linux/amd64 ;;
+        aarch64|arm64) host_platform=linux/arm64 ;;
+        *) host_platform=linux/${HOST_ARCHITECTURE} ;;
+    esac
+    needs_emulation=0
+    IFS=, read -r -a platforms <<< "${BUILDAH_PLATFORM_FLAG#--platform }"
+    for platform in "${platforms[@]}"; do
+        [[ "${platform}" = "${host_platform}" ]] || needs_emulation=1
+    done
+
+    if [[ "${needs_emulation}" = "1" ]]; then
+        # Set up QEMU for foreign architectures using KubeVirt's registration command.
+        # This replaces all visible qemu-* handlers.
+        QEMU_STATIC_IMAGE="quay.io/linuxserver.io/qemu-static"
+        if [[ -z "${CDI_CRI}" ]]; then
+            echo "ERROR: no container runtime available to register QEMU interpreters" >&2
+            exit 1
+        fi
+        qemu_rc=0
+        "${CDI_CRI}" run --rm --privileged "${QEMU_STATIC_IMAGE}" --reset -p yes || qemu_rc=$?
+        if [[ "${qemu_rc}" -ne 0 ]]; then
+            echo "ERROR: QEMU registration failed (exit ${qemu_rc}); qemu-* handlers may be partially modified" >&2
+            exit "${qemu_rc}"
+        fi
+        if [[ ! -f /proc/sys/fs/binfmt_misc/register ]]; then
+            mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc \
+                || echo "WARNING: unable to mount binfmt_misc; cannot show the registered handlers" >&2
+        fi
+        for handler in /proc/sys/fs/binfmt_misc/qemu-s390x /proc/sys/fs/binfmt_misc/qemu-aarch64; do
+            if [[ -f "${handler}" ]]; then
+                echo "binfmt registration after QEMU setup: ${handler}"
+                cat "${handler}" || true
+            fi
+        done
+    fi
+
     (cd ${BUILDER_SPEC} && buildah build ${BUILDAH_PLATFORM_FLAG} --build-arg ARCH=${ARCH} --manifest ${BUILDER_MANIFEST} .)
     buildah manifest push --all ${BUILDER_MANIFEST} docker://${BUILDER_MANIFEST}
     DIGEST=$(podman inspect $(podman images | grep ${UNTAGGED_BUILDER_IMAGE} | grep ${BUILDER_TAG} | awk '{ print $3 }') | jq '.[]["Digest"]')

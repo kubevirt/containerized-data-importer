@@ -1,3 +1,5 @@
+# hack/build/bazel-build-builder.sh registers QEMU interpreters when building
+# for architectures other than the host architecture.
 FROM quay.io/centos/centos:stream10
 LABEL maintainer="The KubeVirt Project <kubevirt-dev@googlegroups.com>"
 
@@ -51,13 +53,19 @@ ENV GIMME_GO_VERSION=1.26.8 GOPATH="/go" GO111MODULE="on"
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
 
-RUN \
+# Limit Go parallelism on arm64/s390x to mitigate hangs under QEMU.
+# See https://github.com/kubevirt/project-infra/pull/4654.
+RUN set -x; \
 	source /etc/profile.d/gimme.sh && \
+	case "$(uname -m)" in \
+		aarch64|s390x) export GOMAXPROCS=3 ;; \
+		*) ;; \
+	esac && \
 	eval $(go env) && \
-	go install mvdan.cc/sh/cmd/shfmt@latest && \
-	go install github.com/mattn/goveralls@latest && \
-	go install github.com/rmohr/go-swagger-utils/swagger-doc@latest && \
-	go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.2 && \
+	go install -v mvdan.cc/sh/cmd/shfmt@latest && \
+	go install -v github.com/mattn/goveralls@latest && \
+	go install -v github.com/rmohr/go-swagger-utils/swagger-doc@latest && \
+	go install -v sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.2 && \
 	rm -rf "${GOPATH}/pkg"
 
 ENV BAZEL_VERSION=6.5.0
