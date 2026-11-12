@@ -8,7 +8,6 @@ go_library(
     deps = [
         "//pkg/util:go_default_library",
         "//vendor/github.com/prometheus/client_golang/prometheus/promhttp:go_default_library",
-        "//vendor/k8s.io/client-go/util/cert:go_default_library",
         "//vendor/k8s.io/klog/v2:go_default_library",
     ],
 )

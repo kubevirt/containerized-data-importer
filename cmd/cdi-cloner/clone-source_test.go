@@ -23,7 +23,7 @@ var _ = Describe("Prometheus Endpoint", func() {
 		Expect(os.WriteFile(path.Join(certsDirectory, "tls.crt"), certBytes, 0600)).To(Succeed())
 		Expect(os.WriteFile(path.Join(certsDirectory, "tls.key"), keyBytes, 0600)).To(Succeed())
 
-		Expect(prometheusutil.StartPrometheusEndpointNoCertGeneration(certsDirectory)).To(Succeed())
+		Expect(prometheusutil.StartPrometheusEndpoint(certsDirectory)).To(Succeed())
 	})
 
 	It("Should fail if certs are missing", func() {
@@ -31,7 +31,7 @@ var _ = Describe("Prometheus Endpoint", func() {
 		Expect(err).NotTo(HaveOccurred())
 		defer os.RemoveAll(certsDirectory)
 
-		err = prometheusutil.StartPrometheusEndpointNoCertGeneration(certsDirectory)
+		err = prometheusutil.StartPrometheusEndpoint(certsDirectory)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("cert file"))
 		Expect(err.Error()).To(ContainSubstring("does not exist"))

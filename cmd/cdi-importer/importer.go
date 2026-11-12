@@ -99,7 +99,7 @@ func touchDoneFile() {
 func main() {
 	defer klog.Flush()
 
-	if err := prometheusutil.StartPrometheusEndpointNoCertGeneration(common.PrometheusCertDir); err != nil {
+	if err := prometheusutil.StartPrometheusEndpoint(common.PrometheusCertDir); err != nil {
 		klog.Warningf("Failed to start prometheus endpoint: %v", err)
 	}
 	klog.V(1).Infoln("Starting importer")

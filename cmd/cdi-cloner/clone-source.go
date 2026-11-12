@@ -91,7 +91,7 @@ func createHTTPClient(clientKey, clientCert, serverCert []byte) *http.Client {
 }
 
 func startPrometheus() {
-	if err := prometheusutil.StartPrometheusEndpointNoCertGeneration(common.PrometheusCertDir); err != nil {
+	if err := prometheusutil.StartPrometheusEndpoint(common.PrometheusCertDir); err != nil {
 		klog.Warningf("Failed to start prometheus endpoint: %v", err)
 	}
 }
