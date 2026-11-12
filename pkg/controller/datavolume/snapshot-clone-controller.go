@@ -188,7 +188,6 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 	}
 
 	pvc := syncRes.pvc
-	pvcSpec := syncRes.pvcSpec
 	datavolume := syncRes.dvMutated
 
 	staticProvisionPending := checkStaticProvisionPending(pvc, datavolume)
@@ -237,7 +236,7 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 			}
 		}
 
-		targetPvc, err := r.createPvcForDatavolume(datavolume, pvcSpec, pvcModifier)
+		targetPvc, err := r.createPvcForDatavolume(datavolume, syncRes.renderedPVC, pvcModifier)
 		if err != nil {
 			if cc.ErrQuotaExceeded(err) {
 				syncErr = r.syncDataVolumeStatusPhaseWithEvent(&syncRes, cdiv1.Pending, nil,
@@ -279,7 +278,7 @@ func (r *SnapshotCloneReconciler) syncSnapshotClone(log logr.Logger, req reconci
 }
 
 func (r *SnapshotCloneReconciler) detectCloneSize(log logr.Logger, syncState *dvSyncState) error {
-	pvcSpec := syncState.pvcSpec
+	pvcSpec := &syncState.renderedPVC.Spec
 	requestedSize := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 	if !requestedSize.IsZero() {
 		log.V(3).Info("requested size is set, skipping size detection", "size", requestedSize)
@@ -319,7 +318,7 @@ func (r *SnapshotCloneReconciler) detectCloneSize(log logr.Logger, syncState *dv
 
 func (r *SnapshotCloneReconciler) initLegacyClone(syncState *dvSyncState) error {
 	datavolume := syncState.dvMutated
-	pvcSpec := syncState.pvcSpec
+	pvcSpec := &syncState.renderedPVC.Spec
 	nn := types.NamespacedName{Namespace: datavolume.Spec.Source.Snapshot.Namespace, Name: datavolume.Spec.Source.Snapshot.Name}
 	snapshot := &snapshotv1.VolumeSnapshot{}
 	if err := r.client.Get(context.TODO(), nn, snapshot); err != nil {

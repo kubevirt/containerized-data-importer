@@ -276,7 +276,6 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 	}
 
 	pvc := syncRes.pvc
-	pvcSpec := syncRes.pvcSpec
 	datavolume := syncRes.dvMutated
 	staticProvisionPending := checkStaticProvisionPending(pvc, datavolume)
 	prePopulated := dvIsPrePopulated(datavolume)
@@ -336,7 +335,7 @@ func (r *PvcCloneReconciler) syncClone(log logr.Logger, req reconcile.Request) (
 			pvcModifier = r.updatePVCForPopulation
 		}
 
-		newPvc, err := r.createPvcForDatavolume(datavolume, pvcSpec, pvcModifier)
+		newPvc, err := r.createPvcForDatavolume(datavolume, syncRes.renderedPVC, pvcModifier)
 		if err != nil {
 			if cc.ErrQuotaExceeded(err) {
 				syncErr = r.syncDataVolumeStatusPhaseWithEvent(&syncRes, cdiv1.Pending, nil,
@@ -538,9 +537,10 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState) (bool, erro
 	// because of filesystem overhead calculations when cloning
 	// even if storage size is requested we have to calculate source size
 	// when source is filesystem and target is block
-	requestedSize, hasSize := syncState.pvcSpec.Resources.Requests[corev1.ResourceStorage]
+	pvcSpec := &syncState.renderedPVC.Spec
+	requestedSize, hasSize := pvcSpec.Resources.Requests[corev1.ResourceStorage]
 	sizeRequired := !hasSize || requestedSize.IsZero()
-	targetIsBlock := syncState.pvcSpec.VolumeMode != nil && *syncState.pvcSpec.VolumeMode == corev1.PersistentVolumeBlock
+	targetIsBlock := pvcSpec.VolumeMode != nil && *pvcSpec.VolumeMode == corev1.PersistentVolumeBlock
 	sourceIsFilesystem := cc.GetVolumeMode(sourcePvc) == corev1.PersistentVolumeFilesystem
 	// have to be explicit here or detection pod will crash
 	sourceIsKubevirt := sourcePvc.Annotations[cc.AnnContentType] == string(cdiv1.DataVolumeKubeVirt)
@@ -591,15 +591,15 @@ func (r *PvcCloneReconciler) detectCloneSize(syncState *dvSyncState) (bool, erro
 	}
 
 	// Parse size into a 'Quantity' struct and, if needed, inflate it with filesystem overhead
-	targetCapacity, err := cc.InflateSizeWithOverhead(context.TODO(), r.client, targetSize, syncState.pvcSpec)
+	targetCapacity, err := cc.InflateSizeWithOverhead(context.TODO(), r.client, targetSize, pvcSpec)
 	if err != nil {
 		return false, err
 	}
 
-	if syncState.pvcSpec.Resources.Requests == nil {
-		syncState.pvcSpec.Resources.Requests = corev1.ResourceList{}
+	if pvcSpec.Resources.Requests == nil {
+		pvcSpec.Resources.Requests = corev1.ResourceList{}
 	}
-	syncState.pvcSpec.Resources.Requests[corev1.ResourceStorage] = targetCapacity
+	pvcSpec.Resources.Requests[corev1.ResourceStorage] = targetCapacity
 
 	return true, nil
 }
