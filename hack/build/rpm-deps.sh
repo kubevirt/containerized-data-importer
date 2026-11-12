@@ -7,7 +7,7 @@ source hack/build/config.sh
 
 # Freezing nginx to avoid segfaults when pulling images with tls
 # May get fixed with 1.25
-NGINX_VERSION="1:1.22.1-4.module_el9+666+132dc76f"
+#NGINX_VERSION="1:1.22.1-4.module_el9+666+132dc76f"
 
 bazeldnf_repos="--repofile repo.yaml"
 if [ "${CUSTOM_REPO}" ]; then
@@ -77,7 +77,7 @@ qemu-img
 testimage="
 crypto-policies-scripts
 qemu-img
-nginx-${NGINX_VERSION}
+nginx
 python3-systemd
 systemd-libs
 openssl
@@ -235,4 +235,56 @@ bazel run \
 # remove all RPMs which are no longer referenced by a rpmtree
 bazel run \
     --config=s390x \
+    //:bazeldnf -- prune
+
+# ppc64le #####
+# XXX: passing --nobest otherwise we fail to solve the dependencies
+bazel run \
+    --config=ppc64le \
+    //:bazeldnf -- rpmtree \
+    --public \
+    --name testimage_ppc64le --arch ppc64le \
+    --nobest \
+    --basesystem centos-stream-release \
+    ${bazeldnf_repos} \
+    $centos_base \
+    $centos_extra \
+    $testimage
+
+bazel run \
+    --config=ppc64le \
+    //:bazeldnf -- rpmtree \
+    --public --nobest \
+    --name centos_base_ppc64le --arch ppc64le \
+    --basesystem centos-stream-release \
+    ${bazeldnf_repos} \
+    $centos_base \
+    $centos_extra
+
+bazel run \
+    --config=ppc64le \
+    //:bazeldnf -- rpmtree \
+    --public --nobest \
+    --name cdi_importer_base_ppc64le --arch ppc64le \
+    --basesystem centos-stream-release \
+    ${bazeldnf_repos} \
+    $centos_base \
+    $centos_extra \
+    $cdi_importer \
+    $cdi_importer_extra_ppc64le
+
+bazel run \
+    --config=ppc64le \
+    //:bazeldnf -- rpmtree \
+    --public --nobest \
+    --name cdi_uploadserver_base_ppc64le --arch ppc64le \
+    --basesystem centos-stream-release \
+    ${bazeldnf_repos} \
+    $centos_base \
+    $centos_extra \
+    $cdi_uploadserver
+
+# remove all RPMs which are no longer referenced by a rpmtree
+bazel run \
+    --config=ppc64le \
     //:bazeldnf -- prune
