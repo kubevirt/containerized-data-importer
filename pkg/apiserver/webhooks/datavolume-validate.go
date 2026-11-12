@@ -207,6 +207,11 @@ func (wh *dataVolumeValidatingWebhook) validateDataVolumeSpec(request *admission
 			return causes
 		}
 	}
+	if upload := spec.Source.Upload; upload != nil {
+		if causes := validateUploadSource(upload, field); causes != nil {
+			return causes
+		}
+	}
 
 	// Validate clone sources
 	if spec.Source.PVC != nil {

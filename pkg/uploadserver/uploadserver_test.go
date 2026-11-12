@@ -118,11 +118,11 @@ func newHTTPClient(clientKeyPair *triple.KeyPair, serverCACert *x509.Certificate
 	return client
 }
 
-func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string, dvContentType cdiv1.DataVolumeContentType) (bool, error) {
+func saveProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string, dvContentType cdiv1.DataVolumeContentType, expectedChecksum string) (bool, error) {
 	return false, nil
 }
 
-func saveProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string, dvContentType cdiv1.DataVolumeContentType) (bool, error) {
+func saveProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string, dvContentType cdiv1.DataVolumeContentType, expectedChecksum string) (bool, error) {
 	return false, fmt.Errorf("Error using datastream")
 }
 
@@ -134,7 +134,7 @@ func withProcessorFailure(f func()) {
 	replaceProcessorFunc(saveProcessorFailure, f)
 }
 
-func replaceProcessorFunc(replacement func(io.ReadCloser, string, string, float64, bool, string, cdiv1.DataVolumeContentType) (bool, error), f func()) {
+func replaceProcessorFunc(replacement func(io.ReadCloser, string, string, float64, bool, string, cdiv1.DataVolumeContentType, string) (bool, error), f func()) {
 	origProcessorFunc := uploadProcessorFunc
 	uploadProcessorFunc = replacement
 	defer func() {
@@ -186,11 +186,11 @@ func (amd *AsyncMockDataSource) GetResumePhase() importer.ProcessingPhase {
 	return importer.ProcessingPhaseComplete
 }
 
-func saveAsyncProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (*importer.DataProcessor, error) {
+func saveAsyncProcessorSuccess(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string, expectedChecksum string) (*importer.DataProcessor, error) {
 	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", "", 0.06, false, ""), nil
 }
 
-func saveAsyncProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string) (*importer.DataProcessor, error) {
+func saveAsyncProcessorFailure(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, contentType string, expectedChecksum string) (*importer.DataProcessor, error) {
 	return importer.NewDataProcessor(&AsyncMockDataSource{}, "", "", "", "", 0.06, false, ""), fmt.Errorf("Error using datastream")
 }
 
@@ -202,7 +202,7 @@ func withAsyncProcessorFailure(f func()) {
 	replaceAsyncProcessorFunc(saveAsyncProcessorFailure, f)
 }
 
-func replaceAsyncProcessorFunc(replacement func(io.ReadCloser, string, string, float64, bool, string) (*importer.DataProcessor, error), f func()) {
+func replaceAsyncProcessorFunc(replacement func(io.ReadCloser, string, string, float64, bool, string, string) (*importer.DataProcessor, error), f func()) {
 	origProcessorFuncAsync := uploadProcessorFuncAsync
 	uploadProcessorFuncAsync = replacement
 	defer func() {

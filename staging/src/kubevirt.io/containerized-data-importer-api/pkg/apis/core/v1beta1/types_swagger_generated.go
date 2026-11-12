@@ -85,7 +85,8 @@ func (DataVolumeBlankImage) SwaggerDoc() map[string]string {
 
 func (DataVolumeSourceUpload) SwaggerDoc() map[string]string {
 	return map[string]string{
-		"": "DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source",
+		"":         "DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source",
+		"checksum": "Checksum is the expected checksum of the file. Format: \"algorithm:hash\", e.g., \"sha256:1234abcd...\" or \"md5:5678efgh...\"\nSupported algorithms: md5, sha1, sha256, sha512\nIf specified, the upload server will verify the uploaded content matches this checksum\n+optional",
 	}
 }
 
@@ -392,6 +393,7 @@ func (VolumeUploadSourceSpec) SwaggerDoc() map[string]string {
 		"":              "VolumeUploadSourceSpec defines specification for VolumeUploadSource",
 		"contentType":   "ContentType represents the type of the upload data (Kubevirt or archive)",
 		"preallocation": "Preallocation controls whether storage for the target PVC should be allocated in advance.",
+		"checksum":      "Checksum is the expected checksum of the file. Format: \"algorithm:hash\", e.g., \"sha256:1234abcd...\" or \"md5:5678efgh...\"\nSupported algorithms: md5, sha1, sha256, sha512\nIf specified, the upload server will verify the uploaded content matches this checksum\n+optional",
 	}
 }
 

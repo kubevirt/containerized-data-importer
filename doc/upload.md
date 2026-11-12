@@ -75,7 +75,8 @@ metadata:
   name: upload-datavolume
 spec:
   source:
-      upload: {}
+      upload:
+        checksum: "" # Optional, e.g. "sha256:1234abcd..."
   storage:
     resources:
       requests:
