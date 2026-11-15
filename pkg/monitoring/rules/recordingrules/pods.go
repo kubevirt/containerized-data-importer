@@ -26,48 +26,59 @@ var podsRecordingRules = []operatorrules.RecordingRule{
 	gaugeRule(
 		"kubevirt_cdi_import_pods_high_restart",
 		"[Deprecated] The number of CDI import pods with high restart count",
-		"count("+importPodsHighRestart+") or on() vector(0)",
+		clusterCountExpr(importPodsHighRestart),
 	),
 	gaugeRule(
 		"cluster:kubevirt_cdi_import_pods_high_restart:count",
 		"[Deprecated] The number of CDI import pods with high restart count",
-		"count("+importPodsHighRestart+") or on() vector(0)",
+		clusterCountExpr(importPodsHighRestart),
 	),
 	gaugeRule(
 		"kubevirt_cdi_upload_pods_high_restart",
 		"[Deprecated] The number of CDI upload server pods with high restart count",
-		"count("+uploadPodsHighRestart+") or on() vector(0)",
+		clusterCountExpr(uploadPodsHighRestart),
 	),
 	gaugeRule(
 		"cluster:kubevirt_cdi_upload_pods_high_restart:count",
 		"[Deprecated] The number of CDI upload server pods with high restart count",
-		"count("+uploadPodsHighRestart+") or on() vector(0)",
+		clusterCountExpr(uploadPodsHighRestart),
 	),
 	gaugeRule(
 		"kubevirt_cdi_clone_pods_high_restart",
 		"[Deprecated] The number of CDI clone pods with high restart count",
-		"count("+clonePodsHighRestart+") or on() vector(0)",
+		clusterCountExpr(clonePodsHighRestart),
 	),
 	gaugeRule(
 		"cluster:kubevirt_cdi_clone_pods_high_restart:count",
 		"[Deprecated] The number of CDI clone pods with high restart count",
-		"count("+clonePodsHighRestart+") or on() vector(0)",
+		clusterCountExpr(clonePodsHighRestart),
 	),
 	gaugeRule(
 		"namespace:kubevirt_cdi_import_pods_high_restart:count",
 		"The number of CDI import pods with high restart count, per namespace",
-		"count by (namespace) ("+importPodsHighRestart+")",
+		namespaceCountExpr(importPodsHighRestart),
 	),
 	gaugeRule(
 		"namespace:kubevirt_cdi_upload_pods_high_restart:count",
 		"The number of CDI upload server pods with high restart count, per namespace",
-		"count by (namespace) ("+uploadPodsHighRestart+")",
+		namespaceCountExpr(uploadPodsHighRestart),
 	),
 	gaugeRule(
 		"namespace:kubevirt_cdi_clone_pods_high_restart:count",
 		"The number of CDI clone pods with high restart count, per namespace",
-		"count by (namespace) ("+clonePodsHighRestart+")",
+		namespaceCountExpr(clonePodsHighRestart),
 	),
+}
+
+// clusterCountExpr counts the series the selector matches across the cluster,
+// and gives 0 instead of no data when nothing matches.
+func clusterCountExpr(selector string) string {
+	return "count(" + selector + ") or on() vector(0)"
+}
+
+// namespaceCountExpr counts the series the selector matches in each namespace.
+func namespaceCountExpr(selector string) string {
+	return "count by (namespace) (" + selector + ")"
 }
 
 // gaugeRule returns a gauge recording rule.
