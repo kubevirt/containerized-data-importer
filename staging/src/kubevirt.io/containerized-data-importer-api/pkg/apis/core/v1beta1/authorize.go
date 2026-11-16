@@ -40,6 +40,9 @@ var ErrNoTokenOkay = errors.New("proceeding without token is okay under the circ
 
 // AuthorizeUser indicates if the creating user is authorized to create the data volume
 // For sources other than clone (import/upload/etc), this is a no-op
+// It is intended for admission, with userInfo identifying the actual requester.
+// ErrNoTokenOkay allows admission without issuing a clone token; it does not
+// authorize a controller to create the DataVolume under a different identity.
 func (dv *DataVolume) AuthorizeUser(requestNamespace, requestName string, proxy AuthorizationHelperProxy, userInfo authentication.UserInfo) (CloneAuthResponse, error) {
 	_, prePopulated := dv.Annotations[AnnPrePopulated]
 	_, checkStaticVolume := dv.Annotations[AnnCheckStaticVolume]
@@ -102,8 +105,12 @@ func (dv *DataVolume) AuthorizeUser(requestNamespace, requestName string, proxy 
 // For sources other than clone (import/upload/etc), this is a no-op
 func (dv *DataVolume) AuthorizeSA(requestNamespace, requestName string, proxy AuthorizationHelperProxy, saNamespace, saName string) (CloneAuthResponse, error) {
 	_, prePopulated := dv.Annotations[AnnPrePopulated]
-	_, checkStaticVolume := dv.Annotations[AnnCheckStaticVolume]
-	noTokenOkay := prePopulated || checkStaticVolume
+	// AuthorizeUser can honor AnnCheckStaticVolume by allowing the DataVolume
+	// without issuing a clone token. AuthorizeSA cannot: a controller may then
+	// create the DataVolume under its own identity and obtain a clone token.
+	// Since a static volume check can still result in a clone, the service
+	// account must be authorized to clone the source.
+	noTokenOkay := prePopulated
 
 	targetNamespace, targetName := dv.Namespace, dv.Name
 	if targetNamespace == "" {
@@ -120,7 +127,7 @@ func (dv *DataVolume) AuthorizeSA(requestNamespace, requestName string, proxy Au
 	if err != nil {
 		if k8serrors.IsNotFound(err) && noTokenOkay {
 			// no token needed, likely since no datasource
-			klog.V(3).Infof("DataVolume %s/%s is pre/static populated, not adding token, no datasource", targetNamespace, targetName)
+			klog.V(3).Infof("DataVolume %s/%s is pre populated, not adding token, no datasource", targetNamespace, targetName)
 			return CloneAuthResponse{Allowed: true, Reason: "", Handler: cloneSourceHandler}, ErrNoTokenOkay
 		}
 		return CloneAuthResponse{Allowed: false, Reason: "", Handler: cloneSourceHandler}, err
@@ -140,7 +147,7 @@ func (dv *DataVolume) AuthorizeSA(requestNamespace, requestName string, proxy Au
 	if err != nil {
 		if k8serrors.IsNotFound(err) && noTokenOkay {
 			// no token needed, likely since no source namespace
-			klog.V(3).Infof("DataVolume %s/%s is pre/static populated, not adding token, no source namespace", targetNamespace, targetName)
+			klog.V(3).Infof("DataVolume %s/%s is pre populated, not adding token, no source namespace", targetNamespace, targetName)
 			return CloneAuthResponse{Allowed: true, Reason: "", Handler: cloneSourceHandler}, ErrNoTokenOkay
 		}
 		return CloneAuthResponse{Allowed: false, Reason: "", Handler: cloneSourceHandler}, err
@@ -153,7 +160,7 @@ func (dv *DataVolume) AuthorizeSA(requestNamespace, requestName string, proxy Au
 
 	if !ok {
 		if noTokenOkay {
-			klog.V(3).Infof("DataVolume %s/%s is pre/static populated, not adding token, auth failed", targetNamespace, targetName)
+			klog.V(3).Infof("DataVolume %s/%s is pre populated, not adding token, auth failed", targetNamespace, targetName)
 			return CloneAuthResponse{Allowed: true, Reason: "", Handler: cloneSourceHandler}, ErrNoTokenOkay
 		}
 	}
