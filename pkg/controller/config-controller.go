@@ -231,7 +231,7 @@ func (r *CDIConfigReconciler) reconcileUploadProxyIngressCA(config *cdiv1.CDICon
 		return nil
 	}
 
-	log.Info("Setting upload proxy CA", "UploadProxyCA", s)
+	log.Info("Setting upload proxy CA")
 	config.Status.UploadProxyCA = &s
 	return nil
 }
@@ -274,7 +274,7 @@ func (r *CDIConfigReconciler) reconcileUploadProxyRouteCA(config *cdiv1.CDIConfi
 		return nil
 	}
 
-	log.Info("Setting upload proxy CA", "UploadProxyCA", s)
+	log.Info("Setting upload proxy CA")
 	config.Status.UploadProxyCA = &s
 	return nil
 }
