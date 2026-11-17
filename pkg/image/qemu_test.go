@@ -320,6 +320,19 @@ var _ = Describe("Report Progress", func() {
 		Expect(progress).To(Equal(45.34))
 	})
 
+	It("Parse final 100% progress line", func() {
+		By("Verifying the initial value is 0")
+		progressMetric.Add(0)
+		progress, err := progressMetric.Get()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(progress).To(Equal(float64(0)))
+		By("Calling reportProgress with the final line emitted by qemu-img")
+		reportProgress("(100.00/100%)")
+		progress, err = progressMetric.Get()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(progress).To(Equal(100.00))
+	})
+
 	It("Parse invalid progress line", func() {
 		By("Verifying the initial value is 0")
 		progressMetric.Add(0)
