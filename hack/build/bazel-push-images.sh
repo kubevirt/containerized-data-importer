@@ -58,7 +58,7 @@ for target in ${PUSH_TARGETS[@]}; do
     echo "Pushing: $target"
     bazel run \
         --verbose_failures \
-        --config=${ARCHITECTURE} \
+        --config=${ARCHITECTURE} ${BAZEL_CS_CONFIG} \
         --define container_prefix=${DOCKER_PREFIX} \
         --define container_tag=${DOCKER_TAG} \
         --define push_target=${target} \

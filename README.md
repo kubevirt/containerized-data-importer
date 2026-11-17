@@ -117,5 +117,6 @@ Shoot us an email at: kubevirt-dev@googlegroups.com
 ## More details
 
 1. [Hacking details](hack/README.md#getting-started-for-developers)
+1. [CentOS Stream build selection](doc/centos-stream.md)
 1. [Design docs](/doc/design.md#design)
 1. [Kubevirt documentation](https://kubevirt.io)

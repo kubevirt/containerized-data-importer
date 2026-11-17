@@ -54,13 +54,13 @@ oci_image(
     os = "linux",
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": [
-            "//rpm:cdi_uploadserver_base_s390x",
+            "//bazel/centos_stream:cdi_uploadserver_base_s390x",
         ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "//rpm:cdi_uploadserver_base_aarch64",
+            "//bazel/centos_stream:cdi_uploadserver_base_aarch64",
         ],
         "//conditions:default": [
-            "//rpm:cdi_uploadserver_base_x86_64",
+            "//bazel/centos_stream:cdi_uploadserver_base_x86_64",
         ],
     }),
     visibility = ["//visibility:private"],

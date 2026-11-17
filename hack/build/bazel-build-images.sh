@@ -27,7 +27,7 @@ docker_tag=$DOCKER_TAG
 for tag in ${docker_tag}; do
     bazel build \
         --verbose_failures \
-        --config=${ARCHITECTURE} \
+        --config=${ARCHITECTURE} ${BAZEL_CS_CONFIG} \
         --define container_prefix=${docker_prefix} \
         --define container_tag=${tag} \
         --host_force_python=PY3 \
