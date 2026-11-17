@@ -54,6 +54,9 @@ if [ ! -d "cluster-up/cluster/$KUBEVIRT_PROVIDER" ]; then
   exit 1
 fi
 
+detect_centos_stream_version
+echo "CentOS Stream user space for CDI images: ${CDI_CENTOS_STREAM_VERSION} (provider: ${KUBEVIRT_PROVIDER})"
+
 if [[ -n "$MULTI_UPGRADE" ]]; then
   export UPGRADE_FROM="v1.35.0 v1.37.0 v1.40.0 v1.49.0"
 fi

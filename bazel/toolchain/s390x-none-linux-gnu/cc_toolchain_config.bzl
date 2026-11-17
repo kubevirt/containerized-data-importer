@@ -27,6 +27,10 @@ all_compile_actions = [
 ]
 
 def _impl(ctx):
+    # The gcc major version and the sysroot id change with the CentOS Stream version
+    # (defaults: CentOS Stream 9, gcc 12).
+    gcc_include = "/usr/lib/gcc/s390x-linux-gnu/" + ctx.attr.gcc_major + "/include"
+    gcc_include_fixed = "/usr/lib/gcc/s390x-linux-gnu/" + ctx.attr.gcc_major + "/include-fixed"
     tool_paths = [
         tool_path(
             name = "ar",
@@ -62,7 +66,7 @@ def _impl(ctx):
         ),
     ]
 
-    # Update the value of __TOOLCHAIN_SYSROOT__ every time the list
+    # Update the value of __TOOLCHAIN_SYSROOT__ (the sysroot_id attribute) every time the list
     # of cxx_builtin_include_directories has been modified.
     #
     # This is needed to make bazel realize that the updated toolchain
@@ -84,11 +88,11 @@ def _impl(ctx):
                             "-D__DATE__=\"redacted\"",
                             "-D__TIMESTAMP__=\"redacted\"",
                             "-D__TIME__=\"redacted\"",
-                            "-D__TOOLCHAIN_SYSROOT__=\"centos-stream-9\"",
+                            "-D__TOOLCHAIN_SYSROOT__=\"" + ctx.attr.sysroot_id + "\"",
                             "-nostdinc",
                             "-I/usr/s390x-linux-gnu/sys-root/usr/include",
-                            "-I/usr/lib/gcc/s390x-linux-gnu/12/include",
-                            "-I/usr/lib/gcc/s390x-linux-gnu/12/include-fixed",
+                            "-I" + gcc_include,
+                            "-I" + gcc_include_fixed,
                         ],
                     ),
                 ],
@@ -122,11 +126,11 @@ def _impl(ctx):
         ctx = ctx,
         cxx_builtin_include_directories = [
             "/usr/s390x-linux-gnu/sys-root/usr/include",
-            "/usr/lib/gcc/s390x-linux-gnu/12/include",
-            "/usr/lib/gcc/s390x-linux-gnu/12/include-fixed",
+            gcc_include,
+            gcc_include_fixed,
         ],
         features = features,
-        toolchain_identifier = "s390x-toolchain",
+        toolchain_identifier = ctx.attr.identifier,
         host_system_name = "local",
         target_system_name = "unknown",
         target_cpu = "unknown",
@@ -139,6 +143,10 @@ def _impl(ctx):
 
 cc_toolchain_config = rule(
     implementation = _impl,
-    attrs = {},
+    attrs = {
+        "gcc_major": attr.string(default = "12"),
+        "identifier": attr.string(default = "s390x-toolchain"),
+        "sysroot_id": attr.string(default = "centos-stream-9"),
+    },
     provides = [CcToolchainConfigInfo],
 )

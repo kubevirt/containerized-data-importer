@@ -24,6 +24,11 @@ mkdir -p "${CDI_DIR}/_out"
 BUILDER_SPEC="${BUILD_DIR}/docker/builder"
 BUILDER_VOLUME="kubevirt-cdi-volume"
 BAZEL_BUILDER_SERVER="${BUILDER_VOLUME}-bazel-server"
+if [[ "${CDI_CENTOS_STREAM_VERSION}" = "10" ]]; then
+    # Separate CS10 state; the names must not contain the CS9 ones (grep below).
+    BUILDER_VOLUME="kubevirt-cdi-cs10-volume"
+    BAZEL_BUILDER_SERVER="kubevirt-cdi-cs10-bazel-server"
+fi
 DOCKER_CA_CERT_FILE="${DOCKER_CA_CERT_FILE:-}"
 DOCKERIZED_CUSTOM_CA_PATH="/etc/pki/ca-trust/source/anchors/custom-ca.crt"
 
@@ -50,6 +55,19 @@ until ${CDI_CRI} pull ${BUILDER_IMAGE}; do
     ((pullcount++)) && ((pullcount == 5)) && echo "Couldn't pull builder image" && exit 1
     sleep $((2 ** pullcount))
 done
+
+check_builder_stream
+
+# Refuse to reuse a running server started from a different image.
+if ${CDI_CRI} ps --format '{{.Names}}' | grep -qx "${BAZEL_BUILDER_SERVER}"; then
+    running_image_id=$(${CDI_CRI} inspect --format '{{.Image}}' ${BAZEL_BUILDER_SERVER})
+    wanted_image_id=$(${CDI_CRI} image inspect --format '{{.Id}}' ${BUILDER_IMAGE})
+    if [[ "${running_image_id#sha256:}" != "${wanted_image_id#sha256:}" ]]; then
+        echo "ERROR: ${BAZEL_BUILDER_SERVER} is running with image ${running_image_id}, but ${BUILDER_IMAGE} is ${wanted_image_id}." >&2
+        echo "Stop it manually (${CDI_CRI} stop ${BAZEL_BUILDER_SERVER}) and run again." >&2
+        exit 1
+    fi
+fi
 
 # Make sure that the output directory exists
 echo "Making sure output directory exists..."
@@ -139,13 +157,13 @@ fi
 
 # Ensure that a bazel server is running
 if [ -z "$(${CDI_CRI} ps --format '{{.Names}}' | grep ${BAZEL_BUILDER_SERVER})" ]; then
-    ${CDI_CRI} run --ulimit nofile=10000:10000 $DISABLE_SECCOMP --network host -d ${volumes} --security-opt label=disable --name ${BAZEL_BUILDER_SERVER} -e "GOPATH=/root/go" -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
+    ${CDI_CRI} run --ulimit nofile=10000:10000 $DISABLE_SECCOMP --network host -d ${volumes} --security-opt label=disable --name ${BAZEL_BUILDER_SERVER} -e "GOPATH=/root/go" -e "CDI_CENTOS_STREAM_VERSION=${CDI_CENTOS_STREAM_VERSION}" -w "/root/go/src/kubevirt.io/containerized-data-importer" --rm ${BUILDER_IMAGE} hack/build/bazel-server.sh
 fi
 
 echo "Starting bazel server"
 # Run the command
 test -t 1 && USE_TTY="-it"
-${CDI_CRI} exec ${USE_TTY} ${BAZEL_BUILDER_SERVER} /entrypoint-bazel.sh "$@"
+${CDI_CRI} exec ${USE_TTY} -e "CDI_CENTOS_STREAM_VERSION=${CDI_CENTOS_STREAM_VERSION}" ${BAZEL_BUILDER_SERVER} /entrypoint-bazel.sh "$@"
 
 # Copy the whole containerized-data-importer data out to get generated sources and formatting changes
 _rsync \

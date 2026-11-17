@@ -28,6 +28,20 @@ determine_cri_bin() {
     fi
 }
 
+# Fail if the builder image's VERSION_ID differs from CDI_CENTOS_STREAM_VERSION.
+check_builder_stream() {
+    local os_release version_id
+    os_release=$(${CDI_CRI} run --rm --security-opt label=disable ${DISABLE_SECCOMP:-} --entrypoint cat "${BUILDER_IMAGE}" /etc/os-release) || {
+        echo "ERROR: cannot read /etc/os-release from ${BUILDER_IMAGE}" >&2
+        exit 1
+    }
+    version_id=$(echo "${os_release}" | sed -n 's/^VERSION_ID="\{0,1\}\([0-9]*\).*/\1/p' | head -n 1)
+    if [ "${version_id}" != "${CDI_CENTOS_STREAM_VERSION}" ]; then
+        echo "ERROR: CDI_CENTOS_STREAM_VERSION=${CDI_CENTOS_STREAM_VERSION} but ${BUILDER_IMAGE} reports VERSION_ID='${version_id}'" >&2
+        exit 1
+    fi
+}
+
 # We are formatting the architecture name here to ensure that
 # it is consistent with the platform name specified in ../.bazelrc
 # if the second argument is set, the function formats arch name for

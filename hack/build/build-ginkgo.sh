@@ -10,10 +10,10 @@ mkdir -p "${TESTS_OUT_DIR}"
 
 bazel build \
     --verbose_failures \
-    --config=${ARCHITECTURE} \
+    --config=${ARCHITECTURE} ${BAZEL_CS_CONFIG} \
     //vendor/github.com/onsi/ginkgo/v2/ginkgo:ginkgo
 
 bazel run \
     --verbose_failures \
-    --config=${ARCHITECTURE} \
+    --config=${ARCHITECTURE} ${BAZEL_CS_CONFIG} \
     :build-ginkgo -- ${TESTS_OUT_DIR}/ginkgo
