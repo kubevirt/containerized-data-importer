@@ -68,7 +68,7 @@ RUN set -x; \
 	go install -v sigs.k8s.io/controller-tools/cmd/controller-gen@v0.17.2 && \
 	rm -rf "${GOPATH}/pkg"
 
-ENV BAZEL_VERSION=6.5.0
+ENV BAZEL_VERSION=7.7.2
 
 COPY output-bazel-arch.sh /output-bazel-arch.sh
 

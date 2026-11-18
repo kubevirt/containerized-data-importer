@@ -13,7 +13,7 @@ ppc64le)
     ARCH="ppc64le"
     ;;
 *)
-    echo "invalid Arch, only support x86_64, aarch64, s390x"
+    echo "invalid Arch, only support x86_64, aarch64, s390x, ppc64le"
     exit 1
     ;;
 esac
