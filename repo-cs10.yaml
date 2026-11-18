@@ -1,0 +1,60 @@
+# Repositories for the CentOS Stream 10 RPM set (hack/build/rpm-deps.sh, CDI_CENTOS_STREAM_VERSION=10).
+# Never list CS9 and CS10 repositories in the same file: the solver could mix them.
+# The CentOS entries (urls, names, gpgkey) follow kubevirt's rpm/repo-cs10.yaml.
+repositories:
+- arch: x86_64
+  baseurl: http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/
+  name: centos/stream10-baseos-x86_64
+  gpgkey: https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official
+- arch: x86_64
+  baseurl: http://mirror.stream.centos.org/10-stream/AppStream/x86_64/os/
+  name: centos/stream10-appstream-x86_64
+  gpgkey: https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official
+- arch: x86_64
+  baseurl: http://mirror.stream.centos.org/10-stream/CRB/x86_64/os/
+  name: centos/stream10-crb-x86_64
+  gpgkey: https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official
+# oVirt for x86_64: COPR, the same source as the el9 entry in repo.yaml.
+- arch: x86_64
+  baseurl: https://download.copr.fedorainfracloud.org/results/ovirt/ovirt-master-snapshot/centos-stream-10-x86_64/
+  name: ovirt-master-snapshot-cs10
+  gpgkey: https://download.copr.fedorainfracloud.org/results/ovirt/ovirt-master-snapshot/pubkey.gpg
+# EPEL is only needed for python3-pycurl (ovirt-img -> ovirtsdk4).
+- arch: x86_64
+  baseurl: https://dl.fedoraproject.org/pub/epel/10/Everything/x86_64/
+  name: epel10-x86_64
+  gpgkey: https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-10
+- arch: aarch64
+  baseurl: http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/
+  name: centos/stream10-baseos-aarch64
+  gpgkey: https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official
+- arch: aarch64
+  baseurl: http://mirror.stream.centos.org/10-stream/AppStream/aarch64/os/
+  name: centos/stream10-appstream-aarch64
+  gpgkey: https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official
+- arch: aarch64
+  baseurl: http://mirror.stream.centos.org/10-stream/CRB/aarch64/os/
+  name: centos/stream10-crb-aarch64
+  gpgkey: https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official
+# oVirt for aarch64: CentOS Virt SIG, the same source as the el9 entry in repo.yaml.
+# No gpgkey, as in repo.yaml.
+- arch: aarch64
+  baseurl: https://mirror.stream.centos.org/SIGs/10-stream/virt/aarch64/ovirt-45/
+  name: ovirt-master-snapshot-aarch64-cs10
+# EPEL is only needed for python3-pycurl (ovirt-img -> ovirtsdk4).
+- arch: aarch64
+  baseurl: https://dl.fedoraproject.org/pub/epel/10/Everything/aarch64/
+  name: epel10-aarch64
+  gpgkey: https://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-10
+- arch: s390x
+  baseurl: http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/
+  name: centos/stream10-baseos-s390x
+  gpgkey: https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official
+- arch: s390x
+  baseurl: http://mirror.stream.centos.org/10-stream/AppStream/s390x/os/
+  name: centos/stream10-appstream-s390x
+  gpgkey: https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official
+- arch: s390x
+  baseurl: http://mirror.stream.centos.org/10-stream/CRB/s390x/os/
+  name: centos/stream10-crb-s390x
+  gpgkey: https://www.centos.org/keys/RPM-GPG-KEY-CentOS-Official

@@ -28,3 +28,6 @@ run:crossbuild-s390x  --incompatible_enable_cc_toolchain_resolution --platforms=
 test:crossbuild-s390x --platforms=@io_bazel_rules_go//go/toolchain:linux_s390x_cgo --host_javabase=@local_jdk//:jdk
 
 build --define gotags=selinux
+
+# CentOS Stream 10, added by hack/build/config.sh (BAZEL_CS_CONFIG).
+build:cs10 --define=centos_stream_version=10

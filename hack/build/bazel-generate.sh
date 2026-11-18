@@ -13,15 +13,15 @@ if [[ "$@" =~ "vendor" ]]; then
 fi
 
 bazel run \
-    --config=${HOST_ARCHITECTURE} \
+    --config=${HOST_ARCHITECTURE} ${BAZEL_CS_CONFIG} \
     //:gazelle $@
 
 if [[ "$@" =~ "vendor" ]]; then
     bazel run \
-        --config=${HOST_ARCHITECTURE} \
+        --config=${HOST_ARCHITECTURE} ${BAZEL_CS_CONFIG} \
         -- :buildozer 'add clinkopts -lnbd' //vendor/libguestfs.org/libnbd/:go_default_library
 
     bazel run \
-        --config=${HOST_ARCHITECTURE} \
+        --config=${HOST_ARCHITECTURE} ${BAZEL_CS_CONFIG} \
         -- :buildozer 'add copts -D_GNU_SOURCE=1' //vendor/libguestfs.org/libnbd/:go_default_library
 fi
