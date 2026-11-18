@@ -588,6 +588,8 @@ func (f *Framework) CreateNonDefaultVariationOfStorageClass(sc *storagev1.Storag
 		Annotations: scCopy.Annotations,
 	}
 
+	utils.AddOCSExternalLabel(f.K8sClient, scCopy)
+
 	return f.K8sClient.StorageV1().StorageClasses().Create(context.TODO(), scCopy, metav1.CreateOptions{})
 }
 
