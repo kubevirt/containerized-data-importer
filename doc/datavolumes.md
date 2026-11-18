@@ -163,7 +163,7 @@ spec:
 For HTTP/HTTPS sources, you can specify a checksum to verify the integrity of the downloaded data. This helps ensure that the image has not been tampered with during transmission. The checksum field is optional but recommended for production environments.
 
 > [!NOTE]
-> Checksum validation is currently supported only for HTTP/HTTPS sources. S3 and GCS sources have built-in integrity verification mechanisms (ETag for S3, MD5Hash for GCS) and do not require explicit checksum specification.
+> Checksum validation is supported for HTTP/HTTPS and Upload sources. S3 and GCS sources have built-in integrity verification mechanisms (ETag for S3, MD5Hash for GCS) and do not require explicit checksum specification.
 
 > [!WARNING]
 > HTTP checksum validation is **not** supported when using the registry **node pull** mode (`ImporterPullMethod=RegistryPullNode`). In that path, data is converted via nbdkit/qemu-img without going through the streaming transfer, so checksum is not verified. To validate HTTP import integrity, use the default pod pull method or avoid node pull for HTTP sources.
@@ -363,12 +363,16 @@ metadata:
   name: example-upload-dv
 spec:
   source:
-    upload: {}
+    upload:
+      checksum: "sha256:e3c1b309d9203604922d6e255c2c5d098a309c2d46215d8fc026954f3c5c27a0" # Optional
   storage:
     resources:
       requests:
         storage: 1Gi
 ```
+
+You can optionally specify a `checksum` (`algorithm:hash`, supporting `md5`, `sha1`, `sha256`, `sha512`) to verify the integrity of the uploaded data. If specified, the upload server validates the incoming stream against the expected hash. If the checksum does not match, the upload is aborted and the DataVolume enters a `Failed` state with reason `ChecksumError`.
+
 
 ### Blank Data Volume
 You can create a blank virtual disk image in a Data Volume as well, with the following yaml:

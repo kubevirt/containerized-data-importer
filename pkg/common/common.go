@@ -241,6 +241,8 @@ const (
 	UploadServerPort = 8443
 	// UploadImageSize provides a constant to capture our env variable "UPLOAD_IMAGE_SIZE"
 	UploadImageSize = "UPLOAD_IMAGE_SIZE"
+	// UploadChecksum provides a constant to capture our env variable "UPLOAD_CHECKSUM"
+	UploadChecksum = "UPLOAD_CHECKSUM"
 
 	// FilesystemOverheadVar provides a constant to capture our env variable "FILESYSTEM_OVERHEAD"
 	FilesystemOverheadVar = "FILESYSTEM_OVERHEAD"

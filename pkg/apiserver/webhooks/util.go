@@ -174,6 +174,10 @@ func validateHTTPSource(http *cdiv1.DataVolumeSourceHTTP, field *field.Path) []m
 	return causes
 }
 
+func validateUploadSource(upload *cdiv1.DataVolumeSourceUpload, field *field.Path) []metav1.StatusCause {
+	return validateChecksum(upload.Checksum, field, "Upload")
+}
+
 func validateS3Source(s3 *cdiv1.DataVolumeSourceS3, field *field.Path) []metav1.StatusCause {
 	return checkSourceURL(s3.URL, "S3", field)
 }

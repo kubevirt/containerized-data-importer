@@ -18450,6 +18450,15 @@ func schema_pkg_apis_core_v1beta1_DataVolumeSourceUpload(ref common.ReferenceCal
 			SchemaProps: spec.SchemaProps{
 				Description: "DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source",
 				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"checksum": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Checksum is the expected checksum of the file. Format: \"algorithm:hash\", e.g., \"sha256:1234abcd...\" or \"md5:5678efgh...\" Supported algorithms: md5, sha1, sha256, sha512 If specified, the upload server will verify the uploaded content matches this checksum",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
 			},
 		},
 	}
@@ -20147,6 +20156,13 @@ func schema_pkg_apis_core_v1beta1_VolumeUploadSourceSpec(ref common.ReferenceCal
 						SchemaProps: spec.SchemaProps{
 							Description: "Preallocation controls whether storage for the target PVC should be allocated in advance.",
 							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"checksum": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Checksum is the expected checksum of the file. Format: \"algorithm:hash\", e.g., \"sha256:1234abcd...\" or \"md5:5678efgh...\" Supported algorithms: md5, sha1, sha256, sha512 If specified, the upload server will verify the uploaded content matches this checksum",
+							Type:        []string{"string"},
 							Format:      "",
 						},
 					},

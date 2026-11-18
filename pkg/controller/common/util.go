@@ -228,6 +228,8 @@ const (
 
 	// AnnUploadRequest marks that a PVC should be made available for upload
 	AnnUploadRequest = AnnAPIGroup + "/storage.upload.target"
+	// AnnUploadChecksum provides a const for our PVC upload checksum annotation
+	AnnUploadChecksum = AnnAPIGroup + "/storage.upload.checksum"
 
 	// AnnCheckStaticVolume checks if a statically allocated PV exists before creating the target PVC.
 	// If so, PVC is still created but population is skipped

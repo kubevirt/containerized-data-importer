@@ -1,6 +1,8 @@
 package importer
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"os"
 	"path/filepath"
@@ -43,7 +45,8 @@ var _ = Describe("Upload data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		err = file.Close()
 		Expect(err).NotTo(HaveOccurred())
-		ud = NewUploadDataSource(file, dvKubevirt)
+		ud, err = NewUploadDataSource(file, dvKubevirt, "")
+		Expect(err).NotTo(HaveOccurred())
 		result, err := ud.Info()
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
@@ -53,7 +56,8 @@ var _ = Describe("Upload data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(cirrosFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		ud = NewUploadDataSource(file, dvKubevirt)
+		ud, err = NewUploadDataSource(file, dvKubevirt, "")
+		Expect(err).NotTo(HaveOccurred())
 		result, err := ud.Info()
 
 		Expect(err).NotTo(HaveOccurred())
@@ -64,7 +68,8 @@ var _ = Describe("Upload data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreTarFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		ud = NewUploadDataSource(file, dvArchive)
+		ud, err = NewUploadDataSource(file, dvArchive, "")
+		Expect(err).NotTo(HaveOccurred())
 		result, err := ud.Info()
 
 		Expect(err).NotTo(HaveOccurred())
@@ -75,7 +80,8 @@ var _ = Describe("Upload data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		ud = NewUploadDataSource(file, dvKubevirt)
+		ud, err = NewUploadDataSource(file, dvKubevirt, "")
+		Expect(err).NotTo(HaveOccurred())
 		result, err := ud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
@@ -88,7 +94,8 @@ var _ = Describe("Upload data source", func() {
 		sourceFile, err := os.Open(fileName)
 		Expect(err).NotTo(HaveOccurred())
 
-		ud = NewUploadDataSource(sourceFile, dvContentType)
+		ud, err = NewUploadDataSource(sourceFile, dvContentType, "")
+		Expect(err).NotTo(HaveOccurred())
 		_, err = ud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		nextPhase, err := ud.Transfer(scratchPath, false)
@@ -118,7 +125,8 @@ var _ = Describe("Upload data source", func() {
 		sourceFile, err := os.Open(cirrosFilePath)
 		Expect(err).NotTo(HaveOccurred())
 
-		ud = NewUploadDataSource(sourceFile, dvKubevirt)
+		ud, err = NewUploadDataSource(sourceFile, dvKubevirt, "")
+		Expect(err).NotTo(HaveOccurred())
 		nextPhase, err := ud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferScratch).To(Equal(nextPhase))
@@ -133,7 +141,8 @@ var _ = Describe("Upload data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		sourceFile, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		ud = NewUploadDataSource(sourceFile, dvKubevirt)
+		ud, err = NewUploadDataSource(sourceFile, dvKubevirt, "")
+		Expect(err).NotTo(HaveOccurred())
 		result, err := ud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
@@ -146,7 +155,8 @@ var _ = Describe("Upload data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		sourceFile, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		ud = NewUploadDataSource(sourceFile, dvKubevirt)
+		ud, err = NewUploadDataSource(sourceFile, dvKubevirt, "")
+		Expect(err).NotTo(HaveOccurred())
 		result, err := ud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
@@ -156,8 +166,9 @@ var _ = Describe("Upload data source", func() {
 	})
 
 	It("Close with nil stream should not fail", func() {
-		ud = NewUploadDataSource(nil, dvKubevirt)
-		err := ud.Close()
+		ud, err = NewUploadDataSource(nil, dvKubevirt, "")
+		Expect(err).NotTo(HaveOccurred())
+		err = ud.Close()
 		Expect(err).NotTo(HaveOccurred())
 	})
 })
@@ -188,7 +199,8 @@ var _ = Describe("Async Upload data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		err = file.Close()
 		Expect(err).NotTo(HaveOccurred())
-		aud = NewAsyncUploadDataSource(file)
+		aud, err = NewAsyncUploadDataSource(file, "")
+		Expect(err).NotTo(HaveOccurred())
 		result, err := aud.Info()
 		Expect(err).To(HaveOccurred())
 		Expect(ProcessingPhaseError).To(Equal(result))
@@ -198,7 +210,8 @@ var _ = Describe("Async Upload data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(cirrosFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		aud = NewAsyncUploadDataSource(file)
+		aud, err = NewAsyncUploadDataSource(file, "")
+		Expect(err).NotTo(HaveOccurred())
 		result, err := aud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
@@ -208,7 +221,8 @@ var _ = Describe("Async Upload data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		file, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		aud = NewAsyncUploadDataSource(file)
+		aud, err = NewAsyncUploadDataSource(file, "")
+		Expect(err).NotTo(HaveOccurred())
 		result, err := aud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
@@ -221,7 +235,8 @@ var _ = Describe("Async Upload data source", func() {
 		sourceFile, err := os.Open(fileName)
 		Expect(err).NotTo(HaveOccurred())
 
-		aud = NewAsyncUploadDataSource(sourceFile)
+		aud, err = NewAsyncUploadDataSource(sourceFile, "")
+		Expect(err).NotTo(HaveOccurred())
 		nextPhase, err := aud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferScratch).To(Equal(nextPhase))
@@ -242,7 +257,8 @@ var _ = Describe("Async Upload data source", func() {
 		sourceFile, err := os.Open(cirrosFilePath)
 		Expect(err).NotTo(HaveOccurred())
 
-		aud = NewAsyncUploadDataSource(sourceFile)
+		aud, err = NewAsyncUploadDataSource(sourceFile, "")
+		Expect(err).NotTo(HaveOccurred())
 		nextPhase, err := aud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferScratch).To(Equal(nextPhase))
@@ -257,7 +273,8 @@ var _ = Describe("Async Upload data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		sourceFile, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		aud = NewAsyncUploadDataSource(sourceFile)
+		aud, err = NewAsyncUploadDataSource(sourceFile, "")
+		Expect(err).NotTo(HaveOccurred())
 		result, err := aud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
@@ -271,7 +288,8 @@ var _ = Describe("Async Upload data source", func() {
 		// Don't need to defer close, since ud.Close will close the reader
 		sourceFile, err := os.Open(tinyCoreFilePath)
 		Expect(err).NotTo(HaveOccurred())
-		aud = NewAsyncUploadDataSource(sourceFile)
+		aud, err = NewAsyncUploadDataSource(sourceFile, "")
+		Expect(err).NotTo(HaveOccurred())
 		result, err := aud.Info()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferDataFile).To(Equal(result))
@@ -281,8 +299,213 @@ var _ = Describe("Async Upload data source", func() {
 	})
 
 	It("Close with nil stream should not fail", func() {
-		aud = NewAsyncUploadDataSource(nil)
-		err := aud.Close()
+		aud, err = NewAsyncUploadDataSource(nil, "")
 		Expect(err).NotTo(HaveOccurred())
+		err = aud.Close()
+		Expect(err).NotTo(HaveOccurred())
+	})
+})
+
+var _ = Describe("Upload data source with checksum validation", func() {
+	var (
+		ud                *UploadDataSource
+		tmpDir            string
+		testDataSHA256    string
+		archiveDataSHA256 string
+		err               error
+	)
+
+	BeforeEach(func() {
+		tmpDir, err = os.MkdirTemp("", "scratch")
+		Expect(err).NotTo(HaveOccurred())
+		By("tmpDir: " + tmpDir)
+
+		hash := sha256.Sum256(cirrosData)
+		testDataSHA256 = hex.EncodeToString(hash[:])
+
+		archiveData, err := os.ReadFile(archiveFilePath)
+		Expect(err).NotTo(HaveOccurred())
+		archiveHash := sha256.Sum256(archiveData)
+		archiveDataSHA256 = hex.EncodeToString(archiveHash[:])
+	})
+
+	AfterEach(func() {
+		if ud != nil {
+			ud.Close()
+		}
+		os.RemoveAll(tmpDir)
+	})
+
+	It("should fail when created with invalid checksum format", func() {
+		file, err := os.Open(cirrosFilePath)
+		Expect(err).NotTo(HaveOccurred())
+		defer file.Close()
+
+		_, err = NewUploadDataSource(file, dvKubevirt, "sha256abc123")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("invalid checksum"))
+	})
+
+	It("should fail when created with unsupported checksum algorithm", func() {
+		file, err := os.Open(cirrosFilePath)
+		Expect(err).NotTo(HaveOccurred())
+		defer file.Close()
+
+		_, err = NewUploadDataSource(file, dvKubevirt, "crc32:12345678")
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("invalid checksum"))
+	})
+
+	It("should succeed with valid checksum during transfer", func() {
+		sourceFile, err := os.Open(cirrosFilePath)
+		Expect(err).NotTo(HaveOccurred())
+
+		checksum := "sha256:" + testDataSHA256
+		ud, err = NewUploadDataSource(sourceFile, dvKubevirt, checksum)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = ud.Info()
+		Expect(err).NotTo(HaveOccurred())
+
+		newPhase, err := ud.Transfer(tmpDir, false)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(newPhase).To(Equal(ProcessingPhaseConvert))
+
+		file, err := os.Open(filepath.Join(tmpDir, tempFile))
+		Expect(err).NotTo(HaveOccurred())
+		defer file.Close()
+		resultBuffer, err := io.ReadAll(file)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(reflect.DeepEqual(resultBuffer, cirrosData)).To(BeTrue())
+	})
+
+	It("should fail with incorrect checksum during transfer", func() {
+		sourceFile, err := os.Open(cirrosFilePath)
+		Expect(err).NotTo(HaveOccurred())
+
+		incorrectChecksum := "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+		ud, err = NewUploadDataSource(sourceFile, dvKubevirt, incorrectChecksum)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = ud.Info()
+		Expect(err).NotTo(HaveOccurred())
+
+		newPhase, err := ud.Transfer(tmpDir, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("checksum validation failed"))
+		Expect(newPhase).To(Equal(ProcessingPhaseError))
+	})
+
+	It("should succeed with valid checksum during transfer for archive content", func() {
+		sourceFile, err := os.Open(archiveFilePath)
+		Expect(err).NotTo(HaveOccurred())
+
+		archiveChecksum := "sha256:" + archiveDataSHA256
+		ud, err = NewUploadDataSource(sourceFile, dvArchive, archiveChecksum)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = ud.Info()
+		Expect(err).NotTo(HaveOccurred())
+
+		newPhase, err := ud.Transfer(tmpDir, false)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(newPhase).To(Equal(ProcessingPhaseComplete))
+	})
+
+	It("should fail with incorrect checksum during transfer for archive content", func() {
+		sourceFile, err := os.Open(archiveFilePath)
+		Expect(err).NotTo(HaveOccurred())
+
+		incorrectChecksum := "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+		ud, err = NewUploadDataSource(sourceFile, dvArchive, incorrectChecksum)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = ud.Info()
+		Expect(err).NotTo(HaveOccurred())
+
+		newPhase, err := ud.Transfer(tmpDir, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("checksum validation failed"))
+		Expect(newPhase).To(Equal(ProcessingPhaseError))
+	})
+
+	It("should succeed with valid checksum during TransferFile", func() {
+		sourceFile, err := os.Open(tinyCoreFilePath)
+		Expect(err).NotTo(HaveOccurred())
+
+		tinyCoreData, err := os.ReadFile(tinyCoreFilePath)
+		Expect(err).NotTo(HaveOccurred())
+		tinyCoreHash := sha256.Sum256(tinyCoreData)
+		checksum := "sha256:" + hex.EncodeToString(tinyCoreHash[:])
+
+		ud, err = NewUploadDataSource(sourceFile, dvKubevirt, checksum)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = ud.Info()
+		Expect(err).NotTo(HaveOccurred())
+
+		testFile := filepath.Join(tmpDir, "test-output.img")
+		newPhase, err := ud.TransferFile(testFile, false)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(newPhase).To(Equal(ProcessingPhaseResize))
+
+		file, err := os.Open(testFile)
+		Expect(err).NotTo(HaveOccurred())
+		defer file.Close()
+		resultBuffer, err := io.ReadAll(file)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(reflect.DeepEqual(resultBuffer, tinyCoreData)).To(BeTrue())
+	})
+
+	It("should fail with incorrect checksum during TransferFile", func() {
+		sourceFile, err := os.Open(tinyCoreFilePath)
+		Expect(err).NotTo(HaveOccurred())
+
+		incorrectChecksum := "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+		ud, err = NewUploadDataSource(sourceFile, dvKubevirt, incorrectChecksum)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = ud.Info()
+		Expect(err).NotTo(HaveOccurred())
+
+		testFile := filepath.Join(tmpDir, "test-output.img")
+		newPhase, err := ud.TransferFile(testFile, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("checksum validation failed"))
+		Expect(newPhase).To(Equal(ProcessingPhaseError))
+	})
+
+	It("AsyncUploadDataSource should fail with incorrect checksum during Transfer", func() {
+		sourceFile, err := os.Open(cirrosFilePath)
+		Expect(err).NotTo(HaveOccurred())
+
+		incorrectChecksum := "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+		aud, err := NewAsyncUploadDataSource(sourceFile, incorrectChecksum)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = aud.Info()
+		Expect(err).NotTo(HaveOccurred())
+
+		newPhase, err := aud.Transfer(tmpDir, false)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("checksum validation failed"))
+		Expect(newPhase).To(Equal(ProcessingPhaseError))
+	})
+
+	It("AsyncUploadDataSource should succeed with valid checksum during Transfer", func() {
+		sourceFile, err := os.Open(cirrosFilePath)
+		Expect(err).NotTo(HaveOccurred())
+
+		checksum := "sha256:" + testDataSHA256
+		aud, err := NewAsyncUploadDataSource(sourceFile, checksum)
+		Expect(err).NotTo(HaveOccurred())
+
+		_, err = aud.Info()
+		Expect(err).NotTo(HaveOccurred())
+
+		newPhase, err := aud.Transfer(tmpDir, false)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(newPhase).To(Equal(ProcessingPhaseValidatePause))
+		Expect(aud.GetResumePhase()).To(Equal(ProcessingPhaseConvert))
 	})
 })

@@ -174,6 +174,11 @@ type DataVolumeBlankImage struct{}
 
 // DataVolumeSourceUpload provides the parameters to create a Data Volume by uploading the source
 type DataVolumeSourceUpload struct {
+	// Checksum is the expected checksum of the file. Format: "algorithm:hash", e.g., "sha256:1234abcd..." or "md5:5678efgh..."
+	// Supported algorithms: md5, sha1, sha256, sha512
+	// If specified, the upload server will verify the uploaded content matches this checksum
+	// +optional
+	Checksum string `json:"checksum,omitempty"`
 }
 
 // DataVolumeSourceS3 provides the parameters to create a Data Volume from an S3 source
@@ -778,6 +783,11 @@ type VolumeUploadSourceSpec struct {
 	ContentType DataVolumeContentType `json:"contentType,omitempty"`
 	// Preallocation controls whether storage for the target PVC should be allocated in advance.
 	Preallocation *bool `json:"preallocation,omitempty"`
+	// Checksum is the expected checksum of the file. Format: "algorithm:hash", e.g., "sha256:1234abcd..." or "md5:5678efgh..."
+	// Supported algorithms: md5, sha1, sha256, sha512
+	// If specified, the upload server will verify the uploaded content matches this checksum
+	// +optional
+	Checksum string `json:"checksum,omitempty"`
 }
 
 // VolumeUploadSourceStatus provides the most recently observed status of the VolumeUploadSource
