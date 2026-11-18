@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/pkg/errors"
@@ -40,6 +39,8 @@ type GCSDataSource struct {
 	readers *FormatReaders
 	// The image file in scratch space.
 	url *url.URL
+	// cancel ends the context of the GCS client and reader.
+	cancel context.CancelFunc
 }
 
 // NewGCSDataSource creates a new instance of the GCSDataSource
@@ -58,7 +59,9 @@ func NewGCSDataSource(endpoint, keyFile string) (*GCSDataSource, error) {
 	}
 
 	// Getting Context
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*60) //nolint:govet // todo - solve this: the cancel function returned by context.WithTimeout should be called, not discarded, to avoid a context leak
+	// The reader keeps using this context while the image is streamed, so a
+	// deadline here would cut off any download that takes longer than it.
+	ctx, cancel := context.WithCancel(context.Background())
 
 	if ep.Scheme == "gs" {
 		// Using gs:// endpoint and extracting bucket and object name
@@ -73,6 +76,7 @@ func NewGCSDataSource(endpoint, keyFile string) (*GCSDataSource, error) {
 	client, err := getGcsClient(ctx, keyFile, options...)
 
 	if err != nil {
+		cancel()
 		klog.Errorf("GCS Importer: Error creating GCS Client")
 		return nil, err
 	}
@@ -80,6 +84,7 @@ func NewGCSDataSource(endpoint, keyFile string) (*GCSDataSource, error) {
 	// Creating GCS Reader
 	gcsReader, err := newReaderFunc(ctx, client, bucket, object)
 	if err != nil {
+		cancel()
 		klog.Errorf("GCS Importer: Error creating Reader")
 		return nil, err
 	}
@@ -88,6 +93,7 @@ func NewGCSDataSource(endpoint, keyFile string) (*GCSDataSource, error) {
 		ep:        ep,
 		keyFile:   keyFile,
 		gcsReader: gcsReader,
+		cancel:    cancel,
 	}, nil
 }
 
@@ -162,6 +168,9 @@ func (sd *GCSDataSource) Close() error {
 	var err error
 	if sd.readers != nil {
 		err = sd.readers.Close()
+	}
+	if sd.cancel != nil {
+		sd.cancel()
 	}
 	return err
 }
