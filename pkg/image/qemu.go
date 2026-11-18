@@ -38,7 +38,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
-const matcherString = "\\((\\d?\\d\\.\\d\\d)\\/100%\\)"
+const matcherString = "\\((\\d{1,3}\\.\\d\\d)\\/100%\\)"
 
 // ImgInfo contains the virtual image information.
 type ImgInfo struct {
