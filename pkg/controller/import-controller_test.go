@@ -26,6 +26,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	imagev1 "github.com/openshift/api/image/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -1678,6 +1680,73 @@ var _ = Describe("GetEndpoint", func() {
 	)
 })
 
+var _ = Describe("ImageStream tests", func() {
+	const (
+		testLatestTagDigest          = "sha256:68b44fc891f3fae6703d4b74bcc9b5f24df8d23f12e642805d1420cbe7a4be67"
+		testLatestTagSourceDockerRef = "quay.io/kubevirt/blabla@" + testLatestTagDigest
+		testLatestTagLocalDockerRef  = testDockerImageRepository + "@" + testLatestTagDigest
+	)
+
+	anno := map[string]string{
+		cc.AnnEndpoint:             imageStreamNameWithTag,
+		cc.AnnSource:               cc.SourceRegistry,
+		cc.AnnRegistryImportMethod: string(cdiv1.RegistryPullNode),
+		cc.AnnRegistryImageStream:  "true",
+	}
+
+	DescribeTable("GetRegistryImportImage should resolve ImageStream import when tagReferencePolicyType=", func(tagReferencePolicyType imagev1.TagReferencePolicyType, expectedDockerRef string) {
+		anno[cc.AnnEndpoint] = imageStreamNameWithTag
+		imageStream := newImageStream(imageStreamName, tagReferencePolicyType)
+		r := createImportReconciler(imageStream)
+
+		pvc := cc.CreatePvc("testImageStreamPVC", "default", anno, nil)
+
+		importImage, err := getRegistryImportImage(context.Background(), r.client, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(importImage).To(BeEquivalentTo(expectedDockerRef))
+
+	},
+		Entry("source", imagev1.SourceTagReferencePolicy, testDockerRef),
+		Entry("local", imagev1.LocalTagReferencePolicy, testLocalImageStreamDockerRef),
+	)
+
+	DescribeTable("GetRegistryImportImage should resolve an untagged ImageStream to latest when latest is not the first status tag and tagReferencePolicyType=", func(tagReferencePolicyType imagev1.TagReferencePolicyType, expectedDockerRef string) {
+		anno[cc.AnnEndpoint] = imageStreamName
+		imageStream := newImageStream(imageStreamName, tagReferencePolicyType)
+		imageStream.Status.Tags = append(imageStream.Status.Tags, imagev1.NamedTagEventList{
+			Tag: imagev1.DefaultImageTag,
+			Items: []imagev1.TagEvent{
+				{
+					Image:                testLatestTagDigest,
+					DockerImageReference: testLatestTagSourceDockerRef,
+				},
+			},
+		},
+		)
+		imageStream.Spec.Tags = append(imageStream.Spec.Tags, imagev1.TagReference{
+			Name: imagev1.DefaultImageTag,
+			ReferencePolicy: imagev1.TagReferencePolicy{
+				Type: tagReferencePolicyType,
+			},
+		})
+		r := createImportReconciler(imageStream)
+		pvc := cc.CreatePvc("testImageStreamPVC", "default", anno, nil)
+		importImage, err := getRegistryImportImage(context.Background(), r.client, pvc)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(importImage).To(BeEquivalentTo(expectedDockerRef))
+	},
+		Entry("source", imagev1.SourceTagReferencePolicy, testLatestTagSourceDockerRef),
+		Entry("local", imagev1.LocalTagReferencePolicy, testLatestTagLocalDockerRef),
+	)
+
+	It("GetRegistryImportImage should throw an error when the ImageStream does not exist", func() {
+		pvc := cc.CreatePvc("testImageStreamPVC", "default", anno, nil)
+		r := createImportReconciler()
+		_, err := getRegistryImportImage(context.Background(), r.client, pvc)
+		Expect(err).To(HaveOccurred())
+	})
+})
+
 func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
@@ -1685,6 +1754,7 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	// Register cdi types with the runtime scheme.
 	s := scheme.Scheme
 	_ = cdiv1.AddToScheme(s)
+	_ = imagev1.Install(s)
 
 	objs = append(objs, cc.MakeEmptyCDICR())
 
