@@ -115,6 +115,8 @@ var (
 	configPath      string
 	kubeURL         string
 	verbose         string
+	kubeAPIQPS      float64
+	kubeAPIBurst    int
 	apiServerArgs   APIServerEnvs
 	installerLabels map[string]string
 )
@@ -129,6 +131,8 @@ func init() {
 	// flags
 	flag.StringVar(&configPath, "kubeconfig", os.Getenv("KUBECONFIG"), "(Optional) Overrides $KUBECONFIG")
 	flag.StringVar(&kubeURL, "server", "", "(Optional) URL address of a remote api server.  Do not set for local clusters.")
+	flag.Float64Var(&kubeAPIQPS, "kube-api-qps", 0, "(Optional) Client-side rate limit (queries per second) for requests to the Kubernetes API server. 0 keeps the client-go default (5).")
+	flag.IntVar(&kubeAPIBurst, "kube-api-burst", 0, "(Optional) Client-side burst for requests to the Kubernetes API server. 0 keeps the client-go default (10).")
 	klog.InitFlags(nil)
 	flag.Parse()
 
@@ -171,6 +175,13 @@ func main() {
 	cfg, err := clientcmd.BuildConfigFromFlags(kubeURL, configPath)
 	if err != nil {
 		klog.Fatalf("Unable to get kube config: %v\n", errors.WithStack(err))
+	}
+
+	if kubeAPIQPS > 0 {
+		cfg.QPS = float32(kubeAPIQPS)
+	}
+	if kubeAPIBurst > 0 {
+		cfg.Burst = kubeAPIBurst
 	}
 
 	client, err := kubernetes.NewForConfig(cfg)
