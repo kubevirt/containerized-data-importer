@@ -65,6 +65,7 @@ type CloneReconciler struct {
 	scheme              *runtime.Scheme
 	recorder            record.EventRecorder
 	clientCertGenerator generator.CertGenerator
+	serverCertGenerator generator.CertGenerator
 	serverCAFetcher     fetcher.CertBundleFetcher
 	log                 logr.Logger
 	multiTokenValidator *cc.MultiTokenValidator
@@ -74,13 +75,20 @@ type CloneReconciler struct {
 	installerLabels     map[string]string
 }
 
+// CloneCertArgs groups the certificate dependencies of the clone controller:
+// the client and server cert generators and the server CA bundle fetcher.
+type CloneCertArgs struct {
+	ClientCertGenerator generator.CertGenerator
+	ServerCertGenerator generator.CertGenerator
+	ServerCAFetcher     fetcher.CertBundleFetcher
+}
+
 // NewCloneController creates a new instance of the config controller.
 func NewCloneController(mgr manager.Manager,
 	log logr.Logger,
 	image, pullPolicy,
 	verbose string,
-	clientCertGenerator generator.CertGenerator,
-	serverCAFetcher fetcher.CertBundleFetcher,
+	certArgs CloneCertArgs,
 	apiServerKey *rsa.PublicKey,
 	installerLabels map[string]string) (controller.Controller, error) {
 	reconciler := &CloneReconciler{
@@ -92,8 +100,9 @@ func NewCloneController(mgr manager.Manager,
 		verbose:             verbose,
 		pullPolicy:          pullPolicy,
 		recorder:            mgr.GetEventRecorderFor("clone-controller"),
-		clientCertGenerator: clientCertGenerator,
-		serverCAFetcher:     serverCAFetcher,
+		clientCertGenerator: certArgs.ClientCertGenerator,
+		serverCertGenerator: certArgs.ServerCertGenerator,
+		serverCAFetcher:     certArgs.ServerCAFetcher,
 		installerLabels:     installerLabels,
 	}
 	cloneController, err := controller.New("clone-controller", mgr, controller.Options{
@@ -222,11 +231,12 @@ func (r *CloneReconciler) Reconcile(ctx context.Context, req reconcile.Request) 
 	if sourcePod != nil &&
 		(sourcePod.Status.Phase == corev1.PodPending ||
 			sourcePod.Status.Phase == "") {
-		if err := cc.EnsurePrometheusCertSecret(
+		if err := cc.EnsureWorkerPrometheusCert(
 			ctx,
 			r.client,
 			sourcePod,
 			r.installerLabels,
+			r.serverCertGenerator,
 		); err != nil {
 			return reconcile.Result{}, err
 		}

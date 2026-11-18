@@ -7,6 +7,7 @@ go_library(
     importpath = "kubevirt.io/containerized-data-importer/cmd/openstack-populator",
     visibility = ["//visibility:private"],
     deps = [
+        "//pkg/common:go_default_library",
         "//pkg/monitoring/metrics/openstack-populator:go_default_library",
         "//pkg/util/prometheus:go_default_library",
         "//vendor/github.com/gophercloud/gophercloud/v2:go_default_library",

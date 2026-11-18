@@ -171,7 +171,7 @@ var _ = Describe("Update Progress", func() {
 	})
 })
 
-var _ = Describe("StartPrometheusEndpointNoCertGeneration", func() {
+var _ = Describe("StartPrometheusEndpoint", func() {
 	var certsDir string
 
 	BeforeEach(func() {
@@ -190,7 +190,7 @@ var _ = Describe("StartPrometheusEndpointNoCertGeneration", func() {
 		Expect(os.WriteFile(path.Join(certsDir, CertFileName), certBytes, 0600)).To(Succeed())
 		Expect(os.WriteFile(path.Join(certsDir, KeyFileName), keyBytes, 0600)).To(Succeed())
 
-		err = StartPrometheusEndpointNoCertGeneration(certsDir)
+		err = StartPrometheusEndpoint(certsDir)
 		Expect(err).NotTo(HaveOccurred())
 
 		httpClient := &http.Client{
@@ -206,7 +206,7 @@ var _ = Describe("StartPrometheusEndpointNoCertGeneration", func() {
 	})
 
 	It("should return an error if the cert file does not exist", func() {
-		err := StartPrometheusEndpointNoCertGeneration(certsDir)
+		err := StartPrometheusEndpoint(certsDir)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("cert file"))
 		Expect(err.Error()).To(ContainSubstring("does not exist"))
@@ -217,7 +217,7 @@ var _ = Describe("StartPrometheusEndpointNoCertGeneration", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(os.WriteFile(path.Join(certsDir, CertFileName), certBytes, 0600)).To(Succeed())
 
-		err = StartPrometheusEndpointNoCertGeneration(certsDir)
+		err = StartPrometheusEndpoint(certsDir)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("key file"))
 		Expect(err.Error()).To(ContainSubstring("does not exist"))
@@ -228,25 +228,9 @@ var _ = Describe("StartPrometheusEndpointNoCertGeneration", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(os.WriteFile(path.Join(certsDir, KeyFileName), keyBytes, 0600)).To(Succeed())
 
-		err = StartPrometheusEndpointNoCertGeneration(certsDir)
+		err = StartPrometheusEndpoint(certsDir)
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("cert file"))
 		Expect(err.Error()).To(ContainSubstring("does not exist"))
-	})
-})
-
-var _ = Describe("StartPrometheusEndpoint", func() {
-	It("should generate cert and key files in the specified directory", func() {
-		certsDir, err := os.MkdirTemp("", "prometheus-test-*")
-		Expect(err).NotTo(HaveOccurred())
-		defer os.RemoveAll(certsDir)
-
-		StartPrometheusEndpoint(certsDir)
-
-		Eventually(func() bool {
-			_, certErr := os.Stat(path.Join(certsDir, "tls.crt"))
-			_, keyErr := os.Stat(path.Join(certsDir, "tls.key"))
-			return certErr == nil && keyErr == nil
-		}, 5*time.Second, 100*time.Millisecond).Should(BeTrue())
 	})
 })

@@ -2,6 +2,7 @@ package populators
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -36,6 +37,8 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	. "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	"kubevirt.io/containerized-data-importer/pkg/util/cert/generator"
+	generatortest "kubevirt.io/containerized-data-importer/pkg/util/cert/generator/test"
 )
 
 var (
@@ -151,6 +154,24 @@ var _ = Describe("Forklift populator tests", func() {
 	dataSourceRef := &corev1.TypedObjectReference{
 		APIGroup: &apiGroup,
 		Kind:     v1beta1.OvirtVolumePopulatorKind,
+		Name:     samplePopulatorName,
+	}
+
+	openstackCr := &v1beta1.OpenstackVolumePopulator{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      samplePopulatorName,
+			Namespace: metav1.NamespaceDefault,
+		},
+		Spec: v1beta1.OpenstackVolumePopulatorSpec{
+			IdentityURL: "https://openstack.example.com:5000/v3",
+			SecretRef:   "openstack-secret",
+			ImageID:     "abcdef01-2345-6789-abcd-ef0123456789",
+		},
+	}
+
+	openstackDataSourceRef := &corev1.TypedObjectReference{
+		APIGroup: &apiGroup,
+		Kind:     v1beta1.OpenstackVolumePopulatorKind,
 		Name:     samplePopulatorName,
 	}
 
@@ -280,6 +301,172 @@ var _ = Describe("Forklift populator tests", func() {
 			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
 			Expect(err).To(HaveOccurred())
 			Expect(result).To(Not(BeNil()))
+		})
+	})
+
+	var _ = Describe("Forklift populator prometheus certificate", func() {
+		const (
+			certData = "the-cert"
+			keyData  = "the-key"
+		)
+
+		serverCertConfig := &cdiv1.CertConfig{
+			Duration:    &metav1.Duration{Duration: 12 * time.Hour},
+			RenewBefore: &metav1.Duration{Duration: 3 * time.Hour},
+		}
+
+		newPendingPod := func(targetPvc, pvcPrime *corev1.PersistentVolumeClaim, phase corev1.PodPhase) *corev1.Pod {
+			pod := getPopulatorPod(targetPvc, pvcPrime)
+			pod.UID = "populator-pod-uid"
+			pod.Status.Phase = phase
+			return pod
+		}
+
+		DescribeTable("should create the certificate Secret owned by the pod",
+			func(phase corev1.PodPhase) {
+				targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+				targetPvc.Spec.DataSourceRef = dataSourceRef
+				pvcPrime := getPVCPrime(targetPvc, make(map[string]string))
+				pod := newPendingPod(targetPvc, pvcPrime, phase)
+				cg := &generatortest.CertGenerator{Cert: []byte(certData), Key: []byte(keyData)}
+
+				reconciler = createForkliftPopulatorReconcilerWithCertConfig(cg, serverCertConfig, targetPvc, pvcPrime, sc, ovirtCr, pod)
+
+				result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(result.RequeueAfter).To(Equal(2 * time.Second))
+
+				secret := &corev1.Secret{}
+				Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{
+					Name:      PrometheusCertSecretName(pod.Name),
+					Namespace: metav1.NamespaceDefault,
+				}, secret)).To(Succeed())
+
+				Expect(secret.Data).To(HaveKeyWithValue(corev1.TLSCertKey, []byte(certData)))
+				Expect(secret.Data).To(HaveKeyWithValue(corev1.TLSPrivateKeyKey, []byte(keyData)))
+				Expect(secret.OwnerReferences).To(HaveLen(1))
+				Expect(secret.OwnerReferences[0].Name).To(Equal(pod.Name))
+				Expect(secret.OwnerReferences[0].UID).To(Equal(pod.UID))
+
+				Expect(cg.ServerCalls).To(Equal(1))
+				Expect(cg.ServerNamespace).To(Equal(pod.Namespace))
+				Expect(cg.ServerService).To(Equal(pod.Name))
+				Expect(cg.ServerDuration).To(Equal(serverCertConfig.Duration.Duration))
+			},
+			Entry("when the pod is pending", corev1.PodPending),
+			Entry("when the pod phase is empty", corev1.PodPhase("")),
+		)
+
+		It("should create the Secret and reach the pending branch when the pod has container statuses", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			pvcPrime := getPVCPrime(targetPvc, map[string]string{AnnPodPhase: string(corev1.PodPending)})
+			pod := newPendingPod(targetPvc, pvcPrime, corev1.PodPending)
+			pod.Status.ContainerStatuses = []corev1.ContainerStatus{{
+				State: corev1.ContainerState{
+					Waiting: &corev1.ContainerStateWaiting{
+						Reason: "ContainerCreating",
+					},
+				},
+			}}
+			cg := &generatortest.CertGenerator{Cert: []byte(certData), Key: []byte(keyData)}
+
+			reconciler = createForkliftPopulatorReconcilerWithCertConfig(cg, serverCertConfig, targetPvc, pvcPrime, sc, ovirtCr, pod)
+
+			result, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(result.RequeueAfter).To(Equal(2 * time.Second))
+
+			secret := &corev1.Secret{}
+			Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{
+				Name:      PrometheusCertSecretName(pod.Name),
+				Namespace: metav1.NamespaceDefault,
+			}, secret)).To(Succeed())
+
+			Expect(secret.Data).To(HaveKeyWithValue(corev1.TLSCertKey, []byte(certData)))
+			Expect(secret.Data).To(HaveKeyWithValue(corev1.TLSPrivateKeyKey, []byte(keyData)))
+			Expect(secret.OwnerReferences).To(HaveLen(1))
+			Expect(secret.OwnerReferences[0].Name).To(Equal(pod.Name))
+			Expect(secret.OwnerReferences[0].UID).To(Equal(pod.UID))
+
+			Expect(cg.ServerCalls).To(Equal(1))
+			Expect(cg.ServerNamespace).To(Equal(pod.Namespace))
+			Expect(cg.ServerService).To(Equal(pod.Name))
+			Expect(cg.ServerDuration).To(Equal(serverCertConfig.Duration.Duration))
+		})
+
+		It("should not create a Secret or invoke the generator for a running pod", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			pvcPrime := getPVCPrime(targetPvc, map[string]string{AnnPodPhase: string(corev1.PodRunning)})
+			pod := newPendingPod(targetPvc, pvcPrime, corev1.PodRunning)
+			pod.Status.ContainerStatuses = []corev1.ContainerStatus{{RestartCount: 0}}
+			cg := &generatortest.CertGenerator{Cert: []byte(certData), Key: []byte(keyData)}
+
+			reconciler = createForkliftPopulatorReconcilerWithCertConfig(cg, serverCertConfig, targetPvc, pvcPrime, sc, ovirtCr, pod)
+
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(cg.ServerCalls).To(Equal(0))
+			secret := &corev1.Secret{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{
+				Name:      PrometheusCertSecretName(pod.Name),
+				Namespace: metav1.NamespaceDefault,
+			}, secret)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+		})
+
+		It("should propagate the generator error and not create a Secret", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			pvcPrime := getPVCPrime(targetPvc, make(map[string]string))
+			pod := newPendingPod(targetPvc, pvcPrime, corev1.PodPending)
+			generatorErr := errors.New("certificate generation failed")
+			cg := &generatortest.CertGenerator{Err: generatorErr}
+
+			reconciler = createForkliftPopulatorReconcilerWithCertConfig(cg, serverCertConfig, targetPvc, pvcPrime, sc, ovirtCr, pod)
+
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).To(MatchError(generatorErr))
+
+			secret := &corev1.Secret{}
+			err = reconciler.client.Get(context.TODO(), types.NamespacedName{
+				Name:      PrometheusCertSecretName(pod.Name),
+				Namespace: metav1.NamespaceDefault,
+			}, secret)
+			Expect(k8serrors.IsNotFound(err)).To(BeTrue())
+		})
+
+		It("should preserve the data of an existing Secret", func() {
+			targetPvc := CreatePvcInStorageClass(targetPvcName, metav1.NamespaceDefault, &sc.Name, nil, nil, corev1.ClaimPending)
+			targetPvc.Spec.DataSourceRef = dataSourceRef
+			pvcPrime := getPVCPrime(targetPvc, make(map[string]string))
+			pod := newPendingPod(targetPvc, pvcPrime, corev1.PodPending)
+			existingSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      PrometheusCertSecretName(pod.Name),
+					Namespace: metav1.NamespaceDefault,
+				},
+				Data: map[string][]byte{
+					corev1.TLSCertKey:       []byte("existing-cert"),
+					corev1.TLSPrivateKeyKey: []byte("existing-key"),
+				},
+			}
+			cg := &generatortest.CertGenerator{Cert: []byte(certData), Key: []byte(keyData)}
+
+			reconciler = createForkliftPopulatorReconcilerWithCertConfig(cg, serverCertConfig, targetPvc, pvcPrime, sc, ovirtCr, pod, existingSecret)
+
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: targetPvcName, Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			secret := &corev1.Secret{}
+			Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{
+				Name:      PrometheusCertSecretName(pod.Name),
+				Namespace: metav1.NamespaceDefault,
+			}, secret)).To(Succeed())
+			Expect(secret.Data).To(HaveKeyWithValue(corev1.TLSCertKey, []byte("existing-cert")))
+			Expect(secret.Data).To(HaveKeyWithValue(corev1.TLSPrivateKeyKey, []byte("existing-key")))
 		})
 	})
 
@@ -449,7 +636,7 @@ var _ = Describe("Forklift populator tests", func() {
 
 		DescribeTable(
 			"should create the populator pod with expected specifications",
-			func(volumeMode corev1.PersistentVolumeMode, expectedVolumePath string) {
+			func(cr runtime.Object, ref *corev1.TypedObjectReference, expectedImage func() string, expectedCommand string, expectedArgs []string, volumeMode corev1.PersistentVolumeMode, expectedVolumePath string) {
 				targetPvc := CreatePvcInStorageClass(
 					targetPvcName,
 					metav1.NamespaceDefault,
@@ -458,7 +645,7 @@ var _ = Describe("Forklift populator tests", func() {
 					nil,
 					corev1.ClaimPending,
 				)
-				targetPvc.Spec.DataSourceRef = dataSourceRef
+				targetPvc.Spec.DataSourceRef = ref
 				targetPvc.Spec.VolumeMode = ptr.To(volumeMode)
 
 				pvcPrime := getPVCPrime(targetPvc, make(map[string]string))
@@ -467,7 +654,7 @@ var _ = Describe("Forklift populator tests", func() {
 					targetPvc,
 					pvcPrime,
 					sc,
-					ovirtCr,
+					cr,
 				)
 
 				err := reconciler.createPopulatorPod(pvcPrime, targetPvc)
@@ -489,19 +676,16 @@ var _ = Describe("Forklift populator tests", func() {
 				container := pod.Spec.Containers[0]
 
 				Expect(container.Name).To(Equal(populatorContainerName))
-				Expect(container.Image).To(Equal(reconciler.ovirtPopulatorImage))
-				Expect(container.Command).To(Equal([]string{"ovirt-populator"}))
-				Expect(container.Args).To(ContainElements(
+				Expect(container.Image).To(Equal(expectedImage()))
+				Expect(container.Command).To(Equal([]string{expectedCommand}))
+				Expect(container.Args).To(ContainElements(append([]string{
 					fmt.Sprintf("--owner-uid=%s", targetPvc.UID),
 					fmt.Sprintf(
 						"--pvc-size=%d",
 						targetPvc.Spec.Resources.Requests.Storage().Value(),
 					),
 					expectedVolumePath,
-					"--secret-name=ovirt-engine-secret",
-					"--disk-id=12345678-1234-1234-1234-123456789012",
-					"--engine-url=https://ovirt-engine.example.com",
-				))
+				}, expectedArgs...)))
 
 				if volumeMode == corev1.PersistentVolumeBlock {
 					Expect(container.VolumeDevices).To(ContainElement(
@@ -531,20 +715,80 @@ var _ = Describe("Forklift populator tests", func() {
 					),
 				))
 
+				Expect(container.VolumeMounts).To(ContainElement(
+					And(
+						HaveField("Name", Equal(common.PrometheusCertVolName)),
+						HaveField("MountPath", Equal(common.PrometheusCertDir)),
+						HaveField("ReadOnly", BeTrue()),
+					),
+				))
+
 				Expect(pod.Spec.Volumes).To(ContainElement(
 					And(
 						HaveField("Name", Equal(common.TmpVolumeName)),
 						HaveField("VolumeSource.EmptyDir", Not(BeNil())),
 					),
 				))
+
+				Expect(pod.Spec.Volumes).To(ContainElement(
+					And(
+						HaveField("Name", Equal(populatorPodVolumeName)),
+						HaveField("VolumeSource.PersistentVolumeClaim.ClaimName", Equal(pvcPrime.Name)),
+					),
+				))
+
+				Expect(pod.Spec.Volumes).To(ContainElement(
+					And(
+						HaveField("Name", Equal(common.PrometheusCertVolName)),
+						HaveField("VolumeSource.Secret.SecretName", Equal(PrometheusCertSecretName(pod.Name))),
+					),
+				))
 			},
 			Entry(
-				"with filesystem volume mode",
+				"oVirt, filesystem volume mode",
+				ovirtCr, dataSourceRef,
+				func() string { return reconciler.ovirtPopulatorImage }, "ovirt-populator",
+				[]string{
+					"--secret-name=ovirt-engine-secret",
+					"--disk-id=12345678-1234-1234-1234-123456789012",
+					"--engine-url=https://ovirt-engine.example.com",
+				},
 				corev1.PersistentVolumeFilesystem,
 				"--volume-path="+mountPath+"disk.img",
 			),
 			Entry(
-				"with raw-block volume mode",
+				"oVirt, raw-block volume mode",
+				ovirtCr, dataSourceRef,
+				func() string { return reconciler.ovirtPopulatorImage }, "ovirt-populator",
+				[]string{
+					"--secret-name=ovirt-engine-secret",
+					"--disk-id=12345678-1234-1234-1234-123456789012",
+					"--engine-url=https://ovirt-engine.example.com",
+				},
+				corev1.PersistentVolumeBlock,
+				"--volume-path="+devicePath,
+			),
+			Entry(
+				"OpenStack, filesystem volume mode",
+				openstackCr, openstackDataSourceRef,
+				func() string { return reconciler.importerImage }, "openstack-populator",
+				[]string{
+					"--endpoint=https://openstack.example.com:5000/v3",
+					"--secret-name=openstack-secret",
+					"--image-id=abcdef01-2345-6789-abcd-ef0123456789",
+				},
+				corev1.PersistentVolumeFilesystem,
+				"--volume-path="+mountPath+"disk.img",
+			),
+			Entry(
+				"OpenStack, raw-block volume mode",
+				openstackCr, openstackDataSourceRef,
+				func() string { return reconciler.importerImage }, "openstack-populator",
+				[]string{
+					"--endpoint=https://openstack.example.com:5000/v3",
+					"--secret-name=openstack-secret",
+					"--image-id=abcdef01-2345-6789-abcd-ef0123456789",
+				},
 				corev1.PersistentVolumeBlock,
 				"--volume-path="+devicePath,
 			),
@@ -624,7 +868,20 @@ func createForkliftPopulatorReconciler(objects ...runtime.Object) *ForkliftPopul
 	return createForkliftPopulatorReconcilerWithoutConfig(objs...)
 }
 
+func createForkliftPopulatorReconcilerWithCertConfig(certGenerator generator.CertGenerator, serverConfig *cdiv1.CertConfig, objects ...runtime.Object) *ForkliftPopulatorReconciler {
+	cdiCR := MakeEmptyCDICR()
+	cdiCR.Spec.CertConfig = &cdiv1.CDICertConfig{Server: serverConfig}
+
+	reconciler := createForkliftPopulatorReconcilerWithObjects(append([]runtime.Object{cdiCR}, objects...)...)
+	reconciler.serverCertGenerator = certGenerator
+	return reconciler
+}
+
 func createForkliftPopulatorReconcilerWithoutConfig(objects ...runtime.Object) *ForkliftPopulatorReconciler {
+	return createForkliftPopulatorReconcilerWithObjects(append([]runtime.Object{MakeEmptyCDICR()}, objects...)...)
+}
+
+func createForkliftPopulatorReconcilerWithObjects(objects ...runtime.Object) *ForkliftPopulatorReconciler {
 	objs := []runtime.Object{}
 	objs = append(objs, objects...)
 
@@ -634,8 +891,6 @@ func createForkliftPopulatorReconcilerWithoutConfig(objects ...runtime.Object) *
 	_ = snapshotv1.AddToScheme(s)
 	_ = extv1.AddToScheme(s)
 	_ = v1beta1.AddToScheme(s)
-
-	objs = append(objs, MakeEmptyCDICR())
 
 	// Create a fake client to mock API calls.
 	builder := fake.NewClientBuilder().
@@ -663,7 +918,9 @@ func createForkliftPopulatorReconcilerWithoutConfig(objects ...runtime.Object) *
 				common.AppKubernetesVersionLabel: "v0.0.0-tests",
 			},
 		},
+		importerImage:       "importer-image",
 		ovirtPopulatorImage: "ovirt-populator-image",
+		serverCertGenerator: &generatortest.CertGenerator{},
 	}
 
 	return r

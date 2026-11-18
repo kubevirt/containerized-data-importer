@@ -12,6 +12,7 @@ import (
 
 	"k8s.io/klog/v2"
 
+	"kubevirt.io/containerized-data-importer/pkg/common"
 	metrics "kubevirt.io/containerized-data-importer/pkg/monitoring/metrics/ovirt-populator"
 	prometheusutil "kubevirt.io/containerized-data-importer/pkg/util/prometheus"
 )
@@ -50,12 +51,9 @@ func main() {
 		klog.Fatal("pvc-size must be greater than 0")
 	}
 
-	certsDirectory, err := os.MkdirTemp("", "certsdir")
-	if err != nil {
-		klog.Fatal(err)
+	if err := prometheusutil.StartPrometheusEndpoint(common.PrometheusCertDir); err != nil {
+		klog.Warningf("Failed to start prometheus endpoint: %v", err)
 	}
-
-	prometheusutil.StartPrometheusEndpoint(certsDirectory)
 
 	populate(engineURL, diskID, volPath, ownerUID, *pvcSize)
 }

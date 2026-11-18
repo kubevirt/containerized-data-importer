@@ -47,6 +47,7 @@ import (
 	"kubevirt.io/containerized-data-importer/pkg/common"
 	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	featuregates "kubevirt.io/containerized-data-importer/pkg/feature-gates"
+	generatortest "kubevirt.io/containerized-data-importer/pkg/util/cert/generator/test"
 	"kubevirt.io/containerized-data-importer/pkg/util/naming"
 	sdkapi "kubevirt.io/controller-lifecycle-operator-sdk/api"
 )
@@ -574,6 +575,51 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		Expect(secret.OwnerReferences[0].UID).To(Equal(pod.UID))
 		Expect(secret.OwnerReferences[0].Controller).NotTo(BeNil())
 		Expect(*secret.OwnerReferences[0].Controller).To(BeTrue())
+	})
+
+	It("Should return the cert generator error and not create the prometheus cert Secret when the importer pod is pending", func() {
+		pvc := cc.CreatePvc(
+			"testPvc1",
+			"default",
+			map[string]string{
+				cc.AnnEndpoint:  testEndPoint,
+				cc.AnnImportPod: "importer-testPvc1",
+			},
+			nil,
+		)
+		pvc.Status.Phase = corev1.ClaimBound
+
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.UID = types.UID("importer-pod-uid")
+		pod.Status.Phase = corev1.PodPending
+
+		reconciler = createImportReconciler(pvc, pod)
+		generatorErr := fmt.Errorf("certificate generation failed")
+		cg := &generatortest.CertGenerator{Err: generatorErr}
+		reconciler.serverCertGenerator = cg
+
+		_, err := reconciler.Reconcile(
+			context.TODO(),
+			reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      pvc.Name,
+					Namespace: pvc.Namespace,
+				},
+			},
+		)
+		Expect(err).To(MatchError(generatorErr))
+		Expect(cg.ServerCalls).To(Equal(1))
+
+		secret := &corev1.Secret{}
+		err = reconciler.client.Get(
+			context.TODO(),
+			types.NamespacedName{
+				Name:      cc.PrometheusCertSecretName(pod.Name),
+				Namespace: pod.Namespace,
+			},
+			secret,
+		)
+		Expect(errors.IsNotFound(err)).To(BeTrue())
 	})
 
 	It("Should not ensure the prometheus cert Secret when the importer pod is running", func() {
@@ -1701,12 +1747,13 @@ func createImportReconciler(objects ...runtime.Object) *ImportReconciler {
 	rec := record.NewFakeRecorder(1)
 	// Create a ReconcileMemcached object with the scheme and fake client.
 	r := &ImportReconciler{
-		client:         cl,
-		uncachedClient: cl,
-		scheme:         s,
-		log:            importLog,
-		recorder:       rec,
-		featureGates:   featuregates.NewFeatureGates(cl),
+		client:              cl,
+		uncachedClient:      cl,
+		scheme:              s,
+		log:                 importLog,
+		recorder:            rec,
+		featureGates:        featuregates.NewFeatureGates(cl),
+		serverCertGenerator: &generatortest.CertGenerator{},
 		installerLabels: map[string]string{
 			common.AppKubernetesPartOfLabel:  "testing",
 			common.AppKubernetesVersionLabel: "v0.0.0-tests",
