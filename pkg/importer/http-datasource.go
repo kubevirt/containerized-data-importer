@@ -83,7 +83,7 @@ type HTTPDataSource struct {
 	// the content length reported by the http server.
 	contentLength uint64
 	// checksumValidator validates the checksum of downloaded data
-	checksumValidator *ChecksumValidator
+	checksumValidator streamValidator
 	n                 image.NbdkitOperation
 }
 
@@ -110,13 +110,15 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 	}
 
 	// Create checksum validator if checksum is provided
-	checksumValidator, err := NewChecksumValidator(checksum)
+	validator, err := NewChecksumValidator(checksum)
 	if err != nil {
 		cancel()
 		return nil, errors.Wrap(err, "invalid checksum")
 	}
-	if checksumValidator != nil {
+	var checksumValidator streamValidator
+	if validator != nil {
 		klog.Infof("Checksum validation enabled: %s", checksum)
+		checksumValidator = validator
 	}
 
 	httpSource := &HTTPDataSource{
@@ -197,7 +199,7 @@ func (hs *HTTPDataSource) Transfer(path string, preallocation bool) (ProcessingP
 			return ProcessingPhaseError, err
 		}
 		// Verify checksum if specified
-		if err := hs.readers.ValidateChecksum(); err != nil {
+		if err := hs.readers.ValidateStream(); err != nil {
 			return ProcessingPhaseError, fmt.Errorf("checksum validation failed: %w", err)
 		}
 		// If we successfully wrote to the file, then the parse will succeed.
@@ -208,7 +210,7 @@ func (hs *HTTPDataSource) Transfer(path string, preallocation bool) (ProcessingP
 			return ProcessingPhaseError, errors.Wrap(err, "unable to untar files from endpoint")
 		}
 		// Verify checksum if specified
-		if err := hs.readers.ValidateChecksum(); err != nil {
+		if err := hs.readers.ValidateStream(); err != nil {
 			return ProcessingPhaseError, fmt.Errorf("checksum validation failed: %w", err)
 		}
 		hs.url = nil
@@ -228,7 +230,7 @@ func (hs *HTTPDataSource) TransferFile(fileName string, preallocation bool) (Pro
 		return ProcessingPhaseError, err
 	}
 	// Verify checksum if specified
-	if err := hs.readers.ValidateChecksum(); err != nil {
+	if err := hs.readers.ValidateStream(); err != nil {
 		return ProcessingPhaseError, fmt.Errorf("checksum validation failed: %w", err)
 	}
 	return ProcessingPhaseResize, nil
