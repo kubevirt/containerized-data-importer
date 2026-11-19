@@ -42,6 +42,36 @@ var _ = Describe("Registry data source", func() {
 		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 	})
 
+	DescribeTable("collectCerts preserves certificates with colliding normalized names", func(prefix string) {
+		sourceDir := filepath.Join(tmpDir, "source")
+		targetDir := filepath.Join(tmpDir, "target")
+		Expect(os.Mkdir(sourceDir, 0700)).To(Succeed())
+		Expect(os.Mkdir(targetDir, 0700)).To(Succeed())
+		// Include a name that also collides with the first numeric suffix.
+		names := []string{"bundle.crt", "bundle.pem", "bundle-1.crt"}
+		for _, name := range names {
+			Expect(os.WriteFile(filepath.Join(sourceDir, name), []byte(name), 0600)).To(Succeed())
+		}
+
+		Expect(collectCerts(sourceDir, targetDir, prefix)).To(Succeed())
+		entries, err := os.ReadDir(targetDir)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(entries).To(HaveLen(len(names)))
+		var contents []string
+		for _, entry := range entries {
+			Expect(entry.Name()).To(HavePrefix(prefix))
+			Expect(filepath.Ext(entry.Name())).To(Equal(".crt"))
+			data, err := os.ReadFile(filepath.Join(targetDir, entry.Name()))
+			Expect(err).NotTo(HaveOccurred())
+			contents = append(contents, string(data))
+		}
+		Expect(contents).To(ConsistOf(names))
+	},
+		Entry("for registry certificates", ""),
+		Entry("for proxy certificates", "proxy-"),
+		Entry("for trusted CA certificates", "trusted-ca-"),
+	)
+
 	DescribeTable("Transfer should ", func(ep, accKey, secKey, certDir, scratchPath string, insecureRegistry bool, wantErr bool) {
 		if scratchPath == "" {
 			scratchPath = tmpDir
