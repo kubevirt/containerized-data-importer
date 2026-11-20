@@ -92,6 +92,20 @@ http_archive(
 
 load("@bazeldnf//:deps.bzl", "bazeldnf_dependencies", "rpm")
 
+# Keep OpenPGP imports on bazeldnf's pinned crypto repository. Older Gazelle
+# versions can otherwise infer a nonexistent golang.org/x/crypto/openpgp module.
+go_repository(
+    name = "com_github_sassoftware_go_rpmutils",
+    build_directives = [
+        "gazelle:resolve go golang.org/x/crypto/openpgp @org_golang_x_crypto//openpgp:go_default_library",
+        "gazelle:resolve go golang.org/x/crypto/openpgp/packet @org_golang_x_crypto//openpgp/packet:go_default_library",
+    ],
+    importpath = "github.com/sassoftware/go-rpmutils",
+    replace = "github.com/rmohr/go-rpmutils",
+    sum = "h1:IPm+rJWi7P9mkoFQjloDEGThxlM71dzDrC2DZSjgnL8=",
+    version = "v0.1.2-0.20201215123907-5acf7436c00d",
+)
+
 bazeldnf_dependencies()
 
 #load("@com_github_bazelbuild_buildtools//buildifier:deps.bzl", "buildifier_dependencies")
