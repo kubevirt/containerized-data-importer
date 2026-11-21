@@ -85,7 +85,7 @@ var (
 		{"--preallocation=falloc"},
 		{"--preallocation=full"},
 	}
-	odirectChecker = NewDirectIOChecker()
+	odirectChecker = NewDirectIOChecker(RealOS{})
 )
 
 func init() {
