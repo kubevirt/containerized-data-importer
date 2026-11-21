@@ -84,14 +84,13 @@ type HTTPDataSource struct {
 	contentLength uint64
 	// checksumValidator validates the checksum of downloaded data
 	checksumValidator *ChecksumValidator
-
-	n image.NbdkitOperation
+	n                 image.NbdkitOperation
 }
 
 var createNbdkitCurl = image.NewNbdkitCurl
 
 // NewHTTPDataSource creates a new instance of the http data provider.
-func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType, checksum string) (*HTTPDataSource, error) {
+func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType cdiv1.DataVolumeContentType, checksum string, insecureSkipVerify bool) (*HTTPDataSource, error) {
 	ep, err := ParseEndpoint(endpoint)
 	if err != nil {
 		return nil, errors.Wrapf(err, "unable to parse endpoint %q", endpoint)
@@ -104,7 +103,7 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		return nil, errors.Wrap(err, "Error getting extra headers for HTTP client")
 	}
 
-	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir, extraHeaders, secretExtraHeaders, contentType)
+	httpReader, contentLength, brokenForQemuImg, err := createHTTPReader(ctx, ep, accessKey, secKey, certDir, extraHeaders, secretExtraHeaders, contentType, insecureSkipVerify)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -365,9 +364,9 @@ func addExtraheaders(req *http.Request, extraHeaders []string) {
 	req.Header.Add("User-Agent", defaultUserAgent)
 }
 
-func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string, extraHeaders, secretExtraHeaders []string, contentType cdiv1.DataVolumeContentType) (io.ReadCloser, uint64, bool, error) {
+func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certDir string, extraHeaders, secretExtraHeaders []string, contentType cdiv1.DataVolumeContentType, insecureSkipVerify bool) (io.ReadCloser, uint64, bool, error) {
 	var brokenForQemuImg bool
-	client, err := createHTTPClient(certDir, false)
+	client, err := createHTTPClient(certDir, insecureSkipVerify)
 	if err != nil {
 		return nil, uint64(0), false, errors.Wrap(err, "Error creating http client")
 	}
