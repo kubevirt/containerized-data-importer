@@ -121,8 +121,6 @@ fi
 if [ -n "$DOCKER_CA_CERT_FILE" ]; then
     volumes="$volumes -v ${DOCKER_CA_CERT_FILE}:${DOCKERIZED_CUSTOM_CA_PATH}:ro,z"
 fi
-# add tmpfs path for testing purposes
-volumes="$volumes --tmpfs /mnt/cditmpfs"
 
 # Ensure that a bazel server is running
 if [ -z "$(${CDI_CRI} ps --format '{{.Names}}' | grep ${BAZEL_BUILDER_SERVER})" ]; then
