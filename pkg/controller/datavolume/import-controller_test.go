@@ -248,6 +248,111 @@ var _ = Describe("All DataVolume Tests", func() {
 			Eventually(reconciler.recorder.(*record.FakeRecorder).Events).Should(Receive(ContainSubstring(MinimumPVCSizeApplied)))
 		})
 
+		DescribeTable("Should label the PVC created for a DataVolume with the requested and overhead sizes", func(requested string, volumeMode corev1.PersistentVolumeMode, expectBumped bool) {
+			scName := "testSC"
+			sc := CreateStorageClass(scName, nil)
+			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, volumeMode)
+			sp.Annotations = map[string]string{AnnMinimumSupportedPVCSize: "4Gi"}
+			requestedSize := resource.MustParse(requested)
+
+			storageSpec := &cdiv1.StorageSpec{
+				StorageClassName: &scName,
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{corev1.ResourceStorage: requestedSize},
+				},
+			}
+			dv := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault,
+				&cdiv1.DataVolumeSource{HTTP: &cdiv1.DataVolumeSourceHTTP{}}, storageSpec)
+
+			config := MakeEmptyCDIConfigSpec(common.ConfigName)
+			config.Status.FilesystemOverhead = &cdiv1.FilesystemOverhead{Global: "0.06"}
+			reconciler = createImportReconcilerWithoutConfig(dv, sc, sp, config)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)).To(Succeed())
+
+			// Original request, no overhead.
+			Expect(pvc.Labels).To(HaveKeyWithValue(LabelOriginalRequestedSizeBytes, strconv.FormatInt(requestedSize.Value(), 10)))
+
+			// Filesystem overhead added to the request (0 for Block).
+			overheadStr, ok := pvc.Labels[LabelFsOverheadBytes]
+			Expect(ok).To(BeTrue())
+			overhead, err := strconv.ParseInt(overheadStr, 10, 64)
+			Expect(err).ToNot(HaveOccurred())
+
+			// A dashboard reconstructs the with-overhead size (original + overhead) and
+			// compares the final size against it.
+			withOverhead := requestedSize.Value() + overhead
+			final := pvc.Spec.Resources.Requests.Storage()
+			if expectBumped {
+				Expect(final.Cmp(resource.MustParse("4Gi"))).To(Equal(0))
+				Expect(final.Value()).To(BeNumerically(">", withOverhead))
+			} else {
+				Expect(final.CmpInt64(withOverhead)).To(Equal(0))
+			}
+		},
+			Entry("filesystem 3.7Gi is bumped past overhead to the minimum", "3.7Gi", corev1.PersistentVolumeFilesystem, true),
+			Entry("filesystem 3.9Gi grows by overhead only", "3.9Gi", corev1.PersistentVolumeFilesystem, false),
+			Entry("block 3.9Gi is bumped to the minimum", "3.9Gi", corev1.PersistentVolumeBlock, true),
+			Entry("request above the minimum", "5Gi", corev1.PersistentVolumeFilesystem, false),
+		)
+
+		It("Should let the webhook stamp the fs overhead when it renders the PVC", func() {
+			scName := "testSC"
+			sc := CreateStorageClass(scName, nil)
+			sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, corev1.PersistentVolumeFilesystem)
+			sp.Annotations = map[string]string{AnnMinimumSupportedPVCSize: "4Gi"}
+			requestedSize := resource.MustParse("1Gi")
+
+			storageSpec := &cdiv1.StorageSpec{
+				StorageClassName: &scName,
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{corev1.ResourceStorage: requestedSize},
+				},
+			}
+			dv := createDataVolumeWithStorageAPI("test-dv", metav1.NamespaceDefault,
+				&cdiv1.DataVolumeSource{HTTP: &cdiv1.DataVolumeSourceHTTP{}}, storageSpec)
+			AddLabel(dv, common.PvcApplyStorageProfileLabel, "true")
+
+			reconciler = createImportReconciler(dv, sc, sp) // webhook rendering is enabled by default
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)).To(Succeed())
+			// The fake client does not run admission webhooks, so the PVC is not rendered yet
+			Expect(pvc.Spec.Resources.Requests.Storage().Cmp(requestedSize)).To(Equal(0))
+			Expect(pvc.Labels).To(HaveKeyWithValue(LabelOriginalRequestedSizeBytes, strconv.FormatInt(requestedSize.Value(), 10)))
+			// The controller did not render the size, so it leaves the overhead label to the webhook.
+			Expect(pvc.Labels).ToNot(HaveKey(LabelFsOverheadBytes))
+
+			Expect(RenderPvc(context.TODO(), reconciler.client, pvc)).To(Succeed())
+			Expect(pvc.Spec.Resources.Requests.Storage().Cmp(resource.MustParse("4Gi"))).To(Equal(0))
+			withOverhead, err := InflateSizeWithOverhead(context.TODO(), reconciler.client, requestedSize.Value(), &pvc.Spec)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pvc.Labels).To(HaveKeyWithValue(LabelFsOverheadBytes, strconv.FormatInt(withOverhead.Value()-requestedSize.Value(), 10)))
+		})
+
+		It("Should not inherit size-tracking labels from the DataVolume", func() {
+			requestedSize := resource.MustParse("1Gi")
+			dv := NewImportDataVolume("test-dv")
+			dv.Spec.PVC.Resources.Requests = corev1.ResourceList{corev1.ResourceStorage: requestedSize}
+			AddLabel(dv, LabelOriginalRequestedSizeBytes, "1")
+			AddLabel(dv, LabelFsOverheadBytes, "2")
+
+			reconciler = createImportReconciler(dv)
+			_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}})
+			Expect(err).ToNot(HaveOccurred())
+
+			pvc := &corev1.PersistentVolumeClaim{}
+			Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: "test-dv", Namespace: metav1.NamespaceDefault}, pvc)).To(Succeed())
+			Expect(pvc.Labels).To(HaveKeyWithValue(LabelOriginalRequestedSizeBytes, strconv.FormatInt(requestedSize.Value(), 10)))
+			// spec.pvc DVs are not sized by CDI, so there is no overhead label
+			Expect(pvc.Labels).ToNot(HaveKey(LabelFsOverheadBytes))
+		})
+
 		It("Should create a PVC on a valid import DV without delayed annotation then add on success", func() {
 			dv := NewImportDataVolume("test-dv")
 			AddAnnotation(dv, "foo", "bar")

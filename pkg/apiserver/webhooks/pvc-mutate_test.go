@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -42,6 +43,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 )
 
 var _ = Describe("Mutating PVC Webhook", func() {
@@ -144,26 +146,36 @@ var _ = Describe("Mutating PVC Webhook", func() {
 			var patchObjs []jsonpatch.Operation
 			err := json.Unmarshal(resp.Patch, &patchObjs)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(patchObjs).Should(HaveLen(3))
+			Expect(patchObjs).Should(HaveLen(5))
 
 			sort.Slice(patchObjs, func(i, j int) bool {
 				return patchObjs[i].Path < patchObjs[j].Path
 			})
 
+			// newPvc requests 1G; block mode has no filesystem overhead, so fsOverhead == 0
+			requestedSize := resource.MustParse("1G")
 			Expect(patchObjs[0].Operation).Should(Equal("add"))
-			Expect(patchObjs[0].Path).Should(Equal("/spec/accessModes"))
-			accessModes, ok := patchObjs[0].Value.([]interface{})
+			Expect(patchObjs[0].Path).Should(Equal("/metadata/labels/" + strings.ReplaceAll(cc.LabelFsOverheadBytes, "/", "~1")))
+			Expect(patchObjs[0].Value).Should(Equal("0"))
+
+			Expect(patchObjs[1].Operation).Should(Equal("add"))
+			Expect(patchObjs[1].Path).Should(Equal("/metadata/labels/" + strings.ReplaceAll(cc.LabelOriginalRequestedSizeBytes, "/", "~1")))
+			Expect(patchObjs[1].Value).Should(Equal(fmt.Sprint(requestedSize.Value())))
+
+			Expect(patchObjs[2].Operation).Should(Equal("add"))
+			Expect(patchObjs[2].Path).Should(Equal("/spec/accessModes"))
+			accessModes, ok := patchObjs[2].Value.([]interface{})
 			Expect(ok).Should(BeTrue())
 			Expect(accessModes).Should(HaveLen(1))
 			Expect(accessModes[0]).Should(Equal("ReadWriteMany"))
 
-			Expect(patchObjs[1].Operation).Should(Equal("add"))
-			Expect(patchObjs[1].Path).Should(Equal("/spec/storageClassName"))
-			Expect(patchObjs[1].Value).Should(Equal(scName))
+			Expect(patchObjs[3].Operation).Should(Equal("add"))
+			Expect(patchObjs[3].Path).Should(Equal("/spec/storageClassName"))
+			Expect(patchObjs[3].Value).Should(Equal(scName))
 
-			Expect(patchObjs[2].Operation).Should(Equal("add"))
-			Expect(patchObjs[2].Path).Should(Equal("/spec/volumeMode"))
-			Expect(patchObjs[2].Value).Should(Equal("Block"))
+			Expect(patchObjs[4].Operation).Should(Equal("add"))
+			Expect(patchObjs[4].Path).Should(Equal("/spec/volumeMode"))
+			Expect(patchObjs[4].Value).Should(Equal("Block"))
 		},
 			Entry("fail with no storage classes", false,
 				"PVC spec is missing accessMode and no storageClass to choose profile", ""),
@@ -174,6 +186,93 @@ var _ = Describe("Mutating PVC Webhook", func() {
 			Entry("succeed with default storage classes and complete storage profile", true, "", testStorageClassName, &defaultStorageClass, &storageProfile),
 			Entry("choose virt default storage class over default", true, "", virtDefaultStorageClassName, &defaultStorageClass, &virtDefaultStorageClass, &storageProfile, &virtDefaultStorageProfile),
 		)
+
+		DescribeTable("should label the PVC with the requested size and fs overhead", func(requested string, expectBump bool) {
+			labelPath := func(key string) string {
+				return "/metadata/labels/" + strings.ReplaceAll(key, "/", "~1")
+			}
+
+			pvc := newPvc()
+			requestedSize := resource.MustParse(requested)
+			pvc.Spec.Resources.Requests[corev1.ResourceStorage] = requestedSize
+			raw, err := json.Marshal(pvc)
+			Expect(err).ToNot(HaveOccurred())
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource: metav1.GroupVersionResource{
+						Group:    corev1.SchemeGroupVersion.Group,
+						Version:  corev1.SchemeGroupVersion.Version,
+						Resource: "persistentvolumeclaims",
+					},
+					Object: runtime.RawExtension{Raw: raw},
+				},
+			}
+
+			// storageProfile is Block, so no filesystem overhead applies (fsOverhead == 0)
+			profile := storageProfile.DeepCopy()
+			profile.Annotations = map[string]string{cc.AnnMinimumSupportedPVCSize: "4Gi"}
+			resp := mutatePvc(ar, defaultStorageClass.DeepCopy(), profile)
+			Expect(resp.Allowed).To(BeTrue())
+
+			var patches []jsonpatch.Operation
+			Expect(json.Unmarshal(resp.Patch, &patches)).To(Succeed())
+			Expect(patches).To(ContainElements(
+				jsonpatch.Operation{Operation: "add", Path: labelPath(cc.LabelOriginalRequestedSizeBytes), Value: fmt.Sprint(requestedSize.Value())},
+				jsonpatch.Operation{Operation: "add", Path: labelPath(cc.LabelFsOverheadBytes), Value: "0"},
+			))
+
+			// The minimum bump shows up only as the final size, which a dashboard compares against the labels.
+			storageReplacedToMin := jsonpatch.Operation{Operation: "replace", Path: "/spec/resources/requests/storage", Value: "4Gi"}
+			if expectBump {
+				Expect(patches).To(ContainElement(storageReplacedToMin))
+			} else {
+				Expect(patches).ToNot(ContainElement(storageReplacedToMin))
+			}
+		},
+			Entry("bumped to the minimum", "1Gi", true),
+			Entry("above the minimum", "5Gi", false),
+		)
+
+		It("should label a PVC restored from a VolumeSnapshot with the requested size only", func() {
+			labelPath := func(key string) string {
+				return "/metadata/labels/" + strings.ReplaceAll(key, "/", "~1")
+			}
+
+			pvc := newPvc()
+			requestedSize := pvc.Spec.Resources.Requests[corev1.ResourceStorage]
+			pvc.Spec.DataSourceRef = &corev1.TypedObjectReference{
+				APIGroup: ptr.To("snapshot.storage.k8s.io"),
+				Kind:     "VolumeSnapshot",
+				Name:     "snap",
+			}
+			raw, err := json.Marshal(pvc)
+			Expect(err).ToNot(HaveOccurred())
+			ar := &admissionv1.AdmissionReview{
+				Request: &admissionv1.AdmissionRequest{
+					Operation: admissionv1.Create,
+					Resource: metav1.GroupVersionResource{
+						Group:    corev1.SchemeGroupVersion.Group,
+						Version:  corev1.SchemeGroupVersion.Version,
+						Resource: "persistentvolumeclaims",
+					},
+					Object: runtime.RawExtension{Raw: raw},
+				},
+			}
+
+			resp := mutatePvc(ar, defaultStorageClass.DeepCopy(), storageProfile.DeepCopy())
+			Expect(resp.Allowed).To(BeTrue())
+
+			var patches []jsonpatch.Operation
+			Expect(json.Unmarshal(resp.Patch, &patches)).To(Succeed())
+			Expect(patches).To(ContainElement(jsonpatch.Operation{
+				Operation: "add",
+				Path:      labelPath(cc.LabelOriginalRequestedSizeBytes),
+				Value:     fmt.Sprint(requestedSize.Value()),
+			}))
+			// Snapshot restores are not sized by CDI's overhead+minimum sizing
+			Expect(patches).ToNot(ContainElement(HaveField("Path", labelPath(cc.LabelFsOverheadBytes))))
+		})
 	})
 })
 

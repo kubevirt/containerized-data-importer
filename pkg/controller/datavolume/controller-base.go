@@ -773,6 +773,13 @@ func (r *ReconcilerBase) createPvcForDatavolume(datavolume *cdiv1.DataVolume, pv
 	if err != nil {
 		return nil, err
 	}
+	// Record the filesystem overhead for spec.storage DVs. labelFsOverhead skips PVCs whose
+	// size did not come from CDI's sizing (the webhook renders it later, or clone size detection).
+	if requested := cc.GetDVRequestedSize(datavolume); requested != nil && datavolume.Spec.Storage != nil {
+		if err := labelFsOverhead(context.TODO(), r.client, newPvc, *requested); err != nil {
+			return nil, err
+		}
+	}
 	util.SetRecommendedLabels(newPvc, r.installerLabels, "cdi-controller")
 	if err := r.client.Create(context.TODO(), newPvc); err != nil {
 		return nil, err
@@ -1145,7 +1152,12 @@ func (r *ReconcilerBase) newPersistentVolumeClaim(dataVolume *cdiv1.DataVolume, 
 	for k, v := range dataVolume.Labels {
 		labels[k] = v
 	}
-
+	// Size-tracking labels are CDI-owned; never inherit them from the DataVolume.
+	delete(labels, cc.LabelOriginalRequestedSizeBytes)
+	delete(labels, cc.LabelFsOverheadBytes)
+	if requested := cc.GetDVRequestedSize(dataVolume); requested != nil {
+		labels[cc.LabelOriginalRequestedSizeBytes] = strconv.FormatInt(requested.Value(), 10)
+	}
 	annotations := make(map[string]string)
 	for k, v := range dataVolume.ObjectMeta.Annotations {
 		annotations[k] = v
