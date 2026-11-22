@@ -300,6 +300,17 @@ func (fr *FormatReaders) Close() (rtnerr error) {
 	return rtnerr
 }
 
+// SetDecompressedProgressReader wraps the top-level reader with a ProgressReader that
+// tracks decompressed bytes against the given total. This is used when the server provides
+// the decompressed size via X-Decompressed-Content-Length.
+func (fr *FormatReaders) SetDecompressedProgressReader(decompressedTotal uint64) {
+	if fr.progressReader != nil || decompressedTotal == 0 {
+		return
+	}
+	fr.progressReader = prometheusutil.NewProgressReader(fr.TopReader(), metrics.Progress(ownerUID), decompressedTotal)
+	fr.readers = append(fr.readers, reader{rdrType: rdrStream, rdr: fr.progressReader})
+}
+
 // StartProgressUpdate starts the go routine to automatically update the progress on a set interval.
 func (fr *FormatReaders) StartProgressUpdate() {
 	if fr.progressReader != nil {
