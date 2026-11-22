@@ -45,12 +45,13 @@ import (
 )
 
 const (
-	tempFile          = "tmpimage"
-	nbdkitPid         = "/tmp/nbdkit.pid"
-	nbdkitSocket      = "/tmp/nbdkit.sock"
-	defaultUserAgent  = "cdi-golang-importer"
-	httpContentType   = "Content-Type"
-	httpContentLength = "Content-Length"
+	tempFile                      = "tmpimage"
+	nbdkitPid                     = "/tmp/nbdkit.pid"
+	nbdkitSocket                  = "/tmp/nbdkit.sock"
+	defaultUserAgent              = "cdi-golang-importer"
+	httpContentType               = "Content-Type"
+	httpContentLength             = "Content-Length"
+	httpDecompressedContentLength = "X-Decompressed-Content-Length"
 )
 
 // HTTPDataSource is the data provider for http(s) endpoints.
@@ -82,9 +83,16 @@ type HTTPDataSource struct {
 	brokenForQemuImg bool
 	// the content length reported by the http server.
 	contentLength uint64
+	// the decompressed content length reported via X-Decompressed-Content-Length header.
+	decompressedContentLength uint64
 	// checksumValidator validates the checksum of downloaded data
 	checksumValidator streamValidator
 	n                 image.NbdkitOperation
+}
+
+type httpCountingReader struct {
+	*util.CountingReader
+	decompressedContentLength uint64
 }
 
 var createNbdkitCurl = image.NewNbdkitCurl
@@ -121,25 +129,26 @@ func NewHTTPDataSource(endpoint, accessKey, secKey, certDir string, contentType 
 		checksumValidator = validator
 	}
 
+	// We know this is a counting reader, so no need to check.
+	countingReader := httpReader.(*httpCountingReader)
 	httpSource := &HTTPDataSource{
-		ctx:               ctx,
-		cancel:            cancel,
-		httpReader:        httpReader,
-		contentType:       contentType,
-		endpoint:          ep,
-		customCA:          certDir,
-		brokenForQemuImg:  brokenForQemuImg,
-		contentLength:     contentLength,
-		checksumValidator: checksumValidator,
+		ctx:                       ctx,
+		cancel:                    cancel,
+		httpReader:                httpReader,
+		contentType:               contentType,
+		endpoint:                  ep,
+		customCA:                  certDir,
+		brokenForQemuImg:          brokenForQemuImg,
+		contentLength:             contentLength,
+		decompressedContentLength: countingReader.decompressedContentLength,
+		checksumValidator:         checksumValidator,
 	}
 	httpSource.n, err = createNbdkitCurl(nbdkitPid, accessKey, secKey, certDir, nbdkitSocket, extraHeaders, secretExtraHeaders)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
-	// We know this is a counting reader, so no need to check.
-	countingReader := httpReader.(*util.CountingReader)
-	go httpSource.pollProgress(countingReader, 10*time.Minute, time.Second)
+	go httpSource.pollProgress(countingReader.CountingReader, 10*time.Minute, time.Second)
 	return httpSource, nil
 }
 
@@ -150,6 +159,10 @@ func (hs *HTTPDataSource) Info() (ProcessingPhase, error) {
 	if err != nil {
 		klog.Errorf("Error creating readers: %v", err)
 		return ProcessingPhaseError, err
+	}
+	if hs.contentLength == 0 && hs.decompressedContentLength > 0 && hs.readers.Archived {
+		klog.Infof("Content-Length is 0, using X-Decompressed-Content-Length (%d) for progress tracking", hs.decompressedContentLength)
+		hs.readers.SetDecompressedProgressReader(hs.decompressedContentLength)
 	}
 	if hs.contentType == cdiv1.DataVolumeArchive {
 		return ProcessingPhaseTransferDataDir, nil
@@ -434,9 +447,24 @@ func createHTTPReader(ctx context.Context, ep *url.URL, accessKey, secKey, certD
 		// The total seems bogus. Let's try the GET Content-Length header
 		total = parseHTTPHeader(resp)
 	}
-	countingReader := &util.CountingReader{
-		Reader:  resp.Body,
-		Current: 0,
+
+	var decompressedTotal uint64
+	if val := resp.Header.Get(httpDecompressedContentLength); val != "" {
+		decompressedTotal, err = strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			klog.Warningf("Invalid %s header value %q: %v", httpDecompressedContentLength, val, err)
+			decompressedTotal = 0
+		} else {
+			klog.V(2).Infof("Decompressed content length: %d", decompressedTotal)
+		}
+	}
+
+	countingReader := &httpCountingReader{
+		CountingReader: &util.CountingReader{
+			Reader:  resp.Body,
+			Current: 0,
+		},
+		decompressedContentLength: decompressedTotal,
 	}
 	return countingReader, total, brokenForQemuImg, nil
 }
