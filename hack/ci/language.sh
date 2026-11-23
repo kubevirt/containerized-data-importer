@@ -20,6 +20,7 @@ VIOLATIONS=$(git grep -iI -E $PHRASES -- \
     ':!hack/fossa.sh' \
     ':!rpm/BUILD.bazel' \
     ':!repo.yaml' \
+    ':!repo-cs10.yaml' \
     ':!WORKSPACE' \
     "${CDI_DIR}" |
     grep -v \
