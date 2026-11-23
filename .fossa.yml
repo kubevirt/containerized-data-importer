@@ -6,7 +6,7 @@ version: 3
 project: 
   id: git@github.com:kubevirt/containerized-data-importer.git
   name: containerized-data-importer
-  team: KubeVirt
+  team: Kubevirt
 targets:
   exclude:
     - type: gradle
