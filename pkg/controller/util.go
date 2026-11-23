@@ -157,7 +157,7 @@ func newScratchPersistentVolumeClaimSpec(pvc *corev1.PersistentVolumeClaim, pod 
 			Labels:      labels,
 			Annotations: annotations,
 			OwnerReferences: []metav1.OwnerReference{
-				MakePodOwnerReference(pod),
+				makeScratchPodOwnerReference(pod),
 			},
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
@@ -297,6 +297,18 @@ func MakePodOwnerReference(pod *corev1.Pod) metav1.OwnerReference {
 		BlockOwnerDeletion: &blockOwnerDeletion,
 		Controller:         &isController,
 	}
+}
+
+// makeScratchPodOwnerReference makes an owner reference from the pod that mounts the scratch PVC.
+// It deliberately does not block the owner's deletion: the pvc-protection finalizer holds a PVC for
+// as long as a pod referencing it exists, so a blocking reference leaves the pod's foreground
+// deletion waiting for the scratch PVC while the scratch PVC waits for the pod to go away.
+// Garbage collection still removes the scratch PVC once the pod is gone.
+func makeScratchPodOwnerReference(pod *corev1.Pod) metav1.OwnerReference {
+	ownerRef := MakePodOwnerReference(pod)
+	blockOwnerDeletion := false
+	ownerRef.BlockOwnerDeletion = &blockOwnerDeletion
+	return ownerRef
 }
 
 func podPhaseFromPVC(pvc *corev1.PersistentVolumeClaim) corev1.PodPhase {

@@ -498,6 +498,38 @@ var _ = Describe("createScratchPersistentVolumeClaim", func() {
 		Expect(scratchPVC).ToNot(BeNil())
 		Expect(scratchPVC.GetLabels()[LabelExcludeFromVeleroBackup]).To(Equal("true"))
 	})
+
+	It("Should not block deletion of the pod that owns the scratch PVC", func() {
+		cdiConfig := createCDIConfigWithStorageClass(common.ConfigName, scratchStorageClassName)
+		cdiConfig.Status.FilesystemOverhead = &cdiv1.FilesystemOverhead{
+			Global: "0.05",
+		}
+		cl := CreateClient(cdiConfig)
+		rec := record.NewFakeRecorder(10)
+		By("Create a 1Gi pvc")
+		testPvc := CreatePvcInStorageClass("testPvc", "default", ptr.To[string](storageClassName), nil, nil, v1.ClaimBound)
+		testPvc.Spec.Resources.Requests[v1.ResourceStorage] = resource.MustParse("1Gi")
+		pod := &v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cdi-upload-testPvc",
+				Namespace: "default",
+				UID:       types.UID("uploader-pod-uid"),
+			},
+		}
+
+		scratchPVC, err := createScratchPersistentVolumeClaim(cl, testPvc, pod, "test-scratchspace-pvc", scratchStorageClassName, nil, rec)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(scratchPVC).ToNot(BeNil())
+
+		By("Expect a controlling owner reference to the pod that does not block its deletion")
+		Expect(scratchPVC.OwnerReferences).To(HaveLen(1))
+		ownerRef := scratchPVC.OwnerReferences[0]
+		Expect(ownerRef.Kind).To(Equal("Pod"))
+		Expect(ownerRef.Name).To(Equal(pod.Name))
+		Expect(ownerRef.UID).To(Equal(pod.UID))
+		Expect(ownerRef.Controller).To(HaveValue(BeTrue()))
+		Expect(ownerRef.BlockOwnerDeletion).To(HaveValue(BeFalse()))
+	})
 })
 
 func createDataVolumeWithStorageClass(name, ns, storageClassName string) *cdiv1.DataVolume {
