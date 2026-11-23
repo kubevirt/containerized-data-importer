@@ -138,8 +138,17 @@ function pushImages {
 
 update-ca-trust
 
-# Avoid 'overlay' is not supported over overlayfs error
-sed -i 's,driver =.*,driver = "vfs",' /etc/containers/storage.conf
+# Use vfs for nested container builds.
+export STORAGE_DRIVER=vfs
+
+# Keep Buildah's temporary build context off the container's overlay filesystem.
+mkdir -p /tmp/shared/buildah-tmp
+mkdir -p /etc/containers/containers.conf.d
+
+cat > /etc/containers/containers.conf.d/buildah.conf <<'EOF'
+[engine]
+image_copy_tmp_dir = "/tmp/shared/buildah-tmp"
+EOF
 
 #building using buildah requires a properly installed shadow-utils package (which in turn requires SETFCAP)
 rpm --restore shadow-utils 2>/dev/null
