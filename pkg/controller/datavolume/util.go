@@ -76,6 +76,11 @@ type renderResult struct {
 
 // RenderPvc renders the PVC according to StorageProfiles
 func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolumeClaim) error {
+	// Capture the requested size before rendering changes it.
+	requested := pvc.Spec.Resources.Requests[v1.ResourceStorage]
+	// Set below only when this call sizes the PVC; drop any value copied from another object.
+	delete(pvc.Labels, cc.LabelFsOverheadBytes)
+
 	if pvc.Spec.VolumeMode != nil &&
 		*pvc.Spec.VolumeMode == cdiv1.PersistentVolumeFromStorageProfile {
 		pvc.Spec.VolumeMode = nil
@@ -97,8 +102,38 @@ func RenderPvc(ctx context.Context, client client.Client, pvc *v1.PersistentVolu
 		return nil
 	}
 
-	_, err := renderPvcSpecVolumeSize(client, &pvc.Spec, false, nil)
-	return err
+	if _, err := renderPvcSpecVolumeSize(client, &pvc.Spec, false, nil); err != nil {
+		return err
+	}
+	return labelFsOverhead(ctx, client, pvc, requested)
+}
+
+// labelFsOverhead records, in bytes, the filesystem overhead added to the requested size
+// (before the storage profile's minimum supported size), so dashboards can separate
+// overhead growth from the minimum bump. It is 0 for Block. VolumeMode and storage class
+// must already be rendered on pvc.Spec.
+func labelFsOverhead(ctx context.Context, c client.Client, pvc *v1.PersistentVolumeClaim, requested resource.Quantity) error {
+	delete(pvc.Labels, cc.LabelFsOverheadBytes)
+	if requested.IsZero() {
+		return nil
+	}
+	withOverhead, err := cc.InflateSizeWithOverhead(ctx, c, requested.Value(), &pvc.Spec)
+	if err != nil {
+		return err
+	}
+	// Same steps as renderPvcSpecVolumeSize: the minimum applies only with a storage class.
+	expected := withOverhead
+	if scName := pvc.Spec.StorageClassName; scName != nil {
+		if expected, err = cc.GetEffectiveVolumeSize(ctx, c, withOverhead, *scName, nil); err != nil {
+			return err
+		}
+	}
+	if final := pvc.Spec.Resources.Requests[v1.ResourceStorage]; final.Cmp(expected) != 0 {
+		return nil
+	}
+	overhead := withOverhead.Value() - requested.Value()
+	cc.AddLabel(pvc, cc.LabelFsOverheadBytes, strconv.FormatInt(overhead, 10))
+	return nil
 }
 
 // hasVolumeSnapshotDataSource returns true if the PVC's DataSource or DataSourceRef

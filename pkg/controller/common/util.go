@@ -245,6 +245,11 @@ const (
 
 	// AnnMinimumSupportedPVCSize annotation on a StorageProfile specifies its minimum supported PVC size
 	AnnMinimumSupportedPVCSize = AnnAPIGroup + "/minimumSupportedPvcSize"
+	// LabelOriginalRequestedSizeBytes records the user's originally requested storage size in bytes (before filesystem overhead and the minimum supported size)
+	LabelOriginalRequestedSizeBytes = AnnAPIGroup + "/originalRequestedSizeBytes"
+	// LabelFsOverheadBytes records the filesystem overhead added to the requested size, in bytes (0 for Block).
+	// Dashboards add it to LabelOriginalRequestedSizeBytes to get the size the minimum supported size is compared against.
+	LabelFsOverheadBytes = AnnAPIGroup + "/fsOverheadBytes"
 	// AnnUseReadWriteOnceForDataImportCron annotation on a StorageProfile signals that DataImportCron should use RWO for DataImportCron PVCs
 	AnnUseReadWriteOnceForDataImportCron = AnnAPIGroup + "/useReadWriteOnceForDataImportCron"
 	// AnnSnapshotClassForDataImportCron annotation on a StorageProfile specifies the VolumeSnapshotClass to use for DataImportCron snapshots
@@ -520,6 +525,20 @@ func NewMultiTokenValidator(key *rsa.PublicKey) *MultiTokenValidator {
 // NewCloneTokenValidator returns a new token validator
 func NewCloneTokenValidator(issuer string, key *rsa.PublicKey) token.Validator {
 	return token.NewValidator(issuer, key, cloneTokenLeeway)
+}
+
+// GetDVRequestedSize returns the user's originally requested storage size from a DataVolume
+func GetDVRequestedSize(dv *cdiv1.DataVolume) *resource.Quantity {
+	var requests corev1.ResourceList
+	if dv.Spec.Storage != nil {
+		requests = dv.Spec.Storage.Resources.Requests
+	} else if dv.Spec.PVC != nil {
+		requests = dv.Spec.PVC.Resources.Requests
+	}
+	if size, found := requests[corev1.ResourceStorage]; found && !size.IsZero() {
+		return &size
+	}
+	return nil
 }
 
 // GetRequestedImageSize returns the PVC requested size

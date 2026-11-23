@@ -22,6 +22,7 @@ package webhooks
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	v1 "k8s.io/api/core/v1"
@@ -30,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	cc "kubevirt.io/containerized-data-importer/pkg/controller/common"
 	dvc "kubevirt.io/containerized-data-importer/pkg/controller/datavolume"
 )
 
@@ -60,6 +62,10 @@ func (wh *pvcMutatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1
 	pvcCpy := pvc.DeepCopy()
 	if err := dvc.RenderPvc(context.TODO(), wh.client, pvcCpy); err != nil {
 		return toAdmissionResponseError(err)
+	}
+
+	if size, found := pvc.Spec.Resources.Requests[v1.ResourceStorage]; found && !size.IsZero() {
+		cc.AddLabel(pvcCpy, cc.LabelOriginalRequestedSizeBytes, strconv.FormatInt(size.Value(), 10))
 	}
 
 	return toPatchResponse(pvc, pvcCpy)

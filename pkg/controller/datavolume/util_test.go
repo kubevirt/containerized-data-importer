@@ -247,6 +247,94 @@ var _ = Describe("RenderPvc", func() {
 	})
 })
 
+var _ = Describe("labelFsOverhead", func() {
+	scName := "test"
+	sc := CreateStorageClassWithProvisioner(scName, nil, nil, "csi.example.com")
+
+	DescribeTable("records the filesystem overhead added to the request", func(requested string, volumeMode corev1.PersistentVolumeMode) {
+		sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, volumeMode)
+		sp.Annotations = map[string]string{AnnMinimumSupportedPVCSize: "4Gi"}
+		cdiConfig := &cdiv1.CDIConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: "config"},
+			Status: cdiv1.CDIConfigStatus{
+				FilesystemOverhead: &cdiv1.FilesystemOverhead{Global: "0.06"},
+			},
+		}
+		cl := createClient(sc, sp, cdiConfig)
+		requestedSize := resource.MustParse(requested)
+
+		pvc := &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &scName,
+				VolumeMode:       ptr.To(volumeMode),
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{corev1.ResourceStorage: requestedSize},
+				},
+			},
+		}
+
+		// The label records overhead only (withOverhead - original), never the minimum bump.
+		withOverhead, err := InflateSizeWithOverhead(context.Background(), cl, requestedSize.Value(), &pvc.Spec)
+		Expect(err).ToNot(HaveOccurred())
+		expectedOverhead := withOverhead.Value() - requestedSize.Value()
+
+		// Size the PVC the way callers do before labeling it.
+		_, err = renderPvcSpecVolumeSize(cl, &pvc.Spec, false, nil)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(labelFsOverhead(context.Background(), cl, pvc, requestedSize)).To(Succeed())
+		Expect(pvc.Labels).To(HaveKeyWithValue(LabelFsOverheadBytes, strconv.FormatInt(expectedOverhead, 10)))
+
+		if volumeMode == corev1.PersistentVolumeBlock {
+			// Block mode has no filesystem overhead.
+			Expect(expectedOverhead).To(Equal(int64(0)))
+		} else {
+			Expect(expectedOverhead).To(BeNumerically(">", int64(0)))
+		}
+	},
+		Entry("filesystem 3.9Gi", "3.9Gi", corev1.PersistentVolumeFilesystem),
+		Entry("filesystem 3.7Gi", "3.7Gi", corev1.PersistentVolumeFilesystem),
+		Entry("block 3.9Gi", "3.9Gi", corev1.PersistentVolumeBlock),
+		Entry("filesystem 5Gi", "5Gi", corev1.PersistentVolumeFilesystem),
+	)
+
+	It("does not label when there is no requested size", func() {
+		sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, corev1.PersistentVolumeBlock)
+		cl := createClient(sc, sp)
+
+		pvc := &corev1.PersistentVolumeClaim{
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &scName,
+				VolumeMode:       ptr.To(corev1.PersistentVolumeBlock),
+			},
+		}
+		Expect(labelFsOverhead(context.Background(), cl, pvc, resource.Quantity{})).To(Succeed())
+		Expect(pvc.Labels).ToNot(HaveKey(LabelFsOverheadBytes))
+	})
+
+	It("does not label, and drops a copied label, when the final size did not come from CDI's sizing", func() {
+		sp := createStorageProfile(scName, []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce}, corev1.PersistentVolumeBlock)
+		sp.Annotations = map[string]string{AnnMinimumSupportedPVCSize: "4Gi"}
+		cl := createClient(sc, sp)
+		requestedSize := resource.MustParse("1Gi")
+
+		pvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{LabelFsOverheadBytes: "123"},
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				StorageClassName: &scName,
+				VolumeMode:       ptr.To(corev1.PersistentVolumeBlock),
+				Resources: corev1.VolumeResourceRequirements{
+					// e.g. a size detected from a clone source, not the 4Gi the sizing would produce
+					Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("6Gi")},
+				},
+			},
+		}
+		Expect(labelFsOverhead(context.Background(), cl, pvc, requestedSize)).To(Succeed())
+		Expect(pvc.Labels).ToNot(HaveKey(LabelFsOverheadBytes))
+	})
+})
+
 var _ = Describe("renderPvcSpec", func() {
 	block := corev1.PersistentVolumeBlock
 	filesystem := corev1.PersistentVolumeFilesystem
