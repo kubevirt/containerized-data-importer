@@ -102,6 +102,9 @@ if [[ "${CDI_CENTOS_STREAM_VERSION}" = "10" ]]; then
     # containers-common-extra requires oci-runtime; select crun for test images.
     testimage="${testimage} crun"
 
+    # The VDDK simulator needs gzip to extract vcsim and govc archives.
+    testimage="${testimage} gzip"
+
     # EL10 ships the gzip filter in nbdkit-basic-filters.
     cdi_importer="${cdi_importer//nbdkit-gzip-filter/}"
     # python3-pycurl is only in EPEL 10. It is required by python3-ovirt-engine-sdk4,

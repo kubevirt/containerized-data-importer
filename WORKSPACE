@@ -573,26 +573,26 @@ rpm(
 )
 
 rpm(
-    name = "bash-0__5.2.26-6.el10.aarch64",
-    sha256 = "3f42c3de9fddc6e6c08f7c603ce29ed96d8d66f4425ce1c27bcb0d7d0e0490b5",
+    name = "bash-0__5.2.26-7.el10.aarch64",
+    sha256 = "cb75cf49059d0545bc53c1fd3e229b2f0225773ebe121b0ed297aca17dfed44d",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/bash-5.2.26-6.el10.aarch64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/bash-5.2.26-7.el10.aarch64.rpm",
     ],
 )
 
 rpm(
-    name = "bash-0__5.2.26-6.el10.s390x",
-    sha256 = "07261872bd05c23366da7c2529b776dccfdf1a33c99d784370ebfde32d8909d7",
+    name = "bash-0__5.2.26-7.el10.s390x",
+    sha256 = "50e3f681aa81a9d621b7ad1442378a18684210936fa93cfc54fb29fb5f6492d9",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/bash-5.2.26-6.el10.s390x.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/bash-5.2.26-7.el10.s390x.rpm",
     ],
 )
 
 rpm(
-    name = "bash-0__5.2.26-6.el10.x86_64",
-    sha256 = "31eaf885847a6671a93e2b6e0d48e937ae5520f0442265aae19f4294260b5618",
+    name = "bash-0__5.2.26-7.el10.x86_64",
+    sha256 = "3454da002cbda046a8e49b2c570093cb0d84699dda5a589345dc0b67ddea874f",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/bash-5.2.26-6.el10.x86_64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/bash-5.2.26-7.el10.x86_64.rpm",
     ],
 )
 
@@ -2337,26 +2337,26 @@ rpm(
 )
 
 rpm(
-    name = "gnutls-0__3.8.10-5.el10.aarch64",
-    sha256 = "8c1f946b5d34eb1c98e1166598ebdaf74b5a3a86fef8cc016970a1c60a898bba",
+    name = "gnutls-0__3.8.10-7.el10.aarch64",
+    sha256 = "8f3a58f346cdff38c1a1da05cbc704835da1ba9878dc137ed6014919cc925607",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/gnutls-3.8.10-5.el10.aarch64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/gnutls-3.8.10-7.el10.aarch64.rpm",
     ],
 )
 
 rpm(
-    name = "gnutls-0__3.8.10-5.el10.s390x",
-    sha256 = "a0c7bbda0f0df2e410697671db869e3a92b43fb1dec9c8a598e9f9582b9077b8",
+    name = "gnutls-0__3.8.10-7.el10.s390x",
+    sha256 = "20bb9d47c655506278917057a117b53c2d44aed5a7aab3177022a7f93972a119",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/gnutls-3.8.10-5.el10.s390x.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/gnutls-3.8.10-7.el10.s390x.rpm",
     ],
 )
 
 rpm(
-    name = "gnutls-0__3.8.10-5.el10.x86_64",
-    sha256 = "d752a35d907fd5fc6973fb7488c5f8b89ccc86ecaf4ce7c7bfdbc81c0e76f941",
+    name = "gnutls-0__3.8.10-7.el10.x86_64",
+    sha256 = "7cb047e3132f5cdce9c534eab74dabab4e657f527f193fc723dc47aa66ad5d77",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/gnutls-3.8.10-5.el10.x86_64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/gnutls-3.8.10-7.el10.x86_64.rpm",
     ],
 )
 
@@ -2517,6 +2517,30 @@ rpm(
 )
 
 rpm(
+    name = "gzip-0__1.13-4.el10.aarch64",
+    sha256 = "ed08d2a13297935666032b580e7e1fba7e615af1db3373e91b077cd7493ccffc",
+    urls = [
+        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/gzip-1.13-4.el10.aarch64.rpm",
+    ],
+)
+
+rpm(
+    name = "gzip-0__1.13-4.el10.s390x",
+    sha256 = "b2d5747f8b483bb680184de57bd2dd9e756f492eb03d68ea919b6197afdbf870",
+    urls = [
+        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/gzip-1.13-4.el10.s390x.rpm",
+    ],
+)
+
+rpm(
+    name = "gzip-0__1.13-4.el10.x86_64",
+    sha256 = "c0fc5ead1e9f597dfb0fe5400d82c19eab62c72f70007fce03961ca687ab9e9c",
+    urls = [
+        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/gzip-1.13-4.el10.x86_64.rpm",
+    ],
+)
+
+rpm(
     name = "iptables-libs-0__1.8.10-11.el9.aarch64",
     sha256 = "097df125f6836f5dbdce2f3e961a649cd2e15b5f2a8164267c7c98b281ab60e4",
     urls = [
@@ -2544,26 +2568,26 @@ rpm(
 )
 
 rpm(
-    name = "iptables-libs-0__1.8.11-16.el10.aarch64",
-    sha256 = "ce02bb48e751a54e5f2c3b1bd5f1c5edd2d8e91d5df2701bdf7a5714277f9718",
+    name = "iptables-libs-0__1.8.13-1.el10.aarch64",
+    sha256 = "b1e17feff83e9d4ee9d7b7dd4973ee406162097270200f8e8cc3cdd9ee384437",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/iptables-libs-1.8.11-16.el10.aarch64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/iptables-libs-1.8.13-1.el10.aarch64.rpm",
     ],
 )
 
 rpm(
-    name = "iptables-libs-0__1.8.11-16.el10.s390x",
-    sha256 = "a36d5e02bca72bef5c89a324cf74d529e4983d050e69366e90aa17b86da3d4a3",
+    name = "iptables-libs-0__1.8.13-1.el10.s390x",
+    sha256 = "0884316298b93df0f9ad9339ae48de282c1acda7465ea56fa217d0f4d7005fe5",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/iptables-libs-1.8.11-16.el10.s390x.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/iptables-libs-1.8.13-1.el10.s390x.rpm",
     ],
 )
 
 rpm(
-    name = "iptables-libs-0__1.8.11-16.el10.x86_64",
-    sha256 = "1f39ec54d5e2a652b92cec991c6a14c7b87de2694f40391bb4892634a770b275",
+    name = "iptables-libs-0__1.8.13-1.el10.x86_64",
+    sha256 = "96c523fc020379a815452824a22955b168e096e0a7f5de378c57afdf5e2d2091",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/iptables-libs-1.8.11-16.el10.x86_64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/iptables-libs-1.8.13-1.el10.x86_64.rpm",
     ],
 )
 
@@ -4262,26 +4286,26 @@ rpm(
 )
 
 rpm(
-    name = "libnftnl-0__1.3.0-3.el10.aarch64",
-    sha256 = "d5467150ed76b14237d86554566ef07c0025d59f0ebc34348b503cc823784c80",
+    name = "libnftnl-0__1.3.2-1.el10.aarch64",
+    sha256 = "57872320022dac3679deba277d6cb9428f2b994c98c591f8e4390a4eb4c7f47a",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/libnftnl-1.3.0-3.el10.aarch64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/libnftnl-1.3.2-1.el10.aarch64.rpm",
     ],
 )
 
 rpm(
-    name = "libnftnl-0__1.3.0-3.el10.s390x",
-    sha256 = "b7f11ace02687c972f83c414b2a7a9e9a58979fa4630f4aae50608c686145a54",
+    name = "libnftnl-0__1.3.2-1.el10.s390x",
+    sha256 = "d07a561a388f91664c12c47496dcae1578d991096d96120f7bf4cc1c8f42f48e",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/libnftnl-1.3.0-3.el10.s390x.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/libnftnl-1.3.2-1.el10.s390x.rpm",
     ],
 )
 
 rpm(
-    name = "libnftnl-0__1.3.0-3.el10.x86_64",
-    sha256 = "4721d71306d4330cac0868ea25e2f0dfd816fc3c3e618c91212eb9a854322e60",
+    name = "libnftnl-0__1.3.2-1.el10.x86_64",
+    sha256 = "ccde9e279c8c4edc88e9a89cc05358fe9c16e8525b8c4486c08d70f94ac75863",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/libnftnl-1.3.0-3.el10.x86_64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/libnftnl-1.3.2-1.el10.x86_64.rpm",
     ],
 )
 
@@ -5158,26 +5182,26 @@ rpm(
 )
 
 rpm(
-    name = "libxml2-0__2.12.5-15.el10.aarch64",
-    sha256 = "ccc9cf0d3b200eee84b7c862decbf72b49708eaeb196b20c3632fbf3d7bc0ea7",
+    name = "libxml2-0__2.12.5-16.el10.aarch64",
+    sha256 = "d563c0f91dbf542679bb9ddf27b604f38dc0623bc6c04c454ce3abdbba524748",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/libxml2-2.12.5-15.el10.aarch64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/libxml2-2.12.5-16.el10.aarch64.rpm",
     ],
 )
 
 rpm(
-    name = "libxml2-0__2.12.5-15.el10.s390x",
-    sha256 = "79a99e98d88311a9c8a4e57b51d28b532aff59e62b303701493af9b2cc7d3965",
+    name = "libxml2-0__2.12.5-16.el10.s390x",
+    sha256 = "25e589425b680d598b8e5008683aab25dd28ea1dd24cbd56e437d8bd616346fe",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/libxml2-2.12.5-15.el10.s390x.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/libxml2-2.12.5-16.el10.s390x.rpm",
     ],
 )
 
 rpm(
-    name = "libxml2-0__2.12.5-15.el10.x86_64",
-    sha256 = "450072d9f4fae0d3f92e7a0547ed6aec57fca9ee8eda2931ca22d462943dc051",
+    name = "libxml2-0__2.12.5-16.el10.x86_64",
+    sha256 = "33597e81f428d42f4b6c6eeac7c58087c298c23618fab92007d95cd8102667f7",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/libxml2-2.12.5-15.el10.x86_64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/libxml2-2.12.5-16.el10.x86_64.rpm",
     ],
 )
 
@@ -5907,26 +5931,26 @@ rpm(
 )
 
 rpm(
-    name = "nftables-1__1.1.5-6.el10.aarch64",
-    sha256 = "dd3bb41e0c662d4d03a6209d65ec1e69cb99fd638eb4b6096dcf1415a4c62e1f",
+    name = "nftables-1__1.1.7-1.el10.aarch64",
+    sha256 = "2ab5dacfb073169b9878e677be1427f7042e3efaea7c7c8629be762589a917ee",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/nftables-1.1.5-6.el10.aarch64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/nftables-1.1.7-1.el10.aarch64.rpm",
     ],
 )
 
 rpm(
-    name = "nftables-1__1.1.5-6.el10.s390x",
-    sha256 = "358748eec24c5b053192afa99495ae823e1b387cda13513bfe0c5efac9e6c706",
+    name = "nftables-1__1.1.7-1.el10.s390x",
+    sha256 = "acb9edb8f6d4b585a6c4894023a6a66c0fc6f0fa298d56796243a29ca863d6bf",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/nftables-1.1.5-6.el10.s390x.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/nftables-1.1.7-1.el10.s390x.rpm",
     ],
 )
 
 rpm(
-    name = "nftables-1__1.1.5-6.el10.x86_64",
-    sha256 = "545480abe9fa456c70ca62b1eca50770a6dc725fb465f7aced776a6af309ba14",
+    name = "nftables-1__1.1.7-1.el10.x86_64",
+    sha256 = "37bcbeed18b198e46b5e555ec9bfc1381ea50a77cc0201eaefbd64132e72839b",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/nftables-1.1.5-6.el10.x86_64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/nftables-1.1.7-1.el10.x86_64.rpm",
     ],
 )
 
@@ -6910,26 +6934,26 @@ rpm(
 )
 
 rpm(
-    name = "python3-0__3.12.15-1.el10.aarch64",
-    sha256 = "2701f107a1dbd92571a3863d60da4a41cc9d028ab7a60898cee2dab0c8e8e5ae",
+    name = "python3-0__3.12.16-2.el10.aarch64",
+    sha256 = "2b8fb214987d3ede70f93dd19d77cbe8c72fdc3f42ec869c4830972dfb14f111",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/python3-3.12.15-1.el10.aarch64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/python3-3.12.16-2.el10.aarch64.rpm",
     ],
 )
 
 rpm(
-    name = "python3-0__3.12.15-1.el10.s390x",
-    sha256 = "5275c7bb88f71c4a4dd39c71b3f9615e7cc77f3794094226491beac0d4ef3f59",
+    name = "python3-0__3.12.16-2.el10.s390x",
+    sha256 = "a2c7442bab606ceb850d5c8316909a4b3b65eb397e442fb10aee4923f3235e18",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/python3-3.12.15-1.el10.s390x.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/python3-3.12.16-2.el10.s390x.rpm",
     ],
 )
 
 rpm(
-    name = "python3-0__3.12.15-1.el10.x86_64",
-    sha256 = "14e4336079077b684fc6405414de5f2ee8d04dc29a74f054c66e3d77afcd2da8",
+    name = "python3-0__3.12.16-2.el10.x86_64",
+    sha256 = "76d93b628c36edc9c6d764ef2b97487c789bee72b06a2984738bd88b810d0adb",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/python3-3.12.15-1.el10.x86_64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/python3-3.12.16-2.el10.x86_64.rpm",
     ],
 )
 
@@ -6961,26 +6985,26 @@ rpm(
 )
 
 rpm(
-    name = "python3-libs-0__3.12.15-1.el10.aarch64",
-    sha256 = "a4c9bf8084d1dd33e1dee755e982093296a53036041052039f58daf15b3a85b7",
+    name = "python3-libs-0__3.12.16-2.el10.aarch64",
+    sha256 = "4ff127832e127d16618ce758ec0825e9609362d9d06c78962484ffb543bae205",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/python3-libs-3.12.15-1.el10.aarch64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/python3-libs-3.12.16-2.el10.aarch64.rpm",
     ],
 )
 
 rpm(
-    name = "python3-libs-0__3.12.15-1.el10.s390x",
-    sha256 = "ac29bde8e9981d410dec27a8916e62f93643e1bb9b8391529300d81591e12155",
+    name = "python3-libs-0__3.12.16-2.el10.s390x",
+    sha256 = "ee7b265e470ce8185ff69ebbd386e67d1e116040d70df06ab94b8c1ded9a8a5c",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/python3-libs-3.12.15-1.el10.s390x.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/python3-libs-3.12.16-2.el10.s390x.rpm",
     ],
 )
 
 rpm(
-    name = "python3-libs-0__3.12.15-1.el10.x86_64",
-    sha256 = "10f841782862cdf96194c3fd0a6e7ccede521756210b14c5aaa28e5b7afbc69a",
+    name = "python3-libs-0__3.12.16-2.el10.x86_64",
+    sha256 = "06b80aa03745b62c6d912677cb12947d9ecaca992e552160cd462f875cdfd399",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/python3-libs-3.12.15-1.el10.x86_64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/python3-libs-3.12.16-2.el10.x86_64.rpm",
     ],
 )
 
@@ -8094,26 +8118,26 @@ rpm(
 )
 
 rpm(
-    name = "vim-data-2__9.1.083-25.el10.aarch64",
-    sha256 = "2967b429b1e3b802d198fba32253faa04ab4783988f126f079d0ba2ddef011bf",
+    name = "vim-data-2__9.1.083-26.el10.aarch64",
+    sha256 = "b10001580c44903a9c91495ac417760adb37e28faace0b9cb39c31506f347e45",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/vim-data-9.1.083-25.el10.noarch.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/vim-data-9.1.083-26.el10.noarch.rpm",
     ],
 )
 
 rpm(
-    name = "vim-data-2__9.1.083-25.el10.s390x",
-    sha256 = "2967b429b1e3b802d198fba32253faa04ab4783988f126f079d0ba2ddef011bf",
+    name = "vim-data-2__9.1.083-26.el10.s390x",
+    sha256 = "b10001580c44903a9c91495ac417760adb37e28faace0b9cb39c31506f347e45",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/vim-data-9.1.083-25.el10.noarch.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/vim-data-9.1.083-26.el10.noarch.rpm",
     ],
 )
 
 rpm(
-    name = "vim-data-2__9.1.083-25.el10.x86_64",
-    sha256 = "2967b429b1e3b802d198fba32253faa04ab4783988f126f079d0ba2ddef011bf",
+    name = "vim-data-2__9.1.083-26.el10.x86_64",
+    sha256 = "b10001580c44903a9c91495ac417760adb37e28faace0b9cb39c31506f347e45",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/vim-data-9.1.083-25.el10.noarch.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/vim-data-9.1.083-26.el10.noarch.rpm",
     ],
 )
 
@@ -8157,26 +8181,26 @@ rpm(
 )
 
 rpm(
-    name = "vim-minimal-2__9.1.083-25.el10.aarch64",
-    sha256 = "245275af0a697b9e71214680efda95d46ce46fb42a038b99b058ac6cfa7e02b4",
+    name = "vim-minimal-2__9.1.083-26.el10.aarch64",
+    sha256 = "6478996294992aebde0ef4235543c41d293da7f74781a8efde52bd37a6e5830a",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/vim-minimal-9.1.083-25.el10.aarch64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/aarch64/os/Packages/vim-minimal-9.1.083-26.el10.aarch64.rpm",
     ],
 )
 
 rpm(
-    name = "vim-minimal-2__9.1.083-25.el10.s390x",
-    sha256 = "9d9dc33bd8e6636483e5a2c9a549d414fcb68de12ce62bd493622b3104e8b17e",
+    name = "vim-minimal-2__9.1.083-26.el10.s390x",
+    sha256 = "02ea70f970698f21e0219e562e767b6571a68c56b1b7382a9e45fe14d366b572",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/vim-minimal-9.1.083-25.el10.s390x.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/s390x/os/Packages/vim-minimal-9.1.083-26.el10.s390x.rpm",
     ],
 )
 
 rpm(
-    name = "vim-minimal-2__9.1.083-25.el10.x86_64",
-    sha256 = "a7270afedcf5cdafd12dceabb0ddebba70ac03b5a0b162a90e5d772506b6bf32",
+    name = "vim-minimal-2__9.1.083-26.el10.x86_64",
+    sha256 = "a8e78c1bb7c16ec964de95e9d47b18099bdcd89127105e140f275c0323ca2765",
     urls = [
-        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/vim-minimal-9.1.083-25.el10.x86_64.rpm",
+        "http://mirror.stream.centos.org/10-stream/BaseOS/x86_64/os/Packages/vim-minimal-9.1.083-26.el10.x86_64.rpm",
     ],
 )
 
