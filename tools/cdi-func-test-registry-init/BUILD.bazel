@@ -68,6 +68,15 @@ pkg_tar(
     package_dir = "/tmp/source",
 )
 
+pkg_tar(
+    name = "artifact-archive-tar",
+    srcs = ["//tests:images/oci-disk-artifact.tar"],
+    extension = "tar.gz",
+    mode = "644",
+    package_dir = "/tmp/source",
+    strip_prefix = "/tests/images",
+)
+
 filegroup(
     name = "populate-script",
     srcs = [
@@ -113,7 +122,10 @@ oci_image(
     name = "cdi-func-test-registry-populate-image",
     base = "//:testimage_base",
     entrypoint = ["./populate-registry.sh"],
-    tars = [":populate-script-tar"],
+    tars = [
+        ":populate-script-tar",
+        ":artifact-archive-tar",
+    ],
     visibility = ["//visibility:public"],
 )
 

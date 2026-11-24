@@ -4914,6 +4914,10 @@
       "description": "ImageStream is the name of image stream for import",
       "type": "string"
      },
+     "layer": {
+      "description": "Layer selects a single OCI artifact layer to import as the disk image, not supported with the node pull method. Only KubeVirt artifacts are currently supported, of artifact type application/vnd.kubevirt.virtualmachine.v1 or application/vnd.kubevirt.virtualmachinetemplate.v1",
+      "$ref": "#/definitions/v1beta1.LayerSelector"
+     },
      "platform": {
       "description": "Platform describes the minimum runtime requirements of the image",
       "$ref": "#/definitions/v1beta1.PlatformOptions"
@@ -5185,6 +5189,20 @@
    "v1beta1.IntermediateTLSProfile": {
     "description": "IntermediateTLSProfile is a TLS security profile based on the \"intermediate\" configuration of the Mozilla Server Side TLS configuration guidelines.",
     "type": "object"
+   },
+   "v1beta1.LayerSelector": {
+    "description": "LayerSelector selects a single layer of an OCI artifact",
+    "type": "object",
+    "properties": {
+     "matchAnnotations": {
+      "description": "MatchAnnotations the layer has to carry",
+      "type": "object",
+      "additionalProperties": {
+       "type": "string",
+       "default": ""
+      }
+     }
+    }
    },
    "v1beta1.ModernTLSProfile": {
     "description": "ModernTLSProfile is a TLS security profile based on the \"modern\" configuration of the Mozilla Server Side TLS configuration guidelines.",
