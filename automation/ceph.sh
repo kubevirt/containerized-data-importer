@@ -18,7 +18,7 @@
 #
 
 set -ex
-export TARGET=k8s-$(cat automation/k8s-previous-version)
+export TARGET=k8s-$(cat automation/k8s-latest-version)
 #ensure no hard coded cdi cr in tests.
 export RANDOM_CR=true
 export KUBEVIRT_STORAGE=rook-ceph-default
