@@ -43,7 +43,6 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -671,25 +670,45 @@ var _ = Describe("Controller", func() {
 			})
 
 			Context("without the PrometheusRule CRD", func() {
-				monitoringResources := func() []client.Object {
+				monitor := func() client.Object {
+					return &promv1.ServiceMonitor{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: "service-monitor-cdi"}}
+				}
+				monitorDependencies := func() []client.Object {
 					return []client.Object{
 						&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: common.MetricsReaderTokenName}},
-						&promv1.ServiceMonitor{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: "service-monitor-cdi"}},
 						&rbacv1.Role{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: "cdi-monitoring"}},
 						&rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: "cdi-monitoring"}},
 					}
 				}
-
-				It("should delete the monitoring resources it created", func() {
+				monitoringResources := func() []client.Object {
+					return append(monitorDependencies(), monitor())
+				}
+				deployThenRemovePrometheusRuleCRD := func() *args {
 					args := createArgs()
 					doReconcile(args)
 					Expect(setDeploymentsReady(args)).To(BeTrue())
+					Expect(args.client.Delete(context.TODO(), newPrometheusRuleCRD())).To(Succeed())
+					return args
+				}
+				failMonitorDelete := func(c client.Client) client.Client {
+					return interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
+						Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+							if _, ok := obj.(*promv1.ServiceMonitor); ok {
+								return fmt.Errorf("delete refused")
+							}
+							return c.Delete(ctx, obj, opts...)
+						},
+					})
+				}
+
+				It("should delete the monitoring resources it created", func() {
+					args := deployThenRemovePrometheusRuleCRD()
 					for _, obj := range monitoringResources() {
 						_, err := getObject(args.client, obj)
 						Expect(err).ToNot(HaveOccurred())
 					}
 
-					args.reconciler = createReconciler(withoutPrometheusRuleCRD(args.client))
+					args.reconciler = createReconciler(args.client)
 					doReconcile(args)
 
 					for _, obj := range monitoringResources() {
@@ -700,17 +719,14 @@ var _ = Describe("Controller", func() {
 				})
 
 				It("should keep a same-named monitoring resource it does not control", func() {
-					args := createArgs()
-					doReconcile(args)
-					Expect(setDeploymentsReady(args)).To(BeTrue())
+					args := deployThenRemovePrometheusRuleCRD()
 
-					obj, err := getObject(args.client, &promv1.ServiceMonitor{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: "service-monitor-cdi"}})
+					obj, err := getObject(args.client, monitor())
 					Expect(err).ToNot(HaveOccurred())
 					userMonitor := obj.(*promv1.ServiceMonitor)
 					userMonitor.OwnerReferences = nil
 					Expect(args.client.Update(context.TODO(), userMonitor)).To(Succeed())
 
-					args.reconciler = createReconciler(withoutPrometheusRuleCRD(args.client))
 					doReconcile(args)
 
 					_, err = getObject(args.client, userMonitor)
@@ -719,9 +735,84 @@ var _ = Describe("Controller", func() {
 					Expect(errors.IsNotFound(err)).To(BeTrue())
 				})
 
+				It("should finish the reconcile with a warning when a delete fails, and retry on the next one", func() {
+					args := deployThenRemovePrometheusRuleCRD()
+
+					args.reconciler = createReconciler(failMonitorDelete(args.client))
+					doReconcileRequeue(args)
+					validateEvents(args.reconciler, map[string]bool{
+						"Warning DeleteResourceFailed Failed to delete prometheus resources, delete refused": false,
+					})
+
+					args.reconciler = createReconciler(args.client)
+					doReconcile(args)
+					for _, obj := range monitoringResources() {
+						_, err := getObject(args.client, obj)
+						Expect(errors.IsNotFound(err)).To(BeTrue(), "%T %s should be deleted", obj, obj.GetName())
+					}
+				})
+
+				It("should keep the token Secret and RBAC while the ServiceMonitor delete fails", func() {
+					args := deployThenRemovePrometheusRuleCRD()
+
+					args.reconciler = createReconciler(failMonitorDelete(args.client))
+					doReconcile(args)
+
+					for _, obj := range monitoringResources() {
+						_, err := getObject(args.client, obj)
+						Expect(err).ToNot(HaveOccurred(), "%T %s should be kept", obj, obj.GetName())
+					}
+				})
+
+				It("should keep the token Secret and RBAC until a terminating ServiceMonitor is gone", func() {
+					args := deployThenRemovePrometheusRuleCRD()
+					obj, err := getObject(args.client, monitor())
+					Expect(err).ToNot(HaveOccurred())
+					obj.SetFinalizers([]string{"example.com/hold"})
+					Expect(args.client.Update(context.TODO(), obj)).To(Succeed())
+
+					doReconcile(args)
+
+					obj, err = getObject(args.client, monitor())
+					Expect(err).ToNot(HaveOccurred())
+					Expect(obj.GetDeletionTimestamp()).ToNot(BeNil())
+					for _, dependency := range monitorDependencies() {
+						_, err := getObject(args.client, dependency)
+						Expect(err).ToNot(HaveOccurred(), "%T %s should be kept", dependency, dependency.GetName())
+					}
+
+					obj.SetFinalizers(nil)
+					Expect(args.client.Update(context.TODO(), obj)).To(Succeed())
+					doReconcile(args)
+
+					for _, obj := range monitoringResources() {
+						_, err := getObject(args.client, obj)
+						Expect(errors.IsNotFound(err)).To(BeTrue(), "%T %s should be deleted", obj, obj.GetName())
+					}
+				})
+
+				It("should not delete a ServiceMonitor that changed after it was read", func() {
+					args := deployThenRemovePrometheusRuleCRD()
+
+					args.reconciler = createReconciler(interceptor.NewClient(args.client.(client.WithWatch), interceptor.Funcs{
+						Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+							if read, ok := obj.(*promv1.ServiceMonitor); ok {
+								takenOver := read.DeepCopy()
+								takenOver.OwnerReferences = nil
+								Expect(c.Update(ctx, takenOver)).To(Succeed())
+							}
+							return c.Delete(ctx, obj, opts...)
+						},
+					}))
+					doReconcile(args)
+
+					_, err := getObject(args.client, monitor())
+					Expect(err).ToNot(HaveOccurred())
+				})
+
 				It("should reconcile cleanly when there is nothing to delete", func() {
 					args := createArgs()
-					args.reconciler = createReconciler(withoutPrometheusRuleCRD(args.client))
+					Expect(args.client.Delete(context.TODO(), newPrometheusRuleCRD())).To(Succeed())
 					doReconcile(args)
 					Expect(setDeploymentsReady(args)).To(BeTrue())
 					doReconcile(args)
@@ -2241,25 +2332,15 @@ func doReconcileExpectDelete(args *args) {
 }
 
 func createClient(objs ...client.Object) client.Client {
-	var runtimeObjs []runtime.Object
+	runtimeObjs := []runtime.Object{newPrometheusRuleCRD()}
 	for _, obj := range objs {
 		runtimeObjs = append(runtimeObjs, obj)
 	}
 	return fakeClient.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(runtimeObjs...).Build()
 }
 
-func withoutPrometheusRuleCRD(c client.Client) client.Client {
-	return interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
-		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-			if _, ok := obj.(*promv1.PrometheusRule); ok {
-				return &meta.NoKindMatchError{
-					GroupKind:        promv1.SchemeGroupVersion.WithKind(promv1.PrometheusRuleKind).GroupKind(),
-					SearchedVersions: []string{promv1.Version},
-				}
-			}
-			return c.Get(ctx, key, obj, opts...)
-		},
-	})
+func newPrometheusRuleCRD() *extv1.CustomResourceDefinition {
+	return &extv1.CustomResourceDefinition{ObjectMeta: metav1.ObjectMeta{Name: "prometheusrules.monitoring.coreos.com"}}
 }
 
 func createCDI(name, uid string) *cdiv1.CDI {

@@ -274,12 +274,14 @@ func reconcileCreatePrometheusInfra(args *callbacks.ReconcileCallbackArgs) error
 		return fmt.Errorf("cluster scoped owner not supported")
 	}
 
-	if deployed, err := isPrometheusDeployed(args.Logger, args.Client, namespace); err != nil {
+	if deployed, err := isPrometheusDeployed(args.Logger, args.Client); err != nil {
 		return err
 	} else if !deployed {
+		// A cleanup failure must not hold up the rest of the reconcile, such as an upgrade.
+		// The next periodic reconcile retries it.
 		if err := deletePrometheusResources(context.TODO(), args.Client, deployment); err != nil {
+			args.Logger.Error(err, "Failed to delete prometheus resources")
 			args.Recorder.Event(cr, corev1.EventTypeWarning, deleteResourceFailed, fmt.Sprintf("Failed to delete prometheus resources, %v", err))
-			return err
 		}
 		return nil
 	}
