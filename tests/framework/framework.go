@@ -33,6 +33,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/flowcontrol"
 	storagehelpers "k8s.io/component-helpers/storage/volume"
 	"k8s.io/klog/v2"
 
@@ -265,7 +266,7 @@ func DeleteNS(c *kubernetes.Clientset, ns string) error {
 
 // GetDynamicClient gets an instance of a dynamic client that performs generic operations on arbitrary k8s API objects.
 func (c *Clients) GetDynamicClient() (dynamic.Interface, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags(c.KubeURL, c.KubeConfig)
+	cfg, err := c.sharedRestConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +279,7 @@ func (c *Clients) GetDynamicClient() (dynamic.Interface, error) {
 
 // GetCdiClient gets an instance of a kubernetes client that includes all the CDI extensions.
 func (c *Clients) GetCdiClient() (*cdiClientset.Clientset, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags(c.KubeURL, c.KubeConfig)
+	cfg, err := c.sharedRestConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +292,7 @@ func (c *Clients) GetCdiClient() (*cdiClientset.Clientset, error) {
 
 // GetExtClient gets an instance of a kubernetes client that includes all the api extensions.
 func (c *Clients) GetExtClient() (*extclientset.Clientset, error) {
-	cfg, err := clientcmd.BuildConfigFromFlags(c.KubeURL, c.KubeConfig)
+	cfg, err := c.sharedRestConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -338,6 +339,7 @@ func (f *Framework) GetRESTConfigForServiceAccount(namespace, name string) (*res
 		TLSClientConfig: rest.TLSClientConfig{
 			Insecure: true,
 		},
+		RateLimiter: f.RestConfig.RateLimiter,
 	}, nil
 }
 
@@ -381,7 +383,30 @@ func (c *Clients) GetKubeClient() (*kubernetes.Clientset, error) {
 
 // LoadConfig loads our specified kubeconfig
 func (c *Clients) LoadConfig() (*rest.Config, error) {
-	return clientcmd.BuildConfigFromFlags(c.KubeURL, c.KubeConfig)
+	return buildRestConfig(c.KubeURL, c.KubeConfig)
+}
+
+// sharedRestConfig returns a copy of RestConfig, so derived clients share its
+// rate limiter; it falls back to a fresh config when RestConfig is not set yet.
+func (c *Clients) sharedRestConfig() (*rest.Config, error) {
+	if c.RestConfig == nil {
+		return c.LoadConfig()
+	}
+	return rest.CopyConfig(c.RestConfig), nil
+}
+
+// buildRestConfig builds the REST config with a single rate limiter that every
+// client derived from it shares. The client-go default (QPS=5, Burst=10) throttles
+// the suite's tight polling helpers, stretching waits until they hit the spec's
+// context deadline; 100/200 removes the test client as the bottleneck (the
+// apiserver has its own priority & fairness).
+func buildRestConfig(kubeURL, kubeConfig string) (*rest.Config, error) {
+	cfg, err := clientcmd.BuildConfigFromFlags(kubeURL, kubeConfig)
+	if err != nil {
+		return nil, err
+	}
+	cfg.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(100, 200)
+	return cfg, nil
 }
 
 // GetKubeClientFromRESTConfig provides a function to get a K8s client using hte REST config

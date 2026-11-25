@@ -17,7 +17,6 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/tools/clientcmd"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
@@ -177,9 +176,7 @@ var _ = Describe("CDI ingress config tests, using manifests", Serial, func() {
 	)
 
 	BeforeEach(func() {
-		cfg, err := clientcmd.BuildConfigFromFlags(f.KubeURL, f.KubeConfig)
-		Expect(err).ToNot(HaveOccurred())
-		openshiftClient, err := route1client.NewForConfig(cfg)
+		openshiftClient, err := route1client.NewForConfig(f.RestConfig)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Making sure no url is set")
@@ -296,9 +293,7 @@ var _ = Describe("CDI ingress config tests", Serial, func() {
 	)
 
 	BeforeEach(func() {
-		cfg, err := clientcmd.BuildConfigFromFlags(f.KubeURL, f.KubeConfig)
-		Expect(err).ToNot(HaveOccurred())
-		openshiftClient, err := route1client.NewForConfig(cfg)
+		openshiftClient, err := route1client.NewForConfig(f.RestConfig)
 		Expect(err).ToNot(HaveOccurred())
 
 		By("Making sure no url is set")
@@ -428,9 +423,8 @@ var _ = Describe("CDI route config tests", Serial, func() {
 	)
 
 	BeforeEach(func() {
-		cfg, err := clientcmd.BuildConfigFromFlags(f.KubeURL, f.KubeConfig)
-		Expect(err).ToNot(HaveOccurred())
-		openshiftClient, err = route1client.NewForConfig(cfg)
+		var err error
+		openshiftClient, err = route1client.NewForConfig(f.RestConfig)
 		Expect(err).ToNot(HaveOccurred())
 		config, err := f.CdiClient.CdiV1beta1().CDIConfigs().Get(context.TODO(), common.ConfigName, metav1.GetOptions{})
 		Expect(err).ToNot(HaveOccurred())
