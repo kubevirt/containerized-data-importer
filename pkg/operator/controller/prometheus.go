@@ -66,15 +66,7 @@ func ensurePrometheusResourcesExist(ctx context.Context, c client.Client, scheme
 	}
 	installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
 
-	prometheusResources := []client.Object{
-		newMonitorTokenSecret(namespace),
-		newPrometheusRule(namespace),
-		newPrometheusServiceMonitor(namespace),
-		newPrometheusRole(namespace),
-		newPrometheusRoleBinding(namespace),
-	}
-
-	for _, desired := range prometheusResources {
+	for _, desired := range newPrometheusResources(namespace) {
 		if err := sdk.SetLastAppliedConfiguration(desired, LastAppliedConfigAnnotation); err != nil {
 			return err
 		}
@@ -112,6 +104,36 @@ func ensurePrometheusResourcesExist(ctx context.Context, c client.Client, scheme
 	}
 
 	return nil
+}
+
+func deletePrometheusResources(ctx context.Context, c client.Client, owner metav1.Object) error {
+	for _, desired := range newPrometheusResources(owner.GetNamespace()) {
+		current := sdk.NewDefaultInstance(desired)
+		if err := c.Get(ctx, client.ObjectKeyFromObject(desired), current); err != nil {
+			if k8serrors.IsNotFound(err) || meta.IsNoMatchError(err) {
+				continue
+			}
+			return err
+		}
+		if !metav1.IsControlledBy(current, owner) {
+			continue
+		}
+		if err := c.Delete(ctx, current); err != nil && !k8serrors.IsNotFound(err) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func newPrometheusResources(namespace string) []client.Object {
+	return []client.Object{
+		newMonitorTokenSecret(namespace),
+		newPrometheusRule(namespace),
+		newPrometheusServiceMonitor(namespace),
+		newPrometheusRole(namespace),
+		newPrometheusRoleBinding(namespace),
+	}
 }
 
 func isPrometheusDeployed(logger logr.Logger, c client.Client, namespace string) (bool, error) {

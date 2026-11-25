@@ -43,6 +43,7 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -54,6 +55,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	fakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -666,6 +668,70 @@ var _ = Describe("Controller", func() {
 				Expect(monitor.Spec.Endpoints[0].Authorization.Credentials).ToNot(BeNil())
 				Expect(monitor.Spec.Endpoints[0].Authorization.Credentials.Name).To(Equal(common.MetricsReaderTokenName))
 				Expect(monitor.Spec.Endpoints[0].Authorization.Credentials.Key).To(Equal("token"))
+			})
+
+			Context("without the PrometheusRule CRD", func() {
+				monitoringResources := func() []client.Object {
+					return []client.Object{
+						&corev1.Secret{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: common.MetricsReaderTokenName}},
+						&promv1.ServiceMonitor{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: "service-monitor-cdi"}},
+						&rbacv1.Role{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: "cdi-monitoring"}},
+						&rbacv1.RoleBinding{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: "cdi-monitoring"}},
+					}
+				}
+
+				It("should delete the monitoring resources it created", func() {
+					args := createArgs()
+					doReconcile(args)
+					Expect(setDeploymentsReady(args)).To(BeTrue())
+					for _, obj := range monitoringResources() {
+						_, err := getObject(args.client, obj)
+						Expect(err).ToNot(HaveOccurred())
+					}
+
+					args.reconciler = createReconciler(withoutPrometheusRuleCRD(args.client))
+					doReconcile(args)
+
+					for _, obj := range monitoringResources() {
+						_, err := getObject(args.client, obj)
+						Expect(errors.IsNotFound(err)).To(BeTrue(), "%T %s should be deleted", obj, obj.GetName())
+					}
+					validateEvents(args.reconciler, map[string]bool{})
+				})
+
+				It("should keep a same-named monitoring resource it does not control", func() {
+					args := createArgs()
+					doReconcile(args)
+					Expect(setDeploymentsReady(args)).To(BeTrue())
+
+					obj, err := getObject(args.client, &promv1.ServiceMonitor{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: "service-monitor-cdi"}})
+					Expect(err).ToNot(HaveOccurred())
+					userMonitor := obj.(*promv1.ServiceMonitor)
+					userMonitor.OwnerReferences = nil
+					Expect(args.client.Update(context.TODO(), userMonitor)).To(Succeed())
+
+					args.reconciler = createReconciler(withoutPrometheusRuleCRD(args.client))
+					doReconcile(args)
+
+					_, err = getObject(args.client, userMonitor)
+					Expect(err).ToNot(HaveOccurred())
+					_, err = getObject(args.client, &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{Namespace: cdiNamespace, Name: "cdi-monitoring"}})
+					Expect(errors.IsNotFound(err)).To(BeTrue())
+				})
+
+				It("should reconcile cleanly when there is nothing to delete", func() {
+					args := createArgs()
+					args.reconciler = createReconciler(withoutPrometheusRuleCRD(args.client))
+					doReconcile(args)
+					Expect(setDeploymentsReady(args)).To(BeTrue())
+					doReconcile(args)
+
+					for _, obj := range monitoringResources() {
+						_, err := getObject(args.client, obj)
+						Expect(errors.IsNotFound(err)).To(BeTrue(), "%T %s should not exist", obj, obj.GetName())
+					}
+					validateEvents(args.reconciler, createReadyEventValidationMap())
+				})
 			})
 
 			It("should have tokenreviews permission in controller clusterrole", func() {
@@ -2180,6 +2246,20 @@ func createClient(objs ...client.Object) client.Client {
 		runtimeObjs = append(runtimeObjs, obj)
 	}
 	return fakeClient.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(runtimeObjs...).Build()
+}
+
+func withoutPrometheusRuleCRD(c client.Client) client.Client {
+	return interceptor.NewClient(c.(client.WithWatch), interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, ok := obj.(*promv1.PrometheusRule); ok {
+				return &meta.NoKindMatchError{
+					GroupKind:        promv1.SchemeGroupVersion.WithKind(promv1.PrometheusRuleKind).GroupKind(),
+					SearchedVersions: []string{promv1.Version},
+				}
+			}
+			return c.Get(ctx, key, obj, opts...)
+		},
+	})
 }
 
 func createCDI(name, uid string) *cdiv1.CDI {

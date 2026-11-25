@@ -277,6 +277,10 @@ func reconcileCreatePrometheusInfra(args *callbacks.ReconcileCallbackArgs) error
 	if deployed, err := isPrometheusDeployed(args.Logger, args.Client, namespace); err != nil {
 		return err
 	} else if !deployed {
+		if err := deletePrometheusResources(context.TODO(), args.Client, deployment); err != nil {
+			args.Recorder.Event(cr, corev1.EventTypeWarning, deleteResourceFailed, fmt.Sprintf("Failed to delete prometheus resources, %v", err))
+			return err
+		}
 		return nil
 	}
 	if err := ensurePrometheusResourcesExist(context.TODO(), args.Client, args.Scheme, deployment); err != nil {
