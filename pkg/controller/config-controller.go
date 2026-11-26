@@ -118,6 +118,10 @@ func (r *CDIConfigReconciler) Reconcile(_ context.Context, req reconcile.Request
 		return reconcile.Result{}, err
 	}
 
+	if err := r.reconcileTrustedCA(config); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	if !reflect.DeepEqual(currentConfigCopy, config) {
 		// Updates have happened, update CDIConfig.
 		log.Info("Updating CDIConfig", "CDIConfig.Name", config.Name, "config", config)
@@ -635,6 +639,32 @@ func (r *CDIConfigReconciler) createProxyConfigMap(cmName, cert string) *v1.Conf
 	}
 }
 
+func (r *CDIConfigReconciler) reconcileTrustedCA(config *cdiv1.CDIConfig) error {
+	if config.Spec.TrustedCA == nil {
+		config.Status.TrustedCA = nil
+		return nil
+	}
+
+	cm := &corev1.ConfigMap{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Namespace: r.cdiNamespace, Name: *config.Spec.TrustedCA}, cm)
+	if k8serrors.IsNotFound(err) {
+		config.Status.TrustedCA = nil
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	for _, v := range cm.Data {
+		if v != "" {
+			config.Status.TrustedCA = config.Spec.TrustedCA
+			return nil
+		}
+	}
+	config.Status.TrustedCA = nil
+	return nil
+}
+
 // Init initializes a CDIConfig object.
 func (r *CDIConfigReconciler) Init() error {
 	_, err := r.createCDIConfig()
@@ -698,6 +728,9 @@ func addConfigControllerWatches(mgr manager.Manager, configController controller
 		return err
 	}
 	if err := watchUploadProxyCA(mgr, configController, configName); err != nil {
+		return err
+	}
+	if err := watchTrustedCA(mgr, configController, cdiNamespace, configName, log); err != nil {
 		return err
 	}
 
@@ -821,6 +854,35 @@ func watchUploadProxyCA(mgr manager.Manager, configcontroller controller.Control
 	return nil
 }
 
+func watchTrustedCA(mgr manager.Manager, configController controller.Controller, cdiNamespace, configName string, log logr.Logger) error {
+	handler := handler.TypedEnqueueRequestsFromMapFunc[*v1.ConfigMap](func(context.Context, *v1.ConfigMap) []reconcile.Request {
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: configName}}}
+	})
+
+	predicate := predicate.NewTypedPredicateFuncs[*v1.ConfigMap](func(o *v1.ConfigMap) bool {
+		if o.Namespace != cdiNamespace {
+			return false
+		}
+
+		config := &cdiv1.CDIConfig{}
+		if err := mgr.GetClient().Get(
+			context.TODO(),
+			types.NamespacedName{Name: configName},
+			config,
+		); err != nil {
+			log.Error(err, "Unable to get CDIConfig for TrustedCA watch")
+			return false
+		}
+
+		return config.Spec.TrustedCA != nil && o.Name == *config.Spec.TrustedCA
+	})
+
+	if err := configController.Watch(source.Kind(mgr.GetCache(), &v1.ConfigMap{}, handler, predicate)); err != nil {
+		return fmt.Errorf("could not watch TrustedCA ConfigMap: %w", err)
+	}
+	return nil
+}
+
 func getURLFromIngress(ing *networkingv1.Ingress, uploadProxyServiceName string) string {
 	if ing.Spec.DefaultBackend != nil && ing.Spec.DefaultBackend.Service != nil {
 		if ing.Spec.DefaultBackend.Service.Name != uploadProxyServiceName {
@@ -895,4 +957,14 @@ func GetImportProxyConfig(config *cdiv1.CDIConfig, field string) (string, error)
 
 	// If everything fails, return blank
 	return "", nil
+}
+
+func GetTrustedCA(config *cdiv1.CDIConfig) (string, error) {
+	if config == nil {
+		return "", errors.New("failed to get field, the CDIConfig is nil")
+	}
+	if config.Status.TrustedCA == nil {
+		return "", nil // no trustedCA configured, not an error
+	}
+	return *config.Status.TrustedCA, nil
 }
