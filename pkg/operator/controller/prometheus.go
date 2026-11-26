@@ -27,6 +27,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,7 +47,7 @@ import (
 )
 
 const (
-	ruleName                  = "prometheus-cdi-rules"
+	prometheusRuleCRDName     = "prometheusrules.monitoring.coreos.com"
 	rbacName                  = "cdi-monitoring"
 	monitorName               = "service-monitor-cdi"
 	defaultMonitoringNs       = "monitoring"
@@ -66,15 +67,7 @@ func ensurePrometheusResourcesExist(ctx context.Context, c client.Client, scheme
 	}
 	installerLabels := util.GetRecommendedInstallerLabelsFromCr(cr)
 
-	prometheusResources := []client.Object{
-		newMonitorTokenSecret(namespace),
-		newPrometheusRule(namespace),
-		newPrometheusServiceMonitor(namespace),
-		newPrometheusRole(namespace),
-		newPrometheusRoleBinding(namespace),
-	}
-
-	for _, desired := range prometheusResources {
+	for _, desired := range newPrometheusResources(namespace) {
 		if err := sdk.SetLastAppliedConfiguration(desired, LastAppliedConfigAnnotation); err != nil {
 			return err
 		}
@@ -114,16 +107,75 @@ func ensurePrometheusResourcesExist(ctx context.Context, c client.Client, scheme
 	return nil
 }
 
-func isPrometheusDeployed(logger logr.Logger, c client.Client, namespace string) (bool, error) {
-	rule := &promv1.PrometheusRule{}
-	key := client.ObjectKey{Namespace: namespace, Name: ruleName}
-	if err := c.Get(context.TODO(), key, rule); err != nil {
-		if meta.IsNoMatchError(err) {
-			logger.V(3).Info("No match error for PrometheusRule, must not have prometheus deployed")
-			return false, nil
+// deletePrometheusResources deletes the monitoring resources that owner controls,
+// one stage at a time. The token Secret and RBAC stay until the ServiceMonitor is
+// gone, so a ServiceMonitor that is still scraped never loses its token or RBAC.
+func deletePrometheusResources(ctx context.Context, c client.Client, owner metav1.Object) error {
+	namespace := owner.GetNamespace()
+	stages := [][]client.Object{
+		{newPrometheusServiceMonitor(namespace)},
+		newServiceMonitorDependencies(namespace),
+	}
+	for _, stage := range stages {
+		if gone, err := deleteControlledObjects(ctx, c, owner, stage); err != nil || !gone {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// deleteControlledObjects deletes each object that owner controls and reports
+// whether all of them are gone. A finalizer can keep a deleted object around.
+func deleteControlledObjects(ctx context.Context, c client.Client, owner metav1.Object, objs []client.Object) (bool, error) {
+	gone := true
+	for _, desired := range objs {
+		key := client.ObjectKeyFromObject(desired)
+		current := sdk.NewDefaultInstance(desired)
+		if err := c.Get(ctx, key, current); err != nil {
+			if k8serrors.IsNotFound(err) || meta.IsNoMatchError(err) {
+				continue
+			}
+			return false, err
+		}
+		if !metav1.IsControlledBy(current, owner) {
+			continue
+		}
+		uid, resourceVersion := current.GetUID(), current.GetResourceVersion()
+		if err := c.Delete(ctx, current, client.Preconditions{UID: &uid, ResourceVersion: &resourceVersion}); err != nil && !k8serrors.IsNotFound(err) {
+			return false, err
+		}
+		if err := c.Get(ctx, key, current); err == nil {
+			gone = false
 		} else if !k8serrors.IsNotFound(err) {
 			return false, err
 		}
+	}
+
+	return gone, nil
+}
+
+// newPrometheusResources returns the monitoring resources, each after the resources it relies on.
+func newPrometheusResources(namespace string) []client.Object {
+	return append(newServiceMonitorDependencies(namespace), newPrometheusRule(namespace), newPrometheusServiceMonitor(namespace))
+}
+
+func newServiceMonitorDependencies(namespace string) []client.Object {
+	return []client.Object{
+		newMonitorTokenSecret(namespace),
+		newPrometheusRole(namespace),
+		newPrometheusRoleBinding(namespace),
+	}
+}
+
+func isPrometheusDeployed(logger logr.Logger, c client.Client) (bool, error) {
+	crd := &extv1.CustomResourceDefinition{}
+	if err := c.Get(context.TODO(), client.ObjectKey{Name: prometheusRuleCRDName}, crd); err != nil {
+		if k8serrors.IsNotFound(err) {
+			logger.V(3).Info("PrometheusRule CRD not found, must not have prometheus deployed")
+			return false, nil
+		}
+		return false, err
 	}
 
 	return true, nil
