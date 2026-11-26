@@ -71,6 +71,7 @@ var _ = Describe("Http data source", func() {
 			Expect(dp.Close()).To(Succeed())
 		}
 		Expect(os.RemoveAll(tmpDir)).To(Succeed())
+		flushRead = nil
 		By("[AfterEach] closing test server")
 		ts.Close()
 	})
@@ -108,6 +109,27 @@ var _ = Describe("Http data source", func() {
 		Entry("return TransferTarget with archive content type but not archive endpoint ", cirrosFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, cirrosData, false, false),
 		Entry("return TransferTarget with archive content type and archive endpoint ", diskimageTarFileName, cdiv1.DataVolumeArchive, ProcessingPhaseTransferDataDir, diskimageArchiveData, false, false),
 	)
+
+	It("should set up decompressed progress reader when Content-Length is 0 and X-Decompressed-Content-Length is set", func() {
+		dp, err = NewHTTPDataSource(ts.URL+"/"+tinyCoreGz, "", "", "", cdiv1.DataVolumeKubeVirt, "", false)
+		Expect(err).ToNot(HaveOccurred())
+		dp.contentLength = 0
+		dp.decompressedContentLength = 42
+		dp.brokenForQemuImg = true
+
+		phase, err := dp.Info()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(phase).To(Equal(ProcessingPhaseTransferScratch))
+
+		// [stream, multi-r, gz, multi-r, progress]
+		Expect(dp.readers.readers).To(HaveLen(5))
+		Expect(dp.readers.readers[0].rdrType).To(Equal(rdrStream))
+		Expect(dp.readers.readers[1].rdrType).To(Equal(rdrMulti))
+		Expect(dp.readers.readers[2].rdrType).To(Equal(rdrGz))
+		Expect(dp.readers.readers[3].rdrType).To(Equal(rdrMulti))
+		Expect(dp.readers.readers[4].rdrType).To(Equal(rdrStream))
+		Expect(dp.readers.progressReader.Reader).To(Equal(dp.readers.readers[3].rdr))
+	})
 
 	DescribeTable("calling transfer should", func(image string, contentType cdiv1.DataVolumeContentType, expectedPhase ProcessingPhase, scratchPath string, want []byte, wantErr bool, validationErr error) {
 		flushRead = want
@@ -654,6 +676,53 @@ var _ = Describe("Http reader", func() {
 		_, total, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt, true)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(uint64(0)).To(Equal(total))
+	})
+
+	It("should parse X-Decompressed-Content-Length header", func() {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Add("X-Decompressed-Content-Length", "18874368")
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+		ep, err := url.Parse(ts.URL)
+		Expect(err).ToNot(HaveOccurred())
+		r, _, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt, false)
+		Expect(err).ToNot(HaveOccurred())
+		hcr := r.(*httpCountingReader)
+		Expect(uint64(18874368)).To(Equal(hcr.decompressedContentLength))
+		err = r.Close()
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("should handle invalid X-Decompressed-Content-Length header", func() {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Add("X-Decompressed-Content-Length", "not-a-number")
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+		ep, err := url.Parse(ts.URL)
+		Expect(err).ToNot(HaveOccurred())
+		r, _, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt, false)
+		Expect(err).ToNot(HaveOccurred())
+		hcr := r.(*httpCountingReader)
+		Expect(uint64(0)).To(Equal(hcr.decompressedContentLength))
+		err = r.Close()
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	It("should have zero decompressed content length when header is absent", func() {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		defer ts.Close()
+		ep, err := url.Parse(ts.URL)
+		Expect(err).ToNot(HaveOccurred())
+		r, _, _, err := createHTTPReader(context.Background(), ep, "", "", "", nil, nil, cdiv1.DataVolumeKubeVirt, false)
+		Expect(err).ToNot(HaveOccurred())
+		hcr := r.(*httpCountingReader)
+		Expect(uint64(0)).To(Equal(hcr.decompressedContentLength))
+		err = r.Close()
+		Expect(err).ToNot(HaveOccurred())
 	})
 })
 
