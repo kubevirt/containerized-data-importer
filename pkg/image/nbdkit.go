@@ -49,12 +49,11 @@ const (
 
 // Nbdkit filters
 const (
-	NbdkitXzFilter           NbdkitFilter = "xz"
-	NbdkitTarFilter          NbdkitFilter = "tar"
-	NbdkitGzipFilter         NbdkitFilter = "gzip"
-	NbdkitRetryFilter        NbdkitFilter = "retry"
-	NbdkitCacheExtentsFilter NbdkitFilter = "cacheextents"
-	NbdkitReadAheadFilter    NbdkitFilter = "readahead"
+	NbdkitXzFilter        NbdkitFilter = "xz"
+	NbdkitTarFilter       NbdkitFilter = "tar"
+	NbdkitGzipFilter      NbdkitFilter = "gzip"
+	NbdkitRetryFilter     NbdkitFilter = "retry"
+	NbdkitReadAheadFilter NbdkitFilter = "readahead"
 )
 
 // Nbdkit represents struct for an nbdkit instance
@@ -204,7 +203,6 @@ func NewNbdkitVddk(nbdkitPidFile, socket string, args NbdKitVddkPluginArgs) (Nbd
 	}
 
 	n.AddFilter(NbdkitRetryFilter)
-	n.AddFilter(NbdkitCacheExtentsFilter)
 	if err := n.validatePlugin(); err != nil {
 		return nil, err
 	}

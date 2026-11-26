@@ -48,13 +48,13 @@ oci_image(
     ],
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "//rpm:cdi_importer_base_aarch64",
+            "//bazel/centos_stream:cdi_importer_base_aarch64",
             ":ovirt-imageio-conf-tar",
             ":test-img-tar",
             ":test-ticket-tar",
         ],
         "//conditions:default": [
-            "//rpm:cdi_importer_base_x86_64",
+            "//bazel/centos_stream:cdi_importer_base_x86_64",
             ":ovirt-imageio-conf-tar",
             ":test-img-tar",
             ":test-ticket-tar",

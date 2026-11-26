@@ -27,6 +27,8 @@ if [ ! -d "${CACHE_DIR}" ]; then
     mkdir -p "${CACHE_DIR}"
 fi
 
+check_builder_stream
+
 # Execute the build
 [ -t 1 ] && USE_TTY="-it"
 ${CDI_CRI} run ${USE_TTY} \
@@ -36,6 +38,7 @@ ${CDI_CRI} run ${USE_TTY} \
     -e RUN_UID=$(id -u) \
     -e RUN_GID=$(id -g) \
     -e KUBEVIRTCI_RUNTIME=${KUBEVIRTCI_RUNTIME} \
+    -e CDI_CENTOS_STREAM_VERSION=${CDI_CENTOS_STREAM_VERSION} \
     -e GIT_CONFIG_PARAMETERS="'safe.directory=/go/src/kubevirt.io/containerized-data-importer'" \
     -e GOCACHE=/gocache \
     -w ${WORK_DIR} \

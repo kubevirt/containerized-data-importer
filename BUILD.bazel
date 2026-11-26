@@ -1,7 +1,7 @@
 load("@io_bazel_rules_go//go:def.bzl", "go_library")
 load("@bazel_gazelle//:def.bzl", "gazelle")
 load("@bazel_tools//tools/python:toolchain.bzl", "py_runtime_pair")
-load("@bazeldnf//:def.bzl", "bazeldnf")
+load("@bazeldnf//bazeldnf:defs.bzl", "bazeldnf")
 load("@rules_pkg//:pkg.bzl", "pkg_tar")
 load("@rules_oci//oci:defs.bzl", "oci_push", "oci_image")
 
@@ -253,13 +253,13 @@ oci_image(
     }),
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": [
-            "//rpm:testimage_s390x",
+            "//bazel/centos_stream:testimage_s390x",
         ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "//rpm:testimage_aarch64",
+            "//bazel/centos_stream:testimage_aarch64",
         ],
         "//conditions:default": [
-            "//rpm:testimage_x86_64",
+            "//bazel/centos_stream:testimage_x86_64",
         ],
     }),
     os = "linux",
@@ -275,13 +275,13 @@ oci_image(
     }),
     tars = select({
         "@io_bazel_rules_go//go/platform:linux_s390x": [
-            "//rpm:centos_base_s390x",
+            "//bazel/centos_stream:centos_base_s390x",
         ],
         "@io_bazel_rules_go//go/platform:linux_arm64": [
-            "//rpm:centos_base_aarch64",
+            "//bazel/centos_stream:centos_base_aarch64",
         ],
         "//conditions:default": [
-            "//rpm:centos_base_x86_64",
+            "//bazel/centos_stream:centos_base_x86_64",
         ],
     }),
     os = "linux",

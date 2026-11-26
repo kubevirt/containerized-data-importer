@@ -28,7 +28,7 @@ mkdir -p ${CMD_OUT_DIR}/dump
 # Build all binaries for amd64
 bazel build \
     --verbose_failures \
-    --config=${ARCHITECTURE} \
+    --config=${ARCHITECTURE} ${BAZEL_CS_CONFIG} \
     //tools/metricsdocs/...
 
 rm -rf _out/tools/metricsdocs

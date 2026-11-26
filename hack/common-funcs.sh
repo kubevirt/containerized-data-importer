@@ -30,3 +30,20 @@ get_previous_y_release() {
         sed -E 's/.*"([^"]+)".*/\1/' |
         sort -V | grep -v rc | grep "$2" -B 100 | grep -v "$2" | tail -n 1 | xargs
 }
+
+# Follow KubeVirt's CentOS Stream selection for kubevirtci providers.
+# k8s-1.37 and later select CS10; older and other providers default to CS9.
+# An explicit CDI_CENTOS_STREAM_VERSION takes precedence.
+detect_centos_stream_version() {
+    if [[ -n "${CDI_CENTOS_STREAM_VERSION:-}" ]]; then
+        return
+    fi
+    local provider_version
+    provider_version=$(echo "${KUBEVIRT_PROVIDER:-}" | sed -n 's/^k8s-\([0-9]*\.[0-9]*\).*/\1/p')
+    if [[ -n "${provider_version}" ]] &&
+        [[ "$(printf '%s\n' 1.37 "${provider_version}" | sort -V | head -n1)" == "1.37" ]]; then
+        export CDI_CENTOS_STREAM_VERSION=10
+    else
+        export CDI_CENTOS_STREAM_VERSION=9
+    fi
+}

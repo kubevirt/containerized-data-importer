@@ -28,8 +28,27 @@ FUNC_TEST_BAD_WEBSERVER="cdi-func-test-bad-webserver"
 FUNC_TEST_PROXY="cdi-func-test-proxy"
 FUNC_TEST_POPULATOR="cdi-func-test-sample-populator"
 
+# CentOS Stream for the builder image and RPM trees: 9 (default) or 10.
+CDI_CENTOS_STREAM_VERSION=${CDI_CENTOS_STREAM_VERSION:-9}
+case "${CDI_CENTOS_STREAM_VERSION}" in
+9 | 10) ;;
+*)
+    echo "ERROR: CDI_CENTOS_STREAM_VERSION must be 9 or 10, got '${CDI_CENTOS_STREAM_VERSION}'" >&2
+    exit 1
+    ;;
+esac
+export CDI_CENTOS_STREAM_VERSION
+
 # update this whenever new builder tag is created
-BUILDER_IMAGE=${BUILDER_IMAGE:-quay.io/kubevirt/kubevirt-cdi-bazel-builder:2609281118-52c97a191}
+BUILDER_IMAGE_CS9=quay.io/kubevirt/kubevirt-cdi-bazel-builder:2609281118-52c97a191
+BUILDER_IMAGE_CS10=quay.io/kubevirt/kubevirt-cdi-bazel-builder:2611121529-29097cbdf
+if [ "${CDI_CENTOS_STREAM_VERSION}" = "10" ]; then
+    BUILDER_IMAGE=${BUILDER_IMAGE:-${BUILDER_IMAGE_CS10}}
+    BAZEL_CS_CONFIG="--config=cs10"
+else
+    BUILDER_IMAGE=${BUILDER_IMAGE:-${BUILDER_IMAGE_CS9}}
+    BAZEL_CS_CONFIG=""
+fi
 
 BINARIES="cmd/${OPERATOR} cmd/${CONTROLLER} cmd/${IMPORTER} cmd/${CLONER} cmd/${APISERVER} cmd/${UPLOADPROXY} cmd/${UPLOADSERVER} cmd/${OPERATOR} tools/${FUNC_TEST_INIT} tools/${FUNC_TEST_REGISTRY_INIT} tools/${FUNC_TEST_BAD_WEBSERVER} tools/${FUNC_TEST_PROXY} tools/${FUNC_TEST_POPULATOR}"
 CDI_PKGS="cmd/ pkg/ test/"
