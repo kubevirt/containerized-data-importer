@@ -2884,6 +2884,7 @@ var _ = Describe("[vendor:cnv-qe@redhat.com][level:component]DataVolume tests", 
 		},
 			Entry("[test_id:3934]when image is qcow2", utils.TinyCoreQcow2URLRateLimit),
 			Entry("[test_id:6902]when image is qcow2.gz", utils.TinyCoreQcow2GzURLRateLimit),
+			Entry("when image is iso.gz with X-Decompressed-Content-Length", utils.TinyCoreIsoGzURLRateLimit),
 		)
 	})
 
