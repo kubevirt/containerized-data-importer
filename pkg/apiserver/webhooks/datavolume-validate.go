@@ -31,6 +31,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kvalidation "k8s.io/apimachinery/pkg/util/validation"
 	k8sfield "k8s.io/apimachinery/pkg/util/validation/field"
@@ -427,6 +428,42 @@ func validateExternalPopulation(spec *cdiv1.DataVolumeSpec, field *k8sfield.Path
 	return causes
 }
 
+// isValidSizeUpdate returns true when the only difference between oldSpec and newSpec
+// is an increase of the storage size request. Any other spec change (or a size decrease)
+// is rejected.
+func (wh *dataVolumeValidatingWebhook) isValidSizeUpdate(oldSpec, newSpec *cdiv1.DataVolumeSpec) bool {
+	oldSize := getStorageSize(oldSpec)
+	newSize := getStorageSize(newSpec)
+
+	if newSize.Cmp(oldSize) < 0 {
+		return false
+	}
+
+	oldCopy := oldSpec.DeepCopy()
+	if oldCopy.PVC != nil && oldCopy.PVC.Resources.Requests != nil {
+		oldCopy.PVC.Resources.Requests[v1.ResourceStorage] = newSize
+	}
+	if oldCopy.Storage != nil && oldCopy.Storage.Resources.Requests != nil {
+		oldCopy.Storage.Resources.Requests[v1.ResourceStorage] = newSize
+	}
+
+	return apiequality.Semantic.DeepEqual(oldCopy, newSpec)
+}
+
+func getStorageSize(spec *cdiv1.DataVolumeSpec) resource.Quantity {
+	if spec.PVC != nil && spec.PVC.Resources.Requests != nil {
+		if val, ok := spec.PVC.Resources.Requests[v1.ResourceStorage]; ok {
+			return val
+		}
+	}
+	if spec.Storage != nil && spec.Storage.Resources.Requests != nil {
+		if val, ok := spec.Storage.Resources.Requests[v1.ResourceStorage]; ok {
+			return val
+		}
+	}
+	return resource.Quantity{}
+}
+
 func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
 	var causes []metav1.StatusCause
 
@@ -467,7 +504,7 @@ func (wh *dataVolumeValidatingWebhook) Admit(ar admissionv1.AdmissionReview) *ad
 			multiStageAdmitted = apiequality.Semantic.DeepEqual(newSpec, oldSpec)
 		}
 
-		if !multiStageAdmitted && !apiequality.Semantic.DeepEqual(dv.Spec, oldDV.Spec) {
+		if !multiStageAdmitted && !wh.isValidSizeUpdate(&oldDV.Spec, &dv.Spec) {
 			klog.Errorf("Cannot update spec for DataVolume %s/%s", dv.GetNamespace(), dv.GetName())
 			var causes []metav1.StatusCause
 			causes = append(causes, metav1.StatusCause{
