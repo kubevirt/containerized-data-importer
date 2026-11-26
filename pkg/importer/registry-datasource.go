@@ -37,6 +37,7 @@ import (
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
 	"kubevirt.io/containerized-data-importer/pkg/common"
+	"kubevirt.io/containerized-data-importer/pkg/util"
 )
 
 const (
@@ -220,6 +221,14 @@ func CreateCertificateDir(registryCertDir string) (string, error) {
 	if _, err := os.Stat(common.ImporterProxyCertDir); err == nil {
 		klog.Info("Copying proxy certs")
 		if err := collectCerts(common.ImporterProxyCertDir, allCerts, "proxy-"); err != nil {
+			return allCerts, err
+		}
+	}
+
+	trustedCADir, _ := util.ParseEnvVar(common.ImporterTrustedCADirVar, false)
+	if trustedCADir != "" {
+		klog.Info("Copying trusted CA certs")
+		if err := collectCerts(trustedCADir, allCerts, "trusted-ca-"); err != nil {
 			return allCerts, err
 		}
 	}

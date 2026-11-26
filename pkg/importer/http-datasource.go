@@ -286,6 +286,29 @@ func (hs *HTTPDataSource) Close() error {
 	return err
 }
 
+// helper to append certs to cert pool
+func appendCertsToPool(certPool *x509.CertPool, dir string) error {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+
+	for _, file := range files {
+		if file.IsDir() || file.Name()[0] == '.' {
+			continue
+		}
+		fp := path.Join(dir, file.Name())
+		certs, err := os.ReadFile(fp)
+		if err != nil {
+			return err
+		}
+		if ok := certPool.AppendCertsFromPEM(certs); !ok {
+			klog.Warningf("No certs in %s", fp)
+		}
+	}
+	return nil
+}
+
 func createCertPool(certDir string) (*x509.CertPool, error) {
 	// let's get system certs as well
 	certPool, err := x509.SystemCertPool()
@@ -303,6 +326,13 @@ func createCertPool(certDir string) (*x509.CertPool, error) {
 			if certs, err := os.ReadFile(fp); err == nil {
 				certPool.AppendCertsFromPEM(certs)
 			}
+		}
+	}
+
+	trustedCADir, _ := util.ParseEnvVar(common.ImporterTrustedCADirVar, false)
+	if trustedCADir != "" {
+		if err := appendCertsToPool(certPool, trustedCADir); err != nil {
+			return nil, errors.Wrapf(err, "Error appending certs from %s", trustedCADir)
 		}
 	}
 
@@ -347,7 +377,8 @@ func createHTTPClient(certDir string, insecureSkipVerify bool) (*http.Client, er
 		klog.Warningf("Unable to read proxy cert directory %v", err)
 	}
 
-	if certDir == "" && len(proxyCertDir) == 0 && !insecureSkipVerify {
+	trustedCADir, _ := util.ParseEnvVar(common.ImporterTrustedCADirVar, false)
+	if certDir == "" && trustedCADir == "" && len(proxyCertDir) == 0 && !insecureSkipVerify {
 		return client, nil
 	}
 	// the default transport contains Proxy configurations to use environment variables and default timeouts
