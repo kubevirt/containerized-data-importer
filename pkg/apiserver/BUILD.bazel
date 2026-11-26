@@ -6,6 +6,8 @@ go_library(
         "apiserver.go",
         "auth-config.go",
         "authorizer.go",
+        "header_limit_go127.go",
+        "header_limit_pre_go127.go",
     ],
     importpath = "kubevirt.io/containerized-data-importer/pkg/apiserver",
     visibility = ["//visibility:public"],
@@ -46,6 +48,7 @@ go_test(
         "apiserver_test.go",
         "auth-config_test.go",
         "authorizer_test.go",
+        "header_limit_go127_test.go",
     ],
     embed = [":go_default_library"],
     deps = [
