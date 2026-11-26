@@ -40,6 +40,7 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -221,6 +222,66 @@ var _ = Describe("ImportConfig Controller reconcile loop", func() {
 		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Namespace: orgPvc.Namespace, Name: orgPvc.Name}, resPvc)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(reflect.DeepEqual(orgPvc, resPvc)).To(BeTrue())
+	})
+
+	It("Should retry deleting the importer pod of a completed import if the first delete failed", func() {
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{cc.AnnEndpoint: testEndPoint, cc.AnnImportPod: "importer-testPvc1"}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Status = corev1.PodStatus{
+			Phase: corev1.PodSucceeded,
+			ContainerStatuses: []v1.ContainerStatus{
+				{
+					State: v1.ContainerState{
+						Terminated: &v1.ContainerStateTerminated{
+							Message: "Import Completed",
+							Reason:  "Completed",
+						},
+					},
+				},
+			},
+		}
+		reconciler = createImportReconciler(pvc, pod)
+		failDelete := true
+		reconciler.client = interceptor.NewClient(reconciler.client.(client.WithWatch), interceptor.Funcs{
+			Delete: func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.DeleteOption) error {
+				if _, isPod := obj.(*corev1.Pod); isPod && failDelete {
+					return fmt.Errorf("transient delete failure")
+				}
+				return c.Delete(ctx, obj, opts...)
+			},
+		})
+		req := reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}}
+
+		_, err := reconciler.Reconcile(context.TODO(), req)
+		Expect(err).To(HaveOccurred())
+		resultPvc := &corev1.PersistentVolumeClaim{}
+		Expect(reconciler.client.Get(context.TODO(), req.NamespacedName, resultPvc)).To(Succeed())
+		Expect(resultPvc.GetAnnotations()[cc.AnnPodPhase]).To(BeEquivalentTo(corev1.PodSucceeded))
+		Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, &corev1.Pod{})).To(Succeed())
+
+		// The requeued reconcile must delete the pod, even though the PVC is already complete.
+		failDelete = false
+		_, err = reconciler.Reconcile(context.TODO(), req)
+		Expect(err).ToNot(HaveOccurred())
+		err = reconciler.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, &corev1.Pod{})
+		Expect(errors.IsNotFound(err)).To(BeTrue())
+	})
+
+	It("Should keep the importer pod of a completed import if retainAfterCompletion is set", func() {
+		pvc := cc.CreatePvc("testPvc1", "default", map[string]string{
+			cc.AnnEndpoint:                 testEndPoint,
+			cc.AnnImportPod:                "importer-testPvc1",
+			cc.AnnPodPhase:                 string(corev1.PodSucceeded),
+			cc.AnnPodRetainAfterCompletion: "true",
+		}, nil)
+		pvc.Status.Phase = v1.ClaimBound
+		pod := cc.CreateImporterTestPod(pvc, "testPvc1", nil)
+		pod.Status.Phase = corev1.PodSucceeded
+		reconciler = createImportReconciler(pvc, pod)
+		_, err := reconciler.Reconcile(context.TODO(), reconcile.Request{NamespacedName: types.NamespacedName{Name: "testPvc1", Namespace: "default"}})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(reconciler.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, &corev1.Pod{})).To(Succeed())
 	})
 
 	It("Should init PVC with a POD name if a PVC with all needed annotations is passed", func() {

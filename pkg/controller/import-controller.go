@@ -232,10 +232,37 @@ func (r *ImportReconciler) Reconcile(_ context.Context, req reconcile.Request) (
 			"pvc.annotations.endpoint", checkPVC(pvc, cc.AnnEndpoint, log),
 			"pvc.annotations.source", checkPVC(pvc, cc.AnnSource, log),
 			"isBound", isBound(pvc, log), "isMultistage", multiStageImport, "multiStageDone", multiStageAlreadyDone)
+		if err := r.cleanupCompletedImporterPod(pvc, log); err != nil {
+			return reconcile.Result{}, err
+		}
 		return reconcile.Result{}, nil
 	}
 
 	return r.reconcilePvc(pvc, log)
+}
+
+// cleanupCompletedImporterPod deletes the importer pod of a completed import if it is still around,
+// for example because the delete in updatePvcFromPod failed. Otherwise nothing would retry it, and
+// the pod would keep the PVC from being deleted.
+func (r *ImportReconciler) cleanupCompletedImporterPod(pvc *corev1.PersistentVolumeClaim, log logr.Logger) error {
+	if !cc.IsPVCComplete(pvc) || cc.IsMultiStageImportInProgress(pvc) || !cc.ShouldDeletePod(pvc) {
+		return nil
+	}
+	if !checkPVC(pvc, cc.AnnEndpoint, log) && !checkPVC(pvc, cc.AnnSource, log) {
+		return nil
+	}
+	if _, ok := pvc.Annotations[cc.AnnImportPod]; !ok {
+		return nil
+	}
+	pod := &corev1.Pod{}
+	if err := r.client.Get(context.TODO(), types.NamespacedName{Name: getImportPodNameFromPvc(pvc), Namespace: pvc.GetNamespace()}, pod); err != nil {
+		return cc.IgnoreNotFound(err)
+	}
+	if !metav1.IsControlledBy(pod, pvc) && !cc.IsImageStream(pvc) {
+		return nil
+	}
+	log.V(1).Info("Deleting pod of completed import", "pod.Name", pod.Name)
+	return r.cleanup(pvc, pod, log)
 }
 
 func (r *ImportReconciler) findImporterPod(pvc *corev1.PersistentVolumeClaim, log logr.Logger) (*corev1.Pod, error) {
