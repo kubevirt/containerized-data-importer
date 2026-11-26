@@ -63,6 +63,7 @@ type Config struct {
 	ImageSize          string
 	FilesystemOverhead float64
 	Preallocation      bool
+	ExpectedChecksum   string
 
 	Deadline *time.Time
 
@@ -367,7 +368,7 @@ func (app *uploadServerApp) uploadHandlerAsync(irc imageReadCloser) http.Handler
 			w.WriteHeader(http.StatusBadRequest)
 		}
 
-		processor, err := uploadProcessorFuncAsync(readCloser, app.config.Destination, app.config.ImageSize, app.config.FilesystemOverhead, app.config.Preallocation, cdiContentType)
+		processor, err := uploadProcessorFuncAsync(readCloser, app.config.Destination, app.config.ImageSize, app.config.FilesystemOverhead, app.config.Preallocation, cdiContentType, app.config.ExpectedChecksum)
 
 		app.mutex.Lock()
 		defer app.mutex.Unlock()
@@ -416,7 +417,7 @@ func (app *uploadServerApp) processUpload(irc imageReadCloser, w http.ResponseWr
 		w.WriteHeader(http.StatusBadRequest)
 	}
 
-	preallocationApplied, err := uploadProcessorFunc(readCloser, app.config.Destination, app.config.ImageSize, app.config.FilesystemOverhead, app.config.Preallocation, cdiContentType, dvContentType)
+	preallocationApplied, err := uploadProcessorFunc(readCloser, app.config.Destination, app.config.ImageSize, app.config.FilesystemOverhead, app.config.Preallocation, cdiContentType, dvContentType, app.config.ExpectedChecksum)
 
 	app.mutex.Lock()
 	defer app.mutex.Unlock()
@@ -451,26 +452,32 @@ func (app *uploadServerApp) uploadArchiveHandler(irc imageReadCloser) http.Handl
 	}
 }
 
-func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string) (*importer.DataProcessor, error) {
+func newAsyncUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string, expectedChecksum string) (*importer.DataProcessor, error) {
 	if isCloneTarget(sourceContentType) {
 		return nil, fmt.Errorf("async clone not supported")
 	}
 
-	uds := importer.NewAsyncUploadDataSource(newContentReader(stream, sourceContentType))
+	uds, err := importer.NewAsyncUploadDataSource(newContentReader(stream, sourceContentType), expectedChecksum)
+	if err != nil {
+		return nil, err
+	}
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation, "")
 	return processor, processor.ProcessDataWithPause()
 }
 
-func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string, dvContentType cdiv1.DataVolumeContentType) (bool, error) {
+func newUploadStreamProcessor(stream io.ReadCloser, dest, imageSize string, filesystemOverhead float64, preallocation bool, sourceContentType string, dvContentType cdiv1.DataVolumeContentType, expectedChecksum string) (bool, error) {
 	stream = newContentReader(stream, sourceContentType)
 	if isCloneTarget(sourceContentType) {
 		return cloneProcessor(stream, sourceContentType, dest, preallocation)
 	}
 
 	// Clone block device to block device or file system
-	uds := importer.NewUploadDataSource(stream, dvContentType)
+	uds, err := importer.NewUploadDataSource(stream, dvContentType, expectedChecksum)
+	if err != nil {
+		return false, err
+	}
 	processor := importer.NewDataProcessor(uds, dest, common.ImporterVolumePath, common.ScratchDataDir, imageSize, filesystemOverhead, preallocation, "")
-	err := processor.ProcessData()
+	err = processor.ProcessData()
 	return processor.PreallocationApplied(), err
 }
 

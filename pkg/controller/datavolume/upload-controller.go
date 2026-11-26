@@ -138,6 +138,9 @@ func (r *UploadReconciler) updateAnnotations(dataVolume *cdiv1.DataVolume, pvc *
 		return errors.Errorf("no source set for upload datavolume")
 	}
 	pvc.Annotations[cc.AnnUploadRequest] = ""
+	if dataVolume.Spec.Source.Upload.Checksum != "" {
+		pvc.Annotations[cc.AnnUploadChecksum] = dataVolume.Spec.Source.Upload.Checksum
+	}
 	return nil
 }
 
@@ -265,6 +268,9 @@ func volumeUploadSourceName(dv *cdiv1.DataVolume) string {
 }
 
 func (r *UploadReconciler) createVolumeUploadSourceCR(syncState *dvSyncState) error {
+	if syncState.dv.Spec.Source == nil || syncState.dv.Spec.Source.Upload == nil {
+		return errors.Errorf("no source set for upload datavolume")
+	}
 	uploadSourceName := volumeUploadSourceName(syncState.dvMutated)
 	uploadSource := &cdiv1.VolumeUploadSource{}
 	// check if uploadSource already exists
@@ -280,6 +286,7 @@ func (r *UploadReconciler) createVolumeUploadSourceCR(syncState *dvSyncState) er
 		Spec: cdiv1.VolumeUploadSourceSpec{
 			ContentType:   syncState.dv.Spec.ContentType,
 			Preallocation: syncState.dv.Spec.Preallocation,
+			Checksum:      syncState.dv.Spec.Source.Upload.Checksum,
 		},
 	}
 

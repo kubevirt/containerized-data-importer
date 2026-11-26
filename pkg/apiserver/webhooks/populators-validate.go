@@ -121,6 +121,10 @@ func (wh *populatorValidatingWebhook) validateVolumeUploadSourceSpec(field *k8sf
 		return causes
 	}
 
+	if causes := validateChecksum(spec.Checksum, field, "Upload"); causes != nil {
+		return causes
+	}
+
 	return nil
 }
 

@@ -118,6 +118,9 @@ func (r *UploadPopulatorReconciler) updatePVCForPopulation(pvc *corev1.Persisten
 	pvc.Annotations[cc.AnnContentType] = string(cc.GetContentType(uploadSource.Spec.ContentType))
 	pvc.Annotations[cc.AnnPopulatorKind] = cdiv1.VolumeUploadSourceRef
 	pvc.Annotations[cc.AnnPreallocationRequested] = strconv.FormatBool(cc.GetPreallocation(context.TODO(), r.client, uploadSource.Spec.Preallocation))
+	if uploadSource.Spec.Checksum != "" {
+		pvc.Annotations[cc.AnnUploadChecksum] = uploadSource.Spec.Checksum
+	}
 }
 
 func (r *UploadPopulatorReconciler) updateUploadAnnotations(pvc *corev1.PersistentVolumeClaim, pvcPrime *corev1.PersistentVolumeClaim) {
