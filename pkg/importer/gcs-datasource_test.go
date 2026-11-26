@@ -58,6 +58,22 @@ var _ = Describe("Google Cloud Storage data source", func() {
 		Expect(err).To(HaveOccurred())
 	})
 
+	It("NewGCSDataSource should not put a deadline on the context the object is read with", func() {
+		var readerCtx context.Context
+		newReaderFunc = func(ctx context.Context, client *storage.Client, bucket, object string) (io.ReadCloser, error) {
+			readerCtx = ctx
+			return mockGcsObjectReader(ctx, client, bucket, object)
+		}
+		sd, err = NewGCSDataSource("gs://Bucket1/Object.tmp", "")
+		Expect(err).NotTo(HaveOccurred())
+		_, hasDeadline := readerCtx.Deadline()
+		Expect(hasDeadline).To(BeFalse(), "a deadline would cut off a download that outlasts it")
+		Expect(readerCtx.Err()).NotTo(HaveOccurred())
+		Expect(sd.Close()).To(Succeed())
+		Expect(readerCtx.Err()).To(MatchError(context.Canceled))
+		sd = nil
+	})
+
 	It("NewGCSDataSource should Pass, when passed in an valid https endpoint without authentication", func() {
 		sd, err = NewGCSDataSource("https://storage.cloud.google.com/Bucket1/Object.tmp", "")
 		Expect(err).NotTo(HaveOccurred())

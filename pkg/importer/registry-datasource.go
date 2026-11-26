@@ -382,7 +382,7 @@ func GetImageDigest(url, accessKey, secKey, certDir string, insecureRegistry boo
 	}
 	defer closeImage(src)
 
-	imageManifest, _, err := src.GetManifest(context.Background(), nil)
+	imageManifest, _, err := src.GetManifest(ctx, nil)
 	if err != nil {
 		return "", err
 	}
