@@ -121,6 +121,8 @@ const (
 	ImportProxyConfigMapKey = "ca.crt"
 	// ImporterProxyCertDir is where the configmap containing proxy certs will be mounted
 	ImporterProxyCertDir = "/proxycerts/"
+	// ImportTrustedCACertDir is where the configmap containing trusted CA certs will be mounted
+	ImportTrustedCACertDir = "/trustedcacerts/"
 
 	// PullPolicy provides a constant to capture our env variable "PULL_POLICY" (only used by cmd/cdi-controller/controller.go)
 	PullPolicy = "PULL_POLICY"
@@ -185,6 +187,8 @@ const (
 	ImportProxyNoProxy = "no_proxy"
 	// ImporterProxyCertDirVar provides a constant to capture our env variable "IMPORTER_PROXY_CERT_DIR"
 	ImporterProxyCertDirVar = "IMPORTER_PROXY_CERT_DIR"
+	// ImporterTrustedCADirVar provides a constant to capture our env variable "IMPORTER_TRUSTED_CA_DIR"
+	ImporterTrustedCADirVar = "IMPORTER_TRUSTED_CA_DIR"
 	// InstallerPartOfLabel provides a constant to capture our env variable "INSTALLER_PART_OF_LABEL"
 	InstallerPartOfLabel = "INSTALLER_PART_OF_LABEL"
 	// InstallerVersionLabel provides a constant to capture our env variable "INSTALLER_VERSION_LABEL"

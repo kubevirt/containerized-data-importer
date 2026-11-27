@@ -486,6 +486,57 @@ var _ = Describe("Http client", func() {
 	)
 })
 
+var _ = Describe("Global trusted CA certificates", func() {
+	It("trusts the global CA while retaining system and per-source certificates", func() {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		DeferCleanup(server.Close)
+
+		trustedDir := GinkgoT().TempDir()
+		trustedPEM := cert.EncodeCertPEM(server.Certificate())
+		Expect(os.WriteFile(filepath.Join(trustedDir, "ca.crt"), trustedPEM, 0600)).To(Succeed())
+		GinkgoT().Setenv(common.ImporterTrustedCADirVar, trustedDir)
+
+		sourceDir := GinkgoT().TempDir()
+		sourceCA, err := triple.NewCA("source.cdi.kubevirt.io")
+		Expect(err).NotTo(HaveOccurred())
+		sourcePEM := cert.EncodeCertPEM(sourceCA.Cert)
+		Expect(os.WriteFile(filepath.Join(sourceDir, "source.crt"), sourcePEM, 0600)).To(Succeed())
+
+		client, err := createHTTPClient(sourceDir, false)
+		Expect(err).NotTo(HaveOccurred())
+		pool := client.Transport.(*http.Transport).TLSClientConfig.RootCAs
+		expected, err := x509.SystemCertPool()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(expected.AppendCertsFromPEM(trustedPEM)).To(BeTrue())
+		Expect(expected.AppendCertsFromPEM(sourcePEM)).To(BeTrue())
+		Expect(pool.Equal(expected)).To(BeTrue())
+
+		response, err := client.Get(server.URL)
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(response.Body.Close)
+		Expect(response.StatusCode).To(Equal(http.StatusOK))
+	})
+
+	It("uses the global CA even when no per-source certificate directory is configured", func() {
+		server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		}))
+		DeferCleanup(server.Close)
+		trustedDir := GinkgoT().TempDir()
+		Expect(os.WriteFile(filepath.Join(trustedDir, "ca.crt"), cert.EncodeCertPEM(server.Certificate()), 0600)).To(Succeed())
+		GinkgoT().Setenv(common.ImporterTrustedCADirVar, trustedDir)
+
+		client, err := createHTTPClient("", false)
+		Expect(err).NotTo(HaveOccurred())
+		response, err := client.Get(server.URL)
+		Expect(err).NotTo(HaveOccurred())
+		DeferCleanup(response.Body.Close)
+		Expect(response.StatusCode).To(Equal(http.StatusOK))
+	})
+})
+
 var _ = Describe("Http reader", func() {
 	It("should fail when passed an invalid cert directory", func() {
 		_, total, _, err := createHTTPReader(context.Background(), nil, "", "", "/invalid", nil, nil, cdiv1.DataVolumeKubeVirt, false)

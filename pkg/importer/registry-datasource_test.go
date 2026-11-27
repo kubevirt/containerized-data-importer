@@ -11,11 +11,37 @@ import (
 	"github.com/containers/image/v5/types"
 
 	cdiv1 "kubevirt.io/containerized-data-importer-api/pkg/apis/core/v1beta1"
+	"kubevirt.io/containerized-data-importer/pkg/common"
 )
 
 var (
 	imageFile = filepath.Join(imageDir, "registry-image.tar")
 )
+
+var _ = Describe("Registry trusted CA certificates", func() {
+	It("collects the trusted CA bundle from the configured directory", func() {
+		trustedDir := GinkgoT().TempDir()
+		name := filepath.Base(trustedDir) + ".crt"
+		data := []byte("configured trusted CA certificate")
+		Expect(os.WriteFile(filepath.Join(trustedDir, name), data, 0600)).To(Succeed())
+		GinkgoT().Setenv(common.ImporterTrustedCADirVar, trustedDir)
+
+		allCerts, err := CreateCertificateDir("")
+		Expect(err).NotTo(HaveOccurred())
+		target := filepath.Join(allCerts, "trusted-ca-"+name)
+		DeferCleanup(os.Remove, target)
+		copied, err := os.ReadFile(target)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(copied).To(Equal(data))
+	})
+
+	It("returns an error when the configured trusted CA directory is missing", func() {
+		GinkgoT().Setenv(common.ImporterTrustedCADirVar, filepath.Join(GinkgoT().TempDir(), "missing"))
+		_, err := CreateCertificateDir("")
+		Expect(err).To(HaveOccurred())
+		Expect(os.IsNotExist(err)).To(BeTrue())
+	})
+})
 
 var _ = Describe("Registry data source", func() {
 	var tmpDir string
@@ -44,6 +70,36 @@ var _ = Describe("Registry data source", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(ProcessingPhaseTransferScratch).To(Equal(result))
 	})
+
+	DescribeTable("collectCerts preserves certificates with colliding normalized names", func(prefix string) {
+		sourceDir := filepath.Join(tmpDir, "source")
+		targetDir := filepath.Join(tmpDir, "target")
+		Expect(os.Mkdir(sourceDir, 0700)).To(Succeed())
+		Expect(os.Mkdir(targetDir, 0700)).To(Succeed())
+		// Include a name that also collides with the first numeric suffix.
+		names := []string{"bundle.crt", "bundle.pem", "bundle-1.crt"}
+		for _, name := range names {
+			Expect(os.WriteFile(filepath.Join(sourceDir, name), []byte(name), 0600)).To(Succeed())
+		}
+
+		Expect(collectCerts(sourceDir, targetDir, prefix)).To(Succeed())
+		entries, err := os.ReadDir(targetDir)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(entries).To(HaveLen(len(names)))
+		var contents []string
+		for _, entry := range entries {
+			Expect(entry.Name()).To(HavePrefix(prefix))
+			Expect(filepath.Ext(entry.Name())).To(Equal(".crt"))
+			data, err := os.ReadFile(filepath.Join(targetDir, entry.Name()))
+			Expect(err).NotTo(HaveOccurred())
+			contents = append(contents, string(data))
+		}
+		Expect(contents).To(ConsistOf(names))
+	},
+		Entry("for registry certificates", ""),
+		Entry("for proxy certificates", "proxy-"),
+		Entry("for trusted CA certificates", "trusted-ca-"),
+	)
 
 	DescribeTable("Transfer should ", func(ep, accKey, secKey, certDir, scratchPath string, insecureRegistry bool, wantErr bool) {
 		if scratchPath == "" {

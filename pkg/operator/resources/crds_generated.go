@@ -455,6 +455,11 @@ spec:
                         - Custom
                         type: string
                     type: object
+                  trustedCA:
+                    description: TrustedCA is the name of a ConfigMap in the cdi namespace
+                      that contains a user-provided trusted certificate authority
+                      (CA) bundle.
+                    type: string
                   uploadProxyURLOverride:
                     description: Override the URL used when uploading to a DataVolume
                     type: string
@@ -3000,6 +3005,11 @@ spec:
                         - Custom
                         type: string
                     type: object
+                  trustedCA:
+                    description: TrustedCA is the name of a ConfigMap in the cdi namespace
+                      that contains a user-provided trusted certificate authority
+                      (CA) bundle.
+                    type: string
                   uploadProxyURLOverride:
                     description: Override the URL used when uploading to a DataVolume
                     type: string
@@ -5499,6 +5509,11 @@ spec:
                     - Custom
                     type: string
                 type: object
+              trustedCA:
+                description: TrustedCA is the name of a ConfigMap in the cdi namespace
+                  that contains a user-provided trusted certificate authority (CA)
+                  bundle.
+                type: string
               uploadProxyURLOverride:
                 description: Override the URL used when uploading to a DataVolume
                 type: string
@@ -5652,6 +5667,11 @@ spec:
                 type: boolean
               scratchSpaceStorageClass:
                 description: The calculated storage class to be used for scratch space
+                type: string
+              trustedCA:
+                description: TrustedCA is the name of a ConfigMap in the cdi namespace
+                  that contains a user-provided trusted certificate authority (CA)
+                  bundle.
                 type: string
               uploadProxyCA:
                 description: UploadProxyCA is the certificate authority of the upload
